@@ -25,11 +25,9 @@ var results = [];   // current search hits
 var sel = -1;       // highlighted result index
 var searchTimer = null;
 
-// multi-collection routing. A collection IS its target path; the hash is
-// #<collection-path>/<tail> where tail is a doc name or "coverage". Empty
-// hash → the index. CUR is the collection currently in view.
-var COLLECTIONS = [];   // the registry: list of {path, docs} entries
-var CUR = '';           // current collection path (empty on the index)
+// single-repo routing: the hash is #<repo>/<tail> where tail is a doc name or
+// "coverage". CUR is the repo (set once at start).
+var CUR = '';           // the repo in view
 var CUR_SECTION = '';   // active coverage section (empty = whole collection)
 
 // the sidebar TOC always carries inline coverage signal per scoped node (a
@@ -37,31 +35,12 @@ var CUR_SECTION = '';   // active coverage section (empty = whole collection)
 var covSecByName = null;   // section-title -> summary {covered,total,status}; null = unloaded
 var covOverall = null;     // whole-collection {covered,total,drifted}; null = unloaded
 
-// collPath: a registry entry's identity. Entries are {name, docs, sources}
-// objects; `name` is the collection's key (the URL hash and ?c param), `docs`
-// and `sources` are resolved server-side. The browser keys off the name.
-function collPath(c) { return c.name; }
 
 // hashFor: the URL hash for a doc/coverage within the current collection.
 function hashFor(tail) { return '#' + CUR + (tail ? '/' + tail : ''); }
 // withC: scope a per-collection API url to the current collection. The hash
 // is client-only, so the collection path rides on the request as ?c=<path>.
 function withC(url) { return url; }  // BASE is already repo-scoped by the path
-// matchCollection: the registered collection whose path is a prefix of h
-// (longest wins; collections don't nest, so at most one matches meaningfully).
-function matchCollection(h, cols) {
-  var best = '';
-  cols.forEach(function (c) {
-    var p = collPath(c);
-    if ((h === p || h.indexOf(p + '/') === 0) && p.length > best.length) best = p;
-  });
-  return best;
-}
-// collLabel: the display name for a collection — its path's last segment.
-function collLabel(path) {
-  var segs = path.split('/').filter(Boolean);
-  return segs.length ? segs[segs.length - 1] : path;
-}
 
 // ---- helpers ----
 
@@ -320,22 +299,6 @@ function covFile(file) {
   if (!cov || !cov.files) return null;
   for (var i = 0; i < cov.files.length; i++) if (cov.files[i].file === file) return cov.files[i];
   return null;
-}
-// a block's identity for re-confirm: {doc, file, range}. Whole-file is "all".
-function blockOf(file, a) { return { doc: a.doc, file: file, range: a.to === 0 ? 'all' : (a.from + '-' + a.to) }; }
-// re-confirm freshness: tell the ship these blocks are verified; it re-hashes
-// each current span and re-pins. One block from a chip, or a batch from an
-// audit. The ship computes the mug — the browser only names the blocks.
-function confirmBlocks(blocks) {
-  return fetch(withC(BASE + '/confirm'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ blocks: blocks }) })
-    .then(function (r) { return r.ok ? r.json() : null; })
-    .catch(function () { return null; });
-}
-// re-confirm a whole section: the ship re-hashes its scope and re-pins it.
-function confirmSection(name) {
-  return fetch(withC(BASE + '/confirm'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sections: [name] }) })
-    .then(function (r) { return r.ok ? r.json() : null; })
-    .catch(function () { return null; });
 }
 // the ship's freshness verdict for one live block (by doc + file + range)
 function anchorStatus(doc, file, range) {
@@ -712,30 +675,6 @@ function onInput() {
 // The ship computes coverage and freshness from its mirror (mug hashes); the
 // browser only reads and renders. Heatmap source comes from /slice (HEAD).
 
-// the coverage target list: the DIRECTORIES we want documented. Editable and
-// persisted on the ship; the mirror (and so the file list) follows it.
-function loadTargets() {
-  return fetch(BASE + '/targets.json', { cache: 'no-store' })
-    .then(function (r) { return r.ok ? r.json() : []; })
-    .then(function (t) {
-      // entries are {path, docs} objects; docs is opaque to the browser but
-      // carried through so a save can't drop a target's handbook location.
-      return Array.isArray(t) ? t.filter(function (e) { return e && typeof e === 'object'; }) : [];
-    })
-    .catch(function () { return []; });
-}
-function saveTargets(list) {
-  return fetch(BASE + '/targets', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(list) }).catch(function () {});
-}
-function loadIgnore() {
-  return fetch(withC(BASE + '/ignore.json'), { cache: 'no-store' })
-    .then(function (r) { return r.ok ? r.json() : []; })
-    .then(function (t) { return Array.isArray(t) ? t : []; })
-    .catch(function () { return []; });
-}
-function saveIgnore(list) {
-  return fetch(BASE + '/ignore', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(list) }).catch(function () {});
-}
 
 // ── coverage file tree ──
 // nest the flat coverage file list into dirs, carrying covered/total up each
@@ -849,7 +788,6 @@ function coverageStyles() {
     '.cov-slices-lab{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:#9aa0a8;margin-right:2px}' +
     '.cov-slice{font:11px ui-monospace,monospace;padding:3px 9px;border-radius:12px;background:#eef6f0;color:#1a7f37;border:1px solid #d4e8db;cursor:pointer}' +
     '.cov-slice:hover{background:#e0efe6}.cov-slice.dr{background:#fff4e0;color:#9a6700;border-color:#f0dcae}' +
-    '.cov-reconfirm{font:11px ui-monospace,monospace;padding:3px 9px;border-radius:12px;background:#1f2328;color:#fff;border:1px solid #1f2328;cursor:pointer;margin-left:-2px}.cov-reconfirm:hover{background:#000}' +
     '.cov-src .ln[data-line]:hover{filter:brightness(0.97)}' +
     '.cov-src{margin:0;border:1px solid #eef0f3;border-radius:6px;overflow:auto;max-height:60vh}' +
     '.cov-src pre{margin:0;font:11.5px/1.5 ui-monospace,monospace}' +
@@ -874,12 +812,6 @@ function coverageStyles() {
     '.cov-scroll{overflow-y:auto;border:1px solid #f2f4f6;border-radius:6px;margin-bottom:4px}' +
     '.cov-scroll-t{max-height:20vh}.cov-scroll-f{max-height:48vh}' +
     '.cov-scroll .cov-row,.cov-scroll .cov-tgt{padding-left:8px;padding-right:8px}' +
-    '.cov-coll{display:flex;align-items:center;gap:12px;padding:14px 14px;border:1px solid #eef0f3;border-radius:8px;margin:0 0 8px;cursor:pointer;background:#fff}' +
-    '.cov-coll:hover{background:#fafbfc;border-color:#e2e7ee}' +
-    '.cov-coll-main{flex:1;min-width:0}' +
-    '.cov-coll-name{font:13.5px -apple-system,sans-serif;font-weight:600;color:#1f2328}' +
-    '.cov-coll-path{font:11.5px ui-monospace,monospace;color:#8a929c;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px}' +
-    '.cov-coll-open{font-size:12px;color:#79808a;flex:0 0 auto}' +
     '.cov-secbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 16px}' +
     '.cov-secbar-lab{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:#9aa0a8;margin-right:2px}' +
     '.cov-secpill{font:12px -apple-system,sans-serif;padding:4px 11px;border-radius:13px;background:#fff;border:1px solid #e2e7ee;color:#57606a;cursor:pointer}' +
@@ -887,7 +819,6 @@ function coverageStyles() {
     '.cov-secname{font:13px ui-monospace,monospace;font-weight:600;color:#1f2328}' +
     '.cov-secwarn{display:flex;align-items:center;gap:12px;padding:9px 12px;margin:0 0 16px;background:#fff8ec;border:1px solid #f0dcae;border-radius:8px;font-size:12.5px;color:#9a6700}' +
     '.cov-secwarn-txt{flex:1}' +
-    '.cov-secwarn-btn{font:12px -apple-system,sans-serif;padding:4px 11px;border-radius:8px;background:#9a6700;color:#fff;border:none;cursor:pointer;flex:0 0 auto}.cov-secwarn-btn:hover{background:#7a5200}' +
     '.cov-tabs{display:flex;gap:2px;border-bottom:1px solid #eceef1;margin:0 0 14px}' +
     '.cov-tab{font:12px -apple-system,sans-serif;color:#79808a;background:none;border:none;border-bottom:2px solid transparent;padding:7px 12px;margin-bottom:-1px;cursor:pointer}' +
     '.cov-tab:hover{color:#1f2328}.cov-tab.on{color:#1f2328;font-weight:600;border-bottom-color:#1f2328}' +
@@ -942,15 +873,6 @@ function renderHeatmap(f) {
     chip.title = 'go to this block in ' + a.doc;
     (function (an) { var rs = an.to === 0 ? 'all' : (an.from + '-' + an.to); chip.onclick = function () { goToDoc(an.doc, f.file, rs); }; })(a);
     slices.appendChild(chip);
-    if (a.status === 'drifted') {
-      var rc = el('span', 'cov-reconfirm', 're-confirm');
-      rc.title = 'the code changed since this was pinned; if the prose still holds, re-pin at the current version';
-      (function (an) { rc.onclick = function (e) {
-        e.stopPropagation(); rc.textContent = '…';
-        confirmBlocks([blockOf(f.file, an)]).then(function () { closeHeatmapModal(); renderCoverage(); });
-      }; })(a);
-      slices.appendChild(rc);
-    }
   });
   wrap.appendChild(slices);
   // in-scope line set — when a section scopes this file to certain ranges, we
@@ -1120,8 +1042,8 @@ function renderCoverage() {
   coverageStyles();
   var root = el('div', 'cov');
   root.appendChild(el('h1', null, 'Coverage'));
-  root.appendChild(el('p', 'sub', 'Each documented section and how much of the code it covers — measured on the ship against the mirrored sources.'));
-  var srcs = collSources();
+  root.appendChild(el('p', 'sub', 'Each documented section and how much of the code it covers — measured against the repo at HEAD, each block at its pinned commit.'));
+  var srcs = [];
   var tgt = el('div', 'cov-target');
   tgt.appendChild(el('span', 'cov-target-lab', srcs.length === 1 ? 'Source' : 'Sources'));
   if (!srcs.length) tgt.appendChild(el('span', 'cov-target-path', CUR || '(none)'));
@@ -1149,12 +1071,6 @@ function renderCoverage() {
   });
 }
 
-// the tagged source roots of the collection in view (from the registry), so
-// the coverage page names what it spans rather than just the collection.
-function collSources() {
-  var col = COLLECTIONS.filter(function (c) { return collPath(c) === CUR; })[0];
-  return (col && col.sources) || [];
-}
 
 // does this nav node, or anything under it, declare a coverage scope?
 function hasScopedDescendant(node) {
@@ -1300,10 +1216,7 @@ function renderSection(name) {
     }
     if (c.section && c.section.status === 'drifted') {
       var warn = el('div', 'cov-secwarn');
-      warn.appendChild(el('span', 'cov-secwarn-txt', '⟳ ' + name + ' changed since it was last confirmed — worth a re-audit'));
-      var rcs = el('button', 'cov-secwarn-btn', 're-confirm section');
-      rcs.onclick = function () { rcs.textContent = '…'; confirmSection(name).then(function () { renderSection(name); }); };
-      warn.appendChild(rcs);
+      warn.appendChild(el('span', 'cov-secwarn-txt', '⟳ ' + name + ' changed since its blocks were pinned — worth a re-audit; re-pin in the page source when the prose still holds'));
       body.appendChild(warn);
     }
     var hdr = el('div', 'cov-files-hdr');
@@ -1347,40 +1260,6 @@ function loadNav() {
     .then(function () { leaves = collectLeaves(tree, []); showNav(); });
 }
 
-// the index / main page: every registered collection and the tagged sources it
-// documents. The registry is curated (hand-authored targets.json), so this
-// reads it rather than editing it.
-function renderIndex() {
-  CUR = '';
-  markActive(null);
-  NAV.innerHTML = '';
-  DOC.innerHTML = '';
-  clearOnThisPage();
-  coverageStyles();
-  var root = el('div', 'cov');
-  root.appendChild(el('h1', null, 'Documentation'));
-  root.appendChild(el('p', 'sub', 'Each collection is a handbook and the coverage of the sources it documents. Open one to read it.'));
-  var body = el('div', null); root.appendChild(body);
-  DOC.appendChild(root);
-  loadTargets().then(function (cols) {
-    COLLECTIONS = cols;
-    body.appendChild(el('h3', 'cov-sec', 'Collections'));
-    if (!cols.length) { body.appendChild(el('div', 'cov-secsub', 'No collections registered.')); return; }
-    var list = el('div', 'cov-scroll');
-    cols.forEach(function (c) {
-      var name = collPath(c);
-      var row = el('div', 'cov-coll');
-      var main = el('div', 'cov-coll-main');
-      main.appendChild(el('div', 'cov-coll-name', name));
-      var srcs = (c.sources || []).map(function (s) { return s.tag + ' → ' + s.path; }).join('   ');
-      main.appendChild(el('div', 'cov-coll-path', srcs || '(no sources)'));
-      row.append(main, el('span', 'cov-coll-open', 'Open ›'));
-      row.onclick = function () { location.hash = name; };
-      list.appendChild(row);
-    });
-    body.appendChild(list);
-  });
-}
 
 // single-repo routing: the hash is #<repo>/<tail> (tail = a doc path, or
 // "coverage" / "coverage/<section>"). No collection index — this reader is
@@ -1393,9 +1272,126 @@ function routeTail() {
   else openDoc(tail || (leaves[0] && leaves[0].path));
 }
 
+// ---- the handbook chat: the repo's clanker, in its own pane ----
+// forge answers /chat with where the repo clanker's `docs` chat log lives
+// (making the clanker and the chat if missing), or null when no clanker
+// app is installed. The pane is clanker's viewer.js, the same script the
+// explorer mounts on a chat-log, loaded from clanker's route and mounted
+// here with the same {url, args} the explorer would hand it.
+// The pane lives in a <float-window> (the shared /lib/ui component, bundled
+// in components.js): draggable, resizable, snappable. The host element is
+// built once and moved into a fresh window on each open, so the mounted
+// pane (and what it shows) survives close and reopen; each open starts at
+// the default geometry, docked bottom-right.
+var chatInfo = null, chatHandle = null, chatWin = null;
+var CHAT_TOGGLE = document.getElementById('chat-toggle');
+var CHAT_HOST = document.createElement('div');
+CHAT_HOST.id = 'chat-host';
+var CHAT_DEF = { w: 460, h: 620 };
+// docked bottom-right, sitting ABOVE the launcher (46px tall at bottom:22)
+function chatDefaultPos() {
+  var rightGap = 22, bottomGap = 88;
+  return {
+    x: Math.max(22, window.innerWidth - CHAT_DEF.w - rightGap),
+    y: Math.max(22, window.innerHeight - CHAT_DEF.h - bottomGap),
+  };
+}
+function makeChatWindow() {
+  var w = document.createElement('float-window');
+  w.setAttribute('title', (REPO || 'repo') + ' handbook chat');
+  w.setAttribute('icon', '◆');
+  var p = chatDefaultPos();
+  w.setAttribute('x', p.x + 'px');
+  w.setAttribute('y', p.y + 'px');
+  w.setAttribute('width', CHAT_DEF.w);
+  w.setAttribute('height', CHAT_DEF.h);
+  w.setAttribute('min-width', 320);
+  w.setAttribute('min-height', 320);
+  w.appendChild(CHAT_HOST);
+  // keep the launcher's active state honest when the window is closed or
+  // minimized from its own titlebar rather than the launcher
+  w.addEventListener('fw-close', function () { chatWin = null; CHAT_TOGGLE.classList.remove('active'); });
+  w.addEventListener('fw-minimize', function (e) { if (e.detail && e.detail.minimized) CHAT_TOGGLE.classList.remove('active'); });
+  w.addEventListener('fw-focus', function () { CHAT_TOGGLE.classList.add('active'); });
+  return w;
+}
+function loadScript(src) {
+  return new Promise(function (res, rej) {
+    var s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = function () { rej(new Error('failed to load ' + src)); };
+    document.head.appendChild(s);
+  });
+}
+function chatProbe() {
+  return fetch(BASE + '/chat', { cache: 'no-store' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (info) { chatInfo = info && info.url ? info : null; CHAT_TOGGLE.hidden = !chatInfo; })
+    .catch(function () { chatInfo = null; CHAT_TOGGLE.hidden = true; });
+}
+// resolves once the pane is mounted (at once when it already is)
+function mountChat() {
+  if (chatHandle || !chatInfo) return Promise.resolve();
+  var info = chatInfo;
+  var ready = (window.Viewers && window.Viewers.chat) ? Promise.resolve() : loadScript(info.viewer);
+  return ready.then(function () {
+    var v = window.Viewers && window.Viewers.chat;
+    if (!v) throw new Error('no chat pane');
+    chatHandle = v.mount(CHAT_HOST, { url: info.url, args: { proj: info.proj, chat: info.chat } }) || { destroy: function () {} };
+  }).catch(function (e) {
+    CHAT_HOST.innerHTML = '';
+    var d = document.createElement('div'); d.className = 'chat-none'; d.textContent = 'The chat pane could not load: ' + e.message;
+    CHAT_HOST.appendChild(d);
+  });
+}
+// the cursor in the input, the transcript at its end. Moving the host into
+// a fresh window resets its scroll, so a reopen has to scroll it back down.
+function focusChat() {
+  var log = CHAT_HOST.querySelector('.log');
+  if (log) log.scrollTop = log.scrollHeight;
+  var ta = CHAT_HOST.querySelector('textarea');
+  if (ta) ta.focus();
+}
+function chatIsOpen() {
+  return !!(chatWin && chatWin.isConnected && !chatWin.hasAttribute('minimized'));
+}
+function openChat() {
+  if (!customElements.get('float-window')) {
+    alertNoWindow();
+    return;
+  }
+  if (chatWin) chatWin.remove();
+  chatWin = makeChatWindow();
+  document.body.appendChild(chatWin);
+  if (chatWin.raise) chatWin.raise();
+  CHAT_TOGGLE.classList.add('active');
+  mountChat().then(function () { setTimeout(focusChat, 60); });
+}
+function closeChat() {
+  if (chatWin) { chatWin.remove(); chatWin = null; }
+  CHAT_TOGGLE.classList.remove('active');
+}
+function toggleChat(force) {
+  var open = typeof force === 'boolean' ? force : !chatIsOpen();
+  if (open) openChat(); else closeChat();
+}
+// components.js failed to define the window: say so instead of nothing
+function alertNoWindow() {
+  var d = document.createElement('div');
+  d.className = 'chat-none';
+  d.textContent = 'The chat window component did not load (components.js).';
+  d.style.cssText = 'position:fixed;right:22px;bottom:22px;background:#fff;border:1px solid var(--line);border-radius:10px;z-index:30';
+  document.body.appendChild(d);
+  setTimeout(function () { d.remove(); }, 4000);
+}
+CHAT_TOGGLE.addEventListener('click', function () { toggleChat(); });
+document.addEventListener('keydown', function (e) {
+  if ((e.metaKey || e.ctrlKey) && (e.key === 'j' || e.key === 'J') && !CHAT_TOGGLE.hidden) { e.preventDefault(); toggleChat(); }
+});
+
 function start() {
   wireSidebarCollapse();
   CUR = REPO;
+  document.title = REPO ? REPO + ' docs' : 'Docs';
+  chatProbe();
   var hl = document.getElementById('home-link');
   if (hl) hl.href = '/grubbery/forge/repo/' + REPO;
   loadNav().then(routeTail);

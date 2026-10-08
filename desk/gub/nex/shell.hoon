@@ -2966,7 +2966,7 @@
 ++  read-app-tiles
   =/  m  (fiber:fiber:nexus ,(list [tile path]))
   ^-  form:m
-  ;<  roots=(list path)  bind:m  app-roots
+  ;<  roots=(list path)  bind:m  all-app-roots
   =|  acc=(list [tile path])
   |-  ^-  form:m
   ?~  roots  (pure:m (flop acc))
@@ -3038,6 +3038,19 @@
     %+  turn  ~(tap in ~(key by dir.ball.sv))
     |=(sub=@ta /apps/'shell.shell'/desks/[i.desks]/desk/data/[sub])
   $(desks t.desks, out (weld subs out))
+::  +all-app-roots: built-ins (every direct child of /apps) PLUS user desks.
+::  Only the tile reader uses this — a home-page tile is benign UI, so built-in
+::  apps (forge, …) surface theirs too; the discovery/approval machinery stays
+::  desks-only (+app-roots).
+++  all-app-roots
+  =/  m  (fiber:fiber:nexus ,(list path))
+  ^-  form:m
+  ;<  av=view:nexus  bind:m  (peek-shallow:io [%& %| /apps] ~)
+  =/  builtins=(list path)
+    ?.  ?=([%ball *] av)  ~
+    (turn ~(tap in ~(key by dir.ball.av)) |=(k=@ta /apps/[k]))
+  ;<  desks=(list path)  bind:m  app-roots
+  (pure:m (weld builtins desks))
 ::  +read-app-aliases: scan every app root (descending desks) for its
 ::  link.json, building @name -> menu options. Each root is a nexus; its
 ::  option path is the nexus root. `name` may be a string or a list of
@@ -3577,13 +3590,29 @@
   =/  want=(set path)  (silt (turn entries |=([nm=@t *] (link-dir nm))))
   |-  ^-  form:m
   ?~  entries
-    ::  cull pass: drop /sys/link dirs whose link no longer has any claimant
+    ::  cull pass: drop /sys/link dirs whose link no longer has any claimant.
+    ::  Only names the SHELL registered, i.e. whose lanes point into its
+    ::  desks: the built-ins' names are root.hoon's seeds, pointing at
+    ::  /apps/<app>, and a name claimed by anything outside the desks tree
+    ::  is not ours to remove. (Culling them here was what emptied /sys/link
+    ::  of @github/@forge/… on every sweep and broke every clone.)
     ;<  bv=view:nexus  bind:m  (peek-shallow:io [%& %| /sys/link] ~)
     ?.  ?=([%ball *] bv)  (pure:m ~)
     =/  haves=(list @ta)  ~(tap in ~(key by dir.ball.bv))
+    =/  desks-root=path  /apps/'shell.shell'/desks
     |-  ^-  form:m
     ?~  haves  (pure:m ~)
     ?:  (~(has in want) /sys/link/[i.haves])  $(haves t.haves)
+    ;<  cur=view:nexus  bind:m  (peek:io [%& %& /sys/link/[i.haves] %'dest.lanes'] `[/ %lanes])
+    =/  lanes=(list lane:tarball)
+      ?.  ?=([%file *] cur)  ~
+      (fall (mole |.(!<((list lane:tarball) (need-vase:tarball sang.cur)))) ~)
+    =/  ours=?
+      %+  levy  lanes
+      |=  l=lane:tarball
+      ?.  ?=(%| -.l)  %.n
+      =((scag (lent desks-root) p.l) desks-root)
+    ?.  ours  $(haves t.haves)
     ;<  *  bind:m  (cull-soft:io [%& %| /sys/link/[i.haves]])
     $(haves t.haves)
   =/  road=road:tarball  (link-road nm.i.entries)

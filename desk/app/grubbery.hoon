@@ -4595,8 +4595,22 @@
         bask.p.make
       =/  src=(each vase tang)  (validate-noun path.dest-rail p.bask.p.make q.bask.p.make)
       ?:  ?=(%| -.src)  ~|("make: source validation failed" (mean p.src))
-      =/  =tube:clay  (get-tube path.dest-rail [p.bask.p.make u.blot.p.make])
-      [u.blot.p.make q:(tube p.src)]
+      ::  a REQUESTED conversion must succeed, and its result must be a
+      ::  valid noun of the target blot, or the make fails and the poke
+      ::  nacks: the caller asked for a typed grub and gets one or an
+      ::  error. (Storing the raw result "unvalidated" here left a grub
+      ::  that boomed on every read, with only a dojo line to say so.)
+      =/  from=tape  (spud (rail-to-path:tarball p.bask.p.make))
+      =/  to=tape  (spud (rail-to-path:tarball u.blot.p.make))
+      =/  what=tape  (spud (snoc path.dest-rail name.dest-rail))
+      =/  conv=(each vase tang)
+        (mule |.(((get-tube path.dest-rail [p.bask.p.make u.blot.p.make]) p.src)))
+      ?:  ?=(%| -.conv)
+        ~|("make: no conversion from {from} to {to} for {what}" (mean p.conv))
+      =/  chk=(each vase tang)  (validate-noun path.dest-rail u.blot.p.make q.p.conv)
+      ?:  ?=(%| -.chk)
+        ~|("make: conversion from {from} to {to} gave an invalid {to} for {what}" (mean p.chk))
+      [u.blot.p.make q.p.conv]
     ::  Validate the bask before storing — but a validation failure (a bad
     ::  noun, or no marc for this blot) must NEVER drop the write. +record
     ::  stores the raw noun regardless and a read surfaces the boom lazily,

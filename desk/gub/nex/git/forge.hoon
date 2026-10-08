@@ -38,6 +38,10 @@
 /&  tabgroup-js  /lib/ui/tab-group.js
 /&  treeview-js  /lib/ui/tree-view.js
 /&  filetable-js  /lib/ui/file-table.js
+::  the floating window the docs reader's handbook chat lives in; the
+::  manager publishes window.floatwm and MUST precede float-window
+/&  windowmgr-js  /lib/ui/window-manager.js
+/&  floatwin-js   /lib/ui/float-window.js
 ::  shared classic helpers — the FileView editor (and the FilePreview renderer
 ::  it leans on) reused from the explorer, loaded before app.js
 /&  fp-js       /lib/ui/file-preview.js
@@ -65,7 +69,7 @@
       =/  wrap  |=(=mime ^-(@ (rap 3 ~[123 10 q.q.mime 10 125 10])))
       =/  kit-js=mime
         :-  /application/javascript
-        (as-octs:mimes:html (rap 3 ~[(wrap modal-js) (wrap dropmenu-js) (wrap splitview-js) (wrap tabgroup-js) (wrap treeview-js) (wrap filetable-js)]))
+        (as-octs:mimes:html (rap 3 ~[(wrap modal-js) (wrap dropmenu-js) (wrap splitview-js) (wrap tabgroup-js) (wrap treeview-js) (wrap filetable-js) (wrap windowmgr-js) (wrap floatwin-js)]))
       %+  spin:loader  ball
       :~  (manifest:loader 0)
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
@@ -205,6 +209,75 @@
               (peek-as:io (nex-road:io rail [%& /repos/[repo]/data/ui %'docs-covstate']) ,cov-state:dc)
             ?:  |(?=(~ nav) ?=(~ cs))  (send-json rail eyre-id ~)
             (send-json rail eyre-id (render-coverage:dc u.cs u.nav sec %.y))
+            ::  /chat → the repo's clanker (its agent, in the clanker collection
+            ::  at forge/<repo>.clanker: bundle "repo", tools that read this
+            ::  checkout, a weir reaching the working tree) and the `docs` chat
+            ::  on it with the handbook prompt, made if missing. Answers where
+            ::  that chat's log lives, so the reader mounts clanker's own chat
+            ::  pane on it. null when no clanker is installed (the panel is
+            ::  then simply absent).
+              [%chat ~]
+            ;<  cl=(unit lane:tarball)  bind:m  (resolve-link:io '@clanker')
+            ?.  ?=([~ %| *] cl)  (send-json rail eyre-id ~)
+            ;<  fo=(unit lane:tarball)  bind:m  (resolve-link:io '@forge')
+            ?.  ?=([~ %| *] fo)  (send-json rail eyre-id ~)
+            =/  short=@t  (crip (scag (sub (lent (trip repo)) 9) (trip repo)))
+            =/  tree=@t  (spat (weld p.u.fo /repos/[repo]/data/tree))
+            =/  ui=@t  (spat (weld p.u.fo /repos/[repo]/data/ui))
+            ::  the clanker reads the working tree (repo) and the data nexus's
+            ::  docs cache (ui: docs-blocks.json, what docs_page expands from)
+            =/  ensure=json
+              %-  pairs:enjs:format
+              :~  ['action' s+'ensure']
+                  ['parent' s+'/forge']
+                  ['name' s+short]
+                  ['bundle' s+'repo']
+                  ['system' s+(repo-clanker-prompt short tree)]
+                  ['repo' s+tree]
+                  ['config' (pairs:enjs:format ~[['ui' s+ui]])]
+                  ['roads' (pairs:enjs:format ~[['peek' a+~[s+(cat 3 tree '/') s+(cat 3 ui '/')]]])]
+                  ['chat' s+'docs']
+                  ['chat_system' s+docs-chat-prompt]
+              ==
+            ::  Robust to the clanker app being absent, stale, or old: no link
+            ::  → null above; a link whose nexus is gone or predates main.sig
+            ::  → the peek finds no file → null; a poke that never packs →
+            ::  the deadline → null. Forge never waits on the clanker app.
+            =/  sig=road:tarball  [%& %& p.u.cl %'main.sig']
+            ;<  sv=(unit view:nexus)  bind:m  (peek-soft:io sig ~)
+            ?.  ?=([~ %file *] sv)  (send-json rail eyre-id ~)
+            ;<  res=(unit (unit tang))  bind:m
+              %^  (with-timeout:io ,(unit tang))  /clanker-ensure  ~s15
+              (poke-soft:io sig [/ %json] ensure)
+            ?.  ?=([~ ~] res)  (send-json rail eyre-id ~)
+            %^  send-json  rail  eyre-id
+            %-  pairs:enjs:format
+            :~  ['proj' s+(crip "/forge/{(trip short)}.clanker")]
+                ['chat' s+'docs']
+                ['url' s+(crip "/grubbery/ball{(spud p.u.cl)}/projects/forge/{(trip short)}.clanker/chats/docs/log.chat-log")]
+                ['viewer' s+'/grubbery/clanker/viewer.js']
+            ==
+            ::  /search?q= → full-text search over this repo's handbook pages,
+            ::  the shell docs' search bar: the ship greps the checkout's
+            ::  .grubbery/docs pages, answers hits as {path, title, snippet};
+            ::  the browser never loads the corpus, only what it clicks.
+              [%search ~]
+            =/  q=@t  (fall (quay-get args 'q') '')
+            =/  qlow=tape  (cass (trip q))
+            ?:  =(~ qlow)  (send-json rail eyre-id [%a ~])
+            ;<  nav=(unit json)  bind:m
+              (peek-as:io (nex-road:io rail [%& /repos/[repo]/data/ui %'docs-nav.json']) ,json)
+            =/  items=(list [path=@t title=@t])  ?~(nav ~ (nav-items:dc u.nav))
+            =|  hits=(list json)
+            |-  ^-  form:m
+            ?~  items  (send-json rail eyre-id [%a (flop hits)])
+            ;<  txt=@t  bind:m  (docs-page rail repo `path`~[%'.grubbery' %docs] path.i.items)
+            =/  snip=(unit @t)  (docs-find-snippet txt q)
+            =/  tmatch=?  !=(~ (find qlow (cass (trip title.i.items))))
+            =?  hits  |(?=(^ snip) tmatch)
+              =/  s=@t  ?~(snip title.i.items u.snip)
+              [(docs-hit path.i.items title.i.items s) hits]
+            $(items t.items)
             ::  a handbook page as {markdown, blocks}: the raw .md from the
             ::  checkout at .grubbery/docs/<page>, plus its live blocks already
             ::  resolved (lines at the pinned commit, short commit, status) from
@@ -384,6 +457,51 @@
   ?:  (gth from hi)  ~
   `(swag [(dec from) +((sub hi from))] lines)
 ::  +docs-page: a handbook page's raw markdown, read from the checkout.
+::  the repo clanker's standing prompt, and the docs chat's own. The
+::  clanker is one identity per repo; a chat is one role of it.
+++  repo-clanker-prompt
+  |=  [short=@t tree=@t]
+  ^-  @t
+  %-  crip
+  """
+  You are the agent for the git repository "{(trip short)}", kept in this
+  ship's forge. Its working tree (the checkout of the current branch) is
+  at {(trip tree)} and your repo tools read it: repo_list to see a
+  directory, repo_read to read a file, repo_grep to search; paths are
+  relative to the repo root, like "lib/foo.hoon". Read before you answer;
+  name the files and lines you relied on. Your own directory (memories,
+  skills) is yours to keep notes in. You cannot change the repo.
+  """
+++  docs-chat-prompt
+  ^-  @t
+  '''
+  This chat is about the repository's handbook, the pages under
+  .grubbery/docs (docs.json is its table of contents: nav, with each
+  page's path). Read pages with docs_page, which shows them as a reader
+  sees them: each live code block expanded to the lines it cites at
+  their pinned commit, marked fresh, drifted or gone against HEAD. Say
+  when a block you relied on has drifted. Answer from those pages and
+  the code they cite; say which page, and say plainly when the handbook
+  does not cover something rather than guessing. Prefer short answers
+  with a pointer over long ones.
+  '''
+::  +docs-find-snippet: the first line of a page containing the query,
+::  case-insensitive, clipped — the search result's one line of context
+++  docs-find-snippet
+  |=  [text=@t q=@t]
+  ^-  (unit @t)
+  =/  ql=tape  (cass (trip q))
+  =/  lines=(list @t)  (to-wain:format text)
+  |-  ^-  (unit @t)
+  ?~  lines  ~
+  ?.  =(~ (find ql (cass (trip i.lines))))
+    `(crip (scag 200 (trip i.lines)))
+  $(lines t.lines)
+::  +docs-hit: one search result as the reader expects it
+++  docs-hit
+  |=  [p=@t t=@t snip=@t]
+  ^-  json
+  (pairs:enjs:format ~[['path' s+p] ['title' s+t] ['snippet' s+snip]])
 ++  docs-page
   |=  [=rail:tarball repo=@ta prose=path page=@t]
   =/  m  (fiber:fiber:nexus ,@t)

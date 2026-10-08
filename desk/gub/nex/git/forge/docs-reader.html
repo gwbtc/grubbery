@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Grubbery Docs</title>
+<title>Docs</title>
+<link rel="icon" type="image/svg+xml" href="/grubbery/forge/icon.svg">
 <style>
   :root {
     --bg: #ffffff; --fg: #1a1a1a; --muted: #6b6b6b;
@@ -111,6 +112,23 @@
     backdrop-filter: blur(6px); border-bottom: 1px solid var(--line);
     display: flex; justify-content: flex-end; padding: 12px 40px;
   }
+  .chat-fab {
+    position: fixed; bottom: 22px; right: 22px; z-index: 50;
+    display: flex; align-items: center; gap: 8px;
+    height: 46px; padding: 0 18px 0 15px;
+    background: var(--accent, #3d3a45); color: #fff; border: none; border-radius: 23px;
+    font: 600 14px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    cursor: pointer; box-shadow: 0 6px 22px rgba(0,0,0,0.22);
+    transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+  }
+  .chat-fab[hidden] { display: none; }
+  .chat-fab:hover { transform: translateY(-1px); box-shadow: 0 9px 28px rgba(0,0,0,0.26); }
+  .chat-fab svg { width: 17px; height: 17px; transition: transform 0.14s ease; }
+  .chat-fab.active svg { transform: rotate(180deg); }
+  /* the chat pane fills the float-window's body edge to edge */
+  float-window::part(body) { padding: 0; display: flex; flex-direction: column; }
+  #chat-host { flex: 1; min-height: 0; display: flex; flex-direction: column; background: #fff; }
+  #chat-host .chat-none { padding: 24px 18px; color: var(--muted); font-size: 13px; line-height: 1.6; }
   #search-wrap { position: relative; width: 280px; }
   #search-input {
     width: 100%; background: #fff; border: 1px solid var(--line); border-radius: 8px;
@@ -240,11 +258,20 @@
     </nav>
     <main id="content" slot="end">
       <header id="topbar">
-        <div id="search-wrap" style="display:none">
+        <div id="search-wrap">
           <input id="search-input" type="text" placeholder="Search docs…  ⌘K" autocomplete="off" spellcheck="false">
           <ul id="search-results" class="hidden"></ul>
         </div>
       </header>
+      <!-- the handbook chat launcher: the shell docs' floating button -->
+      <button id="chat-toggle" class="chat-fab" title="Ask the repo's clanker about the handbook (⌘J)" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></svg>
+        <span>Ask the docs… &#8984;J</span>
+      </button>
+      <!-- the handbook chat: the repo's clanker (forge/<repo>.clanker in the
+           clanker collection), its `docs` chat, shown in clanker's OWN chat
+           pane (viewer.js) mounted in a <float-window> (draggable, resizable,
+           built on open by docs-reader.js). forge only says where the log is. -->
       <div id="doc-wrap">
         <article id="doc">
           <div class="doc-skeleton">

@@ -106,8 +106,12 @@
       (over:io road [[/ %mime] src-mime])
     (pure:m [%text (crip "Wrote {(trip file-path)}/{(trip file-name)}")])
   ::  New file: pass dest-blot so runtime converts mime before storing.
-  ::  If no blot specified, stores as mime.
-  ;<  ~  bind:m  (make:io road |+[[[/ %mime] src-mime] dest-blot])
+  ::  If no blot specified, stores as mime. A conversion the kernel can't
+  ::  make, or one whose result isn't a valid noun of the blot, nacks the
+  ::  make: that comes back here as the tool's error, not a dojo line.
+  ;<  err=(unit tang)  bind:m  (make-soft:io road |+[[[/ %mime] src-mime] dest-blot])
+  ?^  err
+    (pure:m [%error (crip "write failed: {(trip (of-wain:format (turn (flop u.err) |=(t=tank (crip (zing (wash [0 120] t)))))))}")])
   =/  blot-msg=tape  ?~(dest-blot "mime" (spud (rail-to-path:tarball u.dest-blot)))
   (pure:m [%text (crip "Created {(trip file-path)}/{(trip file-name)} [{blot-msg}]")])
 --
