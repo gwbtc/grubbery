@@ -39,10 +39,13 @@
 //
 //   KEYS (after the prefix): % or | split right · " or - split down ·
 //     x close (cursor leaf OR subtree) · z zoom cursor · c collapse cursor ·
-//     o cycle · space transpose with sibling · [ climb to parent subtree ·
+//     o cycle · m mark a swap target · space swap cursor with mark (content +
+//     state travel), or with sibling when no mark · [ climb to parent subtree ·
 //     ] descend · Tab sibling subtree · Esc reset cursor to active leaf ·
 //     h cycle highlight (full / active-ring-only / none) · 1-9 jump to pane · arrows move focus ·
-//     shift+arrows shift the boundary.
+//     shift+arrows shift the boundary · r enter resize. move and resize are
+//     "sticky" modes: after one, bare arrows repeat it (no prefix) until a
+//     non-arrow key or Esc exits — no timer.
 //
 //   CURSOR (structural selection, "paredit for panes"): selection is a NODE,
 //   leaf or split. climb/descend/sibling walk the tree; a split cursor outlines
@@ -83,6 +86,13 @@ const CSS = `
     border:3px solid var(--ps-sel,#8250df); box-sizing:border-box; border-radius:3px;
   }
   .ps-sel-box.on { display:block; }
+  /* the mark (pending swap target) — amber dashed, distinct from the purple
+     selection box. */
+  .ps-mark-box {
+    position:absolute; pointer-events:none; z-index:19; display:none;
+    border:3px dashed var(--ps-mark,#bf8700); box-sizing:border-box; border-radius:3px;
+  }
+  .ps-mark-box.on { display:block; }
   .ps-pane.ps-dim { opacity:.4; transition:opacity .1s; }
   /* zoom: the maximized pane is relocated here, over everything */
   pane-split.ps-zoomed > :not(.ps-zoom-layer) { display:none !important; }
@@ -105,6 +115,9 @@ function ensureStyle() {
 }
 
 let SEQ = 0;
+
+const DIR = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' };
+const MODS = { Shift: 1, Control: 1, Alt: 1, Meta: 1 };
 
 class PaneSplit extends HTMLElement {
   leafFactory = null;
@@ -129,6 +142,9 @@ class PaneSplit extends HTMLElement {
     this.#selBox = document.createElement('div');
     this.#selBox.className = 'ps-sel-box';
     this.appendChild(this.#selBox);
+    this.#markBox = document.createElement('div');
+    this.#markBox.className = 'ps-mark-box';
+    this.appendChild(this.#markBox);
     this.addEventListener('keydown', this.#onKey);
     // keep the selection box glued to its subtree while a divider is dragged
     this.addEventListener('sv-resize', this.#reposition);
@@ -143,7 +159,13 @@ class PaneSplit extends HTMLElement {
   }
 
   #selBox = null;
-  #reposition = () => { if (this.#cursor && this.#cursor.kind === 'split') this.#placeSelBox(this.#cursor); };
+  #markBox = null;
+  #mark = null;           // pending swap target (a node), set with Ctrl-B m
+  #repeat = null;         // 'resize' | 'move' — sticky mode: bare arrows repeat until a non-arrow key / Esc
+  #reposition = () => {
+    if (this.#selLevel >= 2 && this.#cursor && this.#cursor.kind === 'split' && !this.#hidden(this.#cursor)) this.#placeBox(this.#selBox, this.#cursor);
+    this.#renderMark();
+  };
 
   get activeId() { return this.#activeId; }
   get leafIds() { const out = []; walkLeaves(this.#root, l => out.push(l.id)); return out; }
@@ -227,6 +249,7 @@ class PaneSplit extends HTMLElement {
     node = node ?? this.#cursor;
     if (!node) return;
     if (this.#zoom) this.zoomToggle();                     // never close while zoomed
+    if (this.#mark && (this.#mark === node || this.#isAncestor(node, this.#mark))) this.#mark = null;
     const parent = node.parent;
     walkLeaves(node, l => this.#destroyLeaf(l));            // tear down every leaf under it
 
@@ -298,25 +321,33 @@ class PaneSplit extends HTMLElement {
     if (this.#selLevel >= 2 && sel && sel.kind === 'split' && !this.#hidden(sel)) {
       const inSel = new Set(); walkLeaves(sel, l => inSel.add(l));
       for (const l of this.#leaves.values()) if (!inSel.has(l)) l.dom.classList.add('ps-dim');
-      this.#placeSelBox(sel);
+      this.#placeBox(this.#selBox, sel);
     } else {
       this.#selBox?.classList.remove('on');
       const al = this.#leaves.get(this.#activeId);   // active-leaf ring (level >= 1)
       if (this.#selLevel >= 1 && al && !this.#hidden(al)) al.dom.classList.add('ps-active');
     }
+    this.#renderMark();
   }
 
-  // position the overlay box over a subtree's bounding rect (container-relative)
-  #placeSelBox(node) {
-    if (!this.#selBox) return;
+  // position an overlay box over a node's bounding rect (container-relative)
+  #placeBox(box, node) {
+    if (!box) return;
     const cr = this.getBoundingClientRect();
     const r = node.dom.getBoundingClientRect();
-    const b = this.#selBox;
-    b.style.left = (r.left - cr.left) + 'px';
-    b.style.top = (r.top - cr.top) + 'px';
-    b.style.width = r.width + 'px';
-    b.style.height = r.height + 'px';
-    b.classList.add('on');
+    box.style.left = (r.left - cr.left) + 'px';
+    box.style.top = (r.top - cr.top) + 'px';
+    box.style.width = r.width + 'px';
+    box.style.height = r.height + 'px';
+    box.classList.add('on');
+  }
+
+  // the mark box shows wherever the marked node is (independent of the
+  // highlight level — it's a deliberate pending action), but not while zoomed.
+  #renderMark() {
+    if (!this.#markBox) return;
+    if (this.#mark && !this.#hidden(this.#mark) && !this.classList.contains('ps-zoomed')) this.#placeBox(this.#markBox, this.#mark);
+    else this.#markBox.classList.remove('on');
   }
 
   // is this node hidden behind a collapsed ancestor split? (it sits on the
@@ -406,11 +437,24 @@ class PaneSplit extends HTMLElement {
   }
 
   #onKey = (e) => {
+    // sticky repeat: after a resize/move, bare arrows keep going (no prefix).
+    if (this.#repeat && !this.#awaiting) {
+      if (MODS[e.key]) return;                             // Shift to resize — keep the window open
+      const d = DIR[e.key];
+      if (d) {
+        if (this.#repeat === 'resize' || e.shiftKey) this.nudge(d); else this.focusMove(d);
+        this.#arm(this.#repeat);
+        e.preventDefault(); e.stopPropagation();
+        return;
+      }
+      this.#endRepeat();                                   // any other key exits; fall through to normal handling
+      if (e.key === 'Escape') { e.preventDefault(); return; }
+    }
     if (!this.#awaiting) {
       const p = this.#prefix;
       if (e.key.toLowerCase() === p.key && e.ctrlKey === p.ctrl && e.metaKey === p.meta && e.altKey === p.alt) {
         this.#awaiting = true;
-        this.#flashHint('% split · " stack · c collapse · z zoom · x close · ␣ swap · [ ] climb/descend · Tab sibling · h highlight · 1-9 jump · ←↑↓→ move · ⇧←↑↓→ resize');
+        this.#flashHint('% split · " stack · c collapse · z zoom · x close · m mark · ␣ swap · [ ] climb/descend · Tab sibling · h highlight · 1-9 jump · ←↑↓→ move · ⇧←↑↓→ / r resize (then arrows repeat)');
         clearTimeout(this.#awaitTimer);
         this.#awaitTimer = setTimeout(() => { this.#awaiting = false; this.#flashHint(''); }, 2500);
         e.preventDefault(); e.stopPropagation();
@@ -424,7 +468,7 @@ class PaneSplit extends HTMLElement {
     if (k === 'Shift' || k === 'Control' || k === 'Alt' || k === 'Meta') { e.preventDefault(); return; }
     this.#awaiting = false; clearTimeout(this.#awaitTimer); this.#flashHint('');
     let handled = true;
-    const dir = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[k];
+    const dir = DIR[k];
     if (k === '%' || k === '|') this.splitRight();
     else if (k === '"' || k === '-') this.splitDown();
     else if (k === 'x') this.close();                      // close cursor (leaf or subtree)
@@ -432,14 +476,16 @@ class PaneSplit extends HTMLElement {
     else if (k === 'c') this.collapse();                   // collapse cursor within its split
     else if (k === 'h') { const lv = this.cycleHighlight(); this.#flashHint('highlight: ' + ['none', 'active only', 'full'][lv]); }
     else if (k === 'o') this.focusNext();
-    else if (k === ' ') this.swap();                       // transpose with sibling
+    else if (k === ' ') this.swap();                       // swap with mark, else sibling
+    else if (k === 'm') { const on = this.markToggle(); this.#flashHint(on ? 'marked — move the cursor, then space to swap' : 'mark cleared'); }
     else if (k === '[') this.climb();                      // select parent subtree
     else if (k === ']') this.descend();                    // descend into subtree
     else if (k === 'Tab') this.sibling();                  // jump to sibling subtree
     else if (k === 'Escape') this.escape();                // reset cursor to active leaf
     else if (k >= '1' && k <= '9') this.focusIndex(+k - 1); // jump to pane N
-    else if (dir && e.shiftKey) this.nudge(dir);           // shift the boundary
-    else if (dir) this.focusMove(dir);                     // move focus
+    else if (k === 'r') this.#arm('resize');               // enter sticky resize (then bare arrows)
+    else if (dir && e.shiftKey) { this.nudge(dir); this.#arm('resize'); }   // shift the boundary (repeatable)
+    else if (dir) { this.focusMove(dir); this.#arm('move'); }               // move focus (repeatable)
     else handled = false;
     if (handled) { e.preventDefault(); e.stopPropagation(); }
   };
@@ -461,15 +507,57 @@ class PaneSplit extends HTMLElement {
     parent.sv.setAttribute('size', Math.max(40, Math.round(cur + (grow ? 32 : -32))) + 'px');
   }
 
-  // swap the cursor node with its sibling (transpose — a simple rotate)
+  // mark the cursor node as a pending swap target (toggle). Returns true if a
+  // mark is now set. The mark's live state (content) travels on swap.
+  markToggle() {
+    this.#mark = (this.#mark === this.#cursor) ? null : this.#cursor;
+    this.#renderMark();
+    return !!this.#mark;
+  }
+  clearMark() { this.#mark = null; this.#renderMark(); }
+
+  // space: swap the cursor with the MARK if one is set (positions in the tree
+  // trade, so content + live state move); otherwise swap with the sibling.
   swap() {
-    const c = this.#cursor, p = c && c.parent;
+    const c = this.#cursor;
+    if (this.#mark && this.#mark !== c) {
+      if (this.#swapNodes(c, this.#mark)) { this.clearMark(); this.cursorTo(c); }
+      return;                                              // invalid pair → keep the mark, no-op
+    }
+    const p = c && c.parent;
     if (!p) return;
     [p.a, p.b] = [p.b, p.a];
     this.#place(p.a, p.sv, 'start');
     this.#place(p.b, p.sv, 'end');
     this.#render();
   }
+
+  // exchange two nodes' positions in the tree (each keeps its own content/state
+  // and travels to the other's slot). Illegal if one contains the other, or if
+  // either is the root.
+  #swapNodes(n1, n2) {
+    if (n1 === n2) return false;
+    const p1 = n1.parent, p2 = n2.parent;
+    if (!p1 || !p2) return false;
+    if (this.#isAncestor(n1, n2) || this.#isAncestor(n2, n1)) return false;
+    const s1 = n1.dom.getAttribute('slot'), s2 = n2.dom.getAttribute('slot');
+    if (p1.a === n1) p1.a = n2; else p1.b = n2;
+    if (p2.a === n2) p2.a = n1; else p2.b = n1;
+    n1.parent = p2; n2.parent = p1;
+    this.#place(n2, p1.sv, s1);
+    this.#place(n1, p2.sv, s2);
+    return true;
+  }
+
+  #isAncestor(a, b) { let n = b.parent; while (n) { if (n === a) return true; n = n.parent; } return false; }
+
+  // enter a sticky mode; no timer — bare arrows repeat until a non-arrow key or
+  // Esc exits. The hint stays up as the mode indicator so you always know.
+  #arm(kind) {
+    this.#repeat = kind;
+    this.#flashHint((kind === 'resize' ? 'resize' : 'move') + ': ←↑↓→  (any other key or Esc to exit)');
+  }
+  #endRepeat() { this.#repeat = null; this.#flashHint(''); }
 
   #flashHint(msg) {
     if (!this.#hint) return;

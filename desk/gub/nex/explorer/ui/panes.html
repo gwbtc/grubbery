@@ -63,9 +63,11 @@
         '<div class="id">' + id + '</div>' +
         '<div class="k">prefix <b>Ctrl-B</b>, then:<br>' +
         '% / | — split right · " / - — split down<br>' +
-        'c — collapse · z — zoom · x — close · space — swap<br>' +
+        'c — collapse · z — zoom · x — close<br>' +
+        'm — mark a pane, move cursor, space — swap into it (else sibling)<br>' +
         '[ — select parent subtree · ] — descend · Tab — sibling<br>' +
-        '1-9 — jump · ←↑↓→ — move focus · ⇧←↑↓→ — resize · Esc — reset<br>' +
+        '1-9 — jump · ←↑↓→ — move · ⇧←↑↓→ or r — resize<br>' +
+        'after move/resize, bare arrows repeat (any other key or Esc to stop)<br>' +
         'climb with [ to select a whole quadrant, then c / z / x act on it</div>';
       return el;
     }
