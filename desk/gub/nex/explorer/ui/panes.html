@@ -1,0 +1,103 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>panes (experimental)</title>
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <style>
+    html, body { height: 100%; margin: 0; }
+    body {
+      display: flex; flex-direction: column;
+      font: 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #24292f; background: #fff;
+    }
+    #bar {
+      flex: 0 0 auto; display: flex; align-items: center; gap: 6px;
+      padding: 8px 10px; border-bottom: 1px solid #e2e7ee; background: #f6f8fa;
+    }
+    #bar .sp { flex: 1; }
+    #bar b { font-size: 13px; color: #57606a; font-weight: 600; margin-right: 6px; }
+    #bar .tag { font-size: 11px; color: #953800; background: #fff1e5; border: 1px solid #ffd8b5; padding: 1px 6px; border-radius: 10px; }
+    button.b {
+      all: unset; cursor: pointer; padding: 5px 10px; border-radius: 7px;
+      font-size: 13px; color: #24292f; border: 1px solid #d0d7de; background: #fff;
+    }
+    button.b:hover { background: #eaeef2; }
+    label.chk { font-size: 12px; color: #57606a; display: inline-flex; align-items: center; gap: 4px; }
+    input#path { width: 320px; padding: 4px 8px; border: 1px solid #d0d7de; border-radius: 7px; font: 12px ui-monospace, Menlo, monospace; }
+    #host { flex: 1 1 auto; min-height: 0; }
+    /* dummy leaf content */
+    .demo { height: 100%; box-sizing: border-box; padding: 14px; font: 13px ui-monospace, Menlo, monospace; }
+    .demo .id { font-weight: 700; font-size: 20px; }
+    .demo .k { margin-top: 10px; color: #57606a; line-height: 1.6; font-size: 11px; }
+  </style>
+</head>
+<body>
+  <div id="bar">
+    <b>panes</b><span class="tag">experimental</span>
+    <button class="b" id="sr">Split →</button>
+    <button class="b" id="sd">Split ↓</button>
+    <button class="b" id="cl">Close ×</button>
+    <button class="b" id="zm">Zoom</button>
+    <span class="sp"></span>
+    <button class="b" id="hl">Highlight: full</button>
+    <label class="chk"><input type="checkbox" id="fvmode"> FileView leaves</label>
+    <input id="path" value="/grubbery/ball/apps/explorer.explorer/view.js" spellcheck="false">
+  </div>
+  <pane-split id="host"></pane-split>
+
+  <!-- kit.js bundles split-view + FileView + friends; pane-split rides on top -->
+  <script src="kit.js"></script>
+  <script src="pane-split.js"></script>
+  <script>
+    const host = document.getElementById('host');
+    const COLORS = ['#eef6ff', '#fff4ec', '#f0fff4', '#f7f0ff', '#fffbe6', '#f0fdff'];
+    let n = 0;
+
+    function dummyLeaf(id) {
+      const el = document.createElement('div');
+      el.className = 'demo';
+      el.style.background = COLORS[(n++) % COLORS.length];
+      el.innerHTML =
+        '<div class="id">' + id + '</div>' +
+        '<div class="k">prefix <b>Ctrl-B</b>, then:<br>' +
+        '% / | — split right · " / - — split down<br>' +
+        'c — collapse · z — zoom · x — close · space — swap<br>' +
+        '[ — select parent subtree · ] — descend · Tab — sibling<br>' +
+        '1-9 — jump · ←↑↓→ — move focus · ⇧←↑↓→ — resize · Esc — reset<br>' +
+        'climb with [ to select a whole quadrant, then c / z / x act on it</div>';
+      return el;
+    }
+
+    function fileViewLeaf(id) {
+      const el = document.createElement('div');
+      el.style.height = '100%';
+      const url = document.getElementById('path').value.trim();
+      try {
+        el._fv = window.FileView.mount(el, { url });
+      } catch (e) {
+        el.className = 'demo';
+        el.textContent = id + ': FileView failed — ' + e;
+      }
+      return el;
+    }
+
+    host.leafFactory = (id) => document.getElementById('fvmode').checked ? fileViewLeaf(id) : dummyLeaf(id);
+    host.onDestroy = (id, body) => { try { body.firstChild?._fv?.destroy?.(); } catch (_) {} };
+
+    host.seed();
+
+    document.getElementById('sr').onclick = () => { host.splitRight(); host.focus(host.activeId); };
+    document.getElementById('sd').onclick = () => { host.splitDown(); host.focus(host.activeId); };
+    document.getElementById('cl').onclick = () => host.close();
+    document.getElementById('zm').onclick = () => host.zoomToggle();
+    const HL = ['none', 'active only', 'full'];
+    document.getElementById('hl').onclick = () => { const lv = host.cycleHighlight(); document.getElementById('hl').textContent = 'Highlight: ' + HL[lv]; };
+
+    // keep keyboard working without clicking into a pane first
+    host.focus(host.activeId);
+    host.setAttribute('tabindex', '0');
+  </script>
+</body>
+</html>
