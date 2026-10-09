@@ -1598,18 +1598,19 @@
 ::
 ++  abet
   ::  restart-cap: how many times one fiber may (re)start within a single
-  ::  drain before it is parked. A fiber that fails on start is restarted
-  ::  at once with a fresh start take (both fields null), drained in this
-  ::  same loop; a deterministic failure - a dart the weir refused on an
-  ::  unapproved app, poison state, a poison timer - then loops forever
-  ::  inside one gall event, pegging the ship and answering nothing. The
-  ::  cap turns that infinite loop into a parked fiber and a finished
-  ::  event. 32 is far above any legitimate per-event restart count.
-  ::  A well-behaved fiber avoids the loop itself with +rise-wait /
-  ::  +rise-later (wait for a poke after a crash instead of re-running);
-  ::  this is the runtime backstop for one that does not, or gets it
-  ::  wrong. The permanent case - a crash on a refused dart - is parked
-  ::  on the first failure, in +process-do-next below.
+  ::  drain before it is banged instead. A fiber that fails on start is
+  ::  restarted at once with a fresh start take (both fields null),
+  ::  drained in this same loop; a deterministic failure - a dart a weir
+  ::  refused, poison state, a poison timer - then loops forever inside
+  ::  one gall event, pegging the ship and answering nothing. The cap
+  ::  turns that infinite loop into a banged fiber (no restart until the
+  ::  nexus reloads) and a finished event. 32 is far above any legitimate
+  ::  per-event restart count. A well-behaved fiber avoids the loop
+  ::  itself with +rise-wait / +rise-later (wait for a poke after a crash
+  ::  instead of re-running); this is the runtime backstop for one that
+  ::  does not, or gets it wrong. The permanent case - a crash on a
+  ::  refused dart - is banged on the first failure, in +process-do-next
+  ::  below.
   =/  restart-cap=@ud  32
   =|  spins=(map rail:tarball @ud)
   |-
@@ -1618,14 +1619,13 @@
   =^  [here=rail:tarball =take:fiber:nexus]  takes  ~(get to takes)
   =/  is-start=?  &(?=(~ give.take) ?=(~ in.take))
   ::  a fiber that has already (re)started restart-cap times this event is
-  ::  looping: park it (bang) instead of running it again, and drop this
-  ::  start take. A reload revives it - after its permits are granted, if
-  ::  a refused dart was the cause.
+  ::  looping: bang it instead of running it again, and drop this start
+  ::  take. A reload of its nexus restarts it.
   ?:  &(is-start (gte (~(gut by spins) here 0) restart-cap))
     =.  this
       %+  bang-file  here
-      :~  leaf+"fiber parked: restarted over {(scow %ud restart-cap)} times in one event"
-          leaf+"reload to retry (grant this app's permits first if a dart was refused)"
+      :~  leaf+"fiber crashed and restarted over {(scow %ud restart-cap)} times in one event; not restarting again"
+          leaf+"reload the nexus to retry"
       ==
     $
   =.  this  (process-take here take)
@@ -4476,19 +4476,20 @@
     ::  +mark-bang carries the pool's queues and the pool still holds the
     ::  pre-step snapshot with the take in it.
     =.  this  (store-proc here new-proc)
-    ::  A dart the weir refused is refused again on every retry, so a
-    ::  fiber that crashed consuming a %veto is a permanent loop, not a
+    ::  A dart a weir refused is refused again on every retry, so a fiber
+    ::  that crashed consuming a %veto is a permanent loop, not a
     ::  transient fault. The failing take is the head of `done`; if its
-    ::  input was a %veto, park the fiber (bang) instead of restarting.
-    ::  A reload after the app's permits are granted revives it. Every
-    ::  other failure still restarts as before.
+    ::  input was a %veto, bang the fiber instead of restarting, naming
+    ::  the refused dart. A reload of its nexus restarts it. Every other
+    ::  failure still restarts as before.
     =/  culprit=(unit pend:fiber:nexus)
       ?~  done  ~
       in.take.i.done
     ?:  ?=([~ %veto *] culprit)
       %+  bang-file  here
-      :~  leaf+"fiber parked: a dart was refused by the weir"
-          leaf+"grant this app's permits, then reload to retry"
+      :~  leaf+"fiber crashed on a dart a weir refused; not restarting (the dart would be refused again)"
+          leaf+"refused: {<dart.u.culprit>}"
+          leaf+"a reload of the nexus restarts it"
       ==
     =/  spool-got  (build-spool here)
     =/  spool-res=(each spool:fiber:nexus tang)
@@ -7951,7 +7952,7 @@
 ::  same wire the keen did — the service records every keen's wire in
 ::  scry-state (see +handle-scry-keen) and replays %yawn on each wire
 ::  the yawning grub holds at that spar. Other grubs' keens at the
-::  same spar stay parked: the longpoll pattern has many grubs waiting
+::  same spar stay waiting: the longpoll pattern has many grubs waiting
 ::  on one name, and a by-spar %wham would cancel them all (PR #44's
 ::  interim fix). %wham remains only as the fallback when bookkeeping
 ::  has no record — better a broad cancel than a keen that

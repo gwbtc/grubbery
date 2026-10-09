@@ -233,22 +233,48 @@
             ;<  fo=(unit lane:tarball)  bind:m  (resolve-link:io '@forge')
             ?.  ?=([~ %| *] fo)  (send-json rail eyre-id ~)
             =/  short=@t  (crip (scag (sub (lent (trip repo)) 9) (trip repo)))
+            =/  inst=@t  (spat (weld p.u.fo /repos/[repo]))
             =/  tree=@t  (spat (weld p.u.fo /repos/[repo]/data/tree))
             =/  ui=@t  (spat (weld p.u.fo /repos/[repo]/data/ui))
-            ::  the clanker reads the working tree (repo) and the data nexus's
-            ::  docs cache (ui: docs-blocks.json, what docs_page expands from)
+            =/  lane=@t  (cat 3 inst '/run.git-action')
+            ::  ONE clanker per repo, bundle "build": it can read the working
+            ::  tree and the docs cache, write the tree, and poke the repo's git
+            ::  lane. Which chat may do which is the chats' POLICY: docs is
+            ::  read-only (the writing tools withheld), build asks before any
+            ::  write or git command. Prompts and policies are seeds (made once).
+            =/  chat
+              |=  [name=@t system=@t policy=json]
+              ^-  json
+              (pairs:enjs:format ~[['name' s+name] ['system' s+system] ['policy' policy]])
+            =/  strs  |=(l=(list @t) ^-(json a+(turn l |=(s=@t `json`s+s))))
             =/  ensure=json
               %-  pairs:enjs:format
               :~  ['action' s+'ensure']
                   ['parent' s+'/forge']
                   ['name' s+short]
-                  ['bundle' s+'repo']
+                  ['bundle' s+'build']
                   ['system' s+(repo-clanker-prompt short tree)]
                   ['repo' s+tree]
                   ['config' (pairs:enjs:format ~[['ui' s+ui]])]
-                  ['roads' (pairs:enjs:format ~[['peek' a+~[s+(cat 3 tree '/') s+(cat 3 ui '/')]]])]
-                  ['chat' s+'docs']
-                  ['chat_system' s+docs-chat-prompt]
+                  :-  'roads'
+                  %-  pairs:enjs:format
+                  :~  ['peek' (strs ~[(cat 3 tree '/') (cat 3 ui '/') lane])]
+                      ['make' (strs ~[(cat 3 tree '/')])]
+                      ['poke' (strs ~[lane])]
+                  ==
+                  :-  'chats'
+                  :-  %a
+                  :~  %^  chat  'docs'  docs-chat-prompt
+                      %-  pairs:enjs:format
+                      :~  ['default' s+'allow']
+                          ['deny' (strs ~['repo_write' 'repo_edit' 'repo_git' 'write_file' 'delete_file'])]
+                      ==
+                      %^  chat  'build'  build-chat-prompt
+                      %-  pairs:enjs:format
+                      :~  ['default' s+'allow']
+                          ['ask' (strs ~['repo_write' 'repo_edit' 'repo_git' 'write_file' 'delete_file'])]
+                      ==
+                  ==
               ==
             ::  Robust to the clanker app being absent, stale, or old: no link
             ::  → null above; a link whose nexus is gone or predates main.sig
@@ -477,12 +503,28 @@
   """
   You are the agent for the git repository "{(trip short)}", kept in this
   ship's forge. Its working tree (the checkout of the current branch) is
-  at {(trip tree)} and your repo tools read it: repo_list to see a
-  directory, repo_read to read a file, repo_grep to search; paths are
-  relative to the repo root, like "lib/foo.hoon". Read before you answer;
-  name the files and lines you relied on. Your own directory (memories,
-  skills) is yours to keep notes in. You cannot change the repo.
+  at {(trip tree)}. Your repo tools: repo_list to see a directory,
+  repo_read to read a file, repo_grep to search, docs_page to read a
+  handbook page as rendered; repo_write and repo_edit change files in the
+  working tree; repo_git runs one git command through the forge (add,
+  commit, push, pull, status, checkout). Paths are relative to the repo
+  root, like "lib/foo.hoon". Read before you answer or change anything;
+  name the files and lines you relied on. Which tools a chat may use, and
+  which ask the user first, is that chat's policy. Your own directory
+  (memories, skills) is yours to keep notes in.
   """
+++  build-chat-prompt
+  ^-  @t
+  '''
+  This chat changes the repository. Work in small, verified steps: read
+  the code you are about to change, make the change with repo_edit (or
+  repo_write for a new file), then stage and commit with repo_git ("add",
+  then "commit -m <message>"), and push only when asked. Every write and
+  every git command asks the user first; explain what you are about to do
+  and why in the message before the tool call, so the user can decide.
+  Commit messages say what changed and why, in plain prose. Never commit
+  secrets, local paths or personal details.
+  '''
 ++  docs-chat-prompt
   ^-  @t
   '''

@@ -1026,8 +1026,8 @@
   ==
 ::  +yawn: cancel this grub's outstanding +keens for [ship path].
 ::  Precise: the service records each keen's wire and cancels by
-::  duct, so other grubs parked on the same spar (the longpoll
-::  pattern) stay parked. Fire-and-forget.
+::  duct, so other grubs waiting on the same spar (the longpoll
+::  pattern) keep waiting. Fire-and-forget.
 ::
 ++  yawn
   |=  [=ship =path]

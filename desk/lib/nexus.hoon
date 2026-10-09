@@ -211,7 +211,7 @@
 ::  wire each was passed on. Lets a yawn cancel by duct (ames %yawn
 ::  matches the listener's duct, i.e. the original wire) exactly the
 ::  requesting grub's keens at a spar, leaving other grubs' keens at
-::  the same spar parked — the longpoll pattern has many grubs on one
+::  the same spar waiting — the longpoll pattern has many grubs on one
 ::  name, so a by-spar %wham would cancel them all.
 ::  Stored as a grub at /sys/scry/main.scry-state.
 ::

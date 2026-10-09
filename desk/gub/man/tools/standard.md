@@ -187,7 +187,7 @@ Drawn from real tools, before their fixes:
   enum. `steps_up` holds `"1"`, `"0"` — a number. Typing them as strings pushes
   the real contract into prose the machine has to parse back out.
 - **Type or default smuggled into prose.** `Timeout in seconds (default: 30)` on
-  a `%number`: the default is a fact for the schema, parked in English because
+  a `%number`: the default is a fact for the schema, left in English because
   the schema has nowhere to put it yet. Use the canonical `(default: N)` form
   (see **Gaps**) so it is at least always in the same place.
 - **Enum smuggled into prose.** `Categories: write, poke, read` in the tool
