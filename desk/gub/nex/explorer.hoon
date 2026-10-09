@@ -17,6 +17,10 @@
 /&  tg-js    /lib/ui/tab-group.js
 /&  tv-js    /lib/ui/tree-view.js
 /&  ba-js    /lib/ui/badges.js
+::  experimental tmux-style pane splitting — served but unlinked from the
+::  live finder; exercised only via panes.html (see below).
+/&  ps-js       /lib/ui/pane-split.js
+/&  panes-html  explorer/ui/panes.html
 /&  browse-html  explorer/ui/browse.html
 /&  browse-js    explorer/ui/browse.js
 /&  view-html    explorer/ui/view.html
@@ -110,6 +114,8 @@
           [%over %& [/ %'browse.html'] [[/ %mime] browse-html]]
           [%over %& [/ %'browse.js'] [[/ %mime] browse-js]]
           [%over %& [/ %'view.html'] [[/ %mime] view-html]]
+          [%over %& [/ %'pane-split.js'] [[/ %mime] ps-js]]
+          [%over %& [/ %'panes.html'] [[/ %mime] panes-html]]
           [%over %& [/ %'marked.min.js'] [[/ %mime] marked-js]]
           [%over %& [/ %'cm.js'] [[/ %mime] cm-bundle]]
           [%over %& [/ %'cm.css'] [[/ %mime] cm-css]]
@@ -176,6 +182,60 @@
 ::  (as a rail), the source file of that neck's nexus, its fiber bang
 ::
 +$  kid-info  [neck=(unit rail:tarball) neck-url=(unit tape) bang=(unit tang)]
+::  +view-file: the grub a directory carries to declare its views: how the
+::  paths under it open in the explorer. {viewers, title, icon}: `viewers`
+::  is the url of an endpoint the app serves (asked per path, see
+::  browse.js viewerFor), `title` and `icon` the chrome of an explorer
+::  rooted at or under it. The explorer rooted anywhere finds the nearest
+::  view.json at or above its root (+find-view), nothing registers.
+++  view-file  %'view.json'
+::  +find-view: walk up from `dir` to the namespace root for the nearest
+::  directory carrying a view.json; its directory and contents, or ~.
+++  find-view
+  |=  dir=path
+  =/  m  (fiber:fiber:nexus ,(unit [at=path decl=json]))
+  ^-  form:m
+  |-  ^-  form:m
+  ;<  v=view:nexus  bind:m  (peek:io [%& %& dir view-file] `[/ %json])
+  ?:  &(?=([%file *] v) !(is-boom:tarball sang.v))
+    =/  res  (mule |.(!<(json (need-vase:tarball sang.v))))
+    ?:  &(?=(%& -.res) ?=([%o *] p.res))  (pure:m `[dir p.res])
+    ?~  dir  (pure:m ~)
+    $(dir (snip `path`dir))
+  ?~  dir  (pure:m ~)
+  $(dir (snip `path`dir))
+::  +pant-of: the directories from `from` (exclusive) down to `dir`
+::  (inclusive), each with its neck: the path as the kernel's pant:nexus
+::  spells it, so a view rule can switch on the nexuses along the way,
+::  not only on names. ~ when dir is not under from.
+++  pant-of
+  |=  [from=path dir=path]
+  =/  m  (fiber:fiber:nexus ,(unit (list [dir=@ta neck=(unit rail:tarball)])))
+  ^-  form:m
+  ?.  =(from (scag (lent from) dir))  (pure:m ~)
+  =/  rest=path  (slag (lent from) dir)
+  =/  at=path  from
+  =|  out=(list [dir=@ta neck=(unit rail:tarball)])
+  |-  ^-  form:m
+  ?~  rest  (pure:m `(flop out))
+  =/  here=path  (snoc at i.rest)
+  ;<  v=view:nexus  bind:m  (peek-shallow:io [%& %| here] ~)
+  =/  neck=(unit rail:tarball)
+    ?.  ?=([%ball *] v)  ~
+    ?~  fil.ball.v  ~
+    neck.u.fil.ball.v
+  $(rest t.rest, at here, out [[i.rest neck] out])
+++  pant-json
+  |=  pant=(list [dir=@ta neck=(unit rail:tarball)])
+  ^-  json
+  :-  %a
+  %+  turn  pant
+  |=  [dir=@ta neck=(unit rail:tarball)]
+  ^-  json
+  :-  %a
+  :~  s+`@t`dir
+      ?~(neck ~ s+(crip (spud (rail-to-path:tarball u.neck))))
+  ==
 ::  +weir-json: the roads explorer reaches. peek / is honest here — a
 ::  namespace browser reads arbitrary paths anywhere in the tree.
 ::
@@ -335,7 +395,26 @@
   ^-  form:m
   ~?  dbg  [%explorer-peek tree-path]
   =/  download-param=(unit @t)  (get-key:kv:html-utils 'download' args)
+  ::  ?pant=1&from=<dir>: this path's directories from `from` down, each
+  ::  with its neck (a view endpoint is asked with it, see +pant-of)
+  ?:  =(`'1' (get-key:kv:html-utils 'pant' args))
+    =/  from=path
+      (fall (rush (fall (get-key:kv:html-utils 'from' args) '/') stap) /)
+    =/  dir=path  ?:(is-dir tree-path (snip `path`tree-path))
+    ;<  pant=(unit (list [dir=@ta neck=(unit rail:tarball)]))  bind:m  (pant-of from dir)
+    ;<  ~  bind:m  (send-json eyre-id 200 (pairs:enjs:format ~[['pant' ?~(pant ~ (pant-json u.pant))]]))
+    (pure:m ~)
   ?:  is-dir
+    ::  ?view=1: the view declaration that governs this directory: the
+    ::  nearest view.json at or above it, with the directory carrying it
+    ?:  =(`'1' (get-key:kv:html-utils 'view' args))
+      ;<  found=(unit [at=path decl=json])  bind:m  (find-view tree-path)
+      =/  jon=json
+        ?~  found  [%o ~]
+        ?.  ?=([%o *] decl.u.found)  [%o ~]
+        [%o (~(put by p.decl.u.found) 'at' s+(crip (spud at.u.found)))]
+      ;<  ~  bind:m  (send-json eyre-id 200 jon)
+      (pure:m ~)
     ?:  ?&(?=(^ download-param) =(u.download-param 'tar'))
       (serve-tarball eyre-id tree-path ball)
     ::  ?tree=1: the WHOLE subtree under this dir as one nested JSON

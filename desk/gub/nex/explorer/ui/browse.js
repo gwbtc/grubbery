@@ -51,7 +51,38 @@ function setup(root, opts) {
   const MOUNT = (opts.mount && opts.mount.route && opts.mount.root) ? opts.mount : null;
   const SCOPE = (MOUNT ? MOUNT.root : (opts.scope || '')).replace(/\/+$/, '');
   const ROOT = PREFIX + SCOPE;
-  const SCOPE_NAME = MOUNT && MOUNT.title ? MOUNT.title : SCOPE.slice(SCOPE.lastIndexOf('/') + 1);
+  let SCOPE_NAME = (MOUNT && MOUNT.title) ? MOUNT.title : (opts.title || SCOPE.slice(SCOPE.lastIndexOf('/') + 1));
+  // VIEW: without a mount, views are declared in the namespace: a
+  // directory carries view.json ({viewers, title, icon}) and it governs
+  // everything under it, the nearest one winning. The explorer asks its
+  // server which declaration governs a directory (<dir>?view=1 walks up
+  // and answers it plus `at`, the directory carrying it). Asked for the
+  // root once, for the chrome (title, icon); and per tab, for the tab's
+  // own directory, so a path finds its declaration wherever the sidebar
+  // is rooted, above it or inside it. Paths are asked of `viewers`
+  // relative to `at`: the declaring directory is the one that knows its
+  // tree. Nothing registers: carrying the file is declaring.
+  const viewCache = {};   // dir -> Promise<decl|null>
+  function viewFor(dir) {
+    if (MOUNT) return Promise.resolve(null);
+    if (!viewCache[dir]) viewCache[dir] = (async () => {
+      try {
+        const r = await fetch(dir + '?view=1', { cache: 'no-store' });
+        const v = r.ok ? await r.json() : null;
+        if (v && typeof v.at === 'string' && typeof v.viewers === 'string' && OWN_ROUTE.test(v.viewers)) return v;
+      } catch (e) { /* no views: the plain explorer */ }
+      return null;
+    })();
+    return viewCache[dir];
+  }
+  const viewReady = (MOUNT || !SCOPE) ? Promise.resolve() : viewFor(ROOT).then((v) => {
+    if (!v) return;
+    if (typeof v.title === 'string' && v.title && !opts.title) { SCOPE_NAME = v.title; setTitle(); }
+    if (PAGE && typeof v.icon === 'string' && OWN_ROUTE.test(v.icon)) {
+      const link = document.querySelector('link[rel="icon"]');
+      if (link) link.href = v.icon;
+    }
+  });
   // a path as the scope shows it: relative to ROOT inside the scope, to the
   // namespace root otherwise (a symlink can resolve outside the scope)
   const rel = (p) => (p === ROOT || p.startsWith(ROOT + '/')) ? (p.slice(ROOT.length) || '/') : (p.slice(PREFIX.length) || '/');
@@ -445,6 +476,14 @@ function setup(root, opts) {
   // active/idle look for a tab's view-mode buttons — mirrors the top bar's
   // #view-toggle .on state (blue) vs the plain bordered button
   function styleModeBtn(btn, active) {
+    // a disabled mode button is a declared pane that may not run here:
+    // muted, crossed, its title says why (set where the viewer was asked)
+    if (btn.disabled) {
+      btn.style.background = '#f6f8fa'; btn.style.borderColor = '#d0d7de';
+      btn.style.color = '#8b949e'; btn.style.fontWeight = '400'; btn.style.cursor = 'not-allowed';
+      return;
+    }
+    btn.style.cursor = '';
     btn.style.background = active ? '#ddf4ff' : '#fff';
     btn.style.borderColor = active ? '#54aeff' : '#d0d7de';
     btn.style.color = active ? '#0969da' : '#24292f';
@@ -498,7 +537,7 @@ function setup(root, opts) {
     if (kind === 'dir') {
       // chrome: clickable breadcrumbs + the rows/desktop view icons
       buildCrumbs(panel, path);
-      panel._modeWrap.style.display = '';
+      panel._modeWrap.style.display = 'inline-flex';   // not '': the gap needs flex
       // the listing first: it also says which nexus this dir runs (its
       // neck), which the app's viewer endpoint is told
       let d = null;
@@ -512,11 +551,19 @@ function setup(root, opts) {
       const neck = neckDisp === '-' ? '' : neckDisp;
       // the app's pane for this dir, if it has one: a third mode, shown
       // first unless this tab has chosen rows or desktop by hand
-      const viewer = await viewerFor(path, 'dir', neck);
+      let viewer = await viewerFor(path, 'dir', neck);
       if (panel.dataset.path !== path) return; // moved on while in flight
+      // a pane that is declared but may not run here: its button shows,
+      // disabled and saying why, so the declaration is visible even though
+      // the pane is not; the tab falls back to rows or desktop
+      const blocked = viewer && viewer.blocked ? viewer : null;
+      if (blocked) viewer = null;
       panel._dirViewer = viewer;
-      panel._modeView.style.display = viewer ? '' : 'none';
+      panel._modeView.style.display = (viewer || blocked) ? '' : 'none';
+      panel._modeView.disabled = !!blocked;
+      panel._modeView.title = blocked ? ('the "' + blocked.label + '" pane is declared for this path but not allowed: ' + blocked.blocked) : '';
       if (viewer) panel._modeView.textContent = viewer.label || 'View';
+      if (blocked) panel._modeView.textContent = blocked.label + ' ⊘';
       let mode = panel._dirMode;
       if (viewer && !panel._modeChosen) mode = 'view';
       if (!viewer && mode === 'view') mode = dirModeDefault();
@@ -553,8 +600,16 @@ function setup(root, opts) {
       // pane (the file itself stays one click away in Source)
       const viewer = await viewerFor(path, 'file');
       if (panel.dataset.path !== path) return; // moved on while in flight
-      if (viewer) opts.viewer = viewer;
+      if (viewer && !viewer.blocked) opts.viewer = viewer;
       panel._fv = window.FileView.mount(panel._body, opts);
+      // a declared pane that may not run: say so above the file, so the
+      // declaration is visible even though the pane is not
+      if (viewer && viewer.blocked) {
+        const note = document.createElement('div');
+        note.style.cssText = 'margin:0 0 8px;padding:6px 10px;border:1px solid #e0d4f7;background:#f6f3fc;border-radius:7px;font:12px/1.5 -apple-system,sans-serif;color:#57606a';
+        note.innerHTML = '<b style="color:#8250df">' + viewer.label + ' ⊘</b> a pane is declared for this file but not allowed here: ' + viewer.blocked;
+        panel._body.insertBefore(note, panel._body.firstChild);
+      }
     }
     if (!panel.hidden) markActiveInTree(path);
     saveTabs();
@@ -577,22 +632,39 @@ function setup(root, opts) {
   // a rule the explorer enforces. The script runs with this page's reach, so
   // only this ship's own routes are loaded: a /grubbery/... path, never
   // another origin.
-  const VIEWERS = (MOUNT && typeof MOUNT.viewers === 'string' && OWN_ROUTE.test(MOUNT.viewers)) ? MOUNT.viewers : null;
+  const MOUNT_VIEWERS = (MOUNT && typeof MOUNT.viewers === 'string' && OWN_ROUTE.test(MOUNT.viewers)) ? MOUNT.viewers : null;
   const viewerLoads = {};      // script url -> Promise
   async function viewerFor(path, kind, neck) {
     try {
-      if (!VIEWERS) return null;
-      const rel = path === ROOT ? '' : path.startsWith(ROOT + '/') ? path.slice(ROOT.length) : null;
-      if (rel === null) return null; // outside the mount: not the app's path
+      await viewReady;
+      // who answers, and from where paths are relative: the mount's root,
+      // or the directory carrying the view.json that governs THIS path
+      // (the nearest at or above the tab's own directory)
+      const VIEW = MOUNT ? null : await viewFor(kind === 'dir' ? path : path.slice(0, path.lastIndexOf('/')) || PREFIX);
+      const viewers = MOUNT ? MOUNT_VIEWERS : (VIEW ? VIEW.viewers : null);
+      const base = MOUNT ? ROOT : (VIEW ? PREFIX + VIEW.at.replace(/\/+$/, '') : null);
+      if (!viewers || !base) return null;
+      const rel = path === base ? '' : path.startsWith(base + '/') ? path.slice(base.length) : null;
+      if (rel === null) return null; // outside the declaring directory: not its path
       let blot = '';
       if (kind !== 'dir') {
         const info = await fetch(path + '?info=1').then((r) => r.json());
         blot = ((info && info.blot) || '').replace(/^\//, '');
       }
+      // the path as the kernel spells it: its directories from the declaring
+      // one down, each with its neck, so a rule can switch on the nexuses
+      // along the way and not only on names
+      let pant = '';
+      try {
+        const pr = await fetch(path + '?pant=1&from=' + encodeURIComponent(base.slice(PREFIX.length) || '/'), { cache: 'no-store' });
+        const pj = pr.ok ? await pr.json() : null;
+        if (pj && Array.isArray(pj.pant)) pant = JSON.stringify(pj.pant);
+      } catch (e) { /* the rule gets the path alone */ }
       // a dir is told by its neck (the nexus it runs, '' when plain), a file by its blot
       const q = '?path=' + encodeURIComponent(rel) + '&kind=' + (kind === 'dir' ? 'dir' : 'file') +
-        '&blot=' + encodeURIComponent(blot) + '&neck=' + encodeURIComponent(kind === 'dir' ? (neck || '') : '');
-      const r = await fetch(VIEWERS + q, { cache: 'no-store' });
+        '&blot=' + encodeURIComponent(blot) + '&neck=' + encodeURIComponent(kind === 'dir' ? (neck || '') : '') +
+        (pant ? '&pant=' + encodeURIComponent(pant) : '');
+      const r = await fetch(viewers + q, { cache: 'no-store' });
       if (!r.ok) return null;
       const text = await r.text();
       const rule = text.trim() ? JSON.parse(text) : null;
@@ -606,14 +678,33 @@ function setup(root, opts) {
           s.src = src; s.onload = res; s.onerror = () => rej(new Error('viewer failed to load: ' + src));
           document.head.appendChild(s);
         });
-        await viewerLoads[src];
+        try { await viewerLoads[src]; }
+        catch (e) {
+          // the pane exists but its script would not run. Say WHY, so a
+          // declared view that is not allowed here is shown as such and
+          // not mistaken for no view: the kernel marks a script it served
+          // inert because its app's weir does not reach eyre
+          // (x-grubbery-serve: sandboxed); a 404 is a missing script;
+          // anything else is a broken one.
+          const why = await blockedWhy(src);
+          return { label: view, blocked: why };
+        }
       }
       const v = window.Viewers[view];
-      if (!v || typeof v.mount !== 'function') return null;
+      if (!v || typeof v.mount !== 'function') return { label: view, blocked: 'the script loaded but registered no "' + view + '" pane' };
       // the app's args ride along with the pane; a mount passes them through
       const args = (rule.args && typeof rule.args === 'object') ? rule.args : {};
       return { label: v.label, mount: (root, opts) => v.mount(root, Object.assign({}, opts, { args })) };
     } catch (e) { toast('viewer: ' + e.message, true); return null; }
+  }
+  async function blockedWhy(src) {
+    try {
+      const r = await fetch(src, { cache: 'no-store' });
+      if (r.status === 404) return 'its script is missing';
+      if (!r.ok) return 'its script could not be fetched (' + r.status + ')';
+      if (r.headers.get('x-grubbery-serve') === 'sandboxed') return 'sandboxed: the app declaring it may not serve code (its weir does not reach eyre)';
+      return 'its script failed to run';
+    } catch (e) { return 'its script could not be fetched'; }
   }
 
   // build a tab's chrome + body; its initial location renders lazily (on first
@@ -633,11 +724,12 @@ function setup(root, opts) {
     crumbs.style.cssText = 'display:flex;align-items:center;gap:1px;margin-left:4px;flex:1;min-width:0;overflow:hidden;font:600 11px ui-monospace,SFMono-Regular,Menlo,monospace';
     // the same two view icons as the top bar: rows (☰) vs desktop (▦)
     const modeWrap = document.createElement('span');
-    modeWrap.style.cssText = 'display:inline-flex;gap:2px;flex:none';
+    // the same spacing as the top bar's #view-toggle: a 2px gap, roomy buttons
+    modeWrap.style.cssText = 'display:inline-flex;gap:2px;flex:none;margin-left:10px';
     const viewBtn = (glyph, title) => {
       const b = document.createElement('button');
       b.textContent = glyph; b.title = title;
-      b.style.cssText = 'all:unset;cursor:pointer;padding:2px 9px;border-radius:6px;font-size:12px;border:1px solid #d0d7de;background:#fff;color:#24292f;line-height:1.4';
+      b.style.cssText = 'all:unset;cursor:pointer;padding:3px 11px;border-radius:6px;font-size:12px;border:1px solid #d0d7de;background:#fff;color:#24292f;line-height:1.4';
       return b;
     };
     const modeRows = viewBtn('☰', 'row view');

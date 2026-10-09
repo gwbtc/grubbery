@@ -59,9 +59,12 @@ function mountExplorer(name) {
   var host = document.getElementById('repo-explorer');
   explorerEl = document.createElement('namespace-explorer');
   host.appendChild(explorerEl);
+  // scoped at the working tree; any views come from a view.json the tree
+  // (or a directory above it) carries, found by the explorer itself
   explorerEl.mount({
     url: '/grubbery/ball' + treeRoot(name),
-    mount: { route: BASE + '/repo/' + encodeURIComponent(shortName(name)), root: treeRoot(name), title: shortName(name) },
+    scope: treeRoot(name),
+    title: shortName(name),
     page: false,
     storageKey: 'forge',
     view: 'cols'

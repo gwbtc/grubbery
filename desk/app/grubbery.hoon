@@ -6767,8 +6767,15 @@
             =('/application/xhtml+xml' ct)
         ==
       ?:  |(eyre-privileged !runnable)  (ok-mime mime)
+      ::  and say so: a reader (the explorer, loading a declared pane's
+      ::  script) can then tell "sandboxed, served inert" from "missing"
+      ::  or "broken", which look the same from the browser's side
       %-  ok-payload
-      :-  [200 ~[['content-type' 'text/plain'] ['x-content-type-options' 'nosniff']]]
+      :-  :-  200
+          :~  ['content-type' 'text/plain']
+              ['x-content-type-options' 'nosniff']
+              ['x-grubbery-serve' 'sandboxed']
+          ==
       `q.mime
     ?:  =([/ %mime] p.cs)
       (serve-mime !<(mime q.cs))
