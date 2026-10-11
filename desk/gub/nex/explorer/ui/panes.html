@@ -63,7 +63,7 @@
         '<div class="id">' + id + '</div>' +
         '<div class="k">prefix <b>Ctrl-B</b>, then:<br>' +
         '% / | — split right · " / - — split down<br>' +
-        'c — collapse · z — zoom · x — close<br>' +
+        'c — collapse (keeps selection) · z/Z — zoom in/out · x — close<br>' +
         'm — mark a pane, move cursor, space — swap into it (else sibling)<br>' +
         '[ — select parent subtree · ] — descend · Tab — sibling<br>' +
         '1-9 — jump · ←↑↓→ — move · ⇧←↑↓→ or r — resize<br>' +
@@ -90,16 +90,16 @@
 
     host.seed();
 
-    document.getElementById('sr').onclick = () => { host.splitRight(); host.focus(host.activeId); };
-    document.getElementById('sd').onclick = () => { host.splitDown(); host.focus(host.activeId); };
-    document.getElementById('cl').onclick = () => host.close();
-    document.getElementById('zm').onclick = () => host.zoomToggle();
+    // toolbar buttons act, then hand keyboard focus back to the pane area
+    const act = (fn) => () => { fn(); host.focus(); };
+    document.getElementById('sr').onclick = act(() => host.splitRight());
+    document.getElementById('sd').onclick = act(() => host.splitDown());
+    document.getElementById('cl').onclick = act(() => host.close());
+    document.getElementById('zm').onclick = act(() => host.zoomToggle());
     const HL = ['none', 'active only', 'full'];
-    document.getElementById('hl').onclick = () => { const lv = host.cycleHighlight(); document.getElementById('hl').textContent = 'Highlight: ' + HL[lv]; };
+    document.getElementById('hl').onclick = act(() => { const lv = host.cycleHighlight(); document.getElementById('hl').textContent = 'Highlight: ' + HL[lv]; });
 
-    // keep keyboard working without clicking into a pane first
-    host.focus(host.activeId);
-    host.setAttribute('tabindex', '0');
+    host.focus();   // keyboard works without a click first (pane-split also self-focuses on connect)
   </script>
 </body>
 </html>
