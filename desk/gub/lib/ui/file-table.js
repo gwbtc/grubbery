@@ -214,7 +214,7 @@ class FileTable extends HTMLElement {
       a.textContent = '../';
       a.addEventListener('click', (e) => {
         e.preventDefault();
-        this.#emit('ft-navigate', { item: null, href: this.#parentHref });
+        this.#emit('ft-navigate', { item: null, href: this.#parentHref, mods: { meta: e.metaKey, ctrl: e.ctrlKey, shift: e.shiftKey, alt: e.altKey } });
       });
       tr.appendChild(this.#td('', a));
       for (let i = 1; i < this.#columns.length; i++)
@@ -253,7 +253,7 @@ class FileTable extends HTMLElement {
           a.textContent = display;
           a.addEventListener('click', (e) => {
             e.preventDefault();
-            this.#emit('ft-navigate', { item, href, column: col.key });
+            this.#emit('ft-navigate', { item, href, column: col.key, mods: { meta: e.metaKey, ctrl: e.ctrlKey, shift: e.shiftKey, alt: e.altKey } });
           });
           const cell = this.#td(col.cls || '', a);
           if (col.decorate) col.decorate(cell, item);

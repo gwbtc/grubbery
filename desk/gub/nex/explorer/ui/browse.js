@@ -786,8 +786,97 @@ function setup(root, opts) {
     openInNewTab(path, kind);
   }
 
+  // experimental: a tab holding a <pane-split> tiling workspace. Each pane is a
+  // <tab-group> of file views (dir tables / FileViews). Click an item -> new TAB
+  // in that pane; cmd/ctrl/shift-click -> new PANE beside it. A hover grip
+  // (top-left) carries close-pane / split. One tab shows no strip; closing the
+  // last tab leaves the pane empty (close the pane from the grip or Ctrl-B x).
+  // experimental: a tab holding a <pane-split> tiling workspace. pane-split owns
+  // the tabs + per-tab history now; the host just renders a path's content and
+  // routes navigation back in (plain = in place, ⌘-click = new pane). The whole
+  // workspace persists to localStorage (the `persist` attr) as pure data.
+  // pane-split holds bare NAMESPACE paths (e.g. /apps/explorer.explorer), not
+  // http urls — the /grubbery/ball serve prefix is added here, only at fetch.
+  const psNs = (p) => { const n = (p && p.startsWith(PREFIX)) ? p.slice(PREFIX.length) : (p || '/'); return n || '/'; };
+  const psUrl = (p) => { const n = psNs(p); return n === '/' ? PREFIX : PREFIX + n; };   // root → /grubbery/ball (no trailing slash)
+  const psBase = (p) => (p || '').replace(/\/$/, '').split('/').filter(Boolean).pop() || '/';
+  // a path's name + icon for its tab chip: basename + the kind we learn while
+  // listing (dir) or opening (file). redrawBars() sharpens the glyph once known.
+  const psKind = new Map();
+  function paneTabInfo(p) { return { icon: psKind.get(p) === 'file' ? '📄' : '📁', label: psBase(p) }; }
+  function paneContent(ps, paneId, path) {
+    const el = document.createElement('div');
+    el.style.cssText = 'height:100%;overflow:auto';
+    const ns = psNs(path), url = psUrl(path);
+    const route = (href, kind, mods) => {
+      const h = psNs(href);
+      if (/\.layout$/.test(h)) { ps.navigate(paneId, h); return; }         // open the layout in THIS pane (renderPath instantiates it)
+      if (kind) psKind.set(h, kind === 'dir' ? 'dir' : 'file');            // glyph the target before nav
+      if (mods && (mods.meta || mods.ctrl)) { ps.open(h, 'beside'); return; }   // ⌘-click → new pane
+      const tgt = ps.targetId && ps.targetId(paneId);                      // a pane with openTo sends ALL its links to the target
+      if (tgt) { ps.navigate(tgt, h); ps.focusPane(tgt); }
+      else ps.navigate(paneId, h);                                         // no target → navigate in place
+    };
+    if (/\.layout$/.test(ns)) {                                            // this pane landed ON a layout → become it
+      el.textContent = 'opening layout…';
+      fetch(url).then((r) => r.ok ? r.json() : Promise.reject('x')).then((spec) => ps.replaceWithLayout(paneId, spec, ns)).catch(() => { el.textContent = 'not a valid layout: ' + ns; });
+      return el;
+    }
+    const onNav = (u) => route(psNs(u), 'dir', null);
+    fetch(url + '?list=1').then((r) => r.ok ? r.json() : Promise.reject('f')).then(async (d) => {
+      if (!d || !Array.isArray(d.children)) throw 'f';
+      psKind.set(ns, 'dir'); ps.redrawBars();                              // this path lists → it's a dir
+      // a directory that declares a viewer (the clanker tree, etc.) renders it
+      let viewer = null;
+      try { viewer = await viewerFor(url, 'dir', ''); } catch (_) {}
+      if (viewer && !viewer.blocked && viewer.mount) { el._fv = viewer.mount(el, { url, onNavigate: onNav }); return; }
+      const t = document.createElement('file-table');
+      t.style.height = '100%';
+      const up = ns.replace(/\/$/, '').replace(/\/[^/]+$/, '');
+      if (ns !== '/') t.parentHref = up || '/';                        // ../ row → up in place; top-level dirs go to root
+      t.columns = ft.columns.map((c) => c.key !== 'name' ? c : Object.assign({}, c, { link: (item) => ns.replace(/\/$/, '') + '/' + item.name }));
+      t.actions = ft.actions;
+      t.addEventListener('ft-navigate', (e) => { const { item, href, mods } = e.detail; route(href, item ? item.kind : 'dir', mods); });
+      t.addEventListener('ft-action', handleAction);
+      el.appendChild(t);
+      d.children.forEach((c) => { c.__dir = url; });
+      t.items = d.children;
+    }).catch(async () => {
+      psKind.set(ns, 'file'); ps.redrawBars();                            // not a listing → it's a file
+      const opts = { url, crumbBase: ROOT, onNavigate: onNav };          // its declared viewer becomes FileView's first pane
+      try { const v = await viewerFor(url, 'file'); if (v && !v.blocked) opts.viewer = v; } catch (_) {}
+      try { el._fv = window.FileView.mount(el, opts); }
+      catch (e) { el.textContent = 'open failed: ' + e; }
+    });
+    return el;
+  }
+  function openPanesTab() {
+    const existing = tabPanels().find((p) => p._panes);
+    if (existing) { selectPanel(existing); return; }
+    const panel = document.createElement('div');
+    panel._panes = true; panel._rendered = true;
+    panel.dataset.path = '';
+    panel.setAttribute('tab-label', '⊢ panes');
+    panel.setAttribute('tab-title', 'experimental pane-split workspace');
+    panel.style.cssText = 'height:100%;min-height:0';
+    let saved = null;
+    try { saved = localStorage.getItem('pane-split:' + K + '-panes'); } catch (_) {}
+    const ps = document.createElement('pane-split');
+    ps.setAttribute('persist', K + '-panes');     // workspace persists as data
+    ps.style.cssText = 'display:block;height:100%';
+    ps.renderPath = (path, paneId) => paneContent(ps, paneId, path);
+    ps.tabInfo = paneTabInfo;                      // tab chips: name + dir/file icon from the path
+    ps.onDestroy = (id, body) => { const c = body.firstChild; try { if (c && c._fv) c._fv.destroy(); } catch (_) {} };
+    panel._ps = ps;
+    panel.appendChild(ps);
+    finderTabs.appendChild(panel);
+    finderTabs.refresh();
+    selectPanel(panel);
+    if (!saved) ps.open(psNs(here), 'here');       // fresh workspace → a single pane; open a .layout path for an interface
+  }
+
   function saveTabs() {
-    const panels = tabPanels();
+    const panels = tabPanels().filter((p) => !p._panes);   // the panes scratchpad is ephemeral
     const act = panels.find((p) => !p.hidden);
     try {
       localStorage.setItem(TABS_KEY, JSON.stringify({
@@ -878,6 +967,7 @@ function setup(root, opts) {
     const cur = a && a._hist.stack[a._hist.idx];
     openInNewTab(a ? a.dataset.path : here, (cur && cur.kind) || 'dir');
   });
+  $('finder-panes').addEventListener('click', openPanesTab);
   setView(view);
 
   // ---- navigation (shared by both views) ----
@@ -1349,6 +1439,23 @@ function setup(root, opts) {
     toastTimer = setTimeout(() => { s.style.display = 'none'; }, err ? 6000 : 2000);
   }
 
+  // standalone panes endpoint (/grubbery/explorer): stand the pane workspace up
+  // full-screen using the SAME wiring as the ⊞ panes tab — no finder.
+  if (opts.panes) {
+    while (root.firstChild) root.removeChild(root.firstChild);
+    root.style.cssText = 'display:block;height:100vh';
+    document.body.classList.add('cols');
+    const ps = document.createElement('pane-split');
+    ps.setAttribute('persist', K + '-standalone');
+    ps.style.cssText = 'display:block;height:100%';
+    ps.renderPath = (path, paneId) => paneContent(ps, paneId, path);
+    ps.tabInfo = paneTabInfo;
+    ps.onDestroy = (id, body) => { const c = body.firstChild; try { if (c && c._fv) c._fv.destroy(); } catch (_) {} };
+    root.appendChild(ps);
+    let saved = null; try { saved = localStorage.getItem('pane-split:' + K + '-standalone'); } catch (_) {}
+    if (!saved) ps.open('/', 'here');
+    return;
+  }
   load();
 }
 
@@ -1412,6 +1519,8 @@ namespace-explorer #finder-tabs { flex: 1; min-height: 0; }
 namespace-explorer #finder-tabs[hidden] { display: none; }
 namespace-explorer #finder-preview .finder-empty { flex: 1; }
 namespace-explorer #finder-tabs [tab-label] { overflow: auto; }
+/* pane-split workspace: tab strip auto-hides at one tab (pane chrome is pane-split's own) */
+tab-group[data-one]::part(strip) { display: none; }
 namespace-explorer #finder-dir { height: 100%; overflow: auto; }
 namespace-explorer #finder-dir-ft { margin: 0; min-width: max-content; }
 namespace-explorer .finder-pbody { flex: 1; min-height: 0; overflow: auto; }
@@ -1481,6 +1590,7 @@ const EXPLORER_HTML = (K) => `  <div id="bar">
         <button id="finder-collapse" title="collapse sidebar">&#8676;</button>
         <span style="display:flex; gap:4px; align-items:center;">
           <span class="ft-all"><button id="finder-new-tab" title="open a new tab">+ tab</button></span>
+          <span class="ft-all"><button id="finder-panes" title="open a pane-split workspace (experimental)">&#8862; panes</button></span>
           <span class="ft-all"><button id="finder-badges-toggle" title="show/hide row badges"></button></span>
           <span class="ft-all"><button id="finder-tree-toggle" title="expand/collapse all"></button></span>
         </span>

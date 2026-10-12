@@ -34,12 +34,16 @@
   <script src="/grubbery/ball/apps/explorer.explorer/kit.js"></script>
   <script type="module" src="/grubbery/ball/apps/explorer.explorer/browse.js"></script>
   <script type="module">
-    // the explorer is the page here: it owns the url, the title and the favicon
+    // the explorer is the page here: it owns the url, the title and the favicon.
+    // /grubbery/explorer stands the pane workspace up full-screen (panes mode).
+    const PANES = location.pathname.replace(/\/+$/, '') === '/grubbery/explorer'
+      || location.pathname.startsWith('/grubbery/explorer/');
     document.getElementById('explorer').mount({
-      url: location.pathname,
+      url: PANES ? '/grubbery/ball' : location.pathname,
       scope: new URLSearchParams(location.search).get('scope') || '',
       mount: window.EXPLORER_MOUNT || null,
       page: true,
+      panes: PANES,
     });
   </script>
 </body>

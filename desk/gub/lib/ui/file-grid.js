@@ -225,11 +225,11 @@ class FileGrid extends HTMLElement {
         el.classList.add('sel');
       });
     }
-    el.addEventListener('dblclick', () => {
+    el.addEventListener('dblclick', (e) => {
       const href = this.#baseHref
         ? this.#baseHref + '/' + item.name
         : item.name;
-      this.#emit('ft-navigate', { item, href });
+      this.#emit('ft-navigate', { item, href, mods: { meta: e.metaKey, ctrl: e.ctrlKey, shift: e.shiftKey, alt: e.altKey } });
     });
   }
 }

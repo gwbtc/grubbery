@@ -1,40 +1,49 @@
-// <pane-split> — a tmux-style recursive pane tree.
+// <pane-split> — a tiling window manager. THE ONLY NOUN IS A PANE.
 //
-// EXPERIMENTAL. Composes <split-view> (which must be defined first) into an
-// arbitrarily-nested tiling tree. Each leaf holds host-supplied content; every
-// internal node is a <split-view>.
+// THE MODEL (pure, serializable data — panes all the way down):
+//   pane  = { tabs:[tab], activeTab }        a rectangle; owns its tabs + bar
+//   tab   = { entries:[entry], cursor }       one browser history-line
+//   entry = { path } | { div }                what the current cursor renders as
+//   div   = { dir, ratio, fold, src, a, b }   a division: two child PANES
 //
-// MODEL IS TRUTH. Layout lives in the tree, not in the DOM:
-//   - each split node has a `ratio` (0..1) — the START child's fraction of the
-//     split. Proportions, so they survive any dimension change (zoom, window).
-//   - `fold` ('start'|'end'|null) marks a collapsed side — a non-destructive
-//     flag; the ratio underneath is untouched, so uncollapse restores exactly.
-//   - zoom is a STACK of nodes; the top is shown maximized. Zoom in pushes,
-//     out pops, reset clears — nest as deep as you like.
-// #applyLayout() writes each split's ratio (as a %) and fold to its split-view.
-// Zoom is separate and orthogonal: it picks which subtree is the VIEWPORT and
-// mounts that rectangle to fill the container (#applyZoom) — the partition is a
-// binary tree of rectangles, and zoom just chooses which rectangle you're in.
+// A pane has TABS; a tab is a history (a list of entries + a cursor into it).
+// The entry at the cursor renders as EITHER a leaf (a path, via renderPath) OR
+// a division of two child panes. Every pane is identical → ONE uniform bar
+// everywhere (tabs · back/fwd · navbar · split · close). No group/leaf split.
 //
-// CONTRACT
-//   properties (set from the host, in JS):
-//     leafFactory  (id) => HTMLElement    content for a new leaf (required)
-//     onDestroy    (id, bodyEl) => void   teardown when a leaf closes (optional)
-//   attribute: prefix  — the chord, "mod+key" (default "ctrl+b")
-//   methods: seed · splitRight/splitDown · close · focusPane(id) · focusMove ·
-//     zoomToggle/zoomOut/zoomReset · collapse · nudge · markToggle · swap
-//   getters: activeId · leafIds · cursor · highlight
-//   events (bubbling+composed): ps-focus · ps-split · ps-close · ps-empty · ps-zoom
+// History is a tab's entry-list; it lives wherever its content lives:
+//   · navigate(id,path) / openLayout(id,spec)  push an entry → history STAYS on
+//     this tab; back/forward step in and out of it (a layout you can back out of).
+//   · splitRight/Down(id)  is STRUCTURAL: the active tab's history MIGRATES down
+//     to the child that keeps the original content; the parent tab becomes the
+//     division. close(pane) is the inverse — the surviving sibling's history
+//     comes back UP to the parent. So the same picture (a division on screen) can
+//     have its history at the parent (navigated) or in a child (split).
 //
-//   KEYS (after the prefix): % / | split right · " / - split down ·
-//     c collapse/expand cursor (keeps selection) · z zoom in · Z zoom out ·
-//     x close (leaf or subtree) · o cycle · m mark · space swap (mark/sibling) ·
-//     [ climb · ] descend · Tab sibling · Esc reset cursor · h cycle highlight ·
-//     1-9 jump · arrows move · shift+arrows / r resize. move & resize are sticky
-//     (bare arrows repeat until a non-arrow key / Esc; no timer).
+// Four cursors read this one structure: selection (which pane), zoom (which
+// viewport), tab (which history-line), history (which entry in time).
 //
-// Light DOM (leaf content wants the normal document); the JS tree is the source
-// of truth and the DOM mirrors it.
+// CONTRACT (host sets in JS):
+//   renderPath (path, paneId) => HTMLElement   content for a leaf path
+//   leafFactory (paneId) => HTMLElement        optional: empty-pane placeholder
+//   onDestroy (paneId, bodyEl) => void         optional: teardown before re-render
+//   onNavigate (paneId, path) => void          optional: the navbar committed a path
+//   attributes: prefix ("ctrl+b") · persist (localStorage key)
+//   content: open(path,'here'|'beside') · navigate(id,path) · openLayout(id,spec)
+//     back/forward(id) · newTab(id,path) · selectTab(id,i) · closeTab(id,i)
+//   structure: splitRight/splitDown · close · closeLeaf · swap · collapse · nudge
+//     zoomToggle/zoomOut/zoomReset · focusPane · climb/descend/sibling · setBar · toggleBars
+//   data: serialize() · restore(spec) · instantiate(spec)
+//
+//   KEYS (after prefix): % / | split right · " / - split down · c collapse · e expand ·
+//     z/Z zoom in/out · x close · b lock bars · o cycle · m mark · ␣ swap ·
+//     [ ] climb/descend · Tab sibling · Esc reset · h highlight · 1-9 jump ·
+//     t new tab · w close tab · T toggle bar · < > prev/next tab · , . back/forward ·
+//     arrows move · shift+arrows / r resize (sticky).
+//
+// Light DOM; the JS tree is the source of truth and the DOM mirrors it. A
+// division nests via a <split-view> living in the owner pane's body; each child
+// pane renders its own bar + body, so bars appear at every level.
 
 const STYLE_ID = 'pane-split-style';
 const CSS = `
@@ -44,66 +53,84 @@ const CSS = `
     position:relative; width:100%; height:100%; min-width:0; min-height:0;
     box-sizing:border-box; overflow:hidden; display:flex; flex-direction:column;
   }
-  .ps-pane-body { flex:1 1 auto; min-height:0; overflow:auto; }
+  .ps-pane-body { flex:1 1 auto; min-height:0; overflow:auto; position:relative; isolation:isolate; }
+  .ps-pane-body > split-view { position:absolute; inset:0; }
+  .ps-empty { height:100%; display:flex; align-items:center; justify-content:center; color:#8b949e; font:13px -apple-system,sans-serif; }
   .ps-pane::after {
     content:""; position:absolute; inset:0; pointer-events:none;
     outline:1px solid transparent; outline-offset:-1px; transition:outline-color .1s;
   }
   .ps-pane.ps-active::after { outline:2px solid var(--ps-accent,#0969da); outline-offset:-2px; }
-  /* structural cursor: a purple overlay box around a selected subtree (an inset
-     outline on the split-view gets painted over by its panes), rest dimmed. */
-  .ps-sel-box {
-    position:absolute; pointer-events:none; z-index:20; display:none;
-    border:3px solid var(--ps-sel,#8250df); box-sizing:border-box; border-radius:3px;
-  }
+  .ps-sel-box { position:absolute; pointer-events:none; z-index:20; display:none; border:3px solid var(--ps-sel,#8250df); box-sizing:border-box; border-radius:3px; }
   .ps-sel-box.on { display:block; }
-  /* the mark (pending swap target) — amber dashed. */
-  .ps-mark-box {
-    position:absolute; pointer-events:none; z-index:19; display:none;
-    border:3px dashed var(--ps-mark,#bf8700); box-sizing:border-box; border-radius:3px;
-  }
+  .ps-mark-box { position:absolute; pointer-events:none; z-index:19; display:none; border:3px dashed var(--ps-mark,#bf8700); box-sizing:border-box; border-radius:3px; }
   .ps-mark-box.on { display:block; }
   .ps-pane.ps-dim { opacity:.4; transition:opacity .1s; }
-  .ps-hint {
-    position:absolute; left:8px; bottom:8px; z-index:10;
-    background:#1f2328; color:#fff; font:12px ui-monospace,Menlo,monospace;
-    padding:4px 9px; border-radius:6px; opacity:0; transition:opacity .1s;
-    pointer-events:none;
-  }
+  /* uniform per-pane topbar: committed on/off; the hover toggle (bar ▾) flips it;
+     a global switch (ps-no-hovertoggle) hides every toggle so bars are locked. */
+  .ps-bar { flex:0 0 auto; display:none; flex-direction:column; align-items:stretch; gap:3px; padding:3px 4px; box-sizing:border-box; background:#f6f8fa; border-bottom:1px solid #e2e7ee; font:12px -apple-system,BlinkMacSystemFont,sans-serif; color:#57606a; }
+  .ps-pane.ps-bar-on > .ps-bar { display:flex; }
+  .ps-bar-row { display:flex; align-items:center; gap:2px; min-width:0; }
+  .ps-bar-btn { all:unset; cursor:pointer; padding:2px 6px; border-radius:4px; color:#57606a; font-size:12px; line-height:1.4; }
+  .ps-bar-btn:hover { background:#eaeef2; color:#24292f; }
+  .ps-bar-btn[disabled] { opacity:.3; cursor:default; }
+  .ps-bar-tabs { display:flex; align-items:center; gap:2px; flex:1 1 auto; min-width:0; overflow-x:auto; scrollbar-width:none; }
+  .ps-bar-tabs::-webkit-scrollbar { display:none; }
+  .ps-tab { all:unset; cursor:pointer; display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:6px 6px 0 0; font:600 11px ui-monospace,Menlo,monospace; color:#57606a; white-space:nowrap; border:1px solid transparent; }
+  .ps-tab:hover { background:#eaeef2; }
+  .ps-tab.on { background:#fff; color:#1f2328; border-color:#e2e7ee; }
+  .ps-tab-ic { font-weight:400; opacity:.85; }
+  .ps-tab-x { opacity:.5; padding:0 2px; border-radius:3px; font-weight:400; }
+  .ps-tab-x:hover { opacity:1; background:#d7dde3; }
+  .ps-nav { flex:1 1 auto; min-width:40px; display:flex; align-items:center; }
+  .ps-nav input { width:100%; box-sizing:border-box; border:1px solid #e2e7ee; background:#fff; border-radius:6px; padding:3px 8px; font:11px ui-monospace,Menlo,monospace; color:#1f2328; outline:none; }
+  .ps-nav input:focus { border-color:var(--ps-accent,#0969da); box-shadow:0 0 0 2px rgba(9,105,218,.15); }
+  .ps-nav input::placeholder { color:#8b949e; }
+  /* one pill, anchored top-left of the SELECTED pane; materializes ITS bar */
+  .ps-bartoggle { position:absolute; z-index:27; display:none; align-items:center; gap:5px; padding:4px 11px; border-radius:7px; background:#f6f8fa; border:1px solid #d0d7de; color:#57606a; font:600 12px -apple-system,BlinkMacSystemFont,sans-serif; cursor:pointer; opacity:0; visibility:hidden; transition:opacity .1s; user-select:none; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .ps-bartoggle.on { display:flex; }
+  pane-split:hover .ps-bartoggle.on { opacity:1; visibility:visible; }
+  .ps-bartoggle:hover { color:#24292f; background:#eaeef2; border-color:#afb8c1; }
+  pane-split.ps-no-hovertoggle .ps-bartoggle { display:none !important; }
+  .ps-hint { position:absolute; left:8px; bottom:8px; z-index:10; background:#1f2328; color:#fff; font:12px ui-monospace,Menlo,monospace; padding:4px 9px; border-radius:6px; opacity:0; transition:opacity .1s; pointer-events:none; }
   .ps-hint.on { opacity:.92; }
 `;
 
 function ensureStyle() {
   if (document.getElementById(STYLE_ID)) return;
   const s = document.createElement('style');
-  s.id = STYLE_ID;
-  s.textContent = CSS;
+  s.id = STYLE_ID; s.textContent = CSS;
   document.head.appendChild(s);
 }
 
 let SEQ = 0;
-
 const DIR = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' };
 const MODS = { Shift: 1, Control: 1, Alt: 1, Meta: 1 };
+const base = (p) => (p || '').split('/').filter(Boolean).pop() || p || '';
 
 class PaneSplit extends HTMLElement {
+  renderPath = null;
   leafFactory = null;
   onDestroy = null;
+  onNavigate = null;
+  tabInfo = null;      // optional (path) => { icon?:string, label?:string } for the tab chip
 
-  #root = null;          // tree root node (leaf | split) or null
-  #leaves = new Map();   // id -> leaf node
-  #activeId = null;      // the leaf that holds input focus (always a leaf)
-  #cursor = null;        // the SELECTED node (leaf or split) — the paredit cursor
-  #selLevel = 2;         // 2 full (box+dim+ring) · 1 ring only · 0 none
-  #zoomStack = [];       // nodes; top = currently maximized
-  #mark = null;          // pending swap target
-  #hoisted = null;       // the node currently hoisted to fill the container (zoom viewport)
-  #repeat = null;        // 'resize' | 'move' sticky mode
+  #root = null;                 // the root PANE
+  #panes = new Map();           // id -> pane
+  #activeId = null;             // the selected/active pane id
+  #selLevel = 2;
+  #zoomStack = [];              // panes hoisted to viewport (ancestry path)
+  #mark = null;                 // a marked pane (for swap)
+  #hoisted = null;              // the pane currently hoisted for zoom
+  #hoverToggle = true;
+  #repeat = null;
   #awaiting = false;
   #awaitTimer = null;
+  #saveTimer = null;
   #hint = null;
   #selBox = null;
   #markBox = null;
+  #barToggle = null;
 
   connectedCallback() {
     ensureStyle();
@@ -111,12 +138,18 @@ class PaneSplit extends HTMLElement {
     this.#hint = this.#chrome('ps-hint');
     this.#selBox = this.#chrome('ps-sel-box');
     this.#markBox = this.#chrome('ps-mark-box');
+    this.#barToggle = this.#chrome('ps-bartoggle'); this.#barToggle.textContent = 'bar ▾'; this.#barToggle.title = 'show the selected pane\'s bar';
+    this.#barToggle.addEventListener('mousedown', (e) => e.stopPropagation());
+    this.#barToggle.addEventListener('click', (e) => { e.stopPropagation(); if (this.#activeId) this.setBar(this.#activeId, true); });
     this.addEventListener('keydown', this.#onKey);
-    this.addEventListener('sv-resize', this.#onSvResize);     // drag → read ratio back
-    this.addEventListener('sv-collapse', this.#onSvCollapse); // rail click → mirror fold
+    this.addEventListener('sv-resize', this.#onSvResize);
+    this.addEventListener('sv-collapse', this.#onSvCollapse);
     window.addEventListener('resize', this.#reposition);
-    if (!this.#root && this.leafFactory) this.seed();
-    this.focus({ preventScroll: true });   // native — take keyboard focus so keys work without a click first
+    let restored = false;
+    const k = this.#saveKey();
+    if (k) { try { const s = JSON.parse(localStorage.getItem(k) || 'null'); if (s) { this.restore(s); restored = true; } } catch (_) {} }
+    if (!restored && !this.#root) this.seed();
+    this.focus({ preventScroll: true });
   }
 
   disconnectedCallback() {
@@ -129,364 +162,624 @@ class PaneSplit extends HTMLElement {
   #chrome(cls) { const d = document.createElement('div'); d.className = cls; this.appendChild(d); return d; }
 
   get activeId() { return this.#activeId; }
-  get cursor() { return this.#cursor; }
-  get leafIds() { const out = []; walkLeaves(this.#root, l => out.push(l.id)); return out; }
+  get cursor() { return this.#panes.get(this.#activeId) || null; }
+  get leafIds() { const out = []; this.#eachVisibleLeaf(this.#root, l => out.push(l.id)); return out; }
 
   // ---- tree construction ----
 
   seed() {
     if (this.#root) return this.#activeId;
-    const leaf = this.#makeLeaf();
-    this.#root = leaf;
-    this.#place(leaf, this, null);
-    this.focusPane(leaf.id);
-    return leaf.id;
+    const pane = this.#makePane();
+    this.#root = pane;
+    this.#placePane(pane, this, null);
+    this.focusPane(pane.id);
+    return pane.id;
   }
 
-  #makeLeaf() {
+  // a fresh pane owns one empty tab.
+  #makePane() {
     const id = 'p' + (++SEQ);
-    const pane = document.createElement('div');
-    pane.className = 'ps-pane';
-    pane.dataset.paneId = id;
+    const dom = document.createElement('div');
+    dom.className = 'ps-pane';
+    dom.dataset.paneId = id;
+    const bar = this.#makeBar(id);
     const body = document.createElement('div');
     body.className = 'ps-pane-body';
-    pane.appendChild(body);
-    pane.addEventListener('mousedown', () => this.focusPane(id), true);
-    const content = this.leafFactory ? this.leafFactory(id) : document.createTextNode(id);
-    if (content) body.appendChild(content);
-    const leaf = { kind: 'leaf', id, dom: pane, body, parent: null };
-    this.#leaves.set(id, leaf);
-    return leaf;
+    dom.append(bar, body);
+    // mouse structural cursor: plain click selects this pane; shift-click climbs.
+    dom.addEventListener('mousedown', (e) => { if (!e.shiftKey) this.focusPane(id); }, true);
+    dom.addEventListener('click', (e) => {
+      if (!e.shiftKey) return;
+      e.preventDefault(); e.stopPropagation();
+      this.#activeId = id; this.climb();
+    }, true);
+    const pane = { kind: 'pane', id, dom, body, bar, tabs: [{ entries: [], cursor: -1 }], activeTab: 0, parent: null, showBar: false, openTo: null, target: null };
+    this.#panes.set(id, pane);
+    this.#renderPane(pane);
+    return pane;
   }
 
-  #place(node, parentEl, slot) {
-    if (slot) node.dom.setAttribute('slot', slot);
-    else node.dom.removeAttribute('slot');
-    parentEl.appendChild(node.dom);
+  // uniform topbar, two rows: (1) tabs · new-tab · split · close pane
+  //                           (2) back/fwd · navbar (namespace path, editable)
+  #makeBar(id) {
+    const bar = document.createElement('div');
+    bar.className = 'ps-bar';
+    const btn = (t, title, fn) => { const b = document.createElement('button'); b.className = 'ps-bar-btn'; b.textContent = t; b.title = title; b.addEventListener('click', (e) => { e.stopPropagation(); fn(); }); return b; };
+    // row 1 — tabs + structure controls
+    const row1 = document.createElement('div'); row1.className = 'ps-bar-row';
+    const tabs = document.createElement('div'); tabs.className = 'ps-bar-tabs';
+    const add = btn('+', 'new tab', () => this.newTab(id, this.#curPath(id)));
+    row1.append(btn('▴', 'hide bar', () => this.setBar(id, false)), tabs, add,
+      btn('→', 'split right', () => this.splitRight(id)), btn('↓', 'split down', () => this.splitDown(id)), btn('×', 'close pane', () => this.closeLeaf(id)));
+    // row 2 — history + navbar
+    const row2 = document.createElement('div'); row2.className = 'ps-bar-row';
+    const back = btn('◀', 'back', () => this.back(id));
+    const fwd = btn('▶', 'forward', () => this.forward(id));
+    const nav = document.createElement('div'); nav.className = 'ps-nav';
+    const input = document.createElement('input');
+    input.type = 'text'; input.spellcheck = false; input.placeholder = 'path…';
+    input.addEventListener('mousedown', (e) => e.stopPropagation());
+    input.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') { const v = input.value.trim(); if (v) { this.focusPane(id); this.navigate(id, v); if (this.onNavigate) try { this.onNavigate(id, v); } catch (_) {} } }
+      else if (e.key === 'Escape') { input.value = this.#curPath(id) || ''; input.blur(); }
+    });
+    nav.appendChild(input);
+    row2.append(back, fwd, nav);
+    bar.append(row1, row2);
+    bar._back = back; bar._fwd = fwd; bar._tabs = tabs; bar._nav = input;
+    return bar;
   }
 
-  // ---- splitting ----
+  #renderBar(pane) {
+    const bar = pane.bar;
+    bar._tabs.textContent = '';
+    pane.tabs.forEach((tab, i) => {
+      const b = document.createElement('button');
+      b.className = 'ps-tab' + (i === pane.activeTab ? ' on' : '');
+      b.title = this.#tabTitle(tab);
+      const m = this.#tabMeta(tab);
+      if (m.icon) { const ic = document.createElement('span'); ic.className = 'ps-tab-ic'; ic.textContent = m.icon; b.appendChild(ic); }
+      b.appendChild(document.createTextNode(m.label));
+      b.addEventListener('click', (e) => { e.stopPropagation(); this.selectTab(pane.id, i); });
+      const x = document.createElement('span'); x.className = 'ps-tab-x'; x.textContent = '×';
+      x.addEventListener('click', (e) => { e.stopPropagation(); this.closeTab(pane.id, i); });
+      b.appendChild(x);
+      bar._tabs.appendChild(b);
+    });
+    const e = this.#curEntry(pane);
+    bar._back.disabled = !this.#canBack(pane);
+    bar._fwd.disabled = !this.#canFwd(pane);
+    const navVal = e ? (e.div ? (e.div.src || '') : (e.path != null ? e.path : '')) : '';
+    if (bar._nav !== document.activeElement) bar._nav.value = navVal;
+    bar._nav.placeholder = (e && e.div) ? (e.div.src || 'layout') : 'path…';
+  }
+  // {icon,label} for a tab chip — host's tabInfo(path) wins for leaf entries.
+  #tabMeta(tab) {
+    const e = tab.entries[tab.cursor];
+    if (!e) return { icon: '', label: 'empty' };
+    if (e.div) return { icon: '▣', label: e.div.src ? base(e.div.src) : 'layout' };
+    if (this.tabInfo) { try { const m = this.tabInfo(e.path); if (m) return { icon: m.icon || '', label: m.label || base(e.path) || 'empty' }; } catch (_) {} }
+    return { icon: '', label: base(e.path) || 'empty' };
+  }
+  #tabTitle(tab) { const e = tab.entries[tab.cursor]; if (!e) return 'empty tab'; return e.div ? (e.div.src || 'layout') : (e.path || ''); }
 
-  splitRight(id) { return this.#split(id ?? this.#activeId, 'horizontal', 'right'); }
-  splitDown(id) { return this.#split(id ?? this.#activeId, 'vertical', 'down'); }
+  // re-render every pane's bar (e.g. after the host learns a path's name/icon)
+  redrawBars() { for (const p of this.#panes.values()) this.#renderBar(p); }
 
-  #split(id, orientation, dir) {
-    const leaf = this.#leaves.get(id);
-    if (!leaf) return null;
-    // splitting while zoomed: drop to the real DOM, split there, then restore
-    // the zoom — following the split leaf into its new parent split so the
-    // viewport now shows both panes.
+  #curEntry(pane) { const t = pane.tabs[pane.activeTab]; return t ? t.entries[t.cursor] || null : null; }
+  #curPath(id) { const p = this.#panes.get(id); const e = p && this.#curEntry(p); return e && e.path != null ? e.path : null; }
+  #canBack(pane) { const t = pane.tabs[pane.activeTab]; return !!t && t.cursor > 0; }
+  #canFwd(pane) { const t = pane.tabs[pane.activeTab]; return !!t && t.cursor >= 0 && t.cursor < t.entries.length - 1; }
+
+  // render a pane's body from its active tab's current entry. A leaf entry is
+  // re-instantiated from its path (we keep paths, never live views). A division
+  // entry mounts its (persistent) split-view; its children render themselves.
+  #renderPane(pane) {
+    const prev = pane.body.firstChild;
+    const entry = this.#curEntry(pane);
+    // detach old body without destroying a division's child panes
+    if (prev) {
+      if (prev.tagName === 'SPLIT-VIEW') prev.remove();
+      else { try { if (this.onDestroy) this.onDestroy(pane.id, pane.body); } catch (_) {} pane.body.textContent = ''; }
+    }
+    if (entry && entry.div) {
+      const div = entry.div;
+      this.#placePane(div.a, div.sv, 'start');
+      this.#placePane(div.b, div.sv, 'end');
+      pane.body.appendChild(div.sv);
+      this.#applyDivLayout(div);
+    } else if (entry && entry.path != null) {
+      const el = this.renderPath ? this.renderPath(entry.path, pane.id) : document.createTextNode(entry.path);
+      if (el) pane.body.appendChild(el);
+    } else {
+      const el = this.leafFactory ? this.leafFactory(pane.id) : this.#empty();
+      if (el) pane.body.appendChild(el);
+    }
+    this.#renderBar(pane);
+  }
+  #empty() { const d = document.createElement('div'); d.className = 'ps-empty'; d.textContent = 'empty pane'; return d; }
+
+  #placePane(pane, parentEl, slot) {
+    if (slot) pane.dom.setAttribute('slot', slot); else pane.dom.removeAttribute('slot');
+    parentEl.appendChild(pane.dom);
+  }
+
+  // ---- content: open / navigate / layout / history / tabs ----
+
+  open(path, disposition = 'beside') {
+    if (disposition === 'here') { this.navigate(this.#activeId, path); return this.#activeId; }
+    const id = this.splitRight();
+    if (id) this.navigate(id, path);
+    return id;
+  }
+  // push a leaf entry onto the active tab (drops the forward tail). History stays.
+  navigate(id, path) { this.#pushEntry(id ?? this.#activeId, { path }); }
+  // push a division entry built from a layout spec. History stays — back/forward
+  // steps in and out of it. `spec` is a serialized division (see serialize()).
+  openLayout(id, spec) {
+    const pid = id ?? this.#activeId;
+    const div = this.#buildDiv(spec, this.#panes.get(pid));
+    if (div) { this.#pushEntry(pid, { div }); this.#wireTargets(this.#panes.get(pid)); }
+  }
+  // REPLACE the active entry with a layout (for navigating TO a .layout path: the
+  // entry you landed on BECOMES the layout, so back returns to where you were).
+  replaceWithLayout(id, spec, src) {
+    const pane = this.#panes.get(id ?? this.#activeId);
+    if (!pane) return;
+    const div = this.#buildDiv(spec, pane);
+    if (!div) return;
+    if (src) div.src = src;
+    const tab = pane.tabs[pane.activeTab];
+    if (tab.cursor < 0) { tab.entries = [{ div }]; tab.cursor = 0; }
+    else tab.entries[tab.cursor] = { div };
+    this.#renderPane(pane); this.#wireTargets(pane); this.#afterStructure(); this.#persist();
+  }
+  // which pane a pane's navigations should open into (layout `openTo` by name),
+  // or null for in-place. The host decides WHEN to use it (e.g. files, not dirs).
+  targetId(id) { const p = this.#panes.get(id ?? this.#activeId); return p && p.target && this.#panes.has(p.target.id) ? p.target.id : null; }
+  // resolve each pane's `openTo` STRUCTURAL ADDRESS to a target pane. The address
+  // is a slot-path from the layout's root division: 'a'/'b', nested like 'b/a'.
+  #wireTargets(scope) {
+    if (!scope) return;
+    const rootDiv = this.#curEntry(scope)?.div;
+    this.#eachPaneDeep(scope, p => { p.target = (p.openTo && rootDiv) ? this.#paneAt(rootDiv, p.openTo) : null; }, true);
+  }
+  // walk a slot-path ('a'/'b' segments) from a division to the pane it addresses
+  #paneAt(div, addr) {
+    let d = div, pane = null;
+    for (const s of String(addr).split(/[^ab]+/).filter(Boolean)) {
+      if (!d) return null;
+      pane = d[s]; if (!pane) return null;
+      d = this.#curEntry(pane)?.div || null;
+    }
+    return pane;
+  }
+  #pushEntry(id, entry) {
+    const pane = this.#panes.get(id);
+    if (!pane) return;
+    const tab = pane.tabs[pane.activeTab];
+    if (tab.cursor < tab.entries.length - 1) tab.entries.splice(tab.cursor + 1);
+    tab.entries.push(entry);
+    tab.cursor = tab.entries.length - 1;
+    this.#renderPane(pane); this.#afterStructure(); this.#persist();
+  }
+  back(id) { const p = this.#panes.get(id ?? this.#activeId); if (!this.#canBack(p)) return; p.tabs[p.activeTab].cursor--; this.#renderPane(p); this.#afterStructure(); this.#persist(); }
+  forward(id) { const p = this.#panes.get(id ?? this.#activeId); if (!this.#canFwd(p)) return; p.tabs[p.activeTab].cursor++; this.#renderPane(p); this.#afterStructure(); this.#persist(); }
+  newTab(id, path) {
+    const p = this.#panes.get(id ?? this.#activeId); if (!p) return;
+    p.tabs.push({ entries: path != null ? [{ path }] : [], cursor: path != null ? 0 : -1 });
+    p.activeTab = p.tabs.length - 1;
+    this.#renderPane(p); this.#afterStructure(); this.#persist();
+  }
+  selectTab(id, i) { const p = this.#panes.get(id ?? this.#activeId); if (!p || i < 0 || i >= p.tabs.length) return; p.activeTab = i; this.#renderPane(p); this.#reconcileCursor(); this.#afterStructure(); this.#persist(); }
+  closeTab(id, i) {
+    const p = this.#panes.get(id ?? this.#activeId); if (!p || i < 0 || i >= p.tabs.length) return;
+    const [tab] = p.tabs.splice(i, 1);
+    this.#eachEntryPane(tab, cp => this.#forgetPane(cp));
+    if (!p.tabs.length) p.tabs.push({ entries: [], cursor: -1 });
+    if (p.activeTab >= p.tabs.length) p.activeTab = p.tabs.length - 1;
+    this.#renderPane(p); this.#reconcileCursor(); this.#afterStructure(); this.#persist();
+  }
+
+  // ---- topbar visibility ----
+
+  setBar(id, on) { const p = this.#panes.get(id); if (!p) return; p.showBar = (on == null) ? !p.showBar : !!on; p.dom.classList.toggle('ps-bar-on', p.showBar); this.#positionBarToggle(); this.#persist(); }
+  toggleBars() { this.#hoverToggle = !this.#hoverToggle; this.classList.toggle('ps-no-hovertoggle', !this.#hoverToggle); this.#positionBarToggle(); return this.#hoverToggle; }
+
+  // ---- splitting: STRUCTURAL. active tab's history migrates to the child that
+  // keeps the original content; the parent tab becomes the division. ----
+
+  splitRight(id) { return this.#split(id ?? this.#activeId, 'horizontal'); }
+  splitDown(id) { return this.#split(id ?? this.#activeId, 'vertical'); }
+
+  #split(id, orientation) {
+    const pane = this.#panes.get(id);
+    if (!pane) return null;
     const savedZoom = this.#zoomStack;
     if (savedZoom.length) { this.#zoomStack = []; this.#applyZoom(); }
-
-    const parent = leaf.parent;
-    const wasSlot = leaf.dom.getAttribute('slot');          // structural slot (now un-hoisted)
-    const host = parent ? parent.sv : this;
-
-    const newLeaf = this.#makeLeaf();
+    const tab = pane.tabs[pane.activeTab];
+    // childA keeps the original content AND inherits this tab's whole history.
+    const childA = this.#makePane();
+    childA.tabs = [{ entries: tab.entries, cursor: tab.cursor }];
+    childA.activeTab = 0;
+    if (pane.showBar) { childA.showBar = true; childA.dom.classList.add('ps-bar-on'); }  // bar rides with the content
+    if (pane.tabs.length <= 1) { pane.showBar = false; pane.dom.classList.remove('ps-bar-on'); }  // sole tab is now just the division → no bar; KEEP it if other tabs remain
+    const childB = this.#makePane();   // fresh empty pane
     const sv = document.createElement('split-view');
-    sv.setAttribute('orientation', orientation);
-    sv.setAttribute('min', '40');
-    const node = { kind: 'split', dir: orientation, sv, dom: sv, a: leaf, b: newLeaf, parent, ratio: 0.5, fold: null };
-    sv.__psnode = node;                                     // reverse lookup for sv events
-    leaf.parent = node; newLeaf.parent = node;
-
-    this.#place(leaf, sv, 'start');
-    this.#place(newLeaf, sv, 'end');
-    this.#place(node, host, wasSlot);
-    if (parent) { if (parent.a === leaf) parent.a = node; else parent.b = node; }
-    else this.#root = node;
-
-    if (savedZoom.length) { this.#zoomStack = savedZoom.map(z => z === leaf ? node : z); this.#applyZoom(); }
-    this.#applyLayout();
-    this.focusPane(newLeaf.id);
-    this.#emit('ps-split', { id, dir, newId: newLeaf.id });
-    return newLeaf.id;
+    sv.setAttribute('orientation', orientation); sv.setAttribute('min', '40');
+    const div = { dir: orientation, ratio: 0.5, fold: null, src: null, owner: pane, a: childA, b: childB, sv };
+    sv.__psdiv = div;
+    childA.parent = { div, slot: 'a' }; childB.parent = { div, slot: 'b' };
+    // the parent tab loses its history to childA; it now holds the division.
+    tab.entries = [{ div }]; tab.cursor = 0;
+    this.#renderPane(childA);   // childA inherited tabs after makePane — re-render it
+    this.#renderPane(pane);
+    if (savedZoom.length) { this.#zoomStack = savedZoom.map(z => z === pane ? pane : z); this.#applyZoom(); }
+    this.#afterStructure();
+    this.focusPane(childB.id);
+    this.#emit('ps-split', { id, dir: orientation, newId: childB.id });
+    this.#persist();
+    return childB.id;
   }
 
-  // ---- closing ----
+  // ---- closing: the surviving sibling's active history comes back UP ----
 
-  // close the cursor NODE: a leaf, or a whole subtree if a split is selected.
-  close(node) {
-    node = node ?? this.#cursor;
-    if (!node) return;
-    if (this.#zoomStack.length) this.zoomReset();           // exit zoom before structural change
-    if (this.#mark && (this.#mark === node || this.#within(node, this.#mark))) this.#mark = null;
-    const parent = node.parent;
-    walkLeaves(node, l => this.#destroyLeaf(l));
-
-    if (!parent) {                         // closed the whole tree
-      if (node.kind === 'split') node.sv.remove();
-      this.#root = null; this.#activeId = null; this.#cursor = null;
-      this.classList.remove('ps-zoomed');
-      this.#emit('ps-empty', {});
+  // close a pane. If it lives in a division, its sibling is promoted into the
+  // owner pane's active tab (history returns to the parent). If it's the owner's
+  // whole content, close removes the whole pane from ITS parent division.
+  close(pane) {
+    pane = pane ?? this.cursor;
+    if (!pane) return;
+    if (this.#zoomStack.length) this.zoomReset();
+    const par = pane.parent;
+    if (!par) {
+      // root pane — clear the active tab's content entirely
+      const tab = pane.tabs[pane.activeTab];
+      if (this.#curEntry(pane)) { this.#eachEntryPane({ entries: tab.entries, cursor: tab.cursor }, cp => { if (cp !== pane) this.#forgetPane(cp); }); }
+      tab.entries = []; tab.cursor = -1;
+      this.#renderPane(pane); this.#reconcileCursor(); this.#afterStructure(); this.#persist();
       return;
     }
-    const sib = parent.a === node ? parent.b : parent.a;
-    const gp = parent.parent;
-    const slot = parent.sv.getAttribute('slot');
-    parent.sv.remove();                                     // removes node + its subtree too
-    sib.parent = gp;
-    if (gp) { if (gp.a === parent) gp.a = sib; else gp.b = sib; this.#place(sib, gp.sv, slot); }
-    else { this.#root = sib; this.#place(sib, this, null); }
-
-    this.classList.toggle('ps-zoomed', this.#zoomStack.length > 0);
-    this.#applyLayout();
-    this.cursorTo(firstLeaf(sib));
-    this.#emit('ps-close', {});
+    const div = par.div, owner = div.owner;
+    const sib = par.slot === 'a' ? div.b : div.a;
+    // free the whole closing subtree (the pane and everything under it)
+    this.#eachPaneDeep(pane, cp => this.#forgetPane(cp), true);
+    div.sv.__psdiv = null;
+    // promote the sibling's ACTIVE tab history into the owner's active tab
+    const ownerTab = owner.tabs[owner.activeTab];
+    const sibTab = sib.tabs[sib.activeTab];
+    ownerTab.entries = sibTab.entries; ownerTab.cursor = sibTab.cursor;
+    owner.showBar = sib.showBar; owner.dom.classList.toggle('ps-bar-on', owner.showBar);  // bar bubbles back up with the content
+    this.#reparentDiv(ownerTab.entries[ownerTab.cursor], owner);
+    // drop sib's OTHER tabs' panes + the sib shell (its active history moved up)
+    sib.tabs.forEach((t, i) => { if (i !== sib.activeTab) this.#eachEntryPane(t, cp => this.#forgetPane(cp)); });
+    this.#forgetPane(sib);
+    this.#renderPane(owner);
+    this.#afterStructure();
+    this.cursorTo(owner);
+    this.#emit('ps-close', {}); this.#persist();
   }
+  closeLeaf(id) { const p = this.#panes.get(id); if (p) this.close(p); }
+  #forgetPane(pane) { if (!pane) return; try { if (this.onDestroy) this.onDestroy(pane.id, pane.body); } catch (_) {} this.#panes.delete(pane.id); pane.dom.remove(); }
+  // after moving an entry into a new owner, fix the division's owner backref.
+  #reparentDiv(entry, owner) { if (entry && entry.div) entry.div.owner = owner; }
 
-  #destroyLeaf(leaf) {
-    try { if (this.onDestroy) this.onDestroy(leaf.id, leaf.body); } catch (_) {}
-    this.#leaves.delete(leaf.id);
-    leaf.dom.remove();
+  // ---- division layout (ratio + fold → split-view) ----
+
+  #applyDivLayout(div) {
+    const sv = div.sv;
+    sv.setAttribute('orientation', div.dir);
+    sv.setAttribute('size', (div.ratio * 100) + '%');
+    if (div.fold) { sv.setAttribute('primary', div.fold === 'a' ? 'start' : 'end'); sv.setAttribute('collapsed', ''); }
+    else { sv.setAttribute('primary', 'start'); sv.removeAttribute('collapsed'); }
   }
-
-  // ---- layout: derive every split-view from (ratio, fold, zoom) ----
-
-  // layout = write each split's proportion (ratio) and fold to its split-view.
-  // Zoom is NOT here — it's which subtree is mounted (see #applyZoom).
-  #applyLayout() {
-    const visit = (node) => {
-      if (!node || node.kind !== 'split') return;
-      const sv = node.sv;
-      sv.setAttribute('orientation', node.dir);
-      sv.setAttribute('size', (node.ratio * 100) + '%');
-      if (node.fold) { sv.setAttribute('primary', node.fold); sv.setAttribute('collapsed', ''); }
-      else { sv.setAttribute('primary', 'start'); sv.removeAttribute('collapsed'); }
-      visit(node.a); visit(node.b);
+  #afterStructure() { this.#reconnectDivs(); this.#reposition(); }
+  // walk the visible tree, (re)binding each division's owner + child parents, so
+  // backrefs stay correct after history/tab moves, and lay out split-views.
+  #reconnectDivs() {
+    const walk = (pane) => {
+      const e = this.#curEntry(pane);
+      if (e && e.div) {
+        const div = e.div;
+        div.owner = pane;
+        div.a.parent = { div, slot: 'a' }; div.b.parent = { div, slot: 'b' };
+        this.#applyDivLayout(div);
+        walk(div.a); walk(div.b);
+      }
     };
-    visit(this.#root);
-    this.#reposition();
+    if (this.#root) walk(this.#root);
   }
-
-  // drag end: convert the split-view's px size back into the model's proportion
   #onSvResize = (e) => {
-    const node = e.target && e.target.__psnode;
-    if (node) {
-      const dim = node.dir === 'horizontal' ? e.target.clientWidth : e.target.clientHeight;
-      if (dim) node.ratio = Math.max(0.02, Math.min(0.98, (e.detail?.size ?? 0) / dim));
-    }
-    this.#reposition();
+    const div = e.target && e.target.__psdiv;
+    if (div) { const dim = div.dir === 'horizontal' ? e.target.clientWidth : e.target.clientHeight; if (dim) div.ratio = Math.max(0.02, Math.min(0.98, (e.detail?.size ?? 0) / dim)); }
+    this.#reposition(); this.#persist();
   };
-
-  // the user clicked split-view's reopen rail: mirror it into the model's fold
   #onSvCollapse = (e) => {
-    const node = e.target && e.target.__psnode;
-    if (!node) return;
-    node.fold = e.detail?.collapsed ? (e.target.getAttribute('primary') || 'start') : null;
-    this.#render();
+    const div = e.target && e.target.__psdiv;
+    if (!div) return;
+    div.fold = e.detail?.collapsed ? ((e.target.getAttribute('primary') || 'start') === 'start' ? 'a' : 'b') : null;
+    this.#render(); this.#persist();
   };
 
-  // ---- cursor (structural selection) ----
+  // ---- cursor (structural selection over panes) ----
 
   get highlight() { return this.#selLevel; }
   set highlight(v) { this.#selLevel = Math.max(0, Math.min(2, v | 0)); this.#render(); }
   cycleHighlight() { this.#selLevel = (this.#selLevel + 2) % 3; this.#render(); return this.#selLevel; }
 
-  cursorTo(node) {
-    if (!node) return;
-    this.#cursor = node;
-    let n = node, p = node.parent;
-    while (p) { p.last = n; n = p; p = p.parent; }
-    if (node.kind === 'leaf') this.#activeId = node.id;
+  cursorTo(pane) {
+    if (!pane) return;
+    this.#activeId = pane.id;
+    // record a descend breadcrumb up the ownership chain
+    let n = pane, owner = this.#ownerOf(pane);
+    while (owner) { this.#curEntry(owner).div.last = n.parent.slot; n = owner; owner = this.#ownerOf(owner); }
     this.#render();
-    this.#emit('ps-focus', { id: node.kind === 'leaf' ? node.id : null, kind: node.kind });
+    this.#emit('ps-focus', { id: pane.id, kind: this.#curEntry(pane)?.div ? 'split' : 'leaf' });
+  }
+  focusPane(id) { const p = this.#panes.get(id); if (p) this.cursorTo(p); }
+  #ownerOf(pane) { return pane && pane.parent ? pane.parent.div.owner : null; }
+  climb() { const o = this.#ownerOf(this.cursor); if (o) this.cursorTo(o); }
+  descend() { const e = this.#curEntry(this.cursor); if (e && e.div) this.cursorTo(e.div.last === 'b' ? e.div.b : e.div.a); }
+  sibling() { const c = this.cursor; if (c && c.parent) { const d = c.parent.div; this.cursorTo(c.parent.slot === 'a' ? d.b : d.a); } }
+  escape() { if (this.#zoomStack.length) this.zoomReset(); else this.#render(); }
+
+  // if the selected pane became hidden (tab switch, close), pull the cursor to
+  // the nearest visible ancestor.
+  #reconcileCursor() {
+    let c = this.cursor;
+    if (!c) { this.#activeId = this.#root ? firstVisibleLeaf(this.#root, this).id : null; this.#render(); return; }
+    while (c && this.#hidden(c)) c = this.#ownerOf(c);
+    this.#activeId = (c || this.#root || {}).id || null;
+    this.#render();
   }
 
-  // focusPane — select a leaf by id (NOT the native focus(), which we must not
-  // shadow or the host can't take keyboard focus).
-  focusPane(id) { const leaf = this.#leaves.get(id); if (leaf) this.cursorTo(leaf); }
-  climb() { if (this.#cursor && this.#cursor.parent) this.cursorTo(this.#cursor.parent); }
-  descend() { const c = this.#cursor; if (c && c.kind === 'split') this.cursorTo(c.last || c.a); }
-  sibling() { const c = this.#cursor, p = c && c.parent; if (p) this.cursorTo(p.a === c ? p.b : p.a); }
-  escape() { if (this.#activeId) this.focusPane(this.#activeId); }
-
   #render() {
-    for (const l of this.#leaves.values()) l.dom.classList.remove('ps-active', 'ps-dim');
-    const sel = this.#cursor;
-    if (this.#selLevel >= 2 && sel && sel.kind === 'split' && !this.#hidden(sel)) {
-      const inSel = new Set(); walkLeaves(sel, l => inSel.add(l));
-      for (const l of this.#leaves.values()) if (!inSel.has(l)) l.dom.classList.add('ps-dim');
+    for (const p of this.#panes.values()) p.dom.classList.remove('ps-active', 'ps-dim');
+    const sel = this.cursor;
+    const selDivides = sel && this.#curEntry(sel)?.div;
+    if (this.#selLevel >= 2 && selDivides && !this.#hidden(sel)) {
+      const inSel = new Set(); this.#eachVisibleLeaf(sel, l => inSel.add(l.id));
+      for (const p of this.#panes.values()) if (this.#isVisibleLeaf(p) && !inSel.has(p.id)) p.dom.classList.add('ps-dim');
       this.#placeBox(this.#selBox, sel);
     } else {
       this.#selBox?.classList.remove('on');
-      const al = this.#leaves.get(this.#activeId);
-      if (this.#selLevel >= 1 && al && !this.#hidden(al)) al.dom.classList.add('ps-active');
+      if (this.#selLevel >= 1 && sel && !this.#hidden(sel)) sel.dom.classList.add('ps-active');
     }
     this.#renderMark();
+    this.#positionBarToggle();
   }
-
   #reposition = () => {
-    if (this.#selLevel >= 2 && this.#cursor && this.#cursor.kind === 'split' && !this.#hidden(this.#cursor)) this.#placeBox(this.#selBox, this.#cursor);
+    const sel = this.cursor;
+    if (this.#selLevel >= 2 && sel && this.#curEntry(sel)?.div && !this.#hidden(sel)) this.#placeBox(this.#selBox, sel);
     else this.#selBox?.classList.remove('on');
     this.#renderMark();
+    this.#positionBarToggle();
   };
-
-  #placeBox(box, node) {
+  // the single hover pill: anchored to the SELECTED pane's top-left; offers to
+  // materialize that pane's bar. Hidden when the pane already has a bar, when
+  // bars are locked, or when nothing is selected.
+  #positionBarToggle() {
+    const t = this.#barToggle; if (!t) return;
+    const c = this.cursor;
+    if (this.#hoverToggle && c && !c.showBar && !this.#hidden(c)) {
+      const cr = this.getBoundingClientRect(), r = c.dom.getBoundingClientRect();
+      t.style.left = (r.left - cr.left + 9) + 'px';
+      t.style.top = (r.top - cr.top + 9) + 'px';
+      t.classList.add('on');
+    } else t.classList.remove('on');
+  }
+  #placeBox(box, pane) {
     if (!box) return;
-    const cr = this.getBoundingClientRect();
-    const r = node.dom.getBoundingClientRect();
-    box.style.left = (r.left - cr.left) + 'px';
-    box.style.top = (r.top - cr.top) + 'px';
-    box.style.width = r.width + 'px';
-    box.style.height = r.height + 'px';
+    const cr = this.getBoundingClientRect(), r = pane.dom.getBoundingClientRect();
+    box.style.left = (r.left - cr.left) + 'px'; box.style.top = (r.top - cr.top) + 'px';
+    box.style.width = r.width + 'px'; box.style.height = r.height + 'px';
     box.classList.add('on');
   }
+  #renderMark() { if (!this.#markBox) return; if (this.#mark && this.#panes.has(this.#mark.id) && !this.#hidden(this.#mark)) this.#placeBox(this.#markBox, this.#mark); else this.#markBox.classList.remove('on'); }
 
-  #renderMark() {
-    if (!this.#markBox) return;
-    if (this.#mark && !this.#hidden(this.#mark)) this.#placeBox(this.#markBox, this.#mark);
-    else this.#markBox.classList.remove('on');
-  }
-
-  // hidden = outside the current zoom viewport, or behind a fold within it.
-  #hidden(node) {
+  // a pane is hidden if a zoom excludes it, an ancestor folded its branch, or an
+  // ancestor switched its tab/history away from the division that contains it.
+  #hidden(pane) {
     const top = this.#zoomStack[this.#zoomStack.length - 1];
-    if (top && !this.#within(top, node)) return true;       // not inside the zoomed subtree
-    let n = node, p = node.parent;
-    while (p && n !== top) {                                 // folds above the viewport don't count
-      if (p.fold === (p.a === n ? 'start' : 'end')) return true;
-      n = p; p = p.parent;
+    if (top && !this.#within(top, pane)) return true;
+    let n = pane;
+    while (n && n !== top) {
+      const par = n.parent; if (!par) break;
+      const owner = par.div.owner;
+      if (this.#curEntry(owner)?.div !== par.div) return true;   // owner looking elsewhere
+      if (par.div.fold === par.slot) return true;                // folded away
+      n = owner;
     }
     return false;
   }
+  #within(anc, pane) { let n = pane; while (n) { if (n === anc) return true; n = this.#ownerOf(n); } return false; }
 
-  focusNext() {
-    const ids = this.leafIds;
-    if (ids.length < 2) return;
-    const i = ids.indexOf(this.#activeId);
-    this.focusPane(ids[(i + 1) % ids.length]);
-  }
+  focusNext() { const ids = this.leafIds; if (ids.length < 2) return; const i = ids.indexOf(this.#activeId); this.focusPane(ids[(i + 1) % ids.length]); }
   focusIndex(i) { const ids = this.leafIds; if (i >= 0 && i < ids.length) this.focusPane(ids[i]); }
-
   focusMove(dir) {
-    const cur = this.#leaves.get(this.#activeId);
+    const cur = this.cursor;
     if (!cur) return;
     const a = center(cur.dom);
     let best = null, bestD = Infinity;
-    for (const l of this.#leaves.values()) {
-      if (l === cur || this.#hidden(l)) continue;
-      const b = center(l.dom);
-      const dx = b.x - a.x, dy = b.y - a.y;
+    this.#eachVisibleLeaf(this.#root, (l) => {
+      if (l === cur) return;
+      const b = center(l.dom), dx = b.x - a.x, dy = b.y - a.y;
       const ok = dir === 'left' ? dx < -1 && Math.abs(dy) <= Math.abs(dx)
         : dir === 'right' ? dx > 1 && Math.abs(dy) <= Math.abs(dx)
           : dir === 'up' ? dy < -1 && Math.abs(dx) <= Math.abs(dy)
             : dy > 1 && Math.abs(dx) <= Math.abs(dy);
-      if (!ok) continue;
+      if (!ok) return;
       const d = dx * dx + dy * dy;
       if (d < bestD) { bestD = d; best = l; }
-    }
+    });
     if (best) this.focusPane(best.id);
   }
 
-  // ---- zoom (a stack; nest in and out) ----
+  // ---- zoom (viewport stack of panes) ----
 
-  zoomToggle(node) {
-    node = node ?? this.#cursor;
-    if (!node) return;
+  zoomToggle(pane) {
+    pane = pane ?? this.cursor;
+    if (!pane) return;
     const top = this.#zoomStack[this.#zoomStack.length - 1];
-    if (node === top) this.#zoomStack.pop();                // z on the zoomed node → out one
-    else {
-      if (!node.parent) return;                             // can't zoom the root
-      if (top && !this.#within(top, node)) return;          // only zoom deeper into the current view
-      this.#zoomStack.push(node);
-    }
-    this.#afterZoom(node);
+    if (pane === top) this.#zoomStack.pop();
+    else { if (!pane.parent) return; if (top && !this.#within(top, pane)) return; this.#zoomStack.push(pane); }
+    this.#afterZoom(pane);
   }
-  zoomOut() { if (this.#zoomStack.length) { this.#zoomStack.pop(); this.#afterZoom(this.#zoomStack[this.#zoomStack.length - 1] ?? this.#cursor); } }
-  zoomReset() { if (this.#zoomStack.length) { this.#zoomStack = []; this.#afterZoom(this.#cursor); } }
-  #afterZoom(focusNode) {
-    this.#applyZoom();
-    if (focusNode) this.cursorTo(focusNode);
-    this.#emit('ps-zoom', { depth: this.#zoomStack.length });
-  }
-
-  // choose which subtree fills the container (the viewport). Hoist the zoom-top
-  // node's element to be pane-split's direct child so it fills, and hide the
-  // structural root. The model is untouched — nest in/out by pushing/popping.
+  zoomOut() { if (this.#zoomStack.length) { this.#zoomStack.pop(); this.#afterZoom(this.#zoomStack[this.#zoomStack.length - 1] ?? this.cursor); } }
+  zoomReset() { if (this.#zoomStack.length) { this.#zoomStack = []; this.#afterZoom(this.cursor); } }
+  #afterZoom(focusPane) { this.#applyZoom(); if (focusPane) this.cursorTo(focusPane); this.#emit('ps-zoom', { depth: this.#zoomStack.length }); }
   #applyZoom() {
+    const scroll = this.#snapshotScroll();   // reparenting a pane zeroes its scrollers — keep them
     const top = this.#zoomStack[this.#zoomStack.length - 1] || null;
-    if (this.#hoisted && this.#hoisted !== top) {           // return the old viewport to its slot
+    if (this.#hoisted && this.#hoisted !== top) {
       const hn = this.#hoisted;
-      if (hn.parent) this.#place(hn, hn.parent.sv, hn.parent.a === hn ? 'start' : 'end');
+      if (hn.parent) this.#placePane(hn, hn.parent.div.sv, hn.parent.slot === 'a' ? 'start' : 'end');
       this.#hoisted = null;
     }
     if (top) {
-      if (this.#hoisted !== top) { this.#place(top, this, null); this.#hoisted = top; }
-      if (this.#root) this.#root.dom.style.display = 'none';
+      if (this.#hoisted !== top) { this.#placePane(top, this, null); this.#hoisted = top; }
+      if (this.#root) this.#root.dom.style.display = (top === this.#root) ? '' : 'none';
       this.classList.add('ps-zoomed');
     } else {
       if (this.#root) this.#root.dom.style.display = '';
       this.classList.remove('ps-zoomed');
     }
-    this.#applyLayout();   // re-sync every split's size from the model (ratios are truth)
+    this.#reconnectDivs();
+    this.#restoreScroll(scroll);
   }
+  // snapshot/restore scroll offsets across a DOM reparent (scrollTop zeroes on move)
+  #snapshotScroll() { const m = []; this.querySelectorAll('*').forEach((el) => { if (el.scrollTop || el.scrollLeft) m.push([el, el.scrollTop, el.scrollLeft]); }); return m; }
+  #restoreScroll(m) { for (const [el, t, l] of m) { if (t) el.scrollTop = t; if (l) el.scrollLeft = l; } }
 
-  // ---- collapse (fold a side; non-destructive, keeps the selection) ----
+  // ---- collapse / resize (nearest ancestor division) ----
 
+  // collapse: fold the SELECTED pane's slot → its sibling fills (toggle).
   collapse() {
-    const node = this.#cursor, p = node && node.parent;
-    if (!p) return;
-    const slot = p.a === node ? 'start' : 'end';
-    p.fold = (p.fold === slot) ? null : slot;               // toggle folding the SELECTED side
-    this.#applyLayout();
-    this.#render();                                         // cursor unchanged → selection kept
+    const pane = this.cursor, par = pane && pane.parent;
+    if (!par) return;
+    par.div.fold = (par.div.fold === par.slot) ? null : par.slot;
+    this.#applyDivLayout(par.div); this.#render(); this.#persist();
   }
-
-  // ---- resize (adjust the model's ratio; proportional) ----
-
+  // expand: fold the COUNTERPART's slot → the selected pane fills (toggle).
+  expand() {
+    const pane = this.cursor, par = pane && pane.parent;
+    if (!par) return;
+    const other = par.slot === 'a' ? 'b' : 'a';
+    par.div.fold = (par.div.fold === other) ? null : other;
+    this.#applyDivLayout(par.div); this.#render(); this.#persist();
+  }
   nudge(dir) {
-    const start = this.#cursor;
+    const start = this.cursor;
     if (!start) return;
     const axis = (dir === 'left' || dir === 'right') ? 'horizontal' : 'vertical';
-    let node = start, parent = start.parent;
-    while (parent && parent.dir !== axis) { node = parent; parent = parent.parent; }
-    if (!parent) return;
-    const dim = axis === 'horizontal' ? parent.sv.clientWidth : parent.sv.clientHeight;
+    let node = start, par = start.parent;
+    while (par && par.div.dir !== axis) { node = par.div.owner; par = node.parent; }
+    if (!par) return;
+    const div = par.div;
+    const dim = axis === 'horizontal' ? div.sv.clientWidth : div.sv.clientHeight;
     if (!dim) return;
     const step = 32 / dim, grow = (dir === 'right' || dir === 'down');
-    parent.ratio = Math.max(0.05, Math.min(0.95, parent.ratio + (grow ? step : -step)));
-    parent.sv.setAttribute('size', (parent.ratio * 100) + '%');
-    this.#reposition();
+    div.ratio = Math.max(0.05, Math.min(0.95, div.ratio + (grow ? step : -step)));
+    div.sv.setAttribute('size', (div.ratio * 100) + '%');
+    this.#reposition(); this.#persist();
   }
 
-  // ---- mark & swap ----
+  // ---- mark & swap (exchange two panes' positions) ----
 
-  markToggle() { this.#mark = (this.#mark === this.#cursor) ? null : this.#cursor; this.#renderMark(); return !!this.#mark; }
+  markToggle() { this.#mark = (this.#mark === this.cursor) ? null : this.cursor; this.#renderMark(); return !!this.#mark; }
   clearMark() { this.#mark = null; this.#renderMark(); }
-
   swap() {
-    const c = this.#cursor;
-    if (this.#mark && this.#mark !== c) {
-      if (this.#swapNodes(c, this.#mark)) { this.clearMark(); this.cursorTo(c); }
-      return;
-    }
+    const c = this.cursor;
+    if (this.#mark && this.#mark !== c) { if (this.#swapPanes(c, this.#mark)) { this.clearMark(); this.cursorTo(c); this.#persist(); } return; }
     const p = c && c.parent;
     if (!p) return;
-    [p.a, p.b] = [p.b, p.a];
-    this.#place(p.a, p.sv, 'start');
-    this.#place(p.b, p.sv, 'end');
-    this.#render();
+    const div = p.div;
+    [div.a, div.b] = [div.b, div.a];
+    this.#afterStructure(); this.#render(); this.#persist();
   }
-
-  // exchange two nodes' positions (content + state travel). Illegal if one
-  // contains the other, or if either is the root.
-  #swapNodes(n1, n2) {
-    if (n1 === n2) return false;
-    const p1 = n1.parent, p2 = n2.parent;
-    if (!p1 || !p2) return false;
+  #swapPanes(n1, n2) {
+    if (n1 === n2 || !n1.parent || !n2.parent) return false;
     if (this.#within(n1, n2) || this.#within(n2, n1)) return false;
-    const s1 = n1.dom.getAttribute('slot'), s2 = n2.dom.getAttribute('slot');
-    if (p1.a === n1) p1.a = n2; else p1.b = n2;
-    if (p2.a === n2) p2.a = n1; else p2.b = n1;
-    n1.parent = p2; n2.parent = p1;
-    this.#place(n2, p1.sv, s1);
-    this.#place(n1, p2.sv, s2);
+    const p1 = n1.parent, p2 = n2.parent, d1 = p1.div, d2 = p2.div;
+    d1[p1.slot] = n2; d2[p2.slot] = n1;
+    n1.parent = { div: d2, slot: p2.slot }; n2.parent = { div: d1, slot: p1.slot };
+    this.#afterStructure();
     return true;
   }
 
-  #within(anc, node) { let n = node; while (n) { if (n === anc) return true; n = n.parent; } return false; }
+  // ---- serialize / restore / instantiate / persist ----
+
+  serialize() { return this.#serPane(this.#root); }
+  #serPane(pane) {
+    if (!pane) return null;
+    return { tabs: pane.tabs.map(t => ({ entries: t.entries.map(e => this.#serEntry(e)), cursor: t.cursor })), activeTab: pane.activeTab, bar: pane.showBar || undefined, openTo: pane.openTo || undefined };
+  }
+  #serEntry(e) {
+    if (e.div) return { div: { dir: e.div.dir, ratio: e.div.ratio, fold: e.div.fold || undefined, src: e.div.src || undefined, a: this.#serPane(e.div.a), b: this.#serPane(e.div.b) } };
+    return { path: e.path };
+  }
+  restore(spec) {
+    if (this.#root) { this.#eachPaneDeep(this.#root, p => this.#forgetPane(p), true); if (this.#hoisted) this.#hoisted.dom.remove(); this.#root.dom?.remove(); }
+    this.#panes.clear(); this.#zoomStack = []; this.#hoisted = null; this.#activeId = null; this.#mark = null;
+    this.classList.remove('ps-zoomed');
+    this.#root = spec ? this.#deserPane(spec, null) : this.#makePane();
+    this.#placePane(this.#root, this, null);
+    this.#wireTargets(this.#root);
+    this.#afterStructure();
+    this.cursorTo(firstVisibleLeaf(this.#root, this));
+  }
+  // build a detached pane subtree from a spec (for openLayout / instantiate)
+  instantiate(spec) { const p = this.#deserPane(spec, null); this.#wireTargets(p); return p; }
+  #buildDiv(spec, hostPane) {
+    if (!spec || !spec.div) return null;
+    const s = spec.div;
+    const sv = document.createElement('split-view');
+    sv.setAttribute('orientation', s.dir || 'horizontal'); sv.setAttribute('min', '40');
+    const div = { dir: s.dir || 'horizontal', ratio: typeof s.ratio === 'number' ? s.ratio : 0.5, fold: s.fold || null, src: s.src || null, a: null, b: null, sv, owner: hostPane || null };
+    sv.__psdiv = div;
+    div.a = this.#deserPane(s.a, { div, slot: 'a' });
+    div.b = this.#deserPane(s.b, { div, slot: 'b' });
+    return div;
+  }
+  #deserPane(spec, parent) {
+    const pane = this.#makePane();
+    pane.parent = parent;
+    if (!spec) return pane;
+    pane.tabs = (spec.tabs || [{ entries: [], cursor: -1 }]).map(t => ({
+      entries: (t.entries || []).map(e => e.div ? { div: this.#buildDiv(e, pane) } : { path: e.path }),
+      cursor: typeof t.cursor === 'number' ? t.cursor : (t.entries && t.entries.length ? 0 : -1),
+    }));
+    pane.activeTab = typeof spec.activeTab === 'number' ? spec.activeTab : 0;
+    pane.openTo = spec.openTo || null;
+    // bind division owners for every entry (not just the active one)
+    pane.tabs.forEach(t => t.entries.forEach(e => { if (e.div) e.div.owner = pane; }));
+    if (spec.bar) { pane.showBar = true; pane.dom.classList.add('ps-bar-on'); }
+    this.#renderPane(pane);
+    return pane;
+  }
+  #saveKey() { const a = this.getAttribute('persist'); return a ? 'pane-split:' + a : null; }
+  #persist() { const k = this.#saveKey(); if (!k) return; clearTimeout(this.#saveTimer); this.#saveTimer = setTimeout(() => { try { localStorage.setItem(k, JSON.stringify(this.serialize())); } catch (_) {} }, 150); }
+
+  // ---- traversal helpers ----
+
+  // every pane in the tree (all tabs/entries), optionally skipping the root itself
+  #eachPaneDeep(pane, fn, includeSelf) {
+    if (!pane) return;
+    pane.tabs.forEach(t => t.entries.forEach(e => { if (e.div) { this.#eachPaneDeep(e.div.a, fn, true); this.#eachPaneDeep(e.div.b, fn, true); } }));
+    if (includeSelf) fn(pane);
+  }
+  // every pane reachable through one tab's entries (its division children)
+  #eachEntryPane(tab, fn) { tab.entries.forEach(e => { if (e.div) { this.#eachPaneDeep(e.div.a, fn, true); this.#eachPaneDeep(e.div.b, fn, true); } }); }
+  // visible leaves: follow the active entry; a pane showing a division recurses,
+  // one showing a path/empty is a leaf.
+  #isVisibleLeaf(pane) { return this.#panes.has(pane.id) && !this.#curEntry(pane)?.div && !this.#hidden(pane); }
+  #eachVisibleLeaf(pane, fn) {
+    if (!pane) return;
+    const e = this.#curEntry(pane);
+    if (e && e.div) { this.#eachVisibleLeaf(e.div.a, fn); this.#eachVisibleLeaf(e.div.b, fn); }
+    else if (!this.#hidden(pane)) fn(pane);
+  }
 
   // ---- keys ----
 
@@ -494,17 +787,11 @@ class PaneSplit extends HTMLElement {
     const raw = (this.getAttribute('prefix') || 'ctrl+b').toLowerCase().split('+');
     return { key: raw.pop(), ctrl: raw.includes('ctrl'), meta: raw.includes('meta') || raw.includes('cmd'), alt: raw.includes('alt') };
   }
-
   #onKey = (e) => {
-    if (this.#repeat && !this.#awaiting) {                  // sticky repeat
+    if (this.#repeat && !this.#awaiting) {
       if (MODS[e.key]) return;
       const d = DIR[e.key];
-      if (d) {
-        if (this.#repeat === 'resize' || e.shiftKey) this.nudge(d); else this.focusMove(d);
-        this.#arm(this.#repeat);
-        e.preventDefault(); e.stopPropagation();
-        return;
-      }
+      if (d) { if (this.#repeat === 'resize' || e.shiftKey) this.nudge(d); else this.focusMove(d); this.#arm(this.#repeat); e.preventDefault(); e.stopPropagation(); return; }
       this.#endRepeat();
       if (e.key === 'Escape') { e.preventDefault(); return; }
     }
@@ -512,7 +799,7 @@ class PaneSplit extends HTMLElement {
       const p = this.#prefix;
       if (e.key.toLowerCase() === p.key && e.ctrlKey === p.ctrl && e.metaKey === p.meta && e.altKey === p.alt) {
         this.#awaiting = true;
-        this.#flashHint('% split · " stack · c collapse · z/Z zoom in/out · x close · m mark · ␣ swap · [ ] climb/descend · Tab sibling · h highlight · 1-9 jump · ←↑↓→ move · ⇧←↑↓→ / r resize (arrows repeat)');
+        this.#flashHint('% split · " stack · c/e collapse/expand · z/Z zoom · x close · t/w tab · T bar · <> tab · ,. hist · m mark · ␣ swap · [ ] climb/descend · Tab sibling · h highlight · b bars · 1-9 jump · ←↑↓→ move · ⇧←↑↓→ resize');
         clearTimeout(this.#awaitTimer);
         this.#awaitTimer = setTimeout(() => { this.#awaiting = false; this.#flashHint(''); }, 2500);
         e.preventDefault(); e.stopPropagation();
@@ -520,7 +807,7 @@ class PaneSplit extends HTMLElement {
       return;
     }
     const k = e.key;
-    if (MODS[k]) { e.preventDefault(); return; }            // lone modifier: keep waiting
+    if (MODS[k]) { e.preventDefault(); return; }
     this.#awaiting = false; clearTimeout(this.#awaitTimer); this.#flashHint('');
     let handled = true;
     const dir = DIR[k];
@@ -529,11 +816,18 @@ class PaneSplit extends HTMLElement {
     else if (k === 'x') this.close();
     else if (k === 'z') this.zoomToggle();
     else if (k === 'Z') this.zoomOut();
+    else if (k === 'b') { const on = this.toggleBars(); this.#flashHint('pane bars: ' + (on ? 'toggleable on hover' : 'locked')); }
     else if (k === 'c') this.collapse();
+    else if (k === 'e' || k === 'E') this.expand();
     else if (k === 'h') { const lv = this.cycleHighlight(); this.#flashHint('highlight: ' + ['none', 'active only', 'full'][lv]); }
     else if (k === 'o') this.focusNext();
     else if (k === ' ') this.swap();
     else if (k === 'm') { const on = this.markToggle(); this.#flashHint(on ? 'marked — move the cursor, then space to swap' : 'mark cleared'); }
+    else if (k === 't') this.newTab(this.#activeId, this.#curPath(this.#activeId));
+    else if (k === 'T') this.setBar(this.#activeId);   // toggle the selected pane's bar
+    else if (k === 'w') this.closeTab(this.#activeId, this.cursor ? this.cursor.activeTab : -1);
+    else if (k === '<' || k === ',') { if (k === '<') this.#cycleTab(-1); else this.back(); }
+    else if (k === '>' || k === '.') { if (k === '>') this.#cycleTab(1); else this.forward(); }
     else if (k === '[') this.climb();
     else if (k === ']') this.descend();
     else if (k === 'Tab') this.sibling();
@@ -545,28 +839,18 @@ class PaneSplit extends HTMLElement {
     else handled = false;
     if (handled) { e.preventDefault(); e.stopPropagation(); }
   };
-
-  #arm(kind) {
-    this.#repeat = kind;
-    this.#flashHint((kind === 'resize' ? 'resize' : 'move') + ': ←↑↓→  (any other key or Esc to exit)');
-  }
+  #cycleTab(delta) { const p = this.cursor; if (!p || p.tabs.length < 2) return; this.selectTab(p.id, (p.activeTab + delta + p.tabs.length) % p.tabs.length); }
+  #arm(kind) { this.#repeat = kind; this.#flashHint((kind === 'resize' ? 'resize' : 'move') + ': ←↑↓→  (any other key or Esc to exit)'); }
   #endRepeat() { this.#repeat = null; this.#flashHint(''); }
-
-  #flashHint(msg) {
-    if (!this.#hint) return;
-    this.#hint.textContent = msg;
-    this.#hint.classList.toggle('on', !!msg);
-  }
-
+  #flashHint(msg) { if (!this.#hint) return; this.#hint.textContent = msg; this.#hint.classList.toggle('on', !!msg); }
   #emit(name, detail) { this.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true })); }
 }
 
-function walkLeaves(node, fn) {
-  if (!node) return;
-  if (node.kind === 'leaf') fn(node);
-  else { walkLeaves(node.a, fn); walkLeaves(node.b, fn); }
-}
-function firstLeaf(node) { return node.kind === 'leaf' ? node : firstLeaf(node.a); }
 function center(el) { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }
+function firstVisibleLeaf(pane, ps) {
+  const e = pane.tabs[pane.activeTab] && pane.tabs[pane.activeTab].entries[pane.tabs[pane.activeTab].cursor];
+  if (e && e.div) return firstVisibleLeaf(e.div.a, ps);
+  return pane;
+}
 
 customElements.define('pane-split', PaneSplit);

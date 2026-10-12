@@ -82,6 +82,7 @@
             (wrap ft-js)
             (wrap fg-js)
             (wrap sv-js)
+            (wrap ps-js)
             (wrap tg-js)
             (wrap tv-js)
             (wrap ba-js)
@@ -132,6 +133,7 @@
         ;<  ~  bind:m  (rise-wait:io prod "%explorer /main: failed, poke to restart")
         ~?  dbg  "%explorer /main: binding /grubbery/ball"
         ;<  ~  bind:m  (bind-http:io [~ /grubbery/ball])
+        ;<  ~  bind:m  (bind-http:io [~ /grubbery/explorer])
         ~?  dbg  "%explorer /main: ready"
         (http-dispatch:io %explorer)
           [[%requests ~] @]
@@ -144,6 +146,11 @@
           (pure:m ~)
         ~?  dbg  [%explorer-request eyre-id url.request.req]
         =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
+        ::  /grubbery/explorer[/...]: the standalone pane workspace — same shell,
+        ::  browse.js renders panes full-screen; it fetches data from /grubbery/ball.
+        ?:  ?=([%grubbery %explorer *] site)
+          ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils browse-html))
+          (pure:m ~)
         =/  raw-path=path
           ?.  ?=([%grubbery %ball *] site)  ~
           t.t.site
