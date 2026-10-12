@@ -146,6 +146,8 @@ class PaneSplit extends HTMLElement {
   #zoomStack = [];              // panes hoisted to viewport (ancestry path)
   #mark = null;                 // a marked pane (for swap)
   #armTarget = null;            // source pane id while picking a target
+  #pendingClose = null;         // a pane with content whose close awaits Enter
+  #closing = false;             // set only while Enter runs the confirmed close
   #hoisted = null;              // the pane currently hoisted for zoom
   #hoverToggle = true;
   #pillTimer = null;            // interval that counts the quickbar's sticky grace down
@@ -706,6 +708,16 @@ class PaneSplit extends HTMLElement {
   close(pane) {
     pane = pane ?? this.cursor;
     if (!pane) return;
+    // a pane with content is closed only on Enter: the ask arms it, Enter
+    // closes, Esc or any other key cancels. A second × is not a confirm, so a
+    // double-click cannot close it. An empty pane closes outright.
+    const hasContent = pane.tabs.some(t => t.cursor >= 0);
+    if (hasContent && !this.#closing) {
+      this.#pendingClose = pane; this.cursorTo(pane); this.focus();
+      this.#flashHint('close this pane? Enter to confirm · Esc to cancel');
+      return;
+    }
+    this.#cancelClose();
     if (this.#zoomStack.length) this.zoomReset();
     const par = pane.parent;
     if (!par) {
@@ -808,6 +820,7 @@ class PaneSplit extends HTMLElement {
 
   cursorTo(pane) {
     if (!pane) return;
+    if (this.#pendingClose && this.#pendingClose !== pane) this.#cancelClose();   // moving on backs out of a pending close
     if (pane.id !== this.#activeId) this.#hidePill();   // pill belongs to the pane you hovered; re-hover the new one
     this.#activeId = pane.id;
     // record a descend breadcrumb up the ownership chain
@@ -1174,7 +1187,14 @@ class PaneSplit extends HTMLElement {
     if (isEditable(e.target) || isEditable(document.activeElement)) return;
     this.#endRepeat(); this.swap(); e.preventDefault(); e.stopPropagation();
   };
+  #cancelClose() { if (!this.#pendingClose) return; this.#pendingClose = null; this.#flashHint(''); }
   #onKey = (e) => {
+    if (this.#pendingClose) {
+      const p = this.#pendingClose;
+      e.preventDefault(); e.stopPropagation();
+      if (e.key === 'Enter') { this.#closing = true; try { this.close(p); } finally { this.#closing = false; } return; }   // Enter closes for real
+      this.#cancelClose(); return;                                // anything else backs out
+    }
     if (this.#armTarget != null && e.key === 'Escape') { this.#cancelTargetPick(); e.preventDefault(); e.stopPropagation(); return; }
     if (this.#histMenu && this.#histMenu.classList.contains('on') && e.key === 'Escape') { this.#closeHistMenu(); e.preventDefault(); e.stopPropagation(); return; }
     if (this.#repeat && !this.#awaiting) {

@@ -187,6 +187,22 @@
     };
   } };
 
+  // ---- forge-docs: the repo's handbook. The docs reader is a page of its
+  // own (hash routing, page/search/slice/coverage routes), so the pane frames
+  // it at /grubbery/forge/repo/<repo>/docs rather than porting it. Follows
+  // docs-nav.json: a rebuilt handbook reloads the frame. ----
+  window.Viewers['forge-docs'] = { label: 'docs', mount: function (root, opts) {
+    var args = opts.args || {};
+    var fr = document.createElement('iframe');
+    fr.style.cssText = 'display:block;width:100%;height:100%;border:0;background:#fff';
+    fr.src = '/grubbery/forge/repo/' + encodeURIComponent(args.repo || '') + '/docs';
+    root.appendChild(fr);
+    return {
+      destroy: function () { fr.remove(); },
+      onUpdate: function () { try { fr.contentWindow.location.reload(); } catch (_) { fr.src = fr.src; } }
+    };
+  } };
+
   // ---- forge-repos: the repo selector. One card per repo instance; a click
   // navigates the pane to the repo's dir, which forge opens as the workspace
   // layout rooted there. Follows the repos dir (fold): a repo added or

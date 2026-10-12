@@ -7,4 +7,5 @@
        {"label":"status","entries":[{"path":"./data/ui/status.json"}],"cursor":0},
        {"label":"history","entries":[{"path":"./data/ui/commits.json"}],"cursor":0},
        {"label":"run","entries":[{"path":"./run.git-action"}],"cursor":0}]}}}],"cursor":0}]}}}],"cursor":0},
- {"label":"settings","entries":[{"path":"./config.json"}],"cursor":0}]}
+ {"label":"settings","entries":[{"path":"./config.json"}],"cursor":0},
+ {"label":"docs","entries":[{"path":"./data/ui/docs-nav.json"}],"cursor":0}]}

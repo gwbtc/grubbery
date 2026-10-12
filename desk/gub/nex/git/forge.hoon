@@ -889,6 +889,8 @@
       [%repos @ %data %ui %'commits.json' ~]  `[i.t.segs 'forge-log' ~[[ui %'commits.json'] [ui %'current.json'] [ui %'branches.json']]]
       [%repos @ %'run.git-action' ~]          `[i.t.segs 'forge-run' ~[[/ %'run.git-action']]]
       [%repos @ %'config.json' ~]             `[i.t.segs 'forge-settings' ~[[/ %'config.json'] [/ %'poll.json']]]
+      ::  the handbook: the docs reader page framed over the repo's docs nav
+      [%repos @ %data %ui %'docs-nav.json' ~]  `[i.t.segs 'forge-docs' ~[[ui %'docs-nav.json']]]
     ==
   ?~  rule  (respond rail eyre-id 200 '')
   =/  inst=path  (snoc repos repo.u.rule)
