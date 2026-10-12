@@ -810,12 +810,14 @@ function setup(root, opts) {
     const ns = psNs(path), url = psUrl(path);
     const route = (href, kind, mods) => {
       const h = psNs(href);
-      if (/\.layout$/.test(h)) { ps.navigate(paneId, h); return; }         // open the layout in THIS pane (renderPath instantiates it)
       if (kind) psKind.set(h, kind === 'dir' ? 'dir' : 'file');            // glyph the target before nav
       if (mods && (mods.meta || mods.ctrl)) { ps.open(h, 'beside'); return; }   // ⌘-click → new pane
       const tgt = ps.targetId && ps.targetId(paneId);                      // a pane with openTo sends ALL its links to the target
-      if (tgt) { ps.navigate(tgt, h); ps.focusPane(tgt); }
-      else ps.navigate(paneId, h);                                         // no target → navigate in place
+      if (tgt) {
+        const mode = ps.targetMode ? ps.targetMode(paneId) : 'replace';
+        if (mode === 'tab') ps.newTab(tgt, h); else ps.navigate(tgt, h);   // new tab vs replace current
+        ps.focusPane(tgt);
+      } else ps.navigate(paneId, h);                                       // no target → navigate in place
     };
     const raw = !!(ps.viewOf && ps.viewOf(paneId) === 'raw');              // toolbar toggle: skip all special rendering
     if (!raw && /\.layout$/.test(ns)) {                                    // this pane landed ON a layout → become it
@@ -1426,7 +1428,7 @@ function setup(root, opts) {
     ps.style.cssText = 'display:block;height:100%';
     ps.renderPath = (path, paneId) => paneContent(ps, paneId, path);
     ps.tabInfo = paneTabInfo;
-    ps.viewModes = [{ id: 'rendered', glyph: '▣', title: 'rendered (special)' }, { id: 'raw', glyph: '◰', title: 'raw file / plain listing' }];
+    ps.viewModes = [{ id: 'rendered', glyph: '▣', title: 'rendered' }, { id: 'raw', glyph: '◰', title: 'raw file / plain listing' }];
     ps.onDestroy = (id, body) => { const c = body.firstChild; try { if (c && c._fv) c._fv.destroy(); } catch (_) {} };
     root.appendChild(ps);
     let saved = null; try { saved = localStorage.getItem('pane-split:' + K + '-standalone'); } catch (_) {}

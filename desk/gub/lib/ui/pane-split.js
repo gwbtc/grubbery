@@ -86,11 +86,23 @@ const CSS = `
   .ps-nav input { width:100%; box-sizing:border-box; border:1px solid #e2e7ee; background:#fff; border-radius:6px; padding:3px 8px; font:13px ui-monospace,Menlo,monospace; color:#1f2328; outline:none; }
   .ps-nav input:focus { border-color:var(--ps-accent,#0969da); box-shadow:0 0 0 2px rgba(9,105,218,.15); }
   .ps-nav input::placeholder { color:#8b949e; }
+  .ps-tnav { flex:0 1 130px; min-width:40px; display:flex; align-items:center; }
+  .ps-tnav input { width:100%; box-sizing:border-box; border:1px solid #e2e7ee; background:#fff; border-radius:6px; padding:3px 8px; font:13px ui-monospace,Menlo,monospace; color:#1f2328; outline:none; }
+  .ps-tnav input:focus { border-color:var(--ps-accent,#0969da); box-shadow:0 0 0 2px rgba(9,105,218,.15); }
+  .ps-tnav input::placeholder { color:#8b949e; }
+  pane-split.ps-arming .ps-pane { cursor:crosshair; }
+  .ps-histmenu { position:absolute; z-index:30; display:none; flex-direction:column; min-width:160px; max-width:320px; max-height:50%; overflow-y:auto; background:#fff; border:1px solid #d0d7de; border-radius:8px; box-shadow:0 6px 20px rgba(0,0,0,.14); padding:4px; }
+  .ps-histmenu.on { display:flex; }
+  .ps-hm-row { all:unset; cursor:pointer; display:flex; align-items:center; gap:6px; padding:5px 9px; border-radius:6px; font:13px -apple-system,BlinkMacSystemFont,sans-serif; color:#24292f; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ps-hm-row:hover { background:#eaeef2; }
+  .ps-hm-row.on { background:#ddf4ff; color:#0969da; font-weight:600; }
+  .ps-hm-ic { opacity:.85; }
   /* one pill, anchored top-left of the SELECTED pane; materializes ITS bar */
   .ps-bartoggle { position:absolute; z-index:27; display:none; align-items:center; gap:5px; padding:4px 11px; border-radius:7px; background:#f6f8fa; border:1px solid #d0d7de; color:#57606a; font:600 13px -apple-system,BlinkMacSystemFont,sans-serif; cursor:pointer; opacity:0; visibility:hidden; transition:opacity .1s; user-select:none; box-shadow:0 1px 3px rgba(0,0,0,.08); }
   .ps-bartoggle.on { display:flex; }
   pane-split:hover .ps-bartoggle.on { opacity:1; visibility:visible; }
-  .ps-bartoggle:hover { color:#24292f; background:#eaeef2; border-color:#afb8c1; }
+  .ps-bt-act { padding:0 4px; border-radius:5px; cursor:pointer; }
+  .ps-bt-act:hover { background:#dce3ea; color:#24292f; }
   pane-split.ps-no-hovertoggle .ps-bartoggle { display:none !important; }
   .ps-hint { position:absolute; left:8px; bottom:8px; z-index:10; background:#1f2328; color:#fff; font:12px ui-monospace,Menlo,monospace; padding:4px 9px; border-radius:6px; opacity:0; transition:opacity .1s; pointer-events:none; }
   .ps-hint.on { opacity:.92; }
@@ -122,6 +134,7 @@ class PaneSplit extends HTMLElement {
   #selLevel = 2;
   #zoomStack = [];              // panes hoisted to viewport (ancestry path)
   #mark = null;                 // a marked pane (for swap)
+  #armTarget = null;            // source pane id while picking a target
   #hoisted = null;              // the pane currently hoisted for zoom
   #hoverToggle = true;
   #repeat = null;
@@ -132,6 +145,7 @@ class PaneSplit extends HTMLElement {
   #selBox = null;
   #markBox = null;
   #barToggle = null;
+  #histMenu = null;
 
   connectedCallback() {
     ensureStyle();
@@ -139,10 +153,19 @@ class PaneSplit extends HTMLElement {
     this.#hint = this.#chrome('ps-hint');
     this.#selBox = this.#chrome('ps-sel-box');
     this.#markBox = this.#chrome('ps-mark-box');
-    this.#barToggle = this.#chrome('ps-bartoggle'); this.#barToggle.textContent = 'bar ▾'; this.#barToggle.title = 'show the selected pane\'s bar';
-    this.#barToggle.addEventListener('mousedown', (e) => e.stopPropagation());
-    this.#barToggle.addEventListener('click', (e) => { e.stopPropagation(); if (this.#activeId) this.setBar(this.#activeId, true); });
+    this.#barToggle = this.#chrome('ps-bartoggle');
+    const btAct = (t, title, fn) => { const s = document.createElement('span'); s.className = 'ps-bt-act'; s.textContent = t; s.title = title; s.addEventListener('mousedown', (e) => e.stopPropagation()); s.addEventListener('click', (e) => { e.stopPropagation(); if (this.#activeId) fn(); }); return s; };
+    this.#barToggle.append(
+      btAct('bar ▾', 'show the selected pane\'s bar', () => this.setBar(this.#activeId, true)),
+      btAct('⤓', 'collapse pane', () => this.collapse(this.#activeId)),
+      btAct('⛶', 'zoom to this pane', () => this.zoomPane(this.#activeId)),
+      btAct('↑', 'zoom to parent', () => this.zoomParent(this.#activeId)),
+      btAct('⤢', 'zoom all the way out', () => this.zoomReset()),
+      btAct('×', 'close pane', () => this.closeLeaf(this.#activeId)));
+    this.#histMenu = this.#chrome('ps-histmenu');
     this.addEventListener('keydown', this.#onKey);
+    this.addEventListener('mousedown', this.#onPickTarget, true);   // capture: pick a target before normal select
+    this.addEventListener('mousedown', (e) => { if (this.#histMenu && this.#histMenu.classList.contains('on') && !this.#histMenu.contains(e.target) && !(e.target.closest && e.target.closest('.ps-histcaret'))) this.#closeHistMenu(); }, true);
     this.addEventListener('sv-resize', this.#onSvResize);
     this.addEventListener('sv-collapse', this.#onSvCollapse);
     window.addEventListener('resize', this.#reposition);
@@ -194,7 +217,7 @@ class PaneSplit extends HTMLElement {
       e.preventDefault(); e.stopPropagation();
       this.#activeId = id; this.climb();
     }, true);
-    const pane = { kind: 'pane', id, dom, body, bar, tabs: [{ entries: [], cursor: -1 }], activeTab: 0, parent: null, showBar: false, openTo: null, target: null, view: null };
+    const pane = { kind: 'pane', id, dom, body, bar, tabs: [{ entries: [], cursor: -1 }], activeTab: 0, parent: null, showBar: false, openTo: null, view: null };
     this.#panes.set(id, pane);
     this.#renderPane(pane);
     return pane;
@@ -212,11 +235,16 @@ class PaneSplit extends HTMLElement {
     const add = btn('+', 'new tab', () => this.newTab(id, this.#curPath(id)));
     const viewBtn = btn('', 'rendering mode', () => this.#cycleView(id));
     row1.append(btn('▴', 'hide bar', () => this.setBar(id, false)), tabs, add, viewBtn,
-      btn('→', 'split right', () => this.splitRight(id)), btn('↓', 'split down', () => this.splitDown(id)), btn('×', 'close pane', () => this.closeLeaf(id)));
+      btn('◨', 'split right', () => this.splitRight(id)), btn('⬓', 'split down', () => this.splitDown(id)),
+      btn('⤓', 'collapse pane', () => this.collapse(id)),
+      btn('⛶', 'zoom to this pane', () => this.zoomPane(id)), btn('↑', 'zoom to parent', () => this.zoomParent(id)), btn('⤢', 'zoom all the way out', () => this.zoomReset()),
+      btn('×', 'close pane', () => this.closeLeaf(id)));
     // row 2 — history + navbar
     const row2 = document.createElement('div'); row2.className = 'ps-bar-row';
-    const back = btn('◀', 'back', () => this.back(id));
-    const fwd = btn('▶', 'forward', () => this.forward(id));
+    const back = document.createElement('button'); back.className = 'ps-bar-btn'; back.textContent = '◀'; back.title = 'back (hold for history)';
+    const fwd = document.createElement('button'); fwd.className = 'ps-bar-btn'; fwd.textContent = '▶'; fwd.title = 'forward (hold for history)';
+    this.#wireHold(back, id, () => this.back(id), 'back');     // click = step, hold = history dropdown
+    this.#wireHold(fwd, id, () => this.forward(id), 'forward');
     const nav = document.createElement('div'); nav.className = 'ps-nav';
     const input = document.createElement('input');
     input.type = 'text'; input.spellcheck = false; input.placeholder = 'path…';
@@ -227,9 +255,23 @@ class PaneSplit extends HTMLElement {
       else if (e.key === 'Escape') { input.value = this.#curPath(id) || ''; input.blur(); }
     });
     nav.appendChild(input);
-    row2.append(back, fwd, nav);
+    // target control: pick a destination pane (or type the relative address),
+    // and toggle how links land there (replace current tab / new tab).
+    const tpick = btn('⇒', 'set target — click the pane links should open into', () => this.armTargetPick(id));
+    const tnav = document.createElement('div'); tnav.className = 'ps-tnav';
+    const tin = document.createElement('input');
+    tin.type = 'text'; tin.spellcheck = false; tin.placeholder = '→ target';
+    tin.addEventListener('mousedown', (e) => e.stopPropagation());
+    tin.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') { this.setTargetTo(id, tin.value); tin.blur(); }
+      else if (e.key === 'Escape') { tin.blur(); this.#renderBar(this.#panes.get(id)); }
+    });
+    tnav.appendChild(tin);
+    const tmode = btn('', 'open mode — click to toggle replace / new tab', () => this.toggleTargetMode(id));
+    row2.append(back, fwd, nav, tpick, tnav, tmode);
     bar.append(row1, row2);
-    bar._back = back; bar._fwd = fwd; bar._tabs = tabs; bar._nav = input; bar._view = viewBtn;
+    bar._back = back; bar._fwd = fwd; bar._tabs = tabs; bar._nav = input; bar._view = viewBtn; bar._tin = tin; bar._tmode = tmode;
     return bar;
   }
 
@@ -255,20 +297,72 @@ class PaneSplit extends HTMLElement {
     const navVal = e ? (e.div ? (e.div.src || '') : (e.path != null ? e.path : '')) : '';
     if (bar._nav !== document.activeElement) bar._nav.value = navVal;
     bar._nav.placeholder = (e && e.div) ? (e.div.src || 'layout') : 'path…';
-    // per-pane render-mode toggle (host-configured)
+    // target control: the relative address + how links land there
+    if (bar._tin !== document.activeElement) bar._tin.value = pane.openTo ? pane.openTo.to : '';
+    bar._tmode.textContent = (pane.openTo && pane.openTo.mode === 'tab') ? '⊕' : '⇄';
+    bar._tmode.style.visibility = pane.openTo ? '' : 'hidden';
+    // per-pane render-mode toggle — an ACTION button, so it shows the mode it
+    // will switch TO (not the current one).
     if (this.viewModes && this.viewModes.length) {
       const cur = pane.view || this.viewModes[0].id;
-      const m = this.viewModes.find(v => v.id === cur) || this.viewModes[0];
-      bar._view.textContent = m.glyph; bar._view.title = m.title || cur; bar._view.style.display = '';
+      const i = this.viewModes.findIndex(v => v.id === cur);
+      const next = this.viewModes[(i + 1) % this.viewModes.length];
+      bar._view.textContent = next.glyph; bar._view.title = 'switch to ' + (next.title || next.id); bar._view.style.display = '';
     } else bar._view.style.display = 'none';
   }
-  // {icon,label} for a tab chip — host's tabInfo(path) wins for leaf entries.
-  #tabMeta(tab) {
-    const e = tab.entries[tab.cursor];
+  // {icon,label} for one entry — host's tabInfo(path) wins for leaf entries.
+  #entryMeta(e) {
     if (!e) return { icon: '', label: 'empty' };
     if (e.div) return { icon: '▣', label: e.div.src ? base(e.div.src) : 'layout' };
     if (this.tabInfo) { try { const m = this.tabInfo(e.path); if (m) return { icon: m.icon || '', label: m.label || base(e.path) || 'empty' }; } catch (_) {} }
     return { icon: '', label: base(e.path) || 'empty' };
+  }
+  #tabMeta(tab) { return this.#entryMeta(tab.entries[tab.cursor]); }
+  // the tab's entry list (its history) for a back/forward dropdown.
+  historyList(id) {
+    const p = this.#panes.get(id ?? this.#activeId); if (!p) return [];
+    const tab = p.tabs[p.activeTab];
+    return tab.entries.map((e, i) => { const m = this.#entryMeta(e); return { i, icon: m.icon, label: m.label, current: i === tab.cursor }; });
+  }
+  goTo(id, i) {
+    const p = this.#panes.get(id ?? this.#activeId); if (!p) return;
+    const tab = p.tabs[p.activeTab]; if (i < 0 || i >= tab.entries.length || i === tab.cursor) return;
+    tab.cursor = i; this.#renderPane(p); this.#afterStructure(); this.#persist();
+  }
+  // click = step; press-and-hold = the history dropdown for that direction.
+  #wireHold(el, id, step, dir) {
+    let timer = null, held = false;
+    el.addEventListener('mousedown', () => { held = false; timer = setTimeout(() => { held = true; timer = null; this.#openHistMenu(id, el, dir); }, 350); });
+    el.addEventListener('mouseup', () => { if (timer) { clearTimeout(timer); timer = null; } if (!held) step(); });
+    el.addEventListener('mouseleave', () => { if (timer) { clearTimeout(timer); timer = null; } });
+    el.addEventListener('click', (e) => { e.preventDefault(); });   // handled via mousedown/up
+  }
+  #closeHistMenu() { if (this.#histMenu) { this.#histMenu.classList.remove('on'); this.#histMenu.__anchor = null; } }
+  // browser-style directional dropdown: 'back' = past (nearest first), 'forward'
+  // = future (nearest first), 'all' = whole line newest-first.
+  #openHistMenu(id, anchor, dir) {
+    const menu = this.#histMenu, p = this.#panes.get(id ?? this.#activeId); if (!menu || !p) return;
+    const cur = p.tabs[p.activeTab].cursor, full = this.historyList(id);
+    const rows = dir === 'back' ? full.filter(e => e.i < cur).reverse()
+      : dir === 'forward' ? full.filter(e => e.i > cur)
+        : full.slice().reverse();
+    if (!rows.length) return;
+    menu.textContent = '';
+    rows.forEach((e) => {
+      const row = document.createElement('button');
+      row.className = 'ps-hm-row' + (e.current ? ' on' : '');
+      row.title = e.label;
+      if (e.icon) { const ic = document.createElement('span'); ic.className = 'ps-hm-ic'; ic.textContent = e.icon; row.appendChild(ic); }
+      row.appendChild(document.createTextNode(e.label));
+      row.addEventListener('mousedown', (ev) => ev.stopPropagation());
+      row.addEventListener('mouseup', (ev) => { ev.stopPropagation(); this.goTo(id, e.i); this.#closeHistMenu(); });
+      row.addEventListener('click', (ev) => { ev.stopPropagation(); this.goTo(id, e.i); this.#closeHistMenu(); });
+      menu.appendChild(row);
+    });
+    const cr = this.getBoundingClientRect(), r = anchor.getBoundingClientRect();
+    menu.style.left = Math.max(0, r.left - cr.left) + 'px';
+    menu.style.top = (r.bottom - cr.top + 2) + 'px';
+    menu.__anchor = anchor; menu.classList.add('on');
   }
   #tabTitle(tab) { const e = tab.entries[tab.cursor]; if (!e) return 'empty tab'; return e.div ? (e.div.src || 'layout') : (e.path || ''); }
 
@@ -333,7 +427,7 @@ class PaneSplit extends HTMLElement {
   openLayout(id, spec) {
     const pid = id ?? this.#activeId;
     const div = this.#buildDiv(spec, this.#panes.get(pid));
-    if (div) { this.#pushEntry(pid, { div }); this.#wireTargets(this.#panes.get(pid)); }
+    if (div) this.#pushEntry(pid, { div });
   }
   // REPLACE the active entry with a layout (for navigating TO a .layout path: the
   // entry you landed on BECOMES the layout, so back returns to where you were).
@@ -346,11 +440,59 @@ class PaneSplit extends HTMLElement {
     const tab = pane.tabs[pane.activeTab];
     if (tab.cursor < 0) { tab.entries = [{ div }]; tab.cursor = 0; }
     else tab.entries[tab.cursor] = { div };
-    this.#renderPane(pane); this.#wireTargets(pane); this.#afterStructure(); this.#persist();
+    this.#renderPane(pane); this.#afterStructure(); this.#persist();
   }
-  // which pane a pane's navigations should open into (layout `openTo` by name),
-  // or null for in-place. The host decides WHEN to use it (e.g. files, not dirs).
-  targetId(id) { const p = this.#panes.get(id ?? this.#activeId); return p && p.target && this.#panes.has(p.target.id) ? p.target.id : null; }
+  // where a pane's navigations go: openTo = { to, mode }. `to` is a RELATIVE
+  // structural address from the SOURCE pane — '..' climbs to the owner, 'a'/'b'
+  // descend through active divisions (like a filesystem path: '../b', '../../a/b').
+  // `mode` is 'tab' (new tab in the target) or 'replace' (in place, default).
+  // Resolved on demand against the CURRENT structure; the host decides WHEN to
+  // use it (e.g. files, not dirs).
+  #targetPane(source) {
+    const spec = source && source.openTo;
+    if (!spec || !spec.to) return null;
+    const parts = String(spec.to).split('/').filter((s) => s.length && s !== '.');
+    let n = source, i = 0;
+    while (i < parts.length && parts[i] === '..') { n = this.#ownerOf(n); if (!n) return null; i++; }
+    for (; i < parts.length; i++) {
+      const slot = parts[i]; if (slot !== 'a' && slot !== 'b') return null;
+      const div = this.#curEntry(n)?.div; if (!div) return null;
+      n = div[slot]; if (!n) return null;
+    }
+    return n !== source ? n : null;
+  }
+  targetId(id) { const t = this.#targetPane(this.#panes.get(id ?? this.#activeId)); return t && this.#panes.has(t.id) ? t.id : null; }
+  targetMode(id) { const p = this.#panes.get(id ?? this.#activeId); return (p && p.openTo && p.openTo.mode) || 'replace'; }
+  // ---- editing a target ----
+  // the relative address from source to target (inverse of #targetPane): climb
+  // source to their common ancestor, then descend to target.
+  #addrOf(source, target) {
+    if (!source || !target || source === target) return null;
+    const anc = new Set(); for (let t = target; t; t = this.#ownerOf(t)) anc.add(t);
+    let a = source, ups = 0;
+    while (a && !anc.has(a)) { a = this.#ownerOf(a); ups++; }
+    if (!a) return null;
+    const slots = []; for (let t = target; t && t !== a; t = this.#ownerOf(t)) slots.unshift(t.parent.slot);
+    return '../'.repeat(ups) + slots.join('/');
+  }
+  // arm "set target": the next pane click becomes this pane's target.
+  armTargetPick(id) { this.#armTarget = id ?? this.#activeId; this.classList.add('ps-arming'); this.#flashHint('set target: click the pane links should open into (Esc to cancel)'); }
+  #cancelTargetPick() { if (this.#armTarget == null) return; this.#armTarget = null; this.classList.remove('ps-arming'); this.#flashHint(''); }
+  setTargetTo(id, addr) {
+    const p = this.#panes.get(id ?? this.#activeId); if (!p) return;
+    addr = (addr || '').trim();
+    p.openTo = addr ? { to: addr, mode: (p.openTo && p.openTo.mode) || 'replace' } : null;
+    this.#renderBar(p); this.#render(); this.#persist();
+  }
+  toggleTargetMode(id) { const p = this.#panes.get(id ?? this.#activeId); if (!p || !p.openTo) return; p.openTo.mode = p.openTo.mode === 'tab' ? 'replace' : 'tab'; this.#renderBar(p); this.#persist(); }
+  #onPickTarget = (e) => {
+    if (this.#armTarget == null) return;
+    const el = e.target && e.target.closest && e.target.closest('.ps-pane');
+    const id = el && el.dataset.paneId;
+    e.preventDefault(); e.stopPropagation();
+    const src = this.#armTarget; this.#cancelTargetPick();
+    if (id && src !== id) this.setTargetTo(src, this.#addrOf(this.#panes.get(src), this.#panes.get(id)));
+  };
   // per-pane render mode (opaque; host's renderPath interprets, e.g. 'raw'). The
   // bar's toggle cycles through `viewModes`; the default mode is stored as null.
   viewOf(id) { const p = this.#panes.get(id ?? this.#activeId); return p ? p.view : null; }
@@ -362,23 +504,6 @@ class PaneSplit extends HTMLElement {
     const i = this.viewModes.findIndex(v => v.id === cur);
     const next = this.viewModes[(i + 1) % this.viewModes.length].id;
     this.setView(id, next === this.viewModes[0].id ? null : next);
-  }
-  // resolve each pane's `openTo` STRUCTURAL ADDRESS to a target pane. The address
-  // is a slot-path from the layout's root division: 'a'/'b', nested like 'b/a'.
-  #wireTargets(scope) {
-    if (!scope) return;
-    const rootDiv = this.#curEntry(scope)?.div;
-    this.#eachPaneDeep(scope, p => { p.target = (p.openTo && rootDiv) ? this.#paneAt(rootDiv, p.openTo) : null; }, true);
-  }
-  // walk a slot-path ('a'/'b' segments) from a division to the pane it addresses
-  #paneAt(div, addr) {
-    let d = div, pane = null;
-    for (const s of String(addr).split(/[^ab]+/).filter(Boolean)) {
-      if (!d) return null;
-      pane = d[s]; if (!pane) return null;
-      d = this.#curEntry(pane)?.div || null;
-    }
-    return pane;
   }
   #pushEntry(id, entry) {
     const pane = this.#panes.get(id);
@@ -511,8 +636,12 @@ class PaneSplit extends HTMLElement {
   #applyDivLayout(div) {
     const sv = div.sv;
     sv.setAttribute('orientation', div.dir);
-    sv.setAttribute('size', (div.ratio * 100) + '%');
-    if (div.fold) { sv.setAttribute('primary', div.fold === 'a' ? 'start' : 'end'); sv.setAttribute('collapsed', ''); }
+    // split-view's `size` is the PRIMARY pane's size. ratio is always the START
+    // pane's fraction, so when the primary is 'end' (collapsing b) the size must
+    // be the END fraction (1 - ratio) — otherwise reopen restores it inverted.
+    const primaryEnd = div.fold === 'b';
+    sv.setAttribute('size', ((primaryEnd ? 1 - div.ratio : div.ratio) * 100) + '%');
+    if (div.fold) { sv.setAttribute('primary', primaryEnd ? 'end' : 'start'); sv.setAttribute('collapsed', ''); }
     else { sv.setAttribute('primary', 'start'); sv.removeAttribute('collapsed'); }
   }
   #afterStructure() { this.#reconnectDivs(); this.#reposition(); }
@@ -533,13 +662,16 @@ class PaneSplit extends HTMLElement {
   }
   #onSvResize = (e) => {
     const div = e.target && e.target.__psdiv;
-    if (div) { const dim = div.dir === 'horizontal' ? e.target.clientWidth : e.target.clientHeight; if (dim) div.ratio = Math.max(0.02, Math.min(0.98, (e.detail?.size ?? 0) / dim)); }
+    // ignore resize while folded: `primary` points at the collapsed (end) side, so
+    // the reported size is that side's — storing it would invert the ratio.
+    if (div && !div.fold) { const dim = div.dir === 'horizontal' ? e.target.clientWidth : e.target.clientHeight; if (dim) div.ratio = Math.max(0.02, Math.min(0.98, (e.detail?.size ?? 0) / dim)); }
     this.#reposition(); this.#persist();
   };
   #onSvCollapse = (e) => {
     const div = e.target && e.target.__psdiv;
     if (!div) return;
     div.fold = e.detail?.collapsed ? ((e.target.getAttribute('primary') || 'start') === 'start' ? 'a' : 'b') : null;
+    this.#applyDivLayout(div);   // re-drive the view from state (restore primary='start' + ratio on reopen)
     this.#render(); this.#persist();
   };
 
@@ -605,7 +737,7 @@ class PaneSplit extends HTMLElement {
     const c = this.cursor;
     if (this.#hoverToggle && c && !c.showBar && !this.#hidden(c)) {
       const cr = this.getBoundingClientRect(), r = c.dom.getBoundingClientRect();
-      t.style.left = (r.left - cr.left + 9) + 'px';
+      t.style.left = (r.left - cr.left + 4) + 'px';
       t.style.top = (r.top - cr.top + 9) + 'px';
       t.classList.add('on');
     } else t.classList.remove('on');
@@ -670,6 +802,20 @@ class PaneSplit extends HTMLElement {
   }
   zoomOut() { if (this.#zoomStack.length) { this.#zoomStack.pop(); this.#afterZoom(this.#zoomStack[this.#zoomStack.length - 1] ?? this.cursor); } }
   zoomReset() { if (this.#zoomStack.length) { this.#zoomStack = []; this.#afterZoom(this.cursor); } }
+  // make a specific pane fill the viewport (toolbar "full screen this").
+  zoomPane(id) {
+    const p = this.#panes.get(id ?? this.#activeId);
+    if (!p || !p.parent) { this.zoomReset(); return; }   // root already fills
+    this.#zoomStack = [p]; this.#afterZoom(p);
+  }
+  // step the zoom out to the parent of what's currently zoomed (or of this pane).
+  zoomParent(id) {
+    const top = this.#zoomStack[this.#zoomStack.length - 1];
+    const from = top || this.#panes.get(id ?? this.#activeId);
+    const owner = from && this.#ownerOf(from);
+    if (owner && owner.parent) { this.#zoomStack = [owner]; this.#afterZoom(owner); }
+    else this.zoomReset();                                 // parent is the root → show everything
+  }
   #afterZoom(focusPane) { this.#applyZoom(); if (focusPane) this.cursorTo(focusPane); this.#emit('ps-zoom', { depth: this.#zoomStack.length }); }
   #applyZoom() {
     const scroll = this.#snapshotScroll();   // reparenting a pane zeroes its scrollers — keep them
@@ -696,9 +842,9 @@ class PaneSplit extends HTMLElement {
 
   // ---- collapse / resize (nearest ancestor division) ----
 
-  // collapse: fold the SELECTED pane's slot → its sibling fills (toggle).
-  collapse() {
-    const pane = this.cursor, par = pane && pane.parent;
+  // collapse: fold the given (or SELECTED) pane's slot → its sibling fills (toggle).
+  collapse(id) {
+    const pane = id != null ? this.#panes.get(id) : this.cursor, par = pane && pane.parent;
     if (!par) return;
     par.div.fold = (par.div.fold === par.slot) ? null : par.slot;
     this.#applyDivLayout(par.div); this.#render(); this.#persist();
@@ -767,12 +913,11 @@ class PaneSplit extends HTMLElement {
     this.classList.remove('ps-zoomed');
     this.#root = spec ? this.#deserPane(spec, null) : this.#makePane();
     this.#placePane(this.#root, this, null);
-    this.#wireTargets(this.#root);
     this.#afterStructure();
     this.cursorTo(firstVisibleLeaf(this.#root, this));
   }
   // build a detached pane subtree from a spec (for openLayout / instantiate)
-  instantiate(spec) { const p = this.#deserPane(spec, null); this.#wireTargets(p); return p; }
+  instantiate(spec) { return this.#deserPane(spec, null); }
   #buildDiv(spec, hostPane) {
     if (!spec || !spec.div) return null;
     const s = spec.div;
@@ -833,6 +978,8 @@ class PaneSplit extends HTMLElement {
     return { key: raw.pop(), ctrl: raw.includes('ctrl'), meta: raw.includes('meta') || raw.includes('cmd'), alt: raw.includes('alt') };
   }
   #onKey = (e) => {
+    if (this.#armTarget != null && e.key === 'Escape') { this.#cancelTargetPick(); e.preventDefault(); e.stopPropagation(); return; }
+    if (this.#histMenu && this.#histMenu.classList.contains('on') && e.key === 'Escape') { this.#closeHistMenu(); e.preventDefault(); e.stopPropagation(); return; }
     if (this.#repeat && !this.#awaiting) {
       if (MODS[e.key]) return;
       const d = DIR[e.key];
