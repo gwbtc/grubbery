@@ -847,8 +847,17 @@ function setup(root, opts) {
       t.items = d.children;
     }).catch(async () => {
       psKind.set(ns, 'file'); ps.redrawBars();                            // not a listing → it's a file
-      const opts = { url, crumbBase: ROOT, onNavigate: onNav };          // its declared viewer becomes FileView's first pane (unless raw)
-      if (!raw) { try { const v = await viewerFor(url, 'file'); if (v && !v.blocked) opts.viewer = v; } catch (_) {} }
+      // rendered = JUST the declared viewer's rendering (no FileView chrome);
+      // raw = the full Source|Preview|Build package. The viewer never rides
+      // along inside raw — the two are separate panes you toggle between.
+      if (!raw) {
+        let v = null; try { v = await viewerFor(url, 'file'); } catch (_) {}
+        if (v && !v.blocked && v.mount) {
+          try { el._fv = v.mount(el, { url, onNavigate: onNav }); } catch (e) { el.textContent = 'viewer failed: ' + e; }
+          return;                                                         // rendered: the rendering alone
+        }
+      }
+      const opts = { url, crumbBase: ROOT, onNavigate: onNav };          // raw, or no renderer → the raw package
       try { el._fv = window.FileView.mount(el, opts); }
       catch (e) { el.textContent = 'open failed: ' + e; }
     });

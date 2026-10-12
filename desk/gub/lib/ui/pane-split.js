@@ -98,12 +98,17 @@ const CSS = `
   .ps-hm-row.on { background:#ddf4ff; color:#0969da; font-weight:600; }
   .ps-hm-ic { opacity:.85; }
   /* one pill, anchored top-left of the SELECTED pane; materializes ITS bar */
-  .ps-bartoggle { position:absolute; z-index:27; display:none; align-items:center; gap:5px; padding:4px 11px; border-radius:7px; background:#f6f8fa; border:1px solid #d0d7de; color:#57606a; font:600 13px -apple-system,BlinkMacSystemFont,sans-serif; cursor:pointer; opacity:0; visibility:hidden; transition:opacity .1s; user-select:none; box-shadow:0 1px 3px rgba(0,0,0,.08); }
-  .ps-bartoggle.on { display:flex; }
-  pane-split:hover .ps-bartoggle.on { opacity:1; visibility:visible; }
-  .ps-bt-act { padding:0 4px; border-radius:5px; cursor:pointer; }
-  .ps-bt-act:hover { background:#dce3ea; color:#24292f; }
-  pane-split.ps-no-hovertoggle .ps-bartoggle { display:none !important; }
+  /* thin quick-action dropdown: ONE host-level element (like the old pill, so it
+     is never clipped by a pane's overflow nor stacked under an ancestor's bar),
+     anchored over the SELECTED pane's top edge and sized to its width. Drops in
+     on top-edge hover; a grace timer keeps it a few seconds. Not persisted. */
+  .ps-quickbar { position:absolute; z-index:27; display:none; align-items:center; gap:2px; box-sizing:border-box; padding:3px 6px; background:#f6f8fa; border:1px solid #d0d7de; box-shadow:0 3px 8px rgba(0,0,0,.1); user-select:none; }
+  .ps-quickbar.on { display:flex; animation:ps-qb-drop .13s ease-out; }
+  @keyframes ps-qb-drop { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
+  .ps-qb-btn { all:unset; cursor:pointer; padding:2px 8px; border-radius:5px; color:#57606a; font:14px -apple-system,BlinkMacSystemFont,sans-serif; line-height:1.4; }
+  .ps-qb-btn:hover { background:#eaeef2; color:#24292f; }
+  .ps-qb-count { margin-left:auto; padding:0 4px 0 8px; color:#8b949e; font:600 12px ui-monospace,SFMono-Regular,Menlo,monospace; min-width:20px; text-align:right; }
+  pane-split.ps-no-hovertoggle .ps-quickbar { display:none !important; }
   .ps-hint { position:absolute; left:8px; bottom:8px; z-index:10; background:#1f2328; color:#fff; font:12px ui-monospace,Menlo,monospace; padding:4px 9px; border-radius:6px; opacity:0; transition:opacity .1s; pointer-events:none; }
   .ps-hint.on { opacity:.92; }
 `;
@@ -137,6 +142,9 @@ class PaneSplit extends HTMLElement {
   #armTarget = null;            // source pane id while picking a target
   #hoisted = null;              // the pane currently hoisted for zoom
   #hoverToggle = true;
+  #pillTimer = null;            // interval that counts the quickbar's sticky grace down
+  #pillEnd = 0;                 // when the quickbar is due to retract (ms epoch)
+  #padBody = null;             // the pane body currently padded down to make room for the quickbar
   #repeat = null;
   #awaiting = false;
   #awaitTimer = null;
@@ -144,7 +152,7 @@ class PaneSplit extends HTMLElement {
   #hint = null;
   #selBox = null;
   #markBox = null;
-  #barToggle = null;
+  #barToggle = null;            // the one host-level quickbar dropdown element
   #histMenu = null;
 
   connectedCallback() {
@@ -153,17 +161,23 @@ class PaneSplit extends HTMLElement {
     this.#hint = this.#chrome('ps-hint');
     this.#selBox = this.#chrome('ps-sel-box');
     this.#markBox = this.#chrome('ps-mark-box');
-    this.#barToggle = this.#chrome('ps-bartoggle');
-    const btAct = (t, title, fn) => { const s = document.createElement('span'); s.className = 'ps-bt-act'; s.textContent = t; s.title = title; s.addEventListener('mousedown', (e) => e.stopPropagation()); s.addEventListener('click', (e) => { e.stopPropagation(); if (this.#activeId) fn(); }); return s; };
+    this.#barToggle = this.#chrome('ps-quickbar');
+    const act = (t, title, fn) => { const b = document.createElement('button'); b.className = 'ps-qb-btn'; b.textContent = t; b.title = title; b.addEventListener('mousedown', (e) => e.stopPropagation()); b.addEventListener('click', (e) => { e.stopPropagation(); if (this.#activeId) fn(); }); return b; };
     this.#barToggle.append(
-      btAct('bar ▾', 'show the selected pane\'s bar', () => this.setBar(this.#activeId, true)),
-      btAct('⤓', 'collapse pane', () => this.collapse(this.#activeId)),
-      btAct('⛶', 'zoom to this pane', () => this.zoomPane(this.#activeId)),
-      btAct('↑', 'zoom to parent', () => this.zoomParent(this.#activeId)),
-      btAct('⤢', 'zoom all the way out', () => this.zoomReset()),
-      btAct('×', 'close pane', () => this.closeLeaf(this.#activeId)));
+      act('bar ▾', 'materialize the full topbar', () => this.setBar(this.#activeId, true)),
+      act('⤓', 'collapse pane', () => this.collapse(this.#activeId)),
+      act('⬉', 'select parent container', () => this.selectParent(this.#activeId)),
+      act('⛶', 'zoom to this pane', () => this.zoomPane(this.#activeId)),
+      act('↑', 'zoom to parent', () => this.zoomParent(this.#activeId)),
+      act('⤢', 'zoom all the way out', () => this.zoomReset()),
+      act('×', 'close pane', () => this.closeLeaf(this.#activeId)));
+    const count = document.createElement('span'); count.className = 'ps-qb-count';   // sticky countdown, right-aligned
+    this.#barToggle.append(count); this.#barToggle._count = count;
+    this.#barToggle.addEventListener('mouseenter', () => this.#holdPill());         // interacting → keep it open
+    this.#barToggle.addEventListener('mouseleave', () => this.#schedulePillHide(5000));
     this.#histMenu = this.#chrome('ps-histmenu');
     this.addEventListener('keydown', this.#onKey);
+    window.addEventListener('keydown', this.#onKeyGlobal, true);     // armed-swap: bare Space anywhere
     this.addEventListener('mousedown', this.#onPickTarget, true);   // capture: pick a target before normal select
     this.addEventListener('mousedown', (e) => { if (this.#histMenu && this.#histMenu.classList.contains('on') && !this.#histMenu.contains(e.target) && !(e.target.closest && e.target.closest('.ps-histcaret'))) this.#closeHistMenu(); }, true);
     this.addEventListener('sv-resize', this.#onSvResize);
@@ -178,6 +192,7 @@ class PaneSplit extends HTMLElement {
 
   disconnectedCallback() {
     this.removeEventListener('keydown', this.#onKey);
+    window.removeEventListener('keydown', this.#onKeyGlobal, true);
     this.removeEventListener('sv-resize', this.#onSvResize);
     this.removeEventListener('sv-collapse', this.#onSvCollapse);
     window.removeEventListener('resize', this.#reposition);
@@ -211,12 +226,19 @@ class PaneSplit extends HTMLElement {
     body.className = 'ps-pane-body';
     dom.append(bar, body);
     // mouse structural cursor: plain click selects this pane; shift-click climbs.
-    dom.addEventListener('mousedown', (e) => { if (!e.shiftKey) this.focusPane(id); }, true);
+    // capture, but only the INNERMOST pane under the cursor selects — otherwise
+    // every ancestor's handler fires too, thrashing the cursor through parents
+    // (which would e.g. hide the quickbar before the click lands on the leaf).
+    dom.addEventListener('mousedown', (e) => { if (!e.shiftKey && e.target.closest('.ps-pane') === dom) this.focusPane(id); }, true);
     dom.addEventListener('click', (e) => {
       if (!e.shiftKey) return;
       e.preventDefault(); e.stopPropagation();
       this.#activeId = id; this.climb();
     }, true);
+    // sticky quickbar: hovering the selected pane's top edge drops the thin
+    // quick-action bar; it lingers (grace timer) and the bar itself holds it
+    // open while you interact (wired where the element is built).
+    dom.addEventListener('mousemove', (e) => this.#onTopHover(e, id));
     const pane = { kind: 'pane', id, dom, body, bar, tabs: [{ entries: [], cursor: -1 }], activeTab: 0, parent: null, showBar: false, openTo: null, view: null };
     this.#panes.set(id, pane);
     this.#renderPane(pane);
@@ -237,6 +259,7 @@ class PaneSplit extends HTMLElement {
     row1.append(btn('▴', 'hide bar', () => this.setBar(id, false)), tabs, add, viewBtn,
       btn('◨', 'split right', () => this.splitRight(id)), btn('⬓', 'split down', () => this.splitDown(id)),
       btn('⤓', 'collapse pane', () => this.collapse(id)),
+      btn('⬉', 'select parent container', () => this.selectParent(id)),
       btn('⛶', 'zoom to this pane', () => this.zoomPane(id)), btn('↑', 'zoom to parent', () => this.zoomParent(id)), btn('⤢', 'zoom all the way out', () => this.zoomReset()),
       btn('×', 'close pane', () => this.closeLeaf(id)));
     // row 2 — history + navbar
@@ -534,7 +557,7 @@ class PaneSplit extends HTMLElement {
 
   // ---- topbar visibility ----
 
-  setBar(id, on) { const p = this.#panes.get(id); if (!p) return; p.showBar = (on == null) ? !p.showBar : !!on; p.dom.classList.toggle('ps-bar-on', p.showBar); this.#positionBarToggle(); this.#persist(); }
+  setBar(id, on) { const p = this.#panes.get(id); if (!p) return; p.showBar = (on == null) ? !p.showBar : !!on; p.dom.classList.toggle('ps-bar-on', p.showBar); if (p.showBar) this.#hidePill(); this.#positionBarToggle(); this.#persist(); }
   // focus the pane's navbar (materializing its bar if hidden) and select the text,
   // ready for the user to type a path. Enter navigates, Esc restores & blurs.
   focusNav(id) { const p = this.#panes.get(id ?? this.#activeId); if (!p) return; if (!p.showBar) this.setBar(p.id, true); const input = p.bar && p.bar._nav; if (input) { input.focus(); input.select(); } }
@@ -683,6 +706,7 @@ class PaneSplit extends HTMLElement {
 
   cursorTo(pane) {
     if (!pane) return;
+    if (pane.id !== this.#activeId) this.#hidePill();   // pill belongs to the pane you hovered; re-hover the new one
     this.#activeId = pane.id;
     // record a descend breadcrumb up the ownership chain
     let n = pane, owner = this.#ownerOf(pane);
@@ -693,6 +717,9 @@ class PaneSplit extends HTMLElement {
   focusPane(id) { const p = this.#panes.get(id); if (p) this.cursorTo(p); }
   #ownerOf(pane) { return pane && pane.parent ? pane.parent.div.owner : null; }
   climb() { const o = this.#ownerOf(this.cursor); if (o) this.cursorTo(o); }
+  // select the parent container (the division that owns this pane) and show the
+  // purple container box around it.
+  selectParent(id) { const p = id != null ? this.#panes.get(id) : this.cursor; const o = this.#ownerOf(p); if (!o) return; if (this.#selLevel < 2) this.#selLevel = 2; this.cursorTo(o); }
   descend() { const e = this.#curEntry(this.cursor); if (e && e.div) this.cursorTo(e.div.last === 'b' ? e.div.b : e.div.a); }
   sibling() { const c = this.cursor; if (c && c.parent) { const d = c.parent.div; this.cursorTo(c.parent.slot === 'a' ? d.b : d.a); } }
   escape() { if (this.#zoomStack.length) this.zoomReset(); else this.#render(); }
@@ -729,18 +756,60 @@ class PaneSplit extends HTMLElement {
     this.#renderMark();
     this.#positionBarToggle();
   };
-  // the single hover pill: anchored to the SELECTED pane's top-left; offers to
-  // materialize that pane's bar. Hidden when the pane already has a bar, when
-  // bars are locked, or when nothing is selected.
+  // keep a showing quickbar anchored to the selected pane across scroll/resize;
+  // hide it if that pane went away, got hidden, or locked its bar on.
   #positionBarToggle() {
-    const t = this.#barToggle; if (!t) return;
+    const t = this.#barToggle; if (!t || !t.classList.contains('on')) return;
     const c = this.cursor;
-    if (this.#hoverToggle && c && !c.showBar && !this.#hidden(c)) {
-      const cr = this.getBoundingClientRect(), r = c.dom.getBoundingClientRect();
-      t.style.left = (r.left - cr.left + 4) + 'px';
-      t.style.top = (r.top - cr.top + 9) + 'px';
-      t.classList.add('on');
-    } else t.classList.remove('on');
+    if (!c || c.showBar || this.#hidden(c)) { this.#hidePill(); return; }
+    this.#placeToggle(c);
+  }
+  // ---- sticky quickbar (thin host-level drop-down on top-edge hover of the selected pane) ----
+  #onTopHover(e, id) {
+    if (id !== this.#activeId || !this.#hoverToggle) return;
+    const p = this.#panes.get(id); if (!p || p.showBar || this.#hidden(p)) return;
+    const r = p.dom.getBoundingClientRect();
+    if (e.clientY - r.top <= 24) this.#showPill();                 // near the top → drop it + refresh grace
+  }
+  #placeToggle(c) {
+    const t = this.#barToggle, cr = this.getBoundingClientRect(), r = c.dom.getBoundingClientRect(), m = 3;
+    t.style.left = (r.left - cr.left + m) + 'px';                   // inset so the selection frame stays visible
+    t.style.top = (r.top - cr.top + m) + 'px';
+    t.style.width = (r.width - m * 2) + 'px';
+  }
+  #showPill() {
+    const t = this.#barToggle, c = this.cursor;
+    if (!t || !this.#hoverToggle || !c || c.showBar || this.#hidden(c)) return;
+    this.#placeToggle(c);
+    t.classList.add('on');
+    this.#displace(c);                                             // shift the pane's content down beneath the bar
+    this.#schedulePillHide(5000);
+  }
+  // push the pane's content down by the bar's height so it isn't hidden under it.
+  // leaf bodies take padding; a division body holds an absolute split-view
+  // (inset:0) that ignores padding, so shift its top instead.
+  #displace(c) {
+    this.#undisplace();
+    const h = (this.#barToggle.offsetHeight || 30) + 6;
+    c.body.style.paddingTop = h + 'px';
+    const sv = c.body.querySelector(':scope > split-view');
+    if (sv) sv.style.top = h + 'px';
+    this.#padBody = c.body;
+  }
+  #undisplace() {
+    if (!this.#padBody) return;
+    this.#padBody.style.paddingTop = '';
+    const sv = this.#padBody.querySelector(':scope > split-view');
+    if (sv) sv.style.top = '';
+    this.#padBody = null;
+  }
+  #hidePill() { if (this.#barToggle) this.#barToggle.classList.remove('on'); this.#undisplace(); this.#holdPill(); }
+  #holdPill() { if (this.#pillTimer) { clearInterval(this.#pillTimer); this.#pillTimer = null; } const el = this.#barToggle && this.#barToggle._count; if (el) el.textContent = ''; }
+  #schedulePillHide(ms) { this.#holdPill(); this.#pillEnd = Date.now() + ms; this.#tickPill(); this.#pillTimer = setInterval(() => this.#tickPill(), 200); }
+  #tickPill() {
+    const rem = this.#pillEnd - Date.now();
+    if (rem <= 0) { this.#hidePill(); return; }
+    const el = this.#barToggle && this.#barToggle._count; if (el) el.textContent = Math.ceil(rem / 1000) + 's';
   }
   #placeBox(box, pane) {
     if (!box) return;
@@ -761,7 +830,7 @@ class PaneSplit extends HTMLElement {
       const par = n.parent; if (!par) break;
       const owner = par.div.owner;
       if (this.#curEntry(owner)?.div !== par.div) return true;   // owner looking elsewhere
-      if (owner.view) return true;                               // owner showing its layout's source (raw), not the division
+      if (this.#showsSrc(owner)) return true;                    // owner showing its layout's source (raw), not the division
       if (par.div.fold === par.slot) return true;                // folded away
       n = owner;
     }
@@ -882,17 +951,20 @@ class PaneSplit extends HTMLElement {
     if (this.#mark && this.#mark !== c) { if (this.#swapPanes(c, this.#mark)) { this.clearMark(); this.cursorTo(c); this.#persist(); } return; }
     const p = c && c.parent;
     if (!p) return;
-    const div = p.div;
+    const div = p.div, scroll = this.#snapshotScroll();
     [div.a, div.b] = [div.b, div.a];
-    this.#afterStructure(); this.#render(); this.#persist();
+    this.#placePane(div.a, div.sv, 'start'); this.#placePane(div.b, div.sv, 'end');   // move the DOM to match
+    this.#afterStructure(); this.#restoreScroll(scroll); this.#render(); this.#persist();
   }
   #swapPanes(n1, n2) {
     if (n1 === n2 || !n1.parent || !n2.parent) return false;
     if (this.#within(n1, n2) || this.#within(n2, n1)) return false;
-    const p1 = n1.parent, p2 = n2.parent, d1 = p1.div, d2 = p2.div;
+    const p1 = n1.parent, p2 = n2.parent, d1 = p1.div, d2 = p2.div, scroll = this.#snapshotScroll();
     d1[p1.slot] = n2; d2[p2.slot] = n1;
     n1.parent = { div: d2, slot: p2.slot }; n2.parent = { div: d1, slot: p1.slot };
-    this.#afterStructure();
+    this.#placePane(n2, d1.sv, p1.slot === 'a' ? 'start' : 'end');   // re-append each pane into its new slot
+    this.#placePane(n1, d2.sv, p2.slot === 'a' ? 'start' : 'end');
+    this.#afterStructure(); this.#restoreScroll(scroll);
     return true;
   }
 
@@ -963,7 +1035,11 @@ class PaneSplit extends HTMLElement {
   // one showing a path/empty is a leaf.
   // a pane "divides" only when its active entry is a div AND it's not showing that
   // layout's source (raw view) — a raw layout pane is a leaf (it shows a file).
-  #divides(pane) { const e = this.#curEntry(pane); return !!(e && e.div && !pane.view); }
+  // a pane is showing its layout's SOURCE (raw) instead of the live division —
+  // only when a non-default view is set AND there's a src to show. A src-less
+  // inner split in raw view keeps dividing; raw there has nothing to swap in.
+  #showsSrc(pane) { const e = this.#curEntry(pane); return !!(pane.view && e && e.div && e.div.src); }
+  #divides(pane) { const e = this.#curEntry(pane); return !!(e && e.div) && !this.#showsSrc(pane); }
   #isVisibleLeaf(pane) { return this.#panes.has(pane.id) && !this.#divides(pane) && !this.#hidden(pane); }
   #eachVisibleLeaf(pane, fn) {
     if (!pane) return;
@@ -977,6 +1053,14 @@ class PaneSplit extends HTMLElement {
     const raw = (this.getAttribute('prefix') || 'ctrl+b').toLowerCase().split('+');
     return { key: raw.pop(), ctrl: raw.includes('ctrl'), meta: raw.includes('meta') || raw.includes('cmd'), alt: raw.includes('alt') };
   }
+  // a set mark ARMS a swap: bare Space completes it from anywhere on the page
+  // (no prefix, even mid-move), as long as you're not typing in a field. Lives
+  // at window level so it fires regardless of which element holds focus.
+  #onKeyGlobal = (e) => {
+    if (!this.#mark || e.key !== ' ' || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (isEditable(e.target) || isEditable(document.activeElement)) return;
+    this.#endRepeat(); this.swap(); e.preventDefault(); e.stopPropagation();
+  };
   #onKey = (e) => {
     if (this.#armTarget != null && e.key === 'Escape') { this.#cancelTargetPick(); e.preventDefault(); e.stopPropagation(); return; }
     if (this.#histMenu && this.#histMenu.classList.contains('on') && e.key === 'Escape') { this.#closeHistMenu(); e.preventDefault(); e.stopPropagation(); return; }
@@ -1039,6 +1123,7 @@ class PaneSplit extends HTMLElement {
   #emit(name, detail) { this.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true })); }
 }
 
+function isEditable(el) { if (!el) return false; const t = el.tagName; return t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT' || !!el.isContentEditable; }
 function center(el) { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }
 function firstVisibleLeaf(pane, ps) {
   const e = pane.tabs[pane.activeTab] && pane.tabs[pane.activeTab].entries[pane.tabs[pane.activeTab].cursor];

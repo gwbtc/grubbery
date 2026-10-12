@@ -28,11 +28,12 @@
 
   var CSS =
     '.fv{background:#fff;color:#1f2328;display:flex;flex-direction:column;font:13px/1.5 -apple-system,BlinkMacSystemFont,sans-serif;min-height:0;min-width:0;width:100%;overflow:hidden}' +
+    '.fv #crumbrow{flex:none;padding:6px 12px 0;background:#f6f8fa;overflow-x:auto;overflow-y:hidden;white-space:nowrap}' +
     '.fv #bar{flex:none;display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f6f8fa;border-bottom:1px solid #d0d7de;min-width:0;overflow:hidden}' +
-    '.fv #crumbs{display:flex;align-items:center;gap:2px;font:600 12px ui-monospace,SFMono-Regular,Menlo,monospace;margin-left:4px;min-width:0;overflow:hidden;flex-shrink:1}' +
+    '.fv #crumbs{display:inline-flex;align-items:center;gap:2px;font:600 12px ui-monospace,SFMono-Regular,Menlo,monospace;white-space:nowrap}' +
     '.fv #crumbs a{color:#57606a;padding:2px 4px;border-radius:5px;text-decoration:none}' +
     '.fv #crumbs a:hover{color:#24292f;background:#eaeef2}' +
-    '.fv #fname{font-weight:600}' +
+    '.fv #fname{font:600 12px ui-monospace,SFMono-Regular,Menlo,monospace;color:#24292f;padding:2px 4px}' +
     '.fv .chip{display:inline-flex;align-items:center;gap:5px;background:#eef1f4;border:1px solid #e2e7ee;border-radius:6px;padding:2px 8px}' +
     '.fv .chip .k{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#8b949e}' +
     '.fv .chip .v{font:11px ui-monospace,SFMono-Regular,Menlo,monospace;color:#24292f}' +
@@ -99,13 +100,12 @@
     '.fv-err-body{flex:1;overflow:auto;margin:0;padding:14px 16px;font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;color:#cf222e}';
 
   var MARKUP =
+    '<div id="crumbrow"><span id="crumbs"></span><span id="fname"></span></div>' +
     '<div id="bar">' +
       '<button id="tab-view" style="display:none"></button>' +
       '<button id="tab-text" style="display:none">Source</button>' +
       '<button id="tab-mime" style="display:none">Preview</button>' +
       '<button id="tab-build" style="display:none">Build</button>' +
-      '<span id="crumbs"></span>' +
-      '<span id="fname"></span>' +
       '<span class="chip" id="chip-blot" style="display:none"><span class="k">blot</span><span class="v"></span></span>' +
       '<span class="chip" id="chip-mime" style="display:none"><span class="k">mime</span><span class="v"></span></span>' +
       '<span class="chip bang" id="bang-chip" style="display:none" title="click for the crash tang"><span class="k">bang</span><span class="v">fiber crashed</span></span>' +
