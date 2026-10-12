@@ -634,6 +634,17 @@ function setup(root, opts) {
   // another origin.
   const MOUNT_VIEWERS = (MOUNT && typeof MOUNT.viewers === 'string' && OWN_ROUTE.test(MOUNT.viewers)) ? MOUNT.viewers : null;
   const viewerLoads = {};      // script url -> Promise
+  // a stock viewer by name + script: the explorer's own renderers (the tree),
+  // loaded once, mounted like any declared one. null when it will not load.
+  async function stockViewer(view, src) {
+    window.Viewers = window.Viewers || {};
+    if (!window.Viewers[view]) {
+      if (!viewerLoads[src]) viewerLoads[src] = new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('viewer failed to load: ' + src)); document.head.appendChild(s); });
+      try { await viewerLoads[src]; } catch (_) { return null; }
+    }
+    const v = window.Viewers[view];
+    return (v && typeof v.mount === 'function') ? v : null;
+  }
   async function viewerFor(path, kind, neck) {
     try {
       await viewReady;
@@ -669,6 +680,10 @@ function setup(root, opts) {
       const text = await r.text();
       const rule = text.trim() ? JSON.parse(text) : null;
       if (!rule || typeof rule !== 'object') return null;
+      // {layout}: the app says this DIRECTORY opens as a layout (a url on
+      // this ship) rooted at it: entry paths in the layout starting with
+      // './' resolve against the opened dir. One layout, any instance.
+      if (typeof rule.layout === 'string') return OWN_ROUTE.test(rule.layout) ? { layout: rule.layout } : null;
       const src = rule.script, view = rule.view;
       if (typeof view !== 'string' || typeof src !== 'string' || !OWN_ROUTE.test(src)) { toast('viewer refused: needs a view name and a script on this ship', true); return null; }
       window.Viewers = window.Viewers || {};
@@ -694,7 +709,11 @@ function setup(root, opts) {
       if (!v || typeof v.mount !== 'function') return { label: view, blocked: 'the script loaded but registered no "' + view + '" pane' };
       // the app's args ride along with the pane; a mount passes them through
       const args = (rule.args && typeof rule.args === 'object') ? rule.args : {};
-      return { label: v.label, mount: (root, opts) => v.mount(root, Object.assign({}, opts, { args })) };
+      // follow: the roads this instance's rendering depends on, [{road, body?}].
+      // The explorer keeps them on its one stream (see live) and tells the
+      // mounted pane when they move; absent → the rendering is static.
+      const follow = Array.isArray(rule.follow) ? rule.follow.filter((f) => f && typeof f.road === 'string' && f.road.startsWith('/')).map((f) => ({ road: f.road, body: !!f.body, fold: !!f.fold })) : null;
+      return { label: v.label, follow, mount: (root, opts) => v.mount(root, Object.assign({}, opts, { args })) };
     } catch (e) { toast('viewer: ' + e.message, true); return null; }
   }
   async function blockedWhy(src) {
@@ -797,54 +816,474 @@ function setup(root, opts) {
   // workspace persists to localStorage (the `persist` attr) as pure data.
   // pane-split holds bare NAMESPACE paths (e.g. /apps/explorer.explorer), not
   // http urls — the /grubbery/ball serve prefix is added here, only at fetch.
-  const psNs = (p) => { const n = (p && p.startsWith(PREFIX)) ? p.slice(PREFIX.length) : (p || '/'); return n || '/'; };
+  // a moment is a path, optionally with ?args saying HOW that path is looked
+  // at (a dir's ?view=rows|grid|tree). Args never change what is fetched.
+  // psNs/psUrl/psBase see the path alone; psArgs reads the args; psMoment
+  // keeps both when a link is followed.
+  const psSplit = (p) => { const s = p || ''; const i = s.indexOf('?'); return i < 0 ? { path: s, query: '' } : { path: s.slice(0, i), query: s.slice(i + 1) }; };
+  const psArgs = (p) => { const o = {}; for (const kv of psSplit(p).query.split('&')) { if (!kv) continue; const j = kv.indexOf('='); const k = decodeURIComponent(j < 0 ? kv : kv.slice(0, j)); o[k] = j < 0 ? '1' : decodeURIComponent(kv.slice(j + 1)); } return o; };
+  const psNs = (p) => { const q = psSplit(p).path; const n = (q && q.startsWith(PREFIX)) ? q.slice(PREFIX.length) : (q || '/'); return n || '/'; };
+  const psMoment = (p) => { const q = psSplit(p).query; return psNs(p) + (q ? '?' + q : ''); };
   const psUrl = (p) => { const n = psNs(p); return n === '/' ? PREFIX : PREFIX + n; };   // root → /grubbery/ball (no trailing slash)
-  const psBase = (p) => (p || '').replace(/\/$/, '').split('/').filter(Boolean).pop() || '/';
+  const psBase = (p) => psNs(p).replace(/\/$/, '').split('/').filter(Boolean).pop() || '/';
+  const TREE_JS = PREFIX + '/apps/explorer.explorer/tree-viewer.js';           // the explorer's own tree, a stock viewer
   // a path's name + icon for its tab chip: basename + the kind we learn while
   // listing (dir) or opening (file). redrawBars() sharpens the glyph once known.
   const psKind = new Map();
-  function paneTabInfo(p) { return { icon: psKind.get(p) === 'file' ? '📄' : '📁', label: psBase(p) }; }
+  function paneTabInfo(p) { return { icon: '', label: psBase(p) }; }   // a tab is its name; no glyph guessed from kind
+  // live: the page's one SSE stream and the follow set behind it. Every
+  // rendered instance registers the roads it depends on (a dir road ends in
+  // '/', a file road does not); the union is POSTed to the ship whenever it
+  // changes, and each incoming `new|upd|del <path>` is routed to the instances
+  // whose road covers that path. An instance with onUpdate gets every event
+  // as it comes and patches itself; one without is refetched, debounced so a
+  // burst under its road costs one redraw. The stream reconnects on its own
+  // and re-sends the set, since a fresh session starts with nothing followed.
+  const live = (() => {
+    const insts = new Set();
+    let sid = null, lastSent = null, backoff = 1000, started = false;
+    const SSE = PREFIX.replace(/\/ball$/, '/explorer') + '/sse', FOLLOW = PREFIX.replace(/\/ball$/, '/explorer') + '/follow';
+    function want() {
+      const m = new Map();
+      // the same road wanted two ways takes the richer: body beats names,
+      // and names (per-file events) beats fold (one event for the dir)
+      for (const i of insts) for (const f of i.follow) { const p = m.get(f.road); m.set(f.road, { road: f.road, body: !!(f.body || (p && p.body)), fold: !!(f.fold && (!p || p.fold)) }); }
+      return [...m.values()].sort((a, b) => a.road < b.road ? -1 : 1);
+    }
+    async function sync() {
+      if (!sid) return;
+      const roads = want(), key = JSON.stringify(roads);
+      if (key === lastSent) return;
+      lastSent = key;
+      try { await fetch(FOLLOW, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ s: sid, roads }) }); }
+      catch (_) { lastSent = null; }
+    }
+    function covers(road, path) { return road.endsWith('/') ? path.startsWith(road) : path === road; }
+    function dispatch(kind, path, body) {
+      for (const i of insts) for (const f of i.follow) if (covers(f.road, path)) { i.hit({ road: f.road, kind, path, body }); break; }
+    }
+    function parse(block) {
+      let ev = null; const data = [];
+      for (const line of block.split('\n')) {
+        if (line.startsWith('event: ')) ev = line.slice(7);
+        else if (line.startsWith('data: ')) data.push(line.slice(6));
+        else if (line.startsWith('data:')) data.push(line.slice(5));
+      }
+      if (!ev) return;
+      if (ev.startsWith('session ') || ev === 'session') { sid = data.join('\n').trim(); lastSent = null; backoff = 1000; sync(); return; }
+      const sp = ev.indexOf(' '); if (sp < 0) return;
+      const kind = ev.slice(0, sp), path = ev.slice(sp + 1), text = data.join('\n');
+      let body = null; if (text) { try { body = JSON.parse(text); } catch (_) { body = text; } }
+      if (kind !== 'old') dispatch(kind, path, body);          // old = replay on follow; the instance already fetched that state
+    }
+    async function connect() {
+      if (started) return; started = true;
+      for (;;) {
+        try {
+          const r = await fetch(SSE, { headers: { Accept: 'text/event-stream' }, cache: 'no-store' });
+          if (!r.ok || !r.body) throw new Error('sse ' + r.status);
+          const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
+          for (;;) {
+            const c = await rd.read(); if (c.done) break;
+            buf += dec.decode(c.value, { stream: true });
+            const blocks = buf.split('\n\n'); buf = blocks.pop();
+            for (const b of blocks) if (b.trim()) parse(b);
+          }
+        } catch (_) { /* fall through to reconnect */ }
+        sid = null;
+        await new Promise((res) => setTimeout(res, backoff)); backoff = Math.min(backoff * 2, 15000);
+      }
+    }
+    // register: follow = [{road, body?}]; onEvent(ev) patches in place, or
+    // null → refetch() (debounced); gate(ev) optionally drops events the
+    // instance does not care about. Returns the unregister.
+    return function register(follow, onEvent, refetch, gate) {
+      if (!follow || !follow.length) return () => {};
+      let timer = null;
+      const inst = { follow, hit(ev) {
+        if (gate && !gate(ev)) return;
+        if (onEvent) { try { onEvent(ev); } catch (_) {} return; }
+        clearTimeout(timer); timer = setTimeout(() => { timer = null; try { refetch(); } catch (_) {} }, 120);
+      } };
+      insts.add(inst); connect(); sync();
+      return () => { clearTimeout(timer); insts.delete(inst); sync(); };
+    };
+  })();
+  // wire a mounted pane content to live: the viewer's declared follow, or the
+  // built-in rendering's own path. A viewer's onUpdate (on what mount returned)
+  // takes the events; without one, the pane re-renders
+  function paneLive(ps, paneId, el, follow, gate) {
+    if (!el.isConnected) return;                                   // the pane moved on while we fetched: nothing to keep live
+    const fv = el._fv, on = (fv && typeof fv.onUpdate === 'function') ? (ev) => fv.onUpdate(ev) : null;
+    // a split moves this element into a new child pane: find the pane it is
+    // in NOW rather than the id it mounted under
+    const idOf = () => { const p = el.closest('.ps-pane'); return p ? p.dataset.paneId : paneId; };
+    el._live = live(follow, on, () => ps.refresh(idOf()), gate);
+  }
+  // ---- workspace actions: right-click menus and inline asks, no modals ----
+  // A rendering owns its menu: a viewer exposes contextMenu(e) → [{label, run,
+  // danger}] on what mount returned, a built-in rendering sets el._menu. The
+  // workspace owns one popup and one inline strip. Server writes POST to the
+  // item's own dir; the stream refreshes whatever shows it, so nothing reloads.
+  let psCtx = null, psCss = false;
+  function psChrome() {
+    if (!psCss) {
+      psCss = true;
+      const s = document.createElement('style');
+      s.textContent =
+        /* an action view: one card, centered, the same bones every time:
+           header (verb, then the path it acts on) · body (fields) · footer (cancel, then the verb) */
+        /* the card survives a squeeze: the wrap is a container, and below 440px the
+           padding tightens, footers and pickers wrap, the weir grid stacks, and
+           nothing keeps a fixed width. Vertically the pane scrolls; the top padding is
+           capped so a short pane shows the card, not its margin. */
+        '.ps-form-wrap{min-height:100%;box-sizing:border-box;padding:min(48px,6vh) 24px 24px;display:flex;justify-content:center;align-items:flex-start;background:#f6f8fa;font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#24292f;container-type:inline-size}' +
+        /* a floor: below 260px the pane scrolls the card sideways instead of crushing it;
+           every text run inside is one line, clipped with an ellipsis, full value on hover */
+        '.ps-form{width:100%;max-width:520px;min-width:260px;background:#fff;border:1px solid #d0d7de;border-radius:10px;box-shadow:0 1px 3px rgba(31,35,40,.06)}' +
+        '.ps-form-wrap{overflow-x:auto}' +
+        '.ps-form-verb,.ps-form-path,.ps-form label span,.ps-weir-k,.ps-file > span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}' +
+        '.ps-form-path{word-break:normal}' +
+        '.ps-form-foot{flex-wrap:wrap}.ps-form-foot button{white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}' +
+        '.ps-weir-road{max-width:100%;min-width:0}.ps-weir-road > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}' +
+        '.ps-drop{overflow:hidden}.ps-drop > span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+        '@container (max-width:440px){.ps-form-wrap{padding:10px 8px}.ps-form-head{padding:12px 14px 10px}.ps-form-body{padding:12px 14px;gap:10px}.ps-form-foot{padding:10px 14px}.ps-form-foot button{flex:1 1 auto}' +
+        '.ps-weir-cat{grid-template-columns:1fr;gap:4px}.ps-weir-k{padding-top:0}.ps-weir-roads input{width:100%}.ps-drop{padding:16px 10px}.ps-drop-acts{flex-wrap:wrap}.ps-drop-acts button{flex:1 1 auto}.ps-form button.ghost-danger{margin-right:0}}' +
+        '.ps-form-head{padding:16px 20px 14px;border-bottom:1px solid #eaeef2}.ps-form-verb{font-weight:600;font-size:15px;line-height:1.3}.ps-form-path{margin-top:4px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:#57606a;word-break:break-all}' +
+        '.ps-form-body{padding:16px 20px;display:flex;flex-direction:column;gap:14px}.ps-form-note{color:#57606a;line-height:1.5}' +
+        '.ps-form label{display:block}.ps-form label span{display:block;font-size:12px;font-weight:600;color:#57606a;margin-bottom:5px}' +
+        '.ps-form input,.ps-form select{width:100%;box-sizing:border-box;font:13px ui-monospace,SFMono-Regular,Menlo,monospace;padding:7px 10px;border:1px solid #d0d7de;border-radius:6px;background:#fff;color:#24292f}' +
+        '.ps-form input:focus,.ps-form select:focus{outline:none;border-color:#0969da;box-shadow:0 0 0 3px rgba(9,105,218,.15)}.ps-form input::placeholder{color:#8b949e}' +
+        '.ps-form-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px;border-top:1px solid #eaeef2;background:#f6f8fa;border-radius:0 0 10px 10px}' +
+        '.ps-form button{font:inherit;font-weight:500;padding:6px 14px;border:1px solid #d0d7de;border-radius:6px;background:#fff;color:#24292f;cursor:pointer;line-height:1.3}.ps-form button:hover{background:#f3f4f6}' +
+        '.ps-form button.go{background:#0969da;color:#fff;border-color:#0969da}.ps-form button.go:hover{background:#0860ca}.ps-form button.danger{background:#cf222e;color:#fff;border-color:#cf222e}.ps-form button.danger:hover{background:#a40e26}.ps-form button:disabled{opacity:.5;cursor:default}' +
+        /* a destructive action that is not the card\'s point (clear weir): quiet, left, red on hover */
+        '.ps-form button.ghost-danger{color:#cf222e;background:#fff;margin-right:auto}.ps-form button.ghost-danger:hover{background:#ffebe9;border-color:#cf222e}' +
+        '.ps-weir-cat{display:grid;grid-template-columns:56px 1fr;gap:10px;align-items:start}.ps-weir-k{font-weight:600;font-size:12px;color:#57606a;padding-top:6px;text-transform:uppercase;letter-spacing:.04em}.ps-weir-roads{display:flex;flex-wrap:wrap;gap:6px;align-items:center}' +
+        '.ps-weir-road{display:inline-flex;align-items:center;gap:6px;padding:3px 4px 3px 9px;border:1px solid #d0d7de;border-radius:12px;background:#f6f8fa;font:12px ui-monospace,SFMono-Regular,Menlo,monospace}.ps-weir-road button{all:unset;cursor:pointer;color:#8b949e;padding:0 4px;border-radius:8px;line-height:1}.ps-weir-road button:hover{color:#cf222e;background:#fff}' +
+        '.ps-weir-roads input{width:180px;padding:4px 8px;font-size:12px}' +
+        /* upload: a drop zone, the chosen files, a progress bar */
+        '.ps-drop{border:2px dashed #d0d7de;border-radius:8px;padding:26px 16px;text-align:center;color:#57606a;background:#f6f8fa;transition:border-color .12s,background .12s}.ps-drop.over{border-color:#0969da;background:#ddf4ff;color:#0969da}' +
+        '.ps-drop-acts{display:flex;justify-content:center;gap:8px;margin-top:10px}' +
+        '.ps-files{max-height:min(220px,40vh);overflow:auto;border:1px solid #eaeef2;border-radius:6px}.ps-file{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:5px 10px;border-bottom:1px solid #eaeef2;font:12px ui-monospace,SFMono-Regular,Menlo,monospace}.ps-file:last-child{border-bottom:0}.ps-file > span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+        '.ps-file .size{color:#8b949e}.ps-file button{all:unset;cursor:pointer;color:#8b949e;padding:0 4px}.ps-file button:hover{color:#cf222e}' +
+        '.ps-prog{height:6px;border-radius:3px;background:#eaeef2;overflow:hidden}.ps-prog > div{height:100%;width:0;background:#0969da;transition:width .15s}' +
+        '.ps-menu .mi{display:block;width:100%;text-align:left;font:13px -apple-system,BlinkMacSystemFont,sans-serif;padding:5px 12px;border:0;background:none;cursor:pointer;white-space:nowrap}.ps-menu .mi:hover{background:#eaeef2}.ps-menu .mi.danger{color:#cf222e}';
+      document.head.appendChild(s);
+    }
+    if (!psCtx) {
+      psCtx = document.createElement('drop-menu');
+      psCtx.className = 'ps-menu';
+      psCtx.style.cssText = 'position:fixed;display:none;z-index:60';
+      const t = document.createElement('button'); t.setAttribute('slot', 'trigger'); t.style.display = 'none';
+      psCtx.appendChild(t);
+      psCtx.addEventListener('dm-close', () => { psCtx.style.display = 'none'; });
+      root.appendChild(psCtx);
+    }
+    return psCtx;
+  }
+  function showMenu(items, x, y) {
+    const m = psChrome();
+    m.querySelectorAll('.mi').forEach((b) => b.remove());
+    for (const it of items) {
+      const b = document.createElement('button');
+      b.className = 'mi' + (it.danger ? ' danger' : ''); b.textContent = it.label;
+      b.addEventListener('click', () => { m.close(); try { it.run(); } catch (e) { toast(String(e), true); } });
+      m.appendChild(b);
+    }
+    m.style.display = ''; m.style.left = x + 'px'; m.style.top = y + 'px'; m.removeAttribute('flip');
+    m.open();
+  }
+  async function psPost(dir, params) {
+    try {
+      const r = await fetch(dir, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, redirect: 'manual', body: new URLSearchParams(params) });
+      if (r.status >= 400) { toast(await r.text() || 'failed (' + r.status + ')', true); return false; }
+      toast('done ✓'); return true;
+    } catch (e) { toast('failed: ' + e, true); return false; }
+  }
+  // every interface an action needs is a RENDERING of a path: <dir>?view=new,
+  // <item>?view=rename, <item>?view=delete, <dir>?view=weir. The menu routes
+  // there like any link, so it opens in the pane's target (or in place), sits
+  // in history, and back returns. Nothing pops over the pane you are in.
+  const ACTION_VIEWS = { new: 1, rename: 1, delete: 1, weir: 1, upload: 1 };
+  function go(el, href, kind) { const r = el._ctx && el._ctx.route; if (r) r(href, kind, null); }
+  // the menu for a listing-like rendering (table, grid, tree): the row's item
+  // under the cursor, or the rendering's own dir on whitespace
+  function listingMenu(e, el, dirUrl) {
+    const hit = e.composedPath().find((x) => x && x.__item);
+    const item = hit ? hit.__item : null;
+    if (item) return itemMenu(el, item);
+    return dirMenu(el, dirUrl);
+  }
+  function dirMenu(el, dirUrl) {
+    return [
+      { label: 'New…', run: () => go(el, dirUrl + '?view=new', 'dir') },
+      { label: 'Weir…', run: () => go(el, dirUrl + '?view=weir', 'dir') },
+      { label: 'Upload…', run: () => go(el, dirUrl + '?view=upload', 'dir') },
+      { label: 'Download', run: () => { location.href = dirUrl + '?download=tar'; } },
+    ];
+  }
+  // the browser's file picker, no dialog of ours: files or a whole directory
+  function pickFiles(dir, cb) {
+    const inp = document.createElement('input'); inp.type = 'file'; inp.multiple = true; if (dir) inp.webkitdirectory = true;
+    inp.style.display = 'none'; document.body.appendChild(inp);
+    inp.addEventListener('change', () => { const fs = [...inp.files]; inp.remove(); if (fs.length) cb(fs); });
+    inp.click();
+  }
+  function itemMenu(el, item) {
+    const dir = item.__dir, isDir = item.kind === 'dir' || item.isDir, base = dir.replace(/\/$/, '') + '/' + item.name;
+    const items = [];
+    if (isDir) items.push(...dirMenu(el, base));
+    else items.push({ label: 'Download', run: () => { const l = document.createElement('a'); l.href = base + '?raw=1'; l.download = item.name; l.click(); } });
+    // move/copy go to the pane's TARGET: the dir the target pane shows is the
+    // destination. That is what a target is for. No target → ask for a path.
+    const ctx = el._ctx || {};
+    const tgtDir = () => { const t = ctx.ps && ctx.ps.targetId && ctx.ps.targetId(ctx.paneId); const p = t && ctx.ps.pathOf(t); return p ? psNs(p).replace(/\/$/, '') : null; };
+    const send = (verb) => () => {
+      const act = isDir ? verb + '-folder' : verb + '-grub', key = isDir ? 'foldername' : 'filename';
+      const d = tgtDir();
+      if (d != null) { psPost(dir, { action: act, [key]: item.name, dest: (d || '') + '/' + item.name }); return; }
+      toast('no target: set this pane\'s target (⇒ in its bar) to the pane showing the destination', true);
+    };
+    const k = isDir ? 'dir' : 'file';
+    items.push(
+      { label: 'Move to target', run: send('move') },
+      { label: 'Copy to target', run: send('copy') },
+      { label: 'Rename…', run: () => go(el, base + '?view=rename&kind=' + k, k) },
+      { label: 'Delete…', danger: true, run: () => go(el, base + '?view=delete&kind=' + k, k) },
+    );
+    return items;
+  }
+  // the action views. Each is a small form over the path it was opened on;
+  // submit posts to the server and steps the pane back (the form was a moment,
+  // so back is cancel too). The stream refreshes whatever showed the item.
+  function actionView(ps, paneId, el, path) {
+    const args = psArgs(path), ns = psNs(path), url = psUrl(ns), view = args.view;
+    const name = psBase(ns), parentNs = ns.replace(/\/[^/]*$/, '') || '/', parentUrl = psUrl(parentNs);
+    const isDir = args.kind === 'dir';
+    psChrome();
+    const wrap = document.createElement('div'); wrap.className = 'ps-form-wrap';
+    const form = document.createElement('div'); form.className = 'ps-form'; wrap.appendChild(form); el.appendChild(wrap);
+    const head = document.createElement('div'); head.className = 'ps-form-head';
+    const body = document.createElement('div'); body.className = 'ps-form-body';
+    form.append(head, body);
+    const h = (verb, p) => { head.textContent = ''; const v = document.createElement('div'); v.className = 'ps-form-verb'; v.textContent = verb; const d = document.createElement('div'); d.className = 'ps-form-path'; d.textContent = p; d.title = p; head.append(v, d); };
+    const note = (t) => { const d = document.createElement('div'); d.className = 'ps-form-note'; d.textContent = t; body.appendChild(d); };
+    const field = (label, value, ph) => { const l = document.createElement('label'); const s = document.createElement('span'); s.textContent = label; const i = document.createElement('input'); i.value = value || ''; i.placeholder = ph || ''; i.spellcheck = false; l.append(s, i); body.appendChild(l); return i; };
+    const buttons = (ok, danger, run) => { const foot = document.createElement('div'); foot.className = 'ps-form-foot'; const c = document.createElement('button'); c.textContent = 'cancel'; c.addEventListener('click', () => ps.back(paneId)); const b = document.createElement('button'); b.className = danger ? 'danger' : 'go'; b.textContent = ok; b.addEventListener('click', async () => { b.disabled = true; const okd = await run(); b.disabled = false; if (okd) ps.back(paneId); }); foot.append(c, b); form.appendChild(foot); return b; };
+    const onEnter = (inp, btn) => inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') btn.click(); else if (e.key === 'Escape') ps.back(paneId); });
+    if (view === 'new') {
+      h('New', ns);
+      const kind = document.createElement('select'); ['file', 'folder', 'nexus', 'symlink'].forEach((k) => { const o = document.createElement('option'); o.value = k; o.textContent = k; kind.appendChild(o); });
+      const kl = document.createElement('label'); const ks = document.createElement('span'); ks.textContent = 'kind'; kl.append(ks, kind); body.appendChild(kl);
+      const nm = field('name', '', 'name');
+      // the second field is the kind's: a file's blot (optional), a nexus's
+      // neck, a symlink's target; a folder has none
+      const extra = field('', '', '');
+      const EXTRA = {
+        file: { label: 'blot (optional)', ph: '/json, /txt, /hoon … or leave empty for mime' },
+        folder: null,
+        nexus: { label: 'neck', ph: '/git/repo' },
+        symlink: { label: 'target', ph: '/path/to/target' },
+      };
+      const applyKind = () => { const x = EXTRA[kind.value]; const l = extra.parentElement; l.style.display = x ? '' : 'none'; if (x) { l.querySelector('span').textContent = x.label; extra.placeholder = x.ph; } };
+      kind.addEventListener('change', applyKind); applyKind();
+      const b = buttons('create', false, () => {
+        const n = nm.value.trim(); if (!n) return false; const x = extra.value.trim();
+        const k = kind.value;
+        if ((k === 'nexus' || k === 'symlink') && !x) { extra.focus(); return false; }
+        const params = k === 'folder' ? { action: 'create-folder', foldername: n }
+          : k === 'nexus' ? { action: 'create-nexus', foldername: n, neck: x }
+          : k === 'symlink' ? { action: 'create-symlink', linkname: n, target: x }
+          : { action: 'create-file', filename: n, ...(x ? { blot: x } : {}) };
+        return psPost(url, params);
+      });
+      onEnter(nm, b); onEnter(extra, b); nm.focus();
+    } else if (view === 'rename') {
+      h('Rename', ns + (isDir ? '/' : ''));
+      const nm = field('new name', name);
+      const b = buttons('rename', false, () => { const n = nm.value.trim(); if (!n || n === name) return false; return psPost(parentUrl, isDir ? { action: 'rename-folder', foldername: name, newname: n } : { action: 'rename-grub', filename: name, newname: n }); });
+      onEnter(nm, b); nm.focus(); const dot = name.lastIndexOf('.'); nm.setSelectionRange(0, dot > 0 ? dot : name.length);
+    } else if (view === 'delete') {
+      h('Delete', ns + (isDir ? '/' : ''));
+      note(isDir ? 'The directory and everything in it will be removed. This cannot be undone.' : 'The file will be removed. This cannot be undone.');
+      const b = buttons('delete', true, () => psPost(parentUrl, isDir ? { action: 'delete-folder', foldername: name } : { action: 'delete-grub', filename: name }));
+      b.focus();
+    } else if (view === 'weir') {
+      h('Weir', ns);
+      weirView(ps, paneId, el, form, body, ns, url);
+    } else if (view === 'upload') {
+      h('Upload', ns);
+      uploadView(ps, paneId, form, body, url);
+    }
+  }
+  // upload as a rendering of its dir: drop files or a folder onto the card, or
+  // pick them; see the list (relative paths kept for a folder); one request
+  // with a progress bar; done steps back. The stream shows the new files.
+  function uploadView(ps, paneId, form, body, url) {
+    let files = [];
+    const drop = document.createElement('div'); drop.className = 'ps-drop'; const dropText = document.createElement('span'); dropText.textContent = 'drop files or a folder here'; drop.appendChild(dropText);
+    const acts = document.createElement('div'); acts.className = 'ps-drop-acts';
+    const pickBtn = (t, dir) => { const b = document.createElement('button'); b.textContent = t; b.addEventListener('click', () => pickFiles(dir, (fs) => add(fs))); return b; };
+    acts.append(pickBtn('choose files', false), pickBtn('choose folder', true)); drop.appendChild(acts);
+    const list = document.createElement('div'); list.className = 'ps-files'; list.style.display = 'none';
+    const prog = document.createElement('div'); prog.className = 'ps-prog'; prog.style.display = 'none'; const bar = document.createElement('div'); prog.appendChild(bar);
+    const note = document.createElement('div'); note.className = 'ps-form-note'; note.style.display = 'none';
+    body.append(drop, list, prog, note);
+    const fmt = (n) => n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(1) + ' KB' : (n / 1048576).toFixed(1) + ' MB';
+    const nameOf = (f) => f.__path || f.webkitRelativePath || f.name;
+    const draw = () => {
+      list.textContent = ''; list.style.display = files.length ? '' : 'none';
+      files.forEach((f, i) => { const row = document.createElement('div'); row.className = 'ps-file'; const n = document.createElement('span'); n.textContent = nameOf(f); const s = document.createElement('span'); s.className = 'size'; s.textContent = fmt(f.size); const x = document.createElement('button'); x.textContent = '×'; x.title = 'remove'; x.addEventListener('click', () => { files.splice(i, 1); draw(); }); row.append(n, s, x); list.appendChild(row); });
+      go.disabled = !files.length; go.textContent = files.length ? 'upload ' + files.length + (files.length === 1 ? ' file' : ' files') : 'upload';
+    };
+    const add = (fs) => { files = files.concat(fs); draw(); };
+    // drag and drop: files, or a dropped directory walked through the entry api
+    ['dragenter', 'dragover'].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+    ['dragleave', 'drop'].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+    drop.addEventListener('drop', async (e) => {
+      const out = [];
+      const walk = (entry, prefix) => new Promise((res) => {
+        if (entry.isFile) entry.file((f) => { f.__path = prefix + f.name; out.push(f); res(); }, res);
+        else if (entry.isDirectory) { const rd = entry.createReader(); const all = []; const next = () => rd.readEntries(async (es) => { if (!es.length) { for (const s of all) await walk(s, prefix + entry.name + '/'); res(); } else { all.push(...es); next(); } }, res); next(); }
+        else res();
+      });
+      const items = [...(e.dataTransfer.items || [])];
+      const entries = items.map((it) => it.webkitGetAsEntry && it.webkitGetAsEntry()).filter(Boolean);
+      if (entries.length) { for (const en of entries) await walk(en, ''); }
+      else out.push(...e.dataTransfer.files);
+      add(out);
+    });
+    const foot = document.createElement('div'); foot.className = 'ps-form-foot';
+    const cancel = document.createElement('button'); cancel.textContent = 'cancel'; cancel.addEventListener('click', () => ps.back(paneId));
+    const go = document.createElement('button'); go.className = 'go'; go.disabled = true; go.textContent = 'upload';
+    go.addEventListener('click', () => {
+      const fd = new FormData(); for (const f of files) fd.append('file', f, nameOf(f));
+      const xhr = new XMLHttpRequest(); xhr.open('POST', url);
+      prog.style.display = ''; note.style.display = ''; note.textContent = 'uploading…'; go.disabled = true; cancel.disabled = true;
+      xhr.upload.addEventListener('progress', (ev) => { if (ev.lengthComputable) bar.style.width = Math.round(ev.loaded / ev.total * 100) + '%'; });
+      xhr.addEventListener('load', () => { cancel.disabled = false; if (xhr.status >= 400) { note.textContent = 'upload failed: ' + (xhr.responseText || xhr.status); go.disabled = false; return; } bar.style.width = '100%'; toast('uploaded ' + files.length + ' ✓'); ps.back(paneId); });
+      xhr.addEventListener('error', () => { note.textContent = 'upload failed'; go.disabled = false; cancel.disabled = false; });
+      xhr.send(fd);
+    });
+    foot.append(cancel, go); form.appendChild(foot);
+    draw();
+  }
+  // the weir editor as a rendering of its dir: roads by category, add/remove,
+  // restrict/clear. Follows the dir (fold) so an edit redraws from the ship.
+  function weirView(ps, paneId, el, form, body, ns, url) {
+    let weir = null;
+    let foot = null;
+    const draw = () => {
+      body.textContent = ''; if (foot) { foot.remove(); foot = null; }
+      foot = document.createElement('div'); foot.className = 'ps-form-foot';
+      const btn = (t, cls, run) => { const b = document.createElement('button'); if (cls) b.className = cls; b.textContent = t; b.addEventListener('click', run); return b; };
+      if (!weir) {
+        const p = document.createElement('div'); p.className = 'ps-form-note'; p.textContent = 'Unrestricted: this directory has no weir. Restricting it starts fully closed; open it road by road.'; body.appendChild(p);
+        foot.append(btn('done', null, () => ps.back(paneId)), btn('restrict this directory', 'danger', () => psPost(url, { action: 'make-weir' })));
+        form.appendChild(foot);
+        return;
+      }
+      for (const cat of ['write', 'poke', 'read']) {
+        const row = document.createElement('div'); row.className = 'ps-weir-cat';
+        const k = document.createElement('span'); k.className = 'ps-weir-k'; k.textContent = cat; row.appendChild(k);
+        const rs = document.createElement('div'); rs.className = 'ps-weir-roads';
+        for (const rd of (weir[cat] || [])) { const s = document.createElement('span'); s.className = 'ps-weir-road'; s.title = rd; const t = document.createElement('span'); t.textContent = rd; s.appendChild(t); const x = document.createElement('button'); x.textContent = '×'; x.title = 'remove road'; x.addEventListener('click', () => psPost(url, { action: 'del-weir-road', category: cat, 'road-path': rd })); s.appendChild(x); rs.appendChild(s); }
+        const inp = document.createElement('input'); inp.placeholder = 'add /path or /path/'; inp.spellcheck = false;
+        inp.addEventListener('keydown', (e) => { if (e.key === 'Enter' && inp.value.trim()) { psPost(url, { action: 'add-weir-road', category: cat, 'road-path': inp.value.trim() }); inp.value = ''; } });
+        rs.appendChild(inp); row.appendChild(rs); body.appendChild(row);
+      }
+      foot.append(btn('clear weir', 'ghost-danger', () => psPost(url, { action: 'clear-weir' })), btn('done', 'go', () => ps.back(paneId)));
+      form.appendChild(foot);
+    };
+    const load = () => fetch(url + '?list=1', { cache: 'no-store' }).then((r) => r.ok ? r.json() : null).then((d) => { if (!el.isConnected) return; weir = (d && d.weir) || null; draw(); }).catch(() => {});
+    load();
+    el._fv = { destroy() {}, onUpdate() { load(); } };
+    paneLive(ps, paneId, el, [{ road: ns === '/' ? '/' : ns.replace(/\/$/, '') + '/', fold: true }]);
+  }
   function paneContent(ps, paneId, path) {
     const el = document.createElement('div');
     el.style.cssText = 'height:100%;overflow:auto';
     const ns = psNs(path), url = psUrl(path);
-    const route = (href, kind, mods) => {
-      const h = psNs(href);
-      if (kind) psKind.set(h, kind === 'dir' ? 'dir' : 'file');            // glyph the target before nav
+    // route a link: to the pane's target if it has one, else in place. `name`
+    // names the tab a 'tab'-mode target opens (the user clicked a thing with
+    // a name; the viewer passes it along). It applies only at creation.
+    const route = (href, kind, mods, name) => {
+      const h = psMoment(href);
+      if (kind) psKind.set(psNs(h), kind === 'dir' ? 'dir' : 'file');      // glyph the target before nav
       if (mods && (mods.meta || mods.ctrl)) { ps.open(h, 'beside'); return; }   // ⌘-click → new pane
       const tgt = ps.targetId && ps.targetId(paneId);                      // a pane with openTo sends ALL its links to the target
       if (tgt) {
         const mode = ps.targetMode ? ps.targetMode(paneId) : 'replace';
-        if (mode === 'tab') ps.newTab(tgt, h); else ps.navigate(tgt, h);   // new tab vs replace current
+        if (mode === 'tab') ps.newTab(tgt, h, name); else ps.navigate(tgt, h);   // new tab vs replace current
         ps.focusPane(tgt);
       } else ps.navigate(paneId, h);                                       // no target → navigate in place
     };
+    el._ctx = { ps, paneId, route };                                        // menus route through the pane's target via this
     const raw = !!(ps.viewOf && ps.viewOf(paneId) === 'raw');              // toolbar toggle: skip all special rendering
+    if (ACTION_VIEWS[psArgs(path).view]) { actionView(ps, paneId, el, path); return el; }   // a form over this path
     if (!raw && /\.layout$/.test(ns)) {                                    // this pane landed ON a layout → become it
       el.style.cssText = 'height:100%;display:flex;align-items:center;justify-content:center;color:#8b949e;font:16px -apple-system,BlinkMacSystemFont,sans-serif';
       el.textContent = 'opening layout…';
       fetch(url).then((r) => r.ok ? r.json() : Promise.reject('x')).then((spec) => ps.replaceWithLayout(paneId, spec, ns)).catch(() => { el.textContent = 'not a valid layout: ' + ns; });
       return el;
     }
-    const onNav = (u) => route(psNs(u), 'dir', null);
+    const onNav = (u, k, o) => route(u, k === 'file' ? 'file' : 'dir', null, o && o.name);   // viewers: onNavigate(url, kind, {name})
     fetch(url + '?list=1').then((r) => r.ok ? r.json() : Promise.reject('f')).then(async (d) => {
       if (!d || !Array.isArray(d.children)) throw 'f';
       psKind.set(ns, 'dir'); ps.redrawBars();                              // this path lists → it's a dir
-      // a directory that declares a viewer (the clanker tree, etc.) renders it — unless raw
+      el._dirUrl = url;                                                    // whitespace right-click: this dir's actions
+      // ?view= says how this dir is looked at: tree (the stock tree viewer),
+      // grid, or rows. Absent, a viewer the app declares for the dir wins,
+      // else rows. raw ignores all of it: the plain listing.
+      const want = raw ? null : (psArgs(path).view || null);
+      if (want === 'tree') {
+        const tv = await stockViewer('tree', TREE_JS);
+        if (tv && el.isConnected) { el._fv = tv.mount(el, { url, args: { root: ns }, onNavigate: onNav }); el._menu = (e) => listingMenu(e, el, url); return; }
+      }
       let viewer = null;
-      if (!raw) { try { viewer = await viewerFor(url, 'dir', ''); } catch (_) {} }
-      if (viewer && !viewer.blocked && viewer.mount) { el._fv = viewer.mount(el, { url, onNavigate: onNav }); return; }
-      const t = document.createElement('file-table');
+      if (!raw && !want) { try { viewer = await viewerFor(url, 'dir', ''); } catch (_) {} }
+      if (viewer && viewer.layout) {                                       // the app opens this dir as a layout rooted here
+        el.textContent = 'opening layout…';
+        const base = ns === '/' ? '' : ns.replace(/\/$/, '');
+        const rebase = (o) => Array.isArray(o) ? o.map(rebase)
+          : (o && typeof o === 'object') ? Object.fromEntries(Object.keys(o).map((k) => [k, (k === 'path' && typeof o[k] === 'string' && o[k].startsWith('./')) ? base + o[k].slice(1) : rebase(o[k])]))
+          : o;
+        fetch(viewer.layout, { cache: 'no-store' }).then((r) => r.ok ? r.json() : Promise.reject('x'))
+          .then((spec) => { if (el.isConnected) ps.replaceWithLayout(paneId, rebase(spec), ns); })
+          .catch(() => { el.textContent = 'not a valid layout: ' + viewer.layout; });
+        return;
+      }
+      if (viewer && !viewer.blocked && viewer.mount) { el._fv = viewer.mount(el, { url, onNavigate: onNav }); paneLive(ps, paneId, el, viewer.follow); return; }
+      const t = document.createElement(want === 'grid' ? 'file-grid' : 'file-table');
       t.style.height = '100%';
       const up = ns.replace(/\/$/, '').replace(/\/[^/]+$/, '');
-      if (ns !== '/') t.parentHref = up || '/';                        // ../ row → up in place; top-level dirs go to root
-      t.columns = ft.columns.map((c) => c.key !== 'name' ? c : Object.assign({}, c, { link: (item) => ns.replace(/\/$/, '') + '/' + item.name }));
-      t.actions = ft.actions;
+      if (want === 'grid') t.baseHref = ns.replace(/\/$/, '');
+      else {
+        if (ns !== '/') t.parentHref = up || '/';                      // ../ row → up in place; top-level dirs go to root
+          t.columns = ft.columns.map((c) => c.key === 'name' ? Object.assign({}, c, { link: (item) => ns.replace(/\/$/, '') + '/' + item.name })
+          // the weir tag opens that dir's weir view where links open
+          : c.key === 'weir' ? Object.assign({}, c, { decorate: (cell, item) => { if (item.kind !== 'dir') return; cell.style.cursor = 'pointer'; cell.style.color = item.weir ? '#9a6700' : '#1a7f37'; cell.title = "this directory's weir"; cell.addEventListener('click', (e) => { e.stopPropagation(); route(ns.replace(/\/$/, '') + '/' + item.name + '?view=weir', 'dir', null); }); } })
+          : c);
+      }
       t.addEventListener('ft-navigate', (e) => { const { item, href, mods } = e.detail; route(href, item ? item.kind : 'dir', mods); });
-      t.addEventListener('ft-action', handleAction);
+      el._menu = (e) => listingMenu(e, el, url);                            // right-click: the row's item, or this dir
       el.appendChild(t);
       d.children.forEach((c) => { c.__dir = url; });
       t.items = d.children;
+      // the listing follows its dir in FOLD mode: one event whenever anything
+      // under it moves. The answer is a row refresh on the SAME table, never a
+      // pane re-render: a dir with busy nexuses beneath it (/apps) moves
+      // constantly, and a listing that rebuilt itself on each move could not
+      // be clicked. Refreshes coalesce to at most one every 500ms.
+      let timer = null;
+      const refreshRows = () => fetch(url + '?list=1', { cache: 'no-store' }).then((r) => r.ok ? r.json() : null).then((nd) => {
+        if (!nd || !Array.isArray(nd.children) || !el.isConnected) return;
+        nd.children.forEach((c) => { c.__dir = url; });
+        t.items = nd.children;
+      }).catch(() => {});
+      el._fv = { destroy() { clearTimeout(timer); }, onUpdate() { if (timer) return; timer = setTimeout(() => { timer = null; refreshRows(); }, 500); } };
+      paneLive(ps, paneId, el, [{ road: ns === '/' ? '/' : ns.replace(/\/$/, '') + '/', fold: true }]);
     }).catch(async () => {
       psKind.set(ns, 'file'); ps.redrawBars();                            // not a listing → it's a file
       // rendered = JUST the declared viewer's rendering (no FileView chrome);
@@ -853,12 +1292,14 @@ function setup(root, opts) {
       if (!raw) {
         let v = null; try { v = await viewerFor(url, 'file'); } catch (_) {}
         if (v && !v.blocked && v.mount) {
-          try { el._fv = v.mount(el, { url, onNavigate: onNav }); } catch (e) { el.textContent = 'viewer failed: ' + e; }
+          try { el._fv = v.mount(el, { url, onNavigate: onNav }); paneLive(ps, paneId, el, v.follow); } catch (e) { el.textContent = 'viewer failed: ' + e; }
           return;                                                         // rendered: the rendering alone
         }
       }
       const opts = { url, crumbBase: ROOT, onNavigate: onNav };          // raw, or no renderer → the raw package
-      try { el._fv = window.FileView.mount(el, opts); }
+      // right-click anywhere in the file: the file's own actions
+      el._menu = () => itemMenu(el, { kind: 'file', name: psBase(ns), __dir: psUrl(ns.replace(/\/[^/]*$/, '') || '/') });
+      try { el._fv = window.FileView.mount(el, opts); paneLive(ps, paneId, el, [{ road: ns }]); }   // the raw package follows its file
       catch (e) { el.textContent = 'open failed: ' + e; }
     });
     return el;
@@ -1396,7 +1837,9 @@ function setup(root, opts) {
   }
 
   root.addEventListener('contextmenu', (e) => {
-    if (e.target.closest('drop-menu, modal-dialog, #bar')) return;
+    // only a listing gets the explorer's menu; anywhere else (a rendered
+    // viewer, a pane bar, whitespace) keeps the browser's own right-click
+    if (!e.target.closest('file-table, file-grid') || e.target.closest('drop-menu, modal-dialog, #bar')) return;
     e.preventDefault();
     const hit = e.composedPath().find(el => el.__item);
     if (hit) {
@@ -1418,7 +1861,10 @@ function setup(root, opts) {
   // ---- toast ----
   let toastTimer = null;
   function toast(msg, err) {
-    const s = $('status');
+    // the pane workspace drops the finder's chrome; the toast is the one piece
+    // the workspace keeps, so it is rebuilt here when missing
+    let s = $('status');
+    if (!s) { s = document.createElement('div'); s.id = 'status'; root.appendChild(s); }
     s.textContent = msg;
     s.className = err ? 'err' : '';
     s.style.display = 'block';
@@ -1438,8 +1884,28 @@ function setup(root, opts) {
     ps.renderPath = (path, paneId) => paneContent(ps, paneId, path);
     ps.tabInfo = paneTabInfo;
     ps.viewModes = [{ id: 'rendered', glyph: '▣', title: 'rendered' }, { id: 'raw', glyph: '◰', title: 'raw file / plain listing' }];
-    ps.onDestroy = (id, body) => { const c = body.firstChild; try { if (c && c._fv) c._fv.destroy(); } catch (_) {} };
+    ps.onDestroy = (id, body) => { const c = body.firstChild; try { if (c && c._live) c._live(); } catch (_) {} try { if (c && c._fv) c._fv.destroy(); } catch (_) {} };
     root.appendChild(ps);
+    // right-click: the rendering under the cursor answers (a viewer's
+    // contextMenu, a built-in's _menu); nothing to say → the browser's own
+    // menu. Capture, so the finder's handler never sees workspace clicks.
+    root.addEventListener('contextmenu', (e) => {
+      e.stopPropagation();
+      if (e.target.closest('.ps-bar, drop-menu, .ps-form')) return;
+      const body = e.target.closest('.ps-pane-body'); const el = body && body.firstChild;
+      if (!el) return;
+      let items = null;
+      try {
+        if (el._fv && typeof el._fv.contextMenu === 'function') items = el._fv.contextMenu(e);
+        else if (typeof el._menu === 'function') items = el._menu(e);
+        // a rendering with no menu of its own, whose rows still say what they
+        // are (__item): the item's actions, or its dir's on whitespace
+        if (!items || !items.length) { const hit = e.composedPath().find((x) => x && x.__item); if (hit) items = itemMenu(el, hit.__item); else if (el._dirUrl) items = dirMenu(el, el._dirUrl); }
+      } catch (_) { items = null; }
+      if (!items || !items.length) return;
+      e.preventDefault();
+      showMenu(items, e.clientX, e.clientY);
+    }, true);
     let saved = null; try { saved = localStorage.getItem('pane-split:' + K + '-standalone'); } catch (_) {}
     if (!saved) ps.open('/', 'here');                   // fresh → root; otherwise the persisted workspace restores (stateful)
     return;

@@ -148,6 +148,14 @@
           (pure:m ~)
         ~?  dbg  [%explorer-request eyre-id url.request.req]
         =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
+        ::  /grubbery/explorer/sse: one SSE connection per workspace page; it
+        ::  follows whatever roads the page sends to /grubbery/explorer/follow
+        ::  (see +serve-sse). The page's panes declare what they depend on and
+        ::  the stream reports moves on exactly those roads.
+        ?:  ?=([%grubbery %explorer %sse ~] site)
+          (serve-sse eyre-id req)
+        ?:  ?=([%grubbery %explorer %follow ~] site)
+          (handle-follow eyre-id req)
         ::  /grubbery/explorer[/...]: the standalone pane workspace — same shell,
         ::  browse.js renders panes full-screen; it fetches data from /grubbery/ball.
         ?:  ?=([%grubbery %explorer *] site)
@@ -295,6 +303,268 @@
   ?.  html-ok
     (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
   (send-simple:srv eyre-id [[404 ~[['content-type' 'text/html']]] `q.view-html])
+::
+::  The workspace stream. GET /grubbery/explorer/sse opens one SSE
+::  connection for a page; its first event is `session <id>`. The page
+::  then POSTs its whole interest set to /grubbery/explorer/follow as
+::  {s: <id>, roads: [{road, body?}]} whenever its panes change, and the
+::  stream converges to it: roads that left are dropped, roads that
+::  arrived are kept (an `old <path>` per file they hold now), the rest
+::  are untouched. A followed road that moves emits `new|upd|del <abs
+::  path>`, with the file as json data only for roads followed with
+::  body:true; otherwise the event is the notification alone and the
+::  pane refetches what it renders. The POST reaches the stream as a
+::  poke on its own request grub; a closed connection culls that grub
+::  and its keeps with it, so there is no session state to sweep.
+::
+::  A follow is one of three shapes, chosen by the page per road:
+::    file or dir, names   → new|upd|del <path> per file that moved
+::    file or dir, body    → the same, with the file as json data
+::    dir, fold            → one `upd <dir>` when the dir's OWN node moved
+::                           (a direct child made, culled or rewritten);
+::                           deeper moves stay silent. What a listing wants,
+::                           at a cost that does not grow with the subtree.
++$  follow  [=road:tarball body=? fold=? prev=wave:nexus]
++$  sse-in
+  $%  [%news =wire =wave:nexus]
+      [%follow set=json]
+      [%wake ~]
+  ==
+::
+++  serve-sse
+  |=  [eyre-id=@ta req=inbound-request:eyre]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ?.  (is-sse-request:http-utils req)
+    (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Requires Accept: text/event-stream')])
+  ;<  ~  bind:m  (send-header:srv eyre-id sse-header:http-utils)
+  ;<  ~  bind:m  (sse-send eyre-id ~ 'session' ~[eyre-id])
+  ;<  ~  bind:m  sse-alive-timer
+  =|  seq=@ud
+  =|  follows=(map @ud follow)
+  =|  keys=(map @t @ud)
+  |-  ^-  form:m
+  ;<  in=sse-in  bind:m  take-sse-in
+  ?-    -.in
+      %wake
+    ;<  ~  bind:m  (send-data:srv eyre-id `sse-keep-alive:http-utils)
+    ;<  ~  bind:m  sse-alive-timer
+    $
+  ::
+      %follow
+    =/  want=(map @t [body=? fold=?])  (parse-follow set.in)
+    ;<  [df=(map @ud follow) dk=(map @t @ud)]  bind:m  (sse-drop follows keys want)
+    ;<  [ns=@ud nf=(map @ud follow) nk=(map @t @ud)]  bind:m  (sse-add eyre-id seq df dk want)
+    $(seq ns, follows nf, keys nk)
+  ::
+      %news
+    ?.  ?=([%f @ ~] wire.in)  $
+    =/  n=@ud  (slav %ud i.t.wire.in)
+    =/  f=(unit follow)  (~(get by follows) n)
+    ?~  f  $
+    ;<  ~  bind:m
+      ?:  fold.u.f  (sse-fold eyre-id road.u.f prev.u.f wave.in)
+      (sse-wave eyre-id road.u.f body.u.f prev.u.f wave.in)
+    $(follows (~(put by follows) n u.f(prev wave.in)))
+  ==
+::  +handle-follow: POST {s, roads} → poke the session's stream grub
+::
+++  handle-follow
+  |=  [eyre-id=@ta req=inbound-request:eyre]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  jon=(unit json)
+    ?~  body.request.req  ~
+    (de:json:html q.u.body.request.req)
+  ?.  ?=([~ %o *] jon)
+    (send-json eyre-id 400 (pairs:enjs:format ~[['error' s+'json object body required']]))
+  =/  s=(unit json)  (~(get by p.u.jon) 's')
+  ?.  ?=([~ %s *] s)
+    (send-json eyre-id 400 (pairs:enjs:format ~[['error' s+'s (session id) required']]))
+  ::  a stream whose fiber failed sits in its restart wait; a poke there
+  ::  would re-run the request on a connection eyre already closed. Say so
+  ::  instead: the page reconnects and gets a fresh session.
+  ;<  reqs=road:tarball  bind:m  (ancestor-road:io [/ %explorer] [%| /requests])
+  ;<  rv=view:nexus  bind:m  (peek-shallow:io reqs ~)
+  =/  banged=?
+    ?.  ?=([%ball *] rv)  |
+    ?~  fil.ball.rv  |
+    =/  c  (~(get by contents.u.fil.ball.rv) `@ta`p.u.s)
+    &(?=(^ c) ?=(^ bang.u.c))
+  ?:  banged
+    (send-json eyre-id 410 (pairs:enjs:format ~[['error' s+'session failed; reconnect']]))
+  ;<  =road:tarball  bind:m  (ancestor-road:io [/ %explorer] [%& /requests `@ta`p.u.s])
+  ;<  err=(unit tang)  bind:m  (poke-soft:io road [[/ %json] u.jon])
+  ?^  err
+    =/  why=@t  (crip (zing (join " | " (turn u.err |=(t=tank ~(ram re t))))))
+    %^  send-json  eyre-id  404
+    (pairs:enjs:format ~[['error' s+'no such session'] ['why' s+why] ['road' s+(road-to-cord:tarball road)]])
+  (send-json eyre-id 200 (pairs:enjs:format ~[['ok' b+%.y]]))
+::  +take-sse-in: what the stream waits on — news on any wire, the
+::  follow poke (a json bask), or the keep-alive timer
+::
+++  take-sse-in
+  =/  m  (fiber:fiber:nexus ,sse-in)
+  ^-  form:m
+  |=  input:fiber:nexus
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %news * *]
+    [%done %news wire.u.in wave.u.in]
+      [~ %poke * *]
+    ?:  =([/ %timer-wake] p.sage.u.in)  [%done %wake ~]
+    ?.  =([/ %json] p.sage.u.in)  [%skip ~]
+    =/  res  (mule |.(!<(json q.sage.u.in)))
+    ?.  ?=(%& -.res)  [%skip ~]
+    [%done %follow p.res]
+  ==
+::
+++  sse-alive-timer
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  now=@da  bind:m  get-time:io
+  (send-wait:io (add now ~s30))
+::
+++  sse-send
+  |=  [eyre-id=@ta id=(unit @t) name=@t data=wain]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  ev=sse-event:http-utils  [id `name data]
+  (send-data:srv eyre-id `(sse-encode:http-utils ~[ev]))
+::  +parse-follow: the interest set as road cord → [wants body, fold only]
+::
+++  parse-follow
+  |=  jon=json
+  ^-  (map @t [body=? fold=?])
+  ?.  ?=([%o *] jon)  ~
+  =/  roads=(unit json)  (~(get by p.jon) 'roads')
+  ?.  ?=([~ %a *] roads)  ~
+  %-  ~(gas by *(map @t [body=? fold=?]))
+  %+  murn  p.u.roads
+  |=  j=json
+  ^-  (unit [@t [? ?]])
+  ?.  ?=([%o *] j)  ~
+  =/  r=(unit json)  (~(get by p.j) 'road')
+  ?.  ?=([~ %s *] r)  ~
+  =/  b=(unit json)  (~(get by p.j) 'body')
+  =/  f=(unit json)  (~(get by p.j) 'fold')
+  `[p.u.r ?=([~ %b %.y] b) ?=([~ %b %.y] f)]
+::  +sse-drop: drop the follows whose key is not in `want`
+::
+++  sse-drop
+  |=  [follows=(map @ud follow) keys=(map @t @ud) want=(map @t [body=? fold=?])]
+  =/  m  (fiber:fiber:nexus ,[(map @ud follow) (map @t @ud)])
+  ^-  form:m
+  =/  gone=(list [key=@t n=@ud])
+    (skip ~(tap by keys) |=([key=@t n=@ud] (~(has by want) key)))
+  |-  ^-  form:m
+  ?~  gone  (pure:m [follows keys])
+  =/  f=(unit follow)  (~(get by follows) n.i.gone)
+  ;<  ~  bind:m
+    ?~  f  (pure:(fiber:fiber:nexus ,~) ~)
+    (drop:io /f/(scot %ud n.i.gone) road.u.f)
+  %=  $
+    gone     t.gone
+    follows  (~(del by follows) n.i.gone)
+    keys     (~(del by keys) key.i.gone)
+  ==
+::  +sse-add: keep the roads in `want` not yet followed; each new follow
+::  replays `old` for what it holds now. A road that cannot be kept
+::  within 5s is skipped, not fatal.
+::
+++  sse-add
+  |=  [eyre-id=@ta seq=@ud follows=(map @ud follow) keys=(map @t @ud) want=(map @t [body=? fold=?])]
+  =/  m  (fiber:fiber:nexus ,[@ud (map @ud follow) (map @t @ud)])
+  ^-  form:m
+  =/  new=(list [key=@t body=? fold=?])
+    (skip ~(tap by want) |=([key=@t body=? fold=?] (~(has by keys) key)))
+  |-  ^-  form:m
+  ?~  new  (pure:m [seq follows keys])
+  =/  n=@ud  seq
+  =/  =road:tarball  (cord-to-road:tarball key.i.new)
+  ;<  init=(unit wave:nexus)  bind:m  (keep-soft:io /f/(scot %ud n) road ~ ~s5)
+  ?~  init  $(new t.new, seq +(seq))
+  ::  no replay of what the road holds now: the pane fetched that itself
+  ::  when it rendered, and a dir road can hold thousands of files
+  %=  $
+    new      t.new
+    seq      +(seq)
+    follows  (~(put by follows) n [road body.i.new fold.i.new u.init])
+    keys     (~(put by keys) key.i.new n)
+  ==
+::  +sse-fold: a fold follow — one `upd <dir>` when the dir's own node
+::  (its fold revision, or the set/revisions of its direct children)
+::  differs between the two waves; nothing when only deeper things moved
+::
+++  sse-fold
+  |=  [eyre-id=@ta =road:tarball prev=wave:nexus new=wave:nexus]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ::  the dir's own node: its fold revision bumps for any move beneath it,
+  ::  so this is "the dir changed, somewhere" as one event, never per file
+  ?:  =(fil.prev fil.new)  (pure:m ~)
+  ::  a dir spells with its trailing slash, as the page followed it
+  =/  dir=@t  (road-to-cord:tarball road)
+  =?  dir  !=('/' dir)  (cat 3 dir '/')
+  (sse-send eyre-id ~ (crip "upd {(trip dir)}") ~)
+::  +sse-wave: emit the files that differ between two waves of a followed
+::  road, as ONE chunk. new/upd/del come from the waves alone (a lane in
+::  the new wave but not the old is new, in both upd, only in the old
+::  del): nothing is peeked unless the follow wants bodies, and then only
+::  files that still exist, sent as json when they convert.
+::
+++  sse-wave
+  |=  [eyre-id=@ta =road:tarball body=? prev=wave:nexus new=wave:nexus]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ?>  ?=(%& -.road)
+  =/  base=path  ?:(?=(%& -.p.road) path.p.p.road p.p.road)
+  =/  has
+    |=  [w=wave:nexus =rail:tarball]
+    ^-  ?
+    =/  node=(unit [fold=cass:clay file=(map @ta cass:clay)])  (~(get of w) path.rail)
+    &(?=(^ node) (~(has by file.u.node) name.rail))
+  =/  changes=(list [=lane:tarball =cass:clay])  ~(tap by (diff-wave:nexus prev new))
+  =|  events=(list sse-event:http-utils)
+  |-  ^-  form:m
+  ?~  changes
+    ?~  events  (pure:m ~)
+    (send-data:srv eyre-id `(sse-encode:http-utils (flop events)))
+  ?:  ?=(%| -.lane.i.changes)  $(changes t.changes)
+  =/  =rail:tarball  p.lane.i.changes
+  =/  abs=path  (snoc (weld base path.rail) name.rail)
+  =/  now=?  (has new rail)
+  =/  kind=@t  ?.(now 'del' ?:((has prev rail) 'upd' 'new'))
+  =/  name=@t  (crip "{(trip kind)} {(trip (spat abs))}")
+  =/  id=(unit @t)  `(scot %ud ud.cass.i.changes)
+  ?.  &(body now)
+    $(changes t.changes, events [[id `name ~] events])
+  ;<  data=wain  bind:m  (sse-body [%& %& (weld base path.rail) name.rail])
+  $(changes t.changes, events [[id `name data] events])
+::  +sse-body: a followed file as json lines, or ~ when it is not there,
+::  boomed, or does not convert. The peek is raw and the conversion runs
+::  under mule here: a peek that asks the kernel to convert crashes the
+::  whole fiber when the tube does, and one bad grub must not kill the
+::  stream every other pane rides on.
+::
+++  sse-body
+  |=  =road:tarball
+  =/  m  (fiber:fiber:nexus ,wain)
+  ^-  form:m
+  ;<  v=view:nexus  bind:m  (peek:io road ~)
+  ?.  &(?=([%file *] v) !(is-boom:tarball sang.v))  (pure:m ~)
+  =/  =sage:tarball  (need-sage:tarball sang.v)
+  ;<  vaz=(unit vase)  bind:m
+    ?:  =([/ %json] p.sage)  (pure:(fiber:fiber:nexus ,(unit vase)) `q.sage)
+    ;<  tube=(unit tube:clay)  bind:(fiber:fiber:nexus ,(unit vase))  (get-tube:io [%& %| /code] [p.sage [/ %json]])
+    ?~  tube  (pure:(fiber:fiber:nexus ,(unit vase)) ~)
+    =/  res  (mule |.((u.tube q.sage)))
+    (pure:(fiber:fiber:nexus ,(unit vase)) ?:(?=(%& -.res) `p.res ~))
+  ?~  vaz  (pure:m ~)
+  =/  res  (mule |.(!<(json u.vaz)))
+  ?.  ?=(%& -.res)  (pure:m ~)
+  (pure:m (to-wain:format (en:json:html p.res)))
 ::
 ++  wants-html
   |=  req=inbound-request:eyre

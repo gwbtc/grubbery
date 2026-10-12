@@ -23,6 +23,13 @@
 /&  icon        forge/icon.svg
 /&  forge-html  forge/index.html
 /&  forge-js    forge/app.js
+/&  forge-viewers-js  forge/viewers.js
+::  the layouts the explorer opens forge's dirs as, './' paths resolved
+::  against the dir opened: the forge root (repo selector left, a tab per
+::  repo right) and a repo (tree, file, and the status/history/run/settings
+::  panes). One definition each.
+/&  forge-layout  forge/layout.json
+/&  repo-layout   forge/repo-layout.json
 /&  forge-reader-html  forge/docs-reader.html
 /&  forge-reader-js  forge/docs-reader.js
 /&  forge-css   forge/style.css
@@ -84,6 +91,19 @@
           [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
           [%over %& [/ %'index.html'] [[/ %mime] forge-html]]
           [%over %& [/ %'app.js'] [[/ %mime] forge-js]]
+          [%over %& [/ %'viewers.js'] [[/ %mime] forge-viewers-js]]
+          [%over %& [/ %'layout.json'] [[/ %mime] forge-layout]]
+          [%over %& [/ %'repo-layout.json'] [[/ %mime] repo-layout]]
+          ::  the explorer finds this view.json above any forge path and asks
+          ::  /api/viewers how it opens: the root as the forge layout, a repo
+          ::  as the repo layout, a repo's ui grubs as panes
+          :^  %over  %&  [/ %'view.json']
+          :-  [/ %json]
+          %-  pairs:enjs:format
+          :~  ['viewers' s+'/grubbery/forge/api/viewers']
+              ['title' s+'forge']
+              ['icon' s+'/grubbery/tiles/icon/forge.git_forge']
+          ==
           [%over %& [/ %'docs-reader.html'] [[/ %mime] forge-reader-html]]
           [%over %& [/ %'docs-reader.js'] [[/ %mime] forge-reader-js]]
           ::  the nexus backlog, materialized like README — browsable at root
@@ -139,6 +159,8 @@
               [%api %defaults ~]  (do-defaults rail eyre-id jon)
               [%api %run ~]     (do-run rail eyre-id jon)
           ==
+        ?:  ?=([%api %viewers ~] suffix)
+          (do-viewers rail eyre-id args)
         ?:  ?=([%api %defaults ~] suffix)
           ;<  cur=(unit json)  bind:m
             (peek-as:io (nex-road:io rail [%& / %'defaults.json']) ,json)
@@ -824,6 +846,61 @@
 ::  take an empty poke, txt actions the text field as a wain, add
 ::  a json payload
 ::
+::  +do-viewers: GET /api/viewers?path=&kind= — the explorer asks, per path
+::  under the forge root (the dir carrying view.json), how it opens. The
+::  root opens as the forge layout (repo selector | a tab per repo), /repos
+::  as the forge-repos selector (following the dir in fold mode), a repo
+::  dir as the repo layout rooted there, and a repo's status/commits/run/
+::  config grubs as the forge-status/log/run/settings panes, each following
+::  the grubs it draws from with bodies so the stream hands it fresh json.
+::  Everything else (the working tree, its files) answers empty: the
+::  explorer renders those itself.
+::
+++  do-viewers
+  |=  [=rail:tarball eyre-id=@ta args=quay:eyre]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  pax=(unit @t)  (quay-get args 'path')
+  =/  segs=path  ?~(pax / (fall (mole |.((stab u.pax))) /))
+  ;<  here=rail:tarball  bind:m  get-here-abs:io
+  =/  repos=path  (weld (snip `path`path.here) /repos)
+  =/  follow  |=(p=path (pairs:enjs:format ~[['road' s+(spat p)] ['body' b+%.y]]))
+  =/  layout  |=(url=@t (pairs:enjs:format ~[['layout' s+url]]))
+  ::  the forge root: the selector on the left, a tab per repo on the right
+  ?~  segs
+    (send-json rail eyre-id (layout '/grubbery/forge/layout.json'))
+  ::  the repos dir: the repo selector, live on the dir's own node
+  ?:  ?=([%repos ~] segs)
+    %^  send-json  rail  eyre-id
+    %-  pairs:enjs:format
+    :~  ['view' s+'forge-repos']
+        ['script' s+'/grubbery/forge/viewers.js']
+        ['args' (pairs:enjs:format ~[['api' s+'/grubbery/forge/api']])]
+        ['follow' a+~[(pairs:enjs:format ~[['road' s+(cat 3 (spat repos) '/')] ['fold' b+%.y]])]]
+    ==
+  ::  a repo dir: the repo workspace rooted at it
+  ?:  ?=([%repos @ ~] segs)
+    (send-json rail eyre-id (layout '/grubbery/forge/repo-layout.json'))
+  ::  the panes the forge page has: status, history, run, settings
+  =/  ui=path  /data/ui
+  =/  rule=(unit [repo=@ta view=@t rails=(list rail:tarball)])
+    ?+  segs  ~
+      [%repos @ %data %ui %'status.json' ~]   `[i.t.segs 'forge-status' ~[[ui %'status.json'] [ui %'current.json'] [ui %'stash.json']]]
+      [%repos @ %data %ui %'commits.json' ~]  `[i.t.segs 'forge-log' ~[[ui %'commits.json'] [ui %'current.json'] [ui %'branches.json']]]
+      [%repos @ %'run.git-action' ~]          `[i.t.segs 'forge-run' ~[[/ %'run.git-action']]]
+      [%repos @ %'config.json' ~]             `[i.t.segs 'forge-settings' ~[[/ %'config.json'] [/ %'poll.json']]]
+    ==
+  ?~  rule  (respond rail eyre-id 200 '')
+  =/  inst=path  (snoc repos repo.u.rule)
+  =/  follows=(list json)
+    (turn rails.u.rule |=(r=rail:tarball (follow (snoc (weld inst path.r) name.r))))
+  %^  send-json  rail  eyre-id
+  %-  pairs:enjs:format
+  :~  ['view' s+view.u.rule]
+      ['script' s+'/grubbery/forge/viewers.js']
+      ['args' (pairs:enjs:format ~[['repo' s+repo.u.rule] ['api' s+'/grubbery/forge/api']])]
+      ['follow' a+follows]
+  ==
 ::  +do-run: submit a git command to a repo's serial command lane. Pokes
 ::  /run.git-action with {command}; the lane parses and runs it.
 ::

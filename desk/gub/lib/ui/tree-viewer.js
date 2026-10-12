@@ -54,8 +54,14 @@
       tv.onOpenFile = (item, p) => onNav(p);
       tv.onOpenDir = (item, p) => onNav(p);
       tv.decorateRow = (row, item, p) => {
+        // the row carries its item (with the url of the dir it lives in), so a
+        // host's context menu finds what was clicked the same way it does in a
+        // file-table or file-grid row
+        const parent = p.slice(0, p.lastIndexOf('/')) || '/';
+        row.__item = Object.assign({}, item, { __dir: urlOf(parent) });
         if (typeof window.attachBadges !== 'function') return;
-        window.attachBadges(row, item, { enabled: badgesOn, onWeir: () => onNav(p), onNeck: () => onNav(p), onBlot: () => onNav(p) });
+        // the weir shield opens the dir's weir view (where the host opens links); neck and blot open the path
+        window.attachBadges(row, item, { enabled: badgesOn, onWeir: () => onNav(p + '?view=weir', 'dir'), onNeck: () => onNav(p), onBlot: () => onNav(p) });
       };
       body.appendChild(tv);
       tv.render(kids(root));

@@ -1,0 +1,10 @@
+{"bar":true,"nav":false,"activeTab":0,"tabs":[
+ {"label":"repo","entries":[{"div":{"dir":"horizontal","ratio":0.22,
+   "a":{"openTo":{"to":"../b/a","mode":"replace"},"tabs":[{"entries":[{"path":"./data/tree?view=tree"}],"cursor":0}]},
+   "b":{"tabs":[{"entries":[{"div":{"dir":"vertical","ratio":0.6,
+     "a":{"bar":true,"nav":false,"tabs":[{"entries":[],"cursor":-1}]},
+     "b":{"bar":true,"nav":false,"activeTab":0,"tabs":[
+       {"label":"status","entries":[{"path":"./data/ui/status.json"}],"cursor":0},
+       {"label":"history","entries":[{"path":"./data/ui/commits.json"}],"cursor":0},
+       {"label":"run","entries":[{"path":"./run.git-action"}],"cursor":0}]}}}],"cursor":0}]}}}],"cursor":0},
+ {"label":"settings","entries":[{"path":"./config.json"}],"cursor":0}]}
