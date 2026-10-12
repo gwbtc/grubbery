@@ -16,6 +16,7 @@
 /&  sv-js    /lib/ui/split-view.js
 /&  tg-js    /lib/ui/tab-group.js
 /&  tv-js    /lib/ui/tree-view.js
+/&  tvr-js   /lib/ui/tree-viewer.js
 /&  ba-js    /lib/ui/badges.js
 ::  experimental tmux-style pane splitting — served but unlinked from the
 ::  live finder; exercised only via panes.html (see below).
@@ -110,6 +111,7 @@
           [%over %& [/ %'split-view.js'] [[/ %mime] sv-js]]
           [%over %& [/ %'tab-group.js'] [[/ %mime] tg-js]]
           [%over %& [/ %'tree-view.js'] [[/ %mime] tv-js]]
+          [%over %& [/ %'tree-viewer.js'] [[/ %mime] tvr-js]]
           [%over %& [/ %'badges.js'] [[/ %mime] ba-js]]
           [%over %& [/ %'kit.js'] [[/ %mime] kit-js]]
           [%over %& [/ %'browse.html'] [[/ %mime] browse-html]]

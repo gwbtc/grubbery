@@ -38,7 +38,7 @@
 //   KEYS (after prefix): % / | split right · " / - split down · c collapse · e expand ·
 //     z/Z zoom in/out · x close · b lock bars · o cycle · m mark · ␣ swap ·
 //     [ ] climb/descend · Tab sibling · Esc reset · h highlight · 1-9 jump ·
-//     t new tab · w close tab · T toggle bar · < > prev/next tab · , . back/forward ·
+//     t new tab · w close tab · T toggle bar · : focus navbar · < > prev/next tab · , . back/forward ·
 //     arrows move · shift+arrows / r resize (sticky).
 //
 // Light DOM; the JS tree is the source of truth and the DOM mirrors it. A
@@ -55,7 +55,7 @@ const CSS = `
   }
   .ps-pane-body { flex:1 1 auto; min-height:0; overflow:auto; position:relative; isolation:isolate; }
   .ps-pane-body > split-view { position:absolute; inset:0; }
-  .ps-empty { height:100%; display:flex; align-items:center; justify-content:center; color:#8b949e; font:13px -apple-system,sans-serif; }
+  .ps-empty { height:100%; display:flex; align-items:center; justify-content:center; color:#8b949e; font:16px -apple-system,sans-serif; }
   .ps-pane::after {
     content:""; position:absolute; inset:0; pointer-events:none;
     outline:1px solid transparent; outline-offset:-1px; transition:outline-color .1s;
@@ -68,26 +68,26 @@ const CSS = `
   .ps-pane.ps-dim { opacity:.4; transition:opacity .1s; }
   /* uniform per-pane topbar: committed on/off; the hover toggle (bar ▾) flips it;
      a global switch (ps-no-hovertoggle) hides every toggle so bars are locked. */
-  .ps-bar { flex:0 0 auto; display:none; flex-direction:column; align-items:stretch; gap:3px; padding:3px 4px; box-sizing:border-box; background:#f6f8fa; border-bottom:1px solid #e2e7ee; font:12px -apple-system,BlinkMacSystemFont,sans-serif; color:#57606a; }
+  .ps-bar { flex:0 0 auto; display:none; flex-direction:column; align-items:stretch; gap:3px; padding:3px 4px; box-sizing:border-box; background:#f6f8fa; border-bottom:1px solid #e2e7ee; font:14px -apple-system,BlinkMacSystemFont,sans-serif; color:#57606a; }
   .ps-pane.ps-bar-on > .ps-bar { display:flex; }
   .ps-bar-row { display:flex; align-items:center; gap:2px; min-width:0; }
-  .ps-bar-btn { all:unset; cursor:pointer; padding:2px 6px; border-radius:4px; color:#57606a; font-size:12px; line-height:1.4; }
+  .ps-bar-btn { all:unset; cursor:pointer; padding:2px 6px; border-radius:4px; color:#57606a; font-size:14px; line-height:1.4; }
   .ps-bar-btn:hover { background:#eaeef2; color:#24292f; }
   .ps-bar-btn[disabled] { opacity:.3; cursor:default; }
   .ps-bar-tabs { display:flex; align-items:center; gap:2px; flex:1 1 auto; min-width:0; overflow-x:auto; scrollbar-width:none; }
   .ps-bar-tabs::-webkit-scrollbar { display:none; }
-  .ps-tab { all:unset; cursor:pointer; display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:6px 6px 0 0; font:600 11px ui-monospace,Menlo,monospace; color:#57606a; white-space:nowrap; border:1px solid transparent; }
+  .ps-tab { all:unset; cursor:pointer; display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:6px 6px 0 0; font:600 13px ui-monospace,Menlo,monospace; color:#57606a; white-space:nowrap; border:1px solid transparent; }
   .ps-tab:hover { background:#eaeef2; }
   .ps-tab.on { background:#fff; color:#1f2328; border-color:#e2e7ee; }
   .ps-tab-ic { font-weight:400; opacity:.85; }
   .ps-tab-x { opacity:.5; padding:0 2px; border-radius:3px; font-weight:400; }
   .ps-tab-x:hover { opacity:1; background:#d7dde3; }
   .ps-nav { flex:1 1 auto; min-width:40px; display:flex; align-items:center; }
-  .ps-nav input { width:100%; box-sizing:border-box; border:1px solid #e2e7ee; background:#fff; border-radius:6px; padding:3px 8px; font:11px ui-monospace,Menlo,monospace; color:#1f2328; outline:none; }
+  .ps-nav input { width:100%; box-sizing:border-box; border:1px solid #e2e7ee; background:#fff; border-radius:6px; padding:3px 8px; font:13px ui-monospace,Menlo,monospace; color:#1f2328; outline:none; }
   .ps-nav input:focus { border-color:var(--ps-accent,#0969da); box-shadow:0 0 0 2px rgba(9,105,218,.15); }
   .ps-nav input::placeholder { color:#8b949e; }
   /* one pill, anchored top-left of the SELECTED pane; materializes ITS bar */
-  .ps-bartoggle { position:absolute; z-index:27; display:none; align-items:center; gap:5px; padding:4px 11px; border-radius:7px; background:#f6f8fa; border:1px solid #d0d7de; color:#57606a; font:600 12px -apple-system,BlinkMacSystemFont,sans-serif; cursor:pointer; opacity:0; visibility:hidden; transition:opacity .1s; user-select:none; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .ps-bartoggle { position:absolute; z-index:27; display:none; align-items:center; gap:5px; padding:4px 11px; border-radius:7px; background:#f6f8fa; border:1px solid #d0d7de; color:#57606a; font:600 13px -apple-system,BlinkMacSystemFont,sans-serif; cursor:pointer; opacity:0; visibility:hidden; transition:opacity .1s; user-select:none; box-shadow:0 1px 3px rgba(0,0,0,.08); }
   .ps-bartoggle.on { display:flex; }
   pane-split:hover .ps-bartoggle.on { opacity:1; visibility:visible; }
   .ps-bartoggle:hover { color:#24292f; background:#eaeef2; border-color:#afb8c1; }
@@ -114,6 +114,7 @@ class PaneSplit extends HTMLElement {
   onDestroy = null;
   onNavigate = null;
   tabInfo = null;      // optional (path) => { icon?:string, label?:string } for the tab chip
+  viewModes = null;    // optional [{id, glyph, title}] → a per-pane render-mode toggle on the bar; host's renderPath reads viewOf(id)
 
   #root = null;                 // the root PANE
   #panes = new Map();           // id -> pane
@@ -193,7 +194,7 @@ class PaneSplit extends HTMLElement {
       e.preventDefault(); e.stopPropagation();
       this.#activeId = id; this.climb();
     }, true);
-    const pane = { kind: 'pane', id, dom, body, bar, tabs: [{ entries: [], cursor: -1 }], activeTab: 0, parent: null, showBar: false, openTo: null, target: null };
+    const pane = { kind: 'pane', id, dom, body, bar, tabs: [{ entries: [], cursor: -1 }], activeTab: 0, parent: null, showBar: false, openTo: null, target: null, view: null };
     this.#panes.set(id, pane);
     this.#renderPane(pane);
     return pane;
@@ -209,7 +210,8 @@ class PaneSplit extends HTMLElement {
     const row1 = document.createElement('div'); row1.className = 'ps-bar-row';
     const tabs = document.createElement('div'); tabs.className = 'ps-bar-tabs';
     const add = btn('+', 'new tab', () => this.newTab(id, this.#curPath(id)));
-    row1.append(btn('▴', 'hide bar', () => this.setBar(id, false)), tabs, add,
+    const viewBtn = btn('', 'rendering mode', () => this.#cycleView(id));
+    row1.append(btn('▴', 'hide bar', () => this.setBar(id, false)), tabs, add, viewBtn,
       btn('→', 'split right', () => this.splitRight(id)), btn('↓', 'split down', () => this.splitDown(id)), btn('×', 'close pane', () => this.closeLeaf(id)));
     // row 2 — history + navbar
     const row2 = document.createElement('div'); row2.className = 'ps-bar-row';
@@ -227,7 +229,7 @@ class PaneSplit extends HTMLElement {
     nav.appendChild(input);
     row2.append(back, fwd, nav);
     bar.append(row1, row2);
-    bar._back = back; bar._fwd = fwd; bar._tabs = tabs; bar._nav = input;
+    bar._back = back; bar._fwd = fwd; bar._tabs = tabs; bar._nav = input; bar._view = viewBtn;
     return bar;
   }
 
@@ -253,6 +255,12 @@ class PaneSplit extends HTMLElement {
     const navVal = e ? (e.div ? (e.div.src || '') : (e.path != null ? e.path : '')) : '';
     if (bar._nav !== document.activeElement) bar._nav.value = navVal;
     bar._nav.placeholder = (e && e.div) ? (e.div.src || 'layout') : 'path…';
+    // per-pane render-mode toggle (host-configured)
+    if (this.viewModes && this.viewModes.length) {
+      const cur = pane.view || this.viewModes[0].id;
+      const m = this.viewModes.find(v => v.id === cur) || this.viewModes[0];
+      bar._view.textContent = m.glyph; bar._view.title = m.title || cur; bar._view.style.display = '';
+    } else bar._view.style.display = 'none';
   }
   // {icon,label} for a tab chip — host's tabInfo(path) wins for leaf entries.
   #tabMeta(tab) {
@@ -283,7 +291,12 @@ class PaneSplit extends HTMLElement {
       if (prev.tagName === 'SPLIT-VIEW') prev.remove();
       else { try { if (this.onDestroy) this.onDestroy(pane.id, pane.body); } catch (_) {} pane.body.textContent = ''; }
     }
-    if (entry && entry.div) {
+    if (entry && entry.div && pane.view && entry.div.src) {
+      // a non-default view (e.g. raw) on a layout: show its SOURCE via renderPath,
+      // keeping the live division intact underneath — flip back and it returns.
+      const el = this.renderPath ? this.renderPath(entry.div.src, pane.id) : document.createTextNode(entry.div.src);
+      if (el) pane.body.appendChild(el);
+    } else if (entry && entry.div) {
       const div = entry.div;
       this.#placePane(div.a, div.sv, 'start');
       this.#placePane(div.b, div.sv, 'end');
@@ -338,6 +351,18 @@ class PaneSplit extends HTMLElement {
   // which pane a pane's navigations should open into (layout `openTo` by name),
   // or null for in-place. The host decides WHEN to use it (e.g. files, not dirs).
   targetId(id) { const p = this.#panes.get(id ?? this.#activeId); return p && p.target && this.#panes.has(p.target.id) ? p.target.id : null; }
+  // per-pane render mode (opaque; host's renderPath interprets, e.g. 'raw'). The
+  // bar's toggle cycles through `viewModes`; the default mode is stored as null.
+  viewOf(id) { const p = this.#panes.get(id ?? this.#activeId); return p ? p.view : null; }
+  setView(id, v) { const p = this.#panes.get(id ?? this.#activeId); if (!p) return; p.view = v || null; this.#renderPane(p); this.#persist(); }
+  #cycleView(id) {
+    if (!this.viewModes || !this.viewModes.length) return;
+    const p = this.#panes.get(id); if (!p) return;
+    const cur = p.view || this.viewModes[0].id;
+    const i = this.viewModes.findIndex(v => v.id === cur);
+    const next = this.viewModes[(i + 1) % this.viewModes.length].id;
+    this.setView(id, next === this.viewModes[0].id ? null : next);
+  }
   // resolve each pane's `openTo` STRUCTURAL ADDRESS to a target pane. The address
   // is a slot-path from the layout's root division: 'a'/'b', nested like 'b/a'.
   #wireTargets(scope) {
@@ -385,6 +410,9 @@ class PaneSplit extends HTMLElement {
   // ---- topbar visibility ----
 
   setBar(id, on) { const p = this.#panes.get(id); if (!p) return; p.showBar = (on == null) ? !p.showBar : !!on; p.dom.classList.toggle('ps-bar-on', p.showBar); this.#positionBarToggle(); this.#persist(); }
+  // focus the pane's navbar (materializing its bar if hidden) and select the text,
+  // ready for the user to type a path. Enter navigates, Esc restores & blurs.
+  focusNav(id) { const p = this.#panes.get(id ?? this.#activeId); if (!p) return; if (!p.showBar) this.setBar(p.id, true); const input = p.bar && p.bar._nav; if (input) { input.focus(); input.select(); } }
   toggleBars() { this.#hoverToggle = !this.#hoverToggle; this.classList.toggle('ps-no-hovertoggle', !this.#hoverToggle); this.#positionBarToggle(); return this.#hoverToggle; }
 
   // ---- splitting: STRUCTURAL. active tab's history migrates to the child that
@@ -396,9 +424,12 @@ class PaneSplit extends HTMLElement {
   #split(id, orientation) {
     const pane = this.#panes.get(id);
     if (!pane) return null;
+    const scroll = this.#snapshotScroll();     // reuse the live DOM across the split → preserve scroll
     const savedZoom = this.#zoomStack;
     if (savedZoom.length) { this.#zoomStack = []; this.#applyZoom(); }
     const tab = pane.tabs[pane.activeTab];
+    const curEntry = tab.entries[tab.cursor];
+    const liveBody = pane.body.firstChild;      // the content already on screen
     // childA keeps the original content AND inherits this tab's whole history.
     const childA = this.#makePane();
     childA.tabs = [{ entries: tab.entries, cursor: tab.cursor }];
@@ -411,12 +442,16 @@ class PaneSplit extends HTMLElement {
     const div = { dir: orientation, ratio: 0.5, fold: null, src: null, owner: pane, a: childA, b: childB, sv };
     sv.__psdiv = div;
     childA.parent = { div, slot: 'a' }; childB.parent = { div, slot: 'b' };
+    // hand the LIVE content element to childA (no re-render / no reload); a
+    // division entry is cheap to re-mount, so only reuse for leaf content.
+    if (liveBody && curEntry && !curEntry.div) { pane.body.removeChild(liveBody); childA.body.textContent = ''; childA.body.appendChild(liveBody); this.#renderBar(childA); }
+    else this.#renderPane(childA);
     // the parent tab loses its history to childA; it now holds the division.
     tab.entries = [{ div }]; tab.cursor = 0;
-    this.#renderPane(childA);   // childA inherited tabs after makePane — re-render it
-    this.#renderPane(pane);
+    this.#renderPane(pane);                     // pane.body is now empty → mounts the division
     if (savedZoom.length) { this.#zoomStack = savedZoom.map(z => z === pane ? pane : z); this.#applyZoom(); }
     this.#afterStructure();
+    this.#restoreScroll(scroll);
     this.focusPane(childB.id);
     this.#emit('ps-split', { id, dir: orientation, newId: childB.id });
     this.#persist();
@@ -443,20 +478,26 @@ class PaneSplit extends HTMLElement {
     }
     const div = par.div, owner = div.owner;
     const sib = par.slot === 'a' ? div.b : div.a;
+    const scroll = this.#snapshotScroll();      // reuse the sibling's live DOM → preserve scroll
     // free the whole closing subtree (the pane and everything under it)
     this.#eachPaneDeep(pane, cp => this.#forgetPane(cp), true);
     div.sv.__psdiv = null;
     // promote the sibling's ACTIVE tab history into the owner's active tab
     const ownerTab = owner.tabs[owner.activeTab];
     const sibTab = sib.tabs[sib.activeTab];
+    const sibEntry = sibTab.entries[sibTab.cursor];
+    const sibLive = sib.body.firstChild;        // the sibling's live content
     ownerTab.entries = sibTab.entries; ownerTab.cursor = sibTab.cursor;
     owner.showBar = sib.showBar; owner.dom.classList.toggle('ps-bar-on', owner.showBar);  // bar bubbles back up with the content
     this.#reparentDiv(ownerTab.entries[ownerTab.cursor], owner);
-    // drop sib's OTHER tabs' panes + the sib shell (its active history moved up)
+    // drop sib's OTHER tabs' panes (its active history moved up)
     sib.tabs.forEach((t, i) => { if (i !== sib.activeTab) this.#eachEntryPane(t, cp => this.#forgetPane(cp)); });
+    // hand the sibling's LIVE leaf content to the owner (no re-render / no reload)
+    if (sibLive && sibEntry && !sibEntry.div) { sib.body.removeChild(sibLive); owner.body.textContent = ''; owner.body.appendChild(sibLive); this.#renderBar(owner); }
+    else this.#renderPane(owner);
     this.#forgetPane(sib);
-    this.#renderPane(owner);
     this.#afterStructure();
+    this.#restoreScroll(scroll);
     this.cursorTo(owner);
     this.#emit('ps-close', {}); this.#persist();
   }
@@ -537,7 +578,7 @@ class PaneSplit extends HTMLElement {
   #render() {
     for (const p of this.#panes.values()) p.dom.classList.remove('ps-active', 'ps-dim');
     const sel = this.cursor;
-    const selDivides = sel && this.#curEntry(sel)?.div;
+    const selDivides = sel && this.#divides(sel);
     if (this.#selLevel >= 2 && selDivides && !this.#hidden(sel)) {
       const inSel = new Set(); this.#eachVisibleLeaf(sel, l => inSel.add(l.id));
       for (const p of this.#panes.values()) if (this.#isVisibleLeaf(p) && !inSel.has(p.id)) p.dom.classList.add('ps-dim');
@@ -551,7 +592,7 @@ class PaneSplit extends HTMLElement {
   }
   #reposition = () => {
     const sel = this.cursor;
-    if (this.#selLevel >= 2 && sel && this.#curEntry(sel)?.div && !this.#hidden(sel)) this.#placeBox(this.#selBox, sel);
+    if (this.#selLevel >= 2 && sel && this.#divides(sel) && !this.#hidden(sel)) this.#placeBox(this.#selBox, sel);
     else this.#selBox?.classList.remove('on');
     this.#renderMark();
     this.#positionBarToggle();
@@ -588,6 +629,7 @@ class PaneSplit extends HTMLElement {
       const par = n.parent; if (!par) break;
       const owner = par.div.owner;
       if (this.#curEntry(owner)?.div !== par.div) return true;   // owner looking elsewhere
+      if (owner.view) return true;                               // owner showing its layout's source (raw), not the division
       if (par.div.fold === par.slot) return true;                // folded away
       n = owner;
     }
@@ -713,7 +755,7 @@ class PaneSplit extends HTMLElement {
   serialize() { return this.#serPane(this.#root); }
   #serPane(pane) {
     if (!pane) return null;
-    return { tabs: pane.tabs.map(t => ({ entries: t.entries.map(e => this.#serEntry(e)), cursor: t.cursor })), activeTab: pane.activeTab, bar: pane.showBar || undefined, openTo: pane.openTo || undefined };
+    return { tabs: pane.tabs.map(t => ({ entries: t.entries.map(e => this.#serEntry(e)), cursor: t.cursor })), activeTab: pane.activeTab, bar: pane.showBar || undefined, openTo: pane.openTo || undefined, view: pane.view || undefined };
   }
   #serEntry(e) {
     if (e.div) return { div: { dir: e.div.dir, ratio: e.div.ratio, fold: e.div.fold || undefined, src: e.div.src || undefined, a: this.#serPane(e.div.a), b: this.#serPane(e.div.b) } };
@@ -752,6 +794,7 @@ class PaneSplit extends HTMLElement {
     }));
     pane.activeTab = typeof spec.activeTab === 'number' ? spec.activeTab : 0;
     pane.openTo = spec.openTo || null;
+    pane.view = spec.view || null;
     // bind division owners for every entry (not just the active one)
     pane.tabs.forEach(t => t.entries.forEach(e => { if (e.div) e.div.owner = pane; }));
     if (spec.bar) { pane.showBar = true; pane.dom.classList.add('ps-bar-on'); }
@@ -773,11 +816,13 @@ class PaneSplit extends HTMLElement {
   #eachEntryPane(tab, fn) { tab.entries.forEach(e => { if (e.div) { this.#eachPaneDeep(e.div.a, fn, true); this.#eachPaneDeep(e.div.b, fn, true); } }); }
   // visible leaves: follow the active entry; a pane showing a division recurses,
   // one showing a path/empty is a leaf.
-  #isVisibleLeaf(pane) { return this.#panes.has(pane.id) && !this.#curEntry(pane)?.div && !this.#hidden(pane); }
+  // a pane "divides" only when its active entry is a div AND it's not showing that
+  // layout's source (raw view) — a raw layout pane is a leaf (it shows a file).
+  #divides(pane) { const e = this.#curEntry(pane); return !!(e && e.div && !pane.view); }
+  #isVisibleLeaf(pane) { return this.#panes.has(pane.id) && !this.#divides(pane) && !this.#hidden(pane); }
   #eachVisibleLeaf(pane, fn) {
     if (!pane) return;
-    const e = this.#curEntry(pane);
-    if (e && e.div) { this.#eachVisibleLeaf(e.div.a, fn); this.#eachVisibleLeaf(e.div.b, fn); }
+    if (this.#divides(pane)) { const d = this.#curEntry(pane).div; this.#eachVisibleLeaf(d.a, fn); this.#eachVisibleLeaf(d.b, fn); }
     else if (!this.#hidden(pane)) fn(pane);
   }
 
@@ -799,7 +844,7 @@ class PaneSplit extends HTMLElement {
       const p = this.#prefix;
       if (e.key.toLowerCase() === p.key && e.ctrlKey === p.ctrl && e.metaKey === p.meta && e.altKey === p.alt) {
         this.#awaiting = true;
-        this.#flashHint('% split · " stack · c/e collapse/expand · z/Z zoom · x close · t/w tab · T bar · <> tab · ,. hist · m mark · ␣ swap · [ ] climb/descend · Tab sibling · h highlight · b bars · 1-9 jump · ←↑↓→ move · ⇧←↑↓→ resize');
+        this.#flashHint('% split · " stack · c/e collapse/expand · z/Z zoom · x close · t/w tab · T bar · : path · <> tab · ,. hist · m mark · ␣ swap · [ ] climb/descend · Tab sibling · h highlight · b bars · 1-9 jump · ←↑↓→ move · ⇧←↑↓→ resize');
         clearTimeout(this.#awaitTimer);
         this.#awaitTimer = setTimeout(() => { this.#awaiting = false; this.#flashHint(''); }, 2500);
         e.preventDefault(); e.stopPropagation();
@@ -825,6 +870,7 @@ class PaneSplit extends HTMLElement {
     else if (k === 'm') { const on = this.markToggle(); this.#flashHint(on ? 'marked — move the cursor, then space to swap' : 'mark cleared'); }
     else if (k === 't') this.newTab(this.#activeId, this.#curPath(this.#activeId));
     else if (k === 'T') this.setBar(this.#activeId);   // toggle the selected pane's bar
+    else if (k === ':') this.focusNav(this.#activeId); // jump to the navbar to type a path
     else if (k === 'w') this.closeTab(this.#activeId, this.cursor ? this.cursor.activeTab : -1);
     else if (k === '<' || k === ',') { if (k === '<') this.#cycleTab(-1); else this.back(); }
     else if (k === '>' || k === '.') { if (k === '>') this.#cycleTab(1); else this.forward(); }

@@ -817,7 +817,9 @@ function setup(root, opts) {
       if (tgt) { ps.navigate(tgt, h); ps.focusPane(tgt); }
       else ps.navigate(paneId, h);                                         // no target → navigate in place
     };
-    if (/\.layout$/.test(ns)) {                                            // this pane landed ON a layout → become it
+    const raw = !!(ps.viewOf && ps.viewOf(paneId) === 'raw');              // toolbar toggle: skip all special rendering
+    if (!raw && /\.layout$/.test(ns)) {                                    // this pane landed ON a layout → become it
+      el.style.cssText = 'height:100%;display:flex;align-items:center;justify-content:center;color:#8b949e;font:16px -apple-system,BlinkMacSystemFont,sans-serif';
       el.textContent = 'opening layout…';
       fetch(url).then((r) => r.ok ? r.json() : Promise.reject('x')).then((spec) => ps.replaceWithLayout(paneId, spec, ns)).catch(() => { el.textContent = 'not a valid layout: ' + ns; });
       return el;
@@ -826,9 +828,9 @@ function setup(root, opts) {
     fetch(url + '?list=1').then((r) => r.ok ? r.json() : Promise.reject('f')).then(async (d) => {
       if (!d || !Array.isArray(d.children)) throw 'f';
       psKind.set(ns, 'dir'); ps.redrawBars();                              // this path lists → it's a dir
-      // a directory that declares a viewer (the clanker tree, etc.) renders it
+      // a directory that declares a viewer (the clanker tree, etc.) renders it — unless raw
       let viewer = null;
-      try { viewer = await viewerFor(url, 'dir', ''); } catch (_) {}
+      if (!raw) { try { viewer = await viewerFor(url, 'dir', ''); } catch (_) {} }
       if (viewer && !viewer.blocked && viewer.mount) { el._fv = viewer.mount(el, { url, onNavigate: onNav }); return; }
       const t = document.createElement('file-table');
       t.style.height = '100%';
@@ -843,8 +845,8 @@ function setup(root, opts) {
       t.items = d.children;
     }).catch(async () => {
       psKind.set(ns, 'file'); ps.redrawBars();                            // not a listing → it's a file
-      const opts = { url, crumbBase: ROOT, onNavigate: onNav };          // its declared viewer becomes FileView's first pane
-      try { const v = await viewerFor(url, 'file'); if (v && !v.blocked) opts.viewer = v; } catch (_) {}
+      const opts = { url, crumbBase: ROOT, onNavigate: onNav };          // its declared viewer becomes FileView's first pane (unless raw)
+      if (!raw) { try { const v = await viewerFor(url, 'file'); if (v && !v.blocked) opts.viewer = v; } catch (_) {} }
       try { el._fv = window.FileView.mount(el, opts); }
       catch (e) { el.textContent = 'open failed: ' + e; }
     });
@@ -1424,10 +1426,11 @@ function setup(root, opts) {
     ps.style.cssText = 'display:block;height:100%';
     ps.renderPath = (path, paneId) => paneContent(ps, paneId, path);
     ps.tabInfo = paneTabInfo;
+    ps.viewModes = [{ id: 'rendered', glyph: '▣', title: 'rendered (special)' }, { id: 'raw', glyph: '◰', title: 'raw file / plain listing' }];
     ps.onDestroy = (id, body) => { const c = body.firstChild; try { if (c && c._fv) c._fv.destroy(); } catch (_) {} };
     root.appendChild(ps);
     let saved = null; try { saved = localStorage.getItem('pane-split:' + K + '-standalone'); } catch (_) {}
-    if (!saved) ps.open('/', 'here');
+    if (!saved) ps.open('/', 'here');                   // fresh → root; otherwise the persisted workspace restores (stateful)
     return;
   }
   load();
