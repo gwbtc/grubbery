@@ -850,31 +850,6 @@ function setup(root, opts) {
     });
     return el;
   }
-  function openPanesTab() {
-    const existing = tabPanels().find((p) => p._panes);
-    if (existing) { selectPanel(existing); return; }
-    const panel = document.createElement('div');
-    panel._panes = true; panel._rendered = true;
-    panel.dataset.path = '';
-    panel.setAttribute('tab-label', '⊢ panes');
-    panel.setAttribute('tab-title', 'experimental pane-split workspace');
-    panel.style.cssText = 'height:100%;min-height:0';
-    let saved = null;
-    try { saved = localStorage.getItem('pane-split:' + K + '-panes'); } catch (_) {}
-    const ps = document.createElement('pane-split');
-    ps.setAttribute('persist', K + '-panes');     // workspace persists as data
-    ps.style.cssText = 'display:block;height:100%';
-    ps.renderPath = (path, paneId) => paneContent(ps, paneId, path);
-    ps.tabInfo = paneTabInfo;                      // tab chips: name + dir/file icon from the path
-    ps.onDestroy = (id, body) => { const c = body.firstChild; try { if (c && c._fv) c._fv.destroy(); } catch (_) {} };
-    panel._ps = ps;
-    panel.appendChild(ps);
-    finderTabs.appendChild(panel);
-    finderTabs.refresh();
-    selectPanel(panel);
-    if (!saved) ps.open(psNs(here), 'here');       // fresh workspace → a single pane; open a .layout path for an interface
-  }
-
   function saveTabs() {
     const panels = tabPanels().filter((p) => !p._panes);   // the panes scratchpad is ephemeral
     const act = panels.find((p) => !p.hidden);
@@ -967,7 +942,6 @@ function setup(root, opts) {
     const cur = a && a._hist.stack[a._hist.idx];
     openInNewTab(a ? a.dataset.path : here, (cur && cur.kind) || 'dir');
   });
-  $('finder-panes').addEventListener('click', openPanesTab);
   setView(view);
 
   // ---- navigation (shared by both views) ----
@@ -1590,7 +1564,6 @@ const EXPLORER_HTML = (K) => `  <div id="bar">
         <button id="finder-collapse" title="collapse sidebar">&#8676;</button>
         <span style="display:flex; gap:4px; align-items:center;">
           <span class="ft-all"><button id="finder-new-tab" title="open a new tab">+ tab</button></span>
-          <span class="ft-all"><button id="finder-panes" title="open a pane-split workspace (experimental)">&#8862; panes</button></span>
           <span class="ft-all"><button id="finder-badges-toggle" title="show/hide row badges"></button></span>
           <span class="ft-all"><button id="finder-tree-toggle" title="expand/collapse all"></button></span>
         </span>
