@@ -1,6 +1,6 @@
 # Desk management under the shell — design & refactor plan
 
-Status: **parked** on branch `shell-desks`. Thinking captured so we can resume
+Status: **on hold** on branch `shell-desks`. Thinking captured so we can resume
 without re-deriving. Branched off `develop` @ d0a10ef.
 
 ## Goal
