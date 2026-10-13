@@ -138,7 +138,12 @@
   =/  pos=@ud  0
   ::  skip pkt-lines until we find NAK or ACK (shallow lines, flushes, etc)
   |-
-  =^  pkt=(unit octs)  pos  (read-pkt pos body)
+  =/  [pkt=(unit octs) nex=@ud]  (read-pkt pos body)
+  ::  read-pkt does not move at the end of the body. Without this a
+  ::  body that ends before any NAK, an empty one included, spun here
+  ::  forever and wedged the ship in one event.
+  ?:  =(nex pos)  ~|(%upload-pack-no-nak !!)
+  =.  pos  nex
   ?~  pkt  $  :: skip flush, keep looking
   =/  line=tape  (trip q.u.pkt)
   ?.  ?|  =("NAK" (scag 3 line))
