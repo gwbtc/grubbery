@@ -645,7 +645,10 @@ function setup(root, opts) {
     const v = window.Viewers[view];
     return (v && typeof v.mount === 'function') ? v : null;
   }
-  async function viewerFor(path, kind, neck) {
+  // `view`: the moment's ?view= when it is not one the host renders itself
+  // (rows|grid|tree); the app answers its own view names (a selector, a
+  // record form) and the bare path (no view) with whatever it opens as
+  async function viewerFor(path, kind, neck, askView) {
     try {
       await viewReady;
       // who answers, and from where paths are relative: the mount's root,
@@ -674,7 +677,7 @@ function setup(root, opts) {
       // a dir is told by its neck (the nexus it runs, '' when plain), a file by its blot
       const q = '?path=' + encodeURIComponent(rel) + '&kind=' + (kind === 'dir' ? 'dir' : 'file') +
         '&blot=' + encodeURIComponent(blot) + '&neck=' + encodeURIComponent(kind === 'dir' ? (neck || '') : '') +
-        (pant ? '&pant=' + encodeURIComponent(pant) : '');
+        (pant ? '&pant=' + encodeURIComponent(pant) : '') + (askView ? '&view=' + encodeURIComponent(askView) : '');
       const r = await fetch(viewers + q, { cache: 'no-store' });
       if (!r.ok) return null;
       const text = await r.text();
@@ -827,10 +830,23 @@ function setup(root, opts) {
   const psUrl = (p) => { const n = psNs(p); return n === '/' ? PREFIX : PREFIX + n; };   // root → /grubbery/ball (no trailing slash)
   const psBase = (p) => psNs(p).replace(/\/$/, '').split('/').filter(Boolean).pop() || '/';
   const TREE_JS = PREFIX + '/apps/explorer.explorer/tree-viewer.js';           // the explorer's own tree, a stock viewer
+  // a pane's waiting state: `text` over an optional `sub` line (what is being
+  // fetched); psWaitFail turns the same block into the failure it ended in
+  const psWait = (el, text, sub) => {
+    el.innerHTML = ''; el.className = 'ps-wait'; el.style.cssText = 'height:100%';
+    const ring = document.createElement('div'); ring.className = 'ps-wait-ring';
+    const t = document.createElement('div'); t.className = 'ps-wait-text'; t.textContent = text;
+    el.append(ring, t);
+    if (sub) { const s = document.createElement('div'); s.className = 'ps-wait-sub'; s.textContent = sub; s.title = sub; el.appendChild(s); }
+  };
+  const psWaitFail = (el, text, sub) => { psWait(el, text, sub); el.classList.add('fail'); };
   // a path's name + icon for its tab chip: basename + the kind we learn while
   // listing (dir) or opening (file). redrawBars() sharpens the glyph once known.
   const psKind = new Map();
-  function paneTabInfo(p) { return { icon: '', label: psBase(p) }; }   // a tab is its name; no glyph guessed from kind
+  // a tab is its name; no glyph guessed from kind. A moment with ?page= (a
+  // rendering's own sub-page: the docs pane) is named by that page, so the
+  // history reads as the pages visited, not the same grub nine times
+  function paneTabInfo(p) { const pg = psArgs(p).page; return { icon: '', label: pg ? (pg.split('/').filter(Boolean).pop() || pg) : psBase(p) }; }
   // live: the page's one SSE stream and the follow set behind it. Every
   // rendered instance registers the roads it depends on (a dir road ends in
   // '/', a file road does not); the union is POSTed to the ship whenever it
@@ -937,6 +953,13 @@ function setup(root, opts) {
            padding tightens, footers and pickers wrap, the weir grid stacks, and
            nothing keeps a fixed width. Vertically the pane scrolls; the top padding is
            capped so a short pane shows the card, not its margin. */
+        /* a pane waiting on the ship (a layout being fetched): a quiet ring and a
+           label, centered; the same block names a failure with the ring stopped */
+        '.ps-wait{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#8b949e;font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#fff;user-select:none}' +
+        '.ps-wait-ring{width:22px;height:22px;border-radius:50%;border:2px solid #eaeef2;border-top-color:#8b949e;animation:ps-spin .9s linear infinite}' +
+        '.ps-wait-text{letter-spacing:.01em}.ps-wait-sub{font:11px ui-monospace,SFMono-Regular,Menlo,monospace;color:#8b949e;max-width:80%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+        '.ps-wait.fail .ps-wait-ring{animation:none;border-color:#ffcecb;border-top-color:#cf222e}.ps-wait.fail .ps-wait-text{color:#cf222e}' +
+        '@keyframes ps-spin{to{transform:rotate(360deg)}}' +
         '.ps-form-wrap{min-height:100%;box-sizing:border-box;padding:min(48px,6vh) 24px 24px;display:flex;justify-content:center;align-items:flex-start;background:#f6f8fa;font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#24292f;container-type:inline-size}' +
         /* a floor: below 260px the pane scrolls the card sideways instead of crushing it;
            every text run inside is one line, clipped with an ellipsis, full value on hover */
@@ -1223,9 +1246,8 @@ function setup(root, opts) {
     const raw = !!(ps.viewOf && ps.viewOf(paneId) === 'raw');              // toolbar toggle: skip all special rendering
     if (ACTION_VIEWS[psArgs(path).view]) { actionView(ps, paneId, el, path); return el; }   // a form over this path
     if (!raw && /\.layout$/.test(ns)) {                                    // this pane landed ON a layout → become it
-      el.style.cssText = 'height:100%;display:flex;align-items:center;justify-content:center;color:#8b949e;font:16px -apple-system,BlinkMacSystemFont,sans-serif';
-      el.textContent = 'opening layout…';
-      fetch(url).then((r) => r.ok ? r.json() : Promise.reject('x')).then((spec) => ps.replaceWithLayout(paneId, spec, ns)).catch(() => { el.textContent = 'not a valid layout: ' + ns; });
+      psWait(el, 'opening layout', ns);
+      fetch(url).then((r) => r.ok ? r.json() : Promise.reject('x')).then((spec) => ps.replaceWithLayout(paneId, spec, ns)).catch(() => psWaitFail(el, 'not a valid layout', ns));
       return el;
     }
     const onNav = (u, k, o) => route(u, k === 'file' ? 'file' : 'dir', null, o && o.name);   // viewers: onNavigate(url, kind, {name})
@@ -1237,24 +1259,32 @@ function setup(root, opts) {
       // grid, or rows. Absent, a viewer the app declares for the dir wins,
       // else rows. raw ignores all of it: the plain listing.
       const want = raw ? null : (psArgs(path).view || null);
+      const hostView = want === 'tree' || want === 'grid' || want === 'rows';
       if (want === 'tree') {
         const tv = await stockViewer('tree', TREE_JS);
-        if (tv && el.isConnected) { el._fv = tv.mount(el, { url, args: { root: ns }, onNavigate: onNav }); el._menu = (e) => listingMenu(e, el, url); return; }
+        // mounted whether or not el is in the document: an inactive tab's
+        // content is stashed off-document and shown later, and falling
+        // through here would render it as rows instead
+        if (tv) { el._fv = tv.mount(el, { url, args: { root: ns }, onNavigate: onNav }); el._menu = (e) => listingMenu(e, el, url); return; }
       }
+      // the app is asked for the bare dir and for any view name of its own;
+      // the host's own views (rows, grid, tree) never reach it
       let viewer = null;
-      if (!raw && !want) { try { viewer = await viewerFor(url, 'dir', ''); } catch (_) {} }
+      if (!raw && !hostView) { try { viewer = await viewerFor(url, 'dir', '', want); } catch (_) {} }
       if (viewer && viewer.layout) {                                       // the app opens this dir as a layout rooted here
-        el.textContent = 'opening layout…';
+        psWait(el, 'opening layout', ns);
         const base = ns === '/' ? '' : ns.replace(/\/$/, '');
+        // './x' → the opened dir plus x; './' and './?args' → the dir itself (with args)
+        const rel = (p) => p === './' ? (base || '/') : p.startsWith('./?') ? (base || '/') + p.slice(2) : base + p.slice(1);
         const rebase = (o) => Array.isArray(o) ? o.map(rebase)
-          : (o && typeof o === 'object') ? Object.fromEntries(Object.keys(o).map((k) => [k, (k === 'path' && typeof o[k] === 'string' && o[k].startsWith('./')) ? base + o[k].slice(1) : rebase(o[k])]))
+          : (o && typeof o === 'object') ? Object.fromEntries(Object.keys(o).map((k) => [k, (k === 'path' && typeof o[k] === 'string' && o[k].startsWith('./')) ? rel(o[k]) : rebase(o[k])]))
           : o;
         fetch(viewer.layout, { cache: 'no-store' }).then((r) => r.ok ? r.json() : Promise.reject('x'))
           .then((spec) => { if (el.isConnected) ps.replaceWithLayout(paneId, rebase(spec), ns); })
-          .catch(() => { el.textContent = 'not a valid layout: ' + viewer.layout; });
+          .catch(() => psWaitFail(el, 'not a valid layout', viewer.layout));
         return;
       }
-      if (viewer && !viewer.blocked && viewer.mount) { el._fv = viewer.mount(el, { url, onNavigate: onNav }); paneLive(ps, paneId, el, viewer.follow); return; }
+      if (viewer && !viewer.blocked && viewer.mount) { el._fv = viewer.mount(el, { url, onNavigate: onNav, query: psArgs(path) }); paneLive(ps, paneId, el, viewer.follow); return; }
       const t = document.createElement(want === 'grid' ? 'file-grid' : 'file-table');
       t.style.height = '100%';
       const up = ns.replace(/\/$/, '').replace(/\/[^/]+$/, '');
@@ -1290,9 +1320,11 @@ function setup(root, opts) {
       // raw = the full Source|Preview|Build package. The viewer never rides
       // along inside raw — the two are separate panes you toggle between.
       if (!raw) {
-        let v = null; try { v = await viewerFor(url, 'file'); } catch (_) {}
+        let v = null; try { v = await viewerFor(url, 'file', '', psArgs(path).view || null); } catch (_) {}
         if (v && !v.blocked && v.mount) {
-          try { el._fv = v.mount(el, { url, onNavigate: onNav }); paneLive(ps, paneId, el, v.follow); } catch (e) { el.textContent = 'viewer failed: ' + e; }
+          // the moment's ?args ride along as `query`: a viewer may read how it
+          // is being looked at (a docs pane's ?page=, say) without parsing urls
+          try { el._fv = v.mount(el, { url, onNavigate: onNav, query: psArgs(path) }); paneLive(ps, paneId, el, v.follow); } catch (e) { el.textContent = 'viewer failed: ' + e; }
           return;                                                         // rendered: the rendering alone
         }
       }

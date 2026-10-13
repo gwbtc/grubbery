@@ -100,6 +100,12 @@
         font: var(--tv-name-font, 13px ui-monospace, SFMono-Regular, Menlo, monospace);
         color: var(--tv-loading-color, #8b949e);
       }
+      .row.empty { cursor: default; }
+      .row.empty:hover { background: none; }
+      .row.empty .name {
+        color: var(--tv-loading-color, #8b949e); font-style: italic; opacity: .8;
+        text-decoration: none; cursor: default;
+      }
     </style>
     <div id="root"></div>
   `;
@@ -160,6 +166,22 @@
       parent.textContent = '';
       const dirs = this.#sortItems(items.filter((i) => i.isDir));
       const files = this.#sortItems(items.filter((i) => !i.isDir));
+      // an expanded directory with nothing in it says so, quietly: otherwise
+      // an open caret over blank space reads as the tree having failed
+      if (!dirs.length && !files.length) {
+        // built as a row with a blank caret slot so the text sits where a
+        // child's name would
+        const empty = document.createElement('div');
+        empty.className = 'row empty';
+        const slot = document.createElement('span');
+        slot.className = 'caret';
+        const name = document.createElement('span');
+        name.className = 'name';
+        name.textContent = 'empty';
+        empty.append(slot, name);
+        parent.appendChild(empty);
+        return;
+      }
       dirs.forEach((item) => {
         const childPath = joinPath(dirPath, item.name);
         const row = document.createElement('div');

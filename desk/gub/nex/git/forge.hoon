@@ -24,6 +24,9 @@
 /&  forge-html  forge/index.html
 /&  forge-js    forge/app.js
 /&  forge-viewers-js  forge/viewers.js
+::  the handbook as a pane: the docs reader ported to a viewer (its own file,
+::  served as docs-pane.js; the reader page stays for the original forge ui)
+/&  docs-pane-js  forge/docs/pane.js
 ::  the layouts the explorer opens forge's dirs as, './' paths resolved
 ::  against the dir opened: the forge root (repo selector left, a tab per
 ::  repo right) and a repo (tree, file, and the status/history/run/settings
@@ -92,6 +95,7 @@
           [%over %& [/ %'index.html'] [[/ %mime] forge-html]]
           [%over %& [/ %'app.js'] [[/ %mime] forge-js]]
           [%over %& [/ %'viewers.js'] [[/ %mime] forge-viewers-js]]
+          [%over %& [/ %'docs-pane.js'] [[/ %mime] docs-pane-js]]
           [%over %& [/ %'layout.json'] [[/ %mime] forge-layout]]
           [%over %& [/ %'repo-layout.json'] [[/ %mime] repo-layout]]
           ::  the explorer finds this view.json above any forge path and asks
@@ -896,10 +900,13 @@
   =/  inst=path  (snoc repos repo.u.rule)
   =/  follows=(list json)
     (turn rails.u.rule |=(r=rail:tarball (follow (snoc (weld inst path.r) name.r))))
+  ::  the docs pane is its own script; the rest share viewers.js
+  =/  script=@t
+    ?:(=('forge-docs' view.u.rule) '/grubbery/forge/docs-pane.js' '/grubbery/forge/viewers.js')
   %^  send-json  rail  eyre-id
   %-  pairs:enjs:format
   :~  ['view' s+view.u.rule]
-      ['script' s+'/grubbery/forge/viewers.js']
+      ['script' s+script]
       ['args' (pairs:enjs:format ~[['repo' s+repo.u.rule] ['api' s+'/grubbery/forge/api']])]
       ['follow' a+follows]
   ==
