@@ -899,24 +899,36 @@
     ::  directly for the user and recompute, past the registrant scoping.
     =/  grp=(unit path)  (rush (jstr jon 'group') stap)
     ?~  grp  (pure:m `'group required')
-    =/  =weir:nexus
-      :*  (silt (turn (jarr 'make') peers-parse-road))
-          (silt (turn (jarr 'poke') peers-parse-road))
-          (silt (turn (jarr 'peek') peers-parse-road))
-      ==
+    ::  one road that does not parse refuses the whole update
+    =/  roads
+      |=  key=@t
+      ^-  (unit (set road:tarball))
+      =/  got=(list (unit road:tarball))  (turn (jarr key) peers-parse-road)
+      ?.  (levy got |=(r=(unit road:tarball) ?=(^ r)))  ~
+      `(silt (murn got |=(r=(unit road:tarball) r)))
+    =/  mk  (roads 'make')
+    =/  pk  (roads 'poke')
+    =/  pe  (roads 'peek')
+    ?.  &(?=(^ mk) ?=(^ pk) ?=(^ pe))  (pure:m `'unreadable road')
+    =/  =weir:nexus  [u.mk u.pk u.pe]
     ;<  ~  bind:m  (reg-how:io u.grp weir)
     (pure:m ~)
   ==
 ::  a road as the panes show it: /dir/ for a subtree, /dir/file.ext for a grub
+::  ~ when the text is no road. It used to fall back to /, so a typo,
+::  or the /dir/ form itself, granted the whole namespace.
 ++  peers-parse-road
   |=  t=@t
-  ^-  road:tarball
-  =/  pax=path  (fall (rush t stap) /)
-  ?~  pax  [%& %| /]
-  =/  last=tape  (trip (rear pax))
-  ?~  (find "." last)
-    [%& %| pax]
-  [%& %& (snip `path`pax) (rear pax)]
+  ^-  (unit road:tarball)
+  =/  txt=tape  (trip t)
+  =/  dir=?  &((gth (lent txt) 1) =('/' (rear txt)))
+  =?  txt  dir  (snip txt)
+  =/  pax=(unit path)  (rush (crip txt) stap)
+  ?~  pax  ~
+  ?~  u.pax  `[%& %| /]
+  ?:  |(dir ?=(~ (find "." (trip (rear u.pax)))))
+    `[%& %| u.pax]
+  `[%& %& (snip `path`u.pax) (rear u.pax)]
 ++  peers-road-text
   |=  =road:tarball
   ^-  tape
