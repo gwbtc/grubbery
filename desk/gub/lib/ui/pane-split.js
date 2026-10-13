@@ -67,12 +67,6 @@ const CSS = `
   .ps-mark-box.on { display:block; }
   /* picking a target: the pane's CURRENT target wears a dashed blue box, the pane
      under the mouse a solid one; the pick flashes the chosen pane */
-  .ps-aim-box { position:absolute; pointer-events:none; z-index:21; display:none; border:3px dashed var(--ps-accent,#0969da); box-sizing:border-box; border-radius:3px; opacity:.55; }
-  .ps-aim-box.on { display:block; }
-  .ps-hover-box { position:absolute; pointer-events:none; z-index:22; display:none; border:3px solid var(--ps-accent,#0969da); box-sizing:border-box; border-radius:3px; background:rgba(9,105,218,.06); }
-  .ps-hover-box.on { display:block; }
-  .ps-hover-box.flash { animation:ps-pick-flash .5s ease-out; }
-  @keyframes ps-pick-flash { from { background:rgba(9,105,218,.28); } to { background:rgba(9,105,218,0); } }
   .ps-pane.ps-dim { opacity:.4; transition:opacity .1s; }
   /* uniform per-pane topbar: committed on/off; the hover toggle (bar ▾) flips it;
      a global switch (ps-no-hovertoggle) hides every toggle so bars are locked. */
@@ -107,7 +101,6 @@ const CSS = `
   .ps-nav input { width:100%; box-sizing:border-box; border:1px solid #e2e7ee; background:#fff; border-radius:6px; padding:3px 8px; font:13px ui-monospace,Menlo,monospace; color:#1f2328; outline:none; }
   .ps-nav input:focus { border-color:var(--ps-accent,#0969da); box-shadow:0 0 0 2px rgba(9,105,218,.15); }
   .ps-nav input::placeholder { color:#8b949e; }
-  pane-split.ps-arming .ps-pane { cursor:crosshair; }
   .ps-histmenu { position:absolute; z-index:30; display:none; flex-direction:column; min-width:160px; max-width:320px; max-height:50%; overflow-y:auto; background:#fff; border:1px solid #d0d7de; border-radius:8px; box-shadow:0 6px 20px rgba(0,0,0,.14); padding:4px; }
   .ps-histmenu.on { display:flex; }
   .ps-hm-row { all:unset; cursor:pointer; display:flex; align-items:center; gap:6px; padding:5px 9px; border-radius:6px; font:13px -apple-system,BlinkMacSystemFont,sans-serif; color:#24292f; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -151,6 +144,8 @@ class PaneSplit extends HTMLElement {
   onDestroy = null;
   onNavigate = null;
   tabInfo = null;      // optional (path) => { icon?:string, label?:string } for the tab chip
+  pathHint = null;     // optional (path) => string: the navbar's tooltip for a moment (what a symbolic path resolved to)
+  updateContent = null; // optional (el, path, paneId) => bool: update the shown content to a new moment in place; false → rebuild
   viewModes = null;    // optional [{id, glyph, title}] → a per-pane render-mode toggle on the bar; host's renderPath reads viewOf(id)
 
   #root = null;                 // the root PANE
@@ -159,7 +154,6 @@ class PaneSplit extends HTMLElement {
   #selLevel = 2;
   #zoomStack = [];              // panes hoisted to viewport (ancestry path)
   #mark = null;                 // a marked pane (for swap)
-  #armTarget = null;            // source pane id while picking a target
   #pendingClose = null;         // a pane with content whose close awaits Enter
   #closing = false;             // set only while Enter runs the confirmed close
   #hoisted = null;              // the pane currently hoisted for zoom
@@ -174,8 +168,6 @@ class PaneSplit extends HTMLElement {
   #hint = null;
   #selBox = null;
   #markBox = null;
-  #aimBox = null;               // while picking: the current target
-  #hoverBox = null;             // the flash on the pane a pick landed on
   #barToggle = null;            // the one host-level quickbar dropdown element
   #histMenu = null;
 
@@ -185,8 +177,6 @@ class PaneSplit extends HTMLElement {
     this.#hint = this.#chrome('ps-hint');
     this.#selBox = this.#chrome('ps-sel-box');
     this.#markBox = this.#chrome('ps-mark-box');
-    this.#aimBox = this.#chrome('ps-aim-box');
-    this.#hoverBox = this.#chrome('ps-hover-box');
     this.#barToggle = this.#chrome('ps-quickbar');
     const act = (t, title, fn) => { const b = document.createElement('button'); b.className = 'ps-qb-btn'; b.textContent = t; b.title = title; b.addEventListener('mousedown', (e) => e.stopPropagation()); b.addEventListener('click', (e) => { e.stopPropagation(); if (this.#activeId) fn(); }); return b; };
     this.#barToggle.append(
@@ -305,15 +295,11 @@ class PaneSplit extends HTMLElement {
       else if (e.key === 'Escape') { input.value = this.#curPath(id) || ''; input.blur(); }
     });
     nav.appendChild(input);
-    // target control: pick a destination pane (or type the relative address),
-    // and toggle how links land there (replace current tab / new tab).
-    // the target is structure: it is set by the pick gesture (⇒ then click a
-    // pane; shift-click opens in a new tab there) and read back in the button's
-    // tooltip; its address and mode are edited in the layout file, not here
-    const tpick = btn('⇒', 'set target — click the pane links should open into', () => this.armTargetPick(id));
-    row2.append(back, fwd, nav, tpick);
+    // where links from this pane land is the layout's routing table (its
+    // `open` rules), edited in the layout file: nothing on the bar sets it
+    row2.append(back, fwd, nav);
     bar.append(row1, row2);
-    bar._back = back; bar._fwd = fwd; bar._tabs = tabs; bar._nav = input; bar._view = viewBtn; bar._tpick = tpick;
+    bar._back = back; bar._fwd = fwd; bar._tabs = tabs; bar._nav = input; bar._view = viewBtn;
     return bar;
   }
 
@@ -367,12 +353,8 @@ class PaneSplit extends HTMLElement {
     const navVal = e ? ((e.div || e.pane) ? (this.#entrySrc(e) || '') : (e.path != null ? e.path : '')) : '';
     if (bar._nav !== document.activeElement) bar._nav.value = navVal;
     bar._nav.placeholder = (e && (e.div || e.pane)) ? (this.#entrySrc(e) || 'layout') : 'path…';
-    // target control: the relative address + how links land there
-    const route = this.routeOf(pane.id);
-    bar._tpick.title = route
-      ? 'opens into: ' + (route.to || '.') + (route.mode === 'tab' ? ' (new tab)' : '') + ' — click to re-pick; shift-click a pane to open there in a new tab'
-      : 'set target — click the pane links should open into (shift-click: in a new tab there)';
-    bar._tpick.style.color = route ? 'var(--ps-accent,#0969da)' : '';
+    let hint = ''; if (this.pathHint && navVal) { try { hint = this.pathHint(navVal) || ''; } catch (_) {} }
+    bar._nav.title = hint;
     // per-pane render-mode toggle — an ACTION button, so it shows the mode it
     // will switch TO (not the current one).
     if (this.viewModes && this.viewModes.length) {
@@ -463,9 +445,19 @@ class PaneSplit extends HTMLElement {
   // render a pane's body from its active tab's current entry. A leaf entry is
   // re-instantiated from its path (we keep paths, never live views). A division
   // entry mounts its (persistent) split-view; its children render themselves.
-  #renderPane(pane) {
+  #renderPane(pane, rebuild = false) {
     const prev = pane.body.firstChild;
     const entry = this.#curEntry(pane);
+    // a leaf moving to another moment: the host may update the content it
+    // already shows instead of rebuilding it (same path, new ?args, a viewer
+    // that takes them). The moment is still in history; only the bar redraws.
+    // `rebuild` (refresh) skips this: the content itself is what changed.
+    if (!rebuild && prev && entry && entry.path != null && !entry.div && !entry.pane && this.updateContent
+        && !(prev.tagName === 'SPLIT-VIEW' || prev.classList.contains('ps-pane'))) {
+      let kept = false;
+      try { kept = !!this.updateContent(prev, entry.path, pane.id); } catch (_) { kept = false; }
+      if (kept) { this.#renderBar(pane); return; }
+    }
     // detach old body without destroying a division's child panes
     if (prev) {
       // a division's split-view and a pane moment's nested pane are live
@@ -502,7 +494,7 @@ class PaneSplit extends HTMLElement {
   refresh(id) {
     const p = this.#panes.get(id ?? this.#activeId); if (!p) return;
     const body = p.body.firstChild, top = body ? body.scrollTop : 0;
-    this.#renderPane(p);
+    this.#renderPane(p, true);                                      // a refresh always rebuilds: the content is what moved
     const nb = p.body.firstChild; if (nb && top) requestAnimationFrame(() => { nb.scrollTop = top; });
   }
   #empty() { const d = document.createElement('div'); d.className = 'ps-empty'; d.textContent = 'empty pane'; return d; }
@@ -661,52 +653,6 @@ class PaneSplit extends HTMLElement {
     if (spec.tabs) return { pane: this.#deserPane(spec, { host, slot: 'a' }), src: spec.src || null };
     return null;
   }
-  // ---- editing a route by hand ----
-  // The bar's target pick writes a rule into the WORKSPACE ROOT's table: the
-  // picked pane's origin address → the chosen pane's address, both within the
-  // root. (The inspector will edit any layout's table; the pick is the quick
-  // way.) A pick of the pane itself in replace mode removes its root rule.
-  #rootAddr(pane) { return this.#addrWithin(this.#root, pane); }
-  // the route a pane's moments take now, for the bar: null when in place
-  routeOf(id) { const p = this.#panes.get(id ?? this.#activeId); if (!p) return null; const r = this.#routeFrom(p); return (r.target === p && r.mode === 'replace') ? null : { to: this.#rootAddr(r.target), mode: r.mode }; }
-  armTargetPick(id) { this.#armTarget = id ?? this.#activeId; this.classList.add('ps-arming'); this.focus(); this.#showAim(this.#armTarget); }
-  #cancelTargetPick() { if (this.#armTarget == null) return; this.#armTarget = null; this.classList.remove('ps-arming'); this.#hideAim(); this.#flashHint(''); }
-  setTargetTo(id, addr, mode) {
-    const p = this.#panes.get(id ?? this.#activeId); if (!p) return;
-    const a = this.#rootAddr(p); if (a == null) return;
-    addr = (addr || '').trim();
-    const table = Object.assign({}, this.#root.open || {});
-    if (!addr || (addr === a && mode !== 'tab')) delete table[a]; else table[a] = { to: addr, mode: mode === 'tab' ? 'tab' : 'replace' };
-    this.#root.open = Object.keys(table).length ? table : null;
-    this.#renderBar(p); this.#render(); this.#persist();
-  }
-  // picking a target rides the structural cursor: click a pane (or move with
-  // the keys) to put the cursor on the candidate, [ climbs to its parent
-  // container, and the hint shows the ADDRESS that candidate would get, live.
-  // Enter confirms (⇧Enter: open there in a new tab), Esc cancels. The dashed
-  // box marks the pane's current target meanwhile.
-  #showAim(srcId) {
-    const src = this.#panes.get(srcId), r = src && this.#routeFrom(src), cur = r && r.target !== src ? r.target : null;
-    if (cur && this.#aimBox) this.#placeBox(this.#aimBox, cur); else this.#aimBox?.classList.remove('on');
-    if (this.#selLevel < 2) this.#selLevel = 2;                     // containers must be selectable to be targets
-    this.#aimUpdate();
-  }
-  #aimUpdate() {
-    if (this.#armTarget == null) return;
-    const src = this.#panes.get(this.#armTarget), c = this.cursor;
-    const addr = (src && c && c.kind === 'pane') ? this.#rootAddr(c) : null;
-    this.#flashHint((addr != null ? (this.#rootAddr(src) || '.') + ' → ' + (addr || '.') : 'target → (pick a pane: click it, or move the cursor)') +
-      '   ·   Enter: set · ⇧Enter: set, open in new tab · [ parent · ] child · Esc: cancel');
-  }
-  #confirmPick(mode) {
-    const src = this.#armTarget, s = this.#panes.get(src), c = this.cursor;
-    this.#cancelTargetPick();
-    if (!s || !c || c.kind !== 'pane') return;
-    this.setTargetTo(src, this.#rootAddr(c), mode);
-    const hb = this.#hoverBox; if (hb) { this.#placeBox(hb, c); hb.classList.add('flash'); setTimeout(() => { hb.classList.remove('on', 'flash'); }, 500); }
-    this.cursorTo(s);
-  }
-  #hideAim() { this.#aimBox?.classList.remove('on'); this.#hoverBox?.classList.remove('on'); }
   // per-pane render mode (opaque; host's renderPath interprets, e.g. 'raw'). The
   // bar's toggle cycles through `viewModes`; the default mode is stored as null.
   viewOf(id) { const p = this.#panes.get(id ?? this.#activeId); return p ? p.view : null; }
@@ -988,7 +934,6 @@ class PaneSplit extends HTMLElement {
     if (this.#pendingClose && this.#pendingClose !== pane) this.#cancelClose();   // moving on backs out of a pending close
     if (pane.id !== this.#activeId) this.#hidePill();   // pill belongs to the pane you hovered; re-hover the new one
     this.#activeId = pane.id;
-    if (this.#armTarget != null) this.#aimUpdate();     // picking a target: the cursor is the candidate, show its address
     // record a descend breadcrumb up the ownership chain
     let n = pane, owner = this.#ownerOf(pane);
     while (owner) { const ce = this.#curEntry(owner); if (ce && ce.div) ce.div.last = n.parent.slot; n = owner; owner = this.#ownerOf(owner); }
@@ -1376,14 +1321,6 @@ class PaneSplit extends HTMLElement {
       e.preventDefault(); e.stopPropagation();
       if (e.key === 'Enter') { this.#closing = true; try { this.close(p); } finally { this.#closing = false; } return; }   // Enter closes for real
       this.#cancelClose(); return;                                // anything else backs out
-    }
-    if (this.#armTarget != null) {
-      // picking a target: Enter sets, ⇧Enter sets in tab mode, [ ] climb and
-      // descend without the prefix, Esc cancels; everything else passes
-      if (e.key === 'Escape') { this.#cancelTargetPick(); e.preventDefault(); e.stopPropagation(); return; }
-      if (e.key === 'Enter') { this.#confirmPick(e.shiftKey ? 'tab' : 'replace'); e.preventDefault(); e.stopPropagation(); return; }
-      if (e.key === '[') { this.climb(); e.preventDefault(); e.stopPropagation(); return; }
-      if (e.key === ']') { this.descend(); e.preventDefault(); e.stopPropagation(); return; }
     }
     if (this.#histMenu && this.#histMenu.classList.contains('on') && e.key === 'Escape') { this.#closeHistMenu(); e.preventDefault(); e.stopPropagation(); return; }
     if (this.#repeat && !this.#awaiting) {

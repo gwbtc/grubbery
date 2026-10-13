@@ -10,4 +10,6 @@
        {"label":"history","entries":[{"path":"./data/ui/commits.json"}],"cursor":0},
        {"label":"run","entries":[{"path":"./run.git-action"}],"cursor":0}]}}}],"cursor":0}]}}}],"cursor":0},
  {"label":"settings","entries":[{"path":"./config.json"}],"cursor":0},
- {"label":"docs","entries":[{"path":"./data/ui/docs-nav.json"}],"cursor":0}]}
+ {"label":"docs","entries":[{"div":{"dir":"horizontal","ratio":0.68,"fold":"b",
+   "a":{"tabs":[{"entries":[{"path":"./data/ui/docs-nav.json"}],"cursor":0}]},
+   "b":{"bar":true,"nav":false,"tabs":[{"label":"ask","entries":[{"path":"@clanker/projects/forge/{repo}.clanker/chats/docs/log.chat-log"}],"cursor":0}]}}}],"cursor":0}]}

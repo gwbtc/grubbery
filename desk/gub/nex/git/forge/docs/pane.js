@@ -53,14 +53,6 @@
       '.forge-docs .d-main{height:100%;min-width:0;display:flex;flex-direction:row}' +
       '.forge-docs .d-content{flex:1 1 auto;height:100%;min-width:0;display:flex;flex-direction:column;overflow-y:auto}' +
       '.forge-docs .d-topbar{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.9);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);display:flex;justify-content:flex-end;align-items:center;gap:10px;padding:12px 40px}' +
-      '.forge-docs .d-chat-toggle{display:flex;align-items:center;gap:7px;height:34px;padding:0 14px 0 11px;background:var(--accent);color:#fff;border:none;border-radius:17px;font:600 13px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;cursor:pointer;white-space:nowrap}' +
-      '.forge-docs .d-chat-toggle[hidden]{display:none}.forge-docs .d-chat-toggle svg{width:15px;height:15px}' +
-      '.forge-docs .d-chat-toggle.active{background:#1f2328}' +
-      /* the chat column: clanker's pane, beside the doc, toggled by the launcher */
-      '.forge-docs .d-chat{flex:0 0 380px;min-width:0;height:100%;border-left:1px solid var(--line);background:#fff;display:flex;flex-direction:column}' +
-      '.forge-docs .d-chat[hidden]{display:none}' +
-      '.forge-docs .d-chat-host{flex:1;min-height:0;display:flex;flex-direction:column}' +
-      '.forge-docs .d-chat .chat-none{padding:24px 18px;color:var(--muted);font-size:13px;line-height:1.6}' +
       '.forge-docs .d-search-wrap{position:relative;width:280px;max-width:100%}' +
       '.forge-docs .d-search-input{width:100%;background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:13px;color:var(--fg);outline:none;transition:border-color .12s,box-shadow .12s}' +
       '.forge-docs .d-search-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(61,58,69,.12)}' +
@@ -79,7 +71,7 @@
       '.forge-docs .d-otp a:hover{color:var(--fg)}.forge-docs .d-otp a.active{color:var(--fg);border-left-color:var(--accent)}' +
       '.forge-docs .d-otp a.lvl3{padding-left:24px;font-size:12px}.forge-docs .d-otp a.lvl4{padding-left:36px;font-size:11.5px}' +
       '@container (max-width:1080px){.forge-docs .d-otp{display:none!important}}' +
-      '@container (max-width:900px){.forge-docs .d-chat{flex-basis:300px}.forge-docs .d-topbar{padding:10px 16px}.forge-docs .d-doc{padding:24px 20px 48px}}' +
+      '@container (max-width:900px){.forge-docs .d-topbar{padding:10px 16px}.forge-docs .d-doc{padding:24px 20px 48px}}' +
       '.forge-docs .d-doc h1,.forge-docs .d-doc h2,.forge-docs .d-doc h3,.forge-docs .d-doc h4{scroll-margin-top:72px}' +
       '.forge-docs .d-doc h1{font-size:30px;margin:0 0 8px}' +
       '.forge-docs .d-doc h2{font-size:21px;margin:36px 0 10px;border-bottom:1px solid var(--line);padding-bottom:6px}' +
@@ -126,17 +118,12 @@
               '<input class="d-search-input" type="text" placeholder="Search docs…  ⌘K" autocomplete="off" spellcheck="false">' +
               '<ul class="d-search-results hidden"></ul>' +
             '</div>' +
-            '<button class="d-chat-toggle" title="Ask the repo\'s clanker about the handbook (⌘J)" hidden>' +
-              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></svg>' +
-              '<span>Ask the docs</span>' +
-            '</button>' +
           '</header>' +
           '<div class="d-doc-wrap">' +
             '<article class="d-doc"></article>' +
             '<aside class="d-otp" hidden></aside>' +
           '</div>' +
         '</main>' +
-        '<aside class="d-chat" hidden><div class="d-chat-host"></div></aside>' +
       '</div>' +
     '</split-view>' +
     '<footer class="d-foot">This handbook began as an LLM-automated first pass and is being adapted by hand — treat specifics as provisional.</footer>';
@@ -380,7 +367,7 @@
     root.appendChild(box);
     var $ = function (c) { return box.querySelector('.' + c); };
     var NAV = $('d-nav'), DOC = $('d-doc'), OTP = $('d-otp'), WRAP = $('d-search-wrap'), INPUT = $('d-search-input'), RESULTS = $('d-search-results');
-    var CONTENT = $('d-content'), CHAT = $('d-chat'), CHAT_HOST = $('d-chat-host'), CHAT_TOGGLE = $('d-chat-toggle');
+    var CONTENT = $('d-content');
     var tree = S.tree || [], leaves = S.leaves || [];
     var results = [], sel = -1, searchTimer = null;
     var CUR_SECTION = '';
@@ -393,8 +380,9 @@
     function go(tail) {
       tail = tail || '';
       if (tail === TAIL) { route(); return; }
-      var base = (opts.url || '').replace(/\?.*$/, '');
-      nav(base + (tail ? '?page=' + encodeURIComponent(tail) : ''), 'file');
+      // the same moment with another page: relative to this pane as spelled
+      // (under @forge it stays under @forge); the host hands it back via onArgs
+      nav('./' + (tail ? '?page=' + encodeURIComponent(tail) : ''), 'file');
     }
 
     function render(md) {
@@ -803,30 +791,8 @@
       });
     }
 
-    // ---- chat: a column in the pane, clanker's own chat pane inside it ----
-    var chatHandle = null;
-    function chatProbe() {
-      if (S.chatInfo !== undefined) { CHAT_TOGGLE.hidden = !S.chatInfo; return Promise.resolve(); }
-      return fetch(BASE + '/chat', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; })
-        .then(function (info) { S.chatInfo = info && info.url ? info : null; if (alive) CHAT_TOGGLE.hidden = !S.chatInfo; })
-        .catch(function () { S.chatInfo = null; if (alive) CHAT_TOGGLE.hidden = true; });
-    }
-    function mountChat() {
-      if (chatHandle || !S.chatInfo) return Promise.resolve();
-      var info = S.chatInfo;
-      var ready = (window.Viewers && window.Viewers.chat) ? Promise.resolve() : loadScript(info.viewer);
-      return ready.then(function () {
-        var v = window.Viewers && window.Viewers.chat; if (!v) throw new Error('no chat pane');
-        chatHandle = v.mount(CHAT_HOST, { url: info.url, args: { proj: info.proj, chat: info.chat } }) || { destroy: function () {} };
-      }).catch(function (e) { CHAT_HOST.innerHTML = ''; var d = document.createElement('div'); d.className = 'chat-none'; d.textContent = 'The chat pane could not load: ' + e.message; CHAT_HOST.appendChild(d); });
-    }
-    function focusChat() { var log = CHAT_HOST.querySelector('.log'); if (log) log.scrollTop = log.scrollHeight; var ta = CHAT_HOST.querySelector('textarea'); if (ta) ta.focus(); }
-    function toggleChat(force) {
-      var open = typeof force === 'boolean' ? force : CHAT.hidden;
-      CHAT.hidden = !open; CHAT_TOGGLE.classList.toggle('active', open);
-      if (open) mountChat().then(function () { setTimeout(focusChat, 60); });
-    }
-    CHAT_TOGGLE.addEventListener('click', function () { toggleChat(); });
+    // the repo's docs chat is a pane of its own in the repo layout (beside
+    // this one, folded by default), not a column in here
 
     // ---- boot ----
     var sb = $('d-sb-collapse'), sv = $('d-docs');
@@ -853,19 +819,22 @@
     });
     box.addEventListener('keydown', function (e) {
       if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); e.stopPropagation(); INPUT.focus(); INPUT.select(); }
-      else if ((e.metaKey || e.ctrlKey) && (e.key === 'j' || e.key === 'J') && !CHAT_TOGGLE.hidden) { e.preventDefault(); e.stopPropagation(); toggleChat(); }
     });
     box.addEventListener('click', function (e) { if (!WRAP.contains(e.target)) hideResults(); });
     box.tabIndex = -1;
     loadCovTreeState();
-    chatProbe();
     loadNav().then(function () { if (alive) route(); });
 
     return {
       destroy: function () {
         alive = false; clearOnThisPage(); clearTimeout(searchTimer);
-        try { if (chatHandle) chatHandle.destroy(); } catch (e) {}
         box.remove();
+      },
+      // the moment's ?args changed under us (a page link, back, forward):
+      // turn the page in place, nav and caches kept, no remount
+      onArgs: function (q) {
+        TAIL = (q && typeof q.page === 'string') ? q.page : '';
+        if (alive) route();
       },
       // the handbook was rebuilt (docs-nav.json moved): drop the caches and
       // redraw the nav and the current page from the ship

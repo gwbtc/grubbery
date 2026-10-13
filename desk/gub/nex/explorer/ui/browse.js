@@ -837,6 +837,83 @@ function setup(root, opts) {
   const psMoment = (p) => { const q = psSplit(p).query; return psNs(p) + (q ? '?' + q : ''); };
   const psUrl = (p) => { const n = psNs(p); return n === '/' ? PREFIX : PREFIX + n; };   // root → /grubbery/ball (no trailing slash)
   const psBase = (p) => psNs(p).replace(/\/$/, '').split('/').filter(Boolean).pop() || '/';
+  // ---- @name prefixes: a path under a /sys/link name ----
+  // A moment may start with a NAME instead of a place: `@forge/repos` is the
+  // app claiming `forge` (earliest claimant) plus `/repos`. Names are paths;
+  // a one-segment name is bare, a longer one is quoted: `@'/some/name'/x`.
+  // A digit before the name picks that claimant instead of the first:
+  // `@2forge/x`, `@2'/some/name'/x`. The moment STAYS symbolic — the pane
+  // holds `@forge/repos`, links made under it are `@forge/repos/…`, and the
+  // name is resolved at fetch time, so a layout outlives the app moving and
+  // a re-claim shows as the pane following it. The resolved place is the
+  // navbar's tooltip. The claimant list is read from the ball as json
+  // (the lanes mark: an array of paths) and cached per name; the cache is
+  // dropped and the pane re-rendered when that dest.lanes moves.
+  const psLink = (ns) => {
+    const m = /^@(\d*)(?:'([^']*)'|([^/']*))(\/.*)?$/.exec(ns || '');
+    if (!m) return null;
+    const raw = m[2] != null ? m[2] : m[3];
+    if (!raw) return null;
+    const name = '/' + raw.replace(/^\/+/, '').replace(/\/+$/, '');
+    return { name, idx: m[1] ? parseInt(m[1], 10) : 1, rest: (m[4] || '').replace(/^\/+/, ''), head: ns.slice(0, ns.length - (m[4] || '').length) };
+  };
+  const psLinkRoad = (name) => '/sys/link' + name + '/dest.lanes';
+  const psLanes = new Map();                                                // name → Promise<[path]>
+  const psLinkLanes = (name) => {
+    let p = psLanes.get(name);
+    if (!p) {
+      p = fetch(PREFIX + psLinkRoad(name), { cache: 'no-store' }).then((r) => r.ok ? r.json() : []).then((a) => Array.isArray(a) ? a.filter((s) => typeof s === 'string') : []);
+      p.catch(() => psLanes.delete(name));
+      psLanes.set(name, p);
+    }
+    return p;
+  };
+  const psResolved = new Map();                                             // symbolic ns → resolved ns (for hints)
+  // the absolute path a symbolic ns stands for; rejects with a reason when
+  // the name has no claimant (or not that many), or a file lane gets a suffix
+  async function psResolve(ns) {
+    const l = psLink(ns);
+    if (!l) return ns;
+    const lanes = await psLinkLanes(l.name);
+    const lane = lanes[l.idx - 1];
+    if (!lane) throw new Error(lanes.length ? 'no claimant #' + l.idx + ' for ' + l.head + ' (' + lanes.length + ' claim it)' : 'no claimant for ' + l.head);
+    const root = lane.replace(/\/$/, '');
+    const abs = l.rest ? root + '/' + l.rest : (root || '/');
+    psResolved.set(ns, abs);
+    return abs;
+  }
+  // the moment one step up: within the suffix it stays symbolic; at the name
+  // itself it is the claimant's own parent, a real place
+  const psUp = (ns, abs) => {
+    const l = psLink(ns);
+    if (!l) return ns.replace(/\/$/, '').replace(/\/[^/]+$/, '');
+    if (l.rest.replace(/\/$/, '').includes('/')) return ns.replace(/\/$/, '').replace(/\/[^/]+$/, '');
+    if (l.rest.replace(/\/$/, '')) return l.head;
+    return abs.replace(/\/$/, '').replace(/\/[^/]+$/, '');
+  };
+  // ---- how a rendering names another place ----
+  // A link (open/close) or a layout entry is spelled one of three ways, and
+  // the host accepts all three:
+  //   absolute   /apps/x/y                 that place
+  //   by name    @forge/repos/x            under a /sys/link name, any app's
+  //   relative   ./chats/build  ../other   against the moment it was spelled
+  //              in, AS SPELLED: under @clanker it stays under @clanker,
+  //              under an absolute path it stays absolute
+  // A viewer therefore never needs to know where it lives to point at its
+  // own children, and can point at another app by name without knowing
+  // where that one lives either. `?args` ride along untouched.
+  const psRel = (ns, href) => {
+    const { path: p, query } = psSplit(href || '');
+    if (!/^\.\.?(\/|$)/.test(p)) return href;
+    let base = (ns || '/').replace(/\/$/, '');
+    for (const seg of p.split('/')) {
+      if (seg === '.' || seg === '') continue;
+      if (seg === '..') base = psUp(base, psResolved.get(base) || base);
+      else base = (base === '/' ? '' : base) + '/' + seg;
+    }
+    if (!base) base = '/';
+    return base + (query ? '?' + query : '');
+  };
   const TREE_JS = PREFIX + '/apps/explorer.explorer/tree-viewer.js';           // the explorer's own tree, a stock viewer
   // a pane's waiting state: `text` over an optional `sub` line (what is being
   // fetched); psWaitFail turns the same block into the failure it ended in
@@ -884,14 +961,24 @@ function setup(root, opts) {
     psDead.add(key);
     ps.redrawBars();
   }
-  function psWatchFile(ps, paneId, el, ns) {
-    if (!ns || ns === '/') return () => {};
+  // ns is the moment's path (symbolic under an @name: the dead key the tab
+  // chips look up); abs is the place actually kept
+  function psWatchFile(ps, paneId, el, ns, abs) {
+    if (!abs || abs === '/') return () => {};
     const key = ns.replace(/\/$/, '');
     const idOf = () => { const p = el.closest('.ps-pane'); return p ? p.dataset.paneId : paneId; };
-    return live([{ road: key }], (ev) => {
+    return live([{ road: abs.replace(/\/$/, '') }], (ev) => {
       if (ev.kind === 'del') psMarkDead(ps, el, ns);
       else if (el._dead) { psDead.delete(key); ps.redrawBars(); ps.refresh(idOf()); }
     }, null);
+  }
+  // an @name moment follows its name's dest.lanes: a re-claim or a move of
+  // the app drops the cached lanes and re-renders the pane where it sits
+  function psWatchLink(ps, paneId, el, ns) {
+    const l = psLink(ns);
+    if (!l) return () => {};
+    const idOf = () => { const p = el.closest('.ps-pane'); return p ? p.dataset.paneId : paneId; };
+    return live([{ road: psLinkRoad(l.name) }], () => { psLanes.delete(l.name); psResolved.delete(ns); ps.refresh(idOf()); }, null);
   }
   // live: the page's one SSE stream and the follow set behind it. Every
   // rendered instance registers the roads it depends on (a dir road ends in
@@ -1133,9 +1220,11 @@ function setup(root, opts) {
   // the action views. Each is a small form over the path it was opened on;
   // submit posts to the server and steps the pane back (the form was a moment,
   // so back is cancel too). The stream refreshes whatever showed the item.
-  function actionView(ps, paneId, el, path) {
-    const args = psArgs(path), ns = psNs(path), url = psUrl(ns), view = args.view;
-    const name = psBase(ns), parentNs = ns.replace(/\/[^/]*$/, '') || '/', parentUrl = psUrl(parentNs);
+  // abs: the place the moment stands for (differs from its path under an @name)
+  function actionView(ps, paneId, el, path, abs) {
+    const args = psArgs(path), ns = psNs(path), view = args.view;
+    abs = abs || ns;
+    const url = psUrl(abs), name = psBase(abs), parentUrl = psUrl(abs.replace(/\/[^/]*$/, '') || '/');
     const isDir = args.kind === 'dir';
     psChrome();
     const wrap = document.createElement('div'); wrap.className = 'ps-form-wrap';
@@ -1280,24 +1369,39 @@ function setup(root, opts) {
   function paneContent(ps, paneId, path) {
     const el = document.createElement('div');
     el.style.cssText = 'height:100%;overflow:auto';
-    const ns = psNs(path), url = psUrl(path);
+    el._moment = path;                                                        // what this content shows (updateContent compares against it)
+    const ns = psNs(path);
+    if (!psLink(ns)) { paneContentAt(ps, paneId, el, path, ns, ns); return el; }
+    // an @name moment: resolve the name first, then render at the place it
+    // stands for. The name is followed for the life of this content
+    psWait(el, 'resolving', ns);
+    el._link = psWatchLink(ps, paneId, el, ns);
+    psResolve(ns).then((abs) => { if (!el._dead) { psClear(el); ps.redrawBars(); paneContentAt(ps, paneId, el, path, ns, abs); } })
+      .catch((e) => psWaitFail(el, 'link: ' + (e && e.message ? e.message : e), ns));
+    return el;
+  }
+  // render a moment whose place is known: ns is the moment's own path (what
+  // links under it are spelled with, what the tab chips show), abs the place
+  // fetched and followed; they differ only under an @name
+  function paneContentAt(ps, paneId, el, path, ns, abs) {
+    const url = psUrl(abs);
     // route a link: the view says WHAT (a moment, maybe with an offered name);
     // the layout this pane sits in says WHERE (its routing table; in place by
     // default). ⌘-click is the user's own override: a new pane beside.
     const route = (href, kind, mods, name) => {
-      const h = psMoment(href);
+      const h = psMoment(psRel(ns, href));                                  // relative to this moment, as spelled
       if (kind) psKind.set(psNs(h), kind === 'dir' ? 'dir' : 'file');      // glyph the target before nav
       if (mods && (mods.meta || mods.ctrl)) { ps.open(h, 'beside'); return; }   // ⌘-click → new pane
       ps.openFrom(paneId, h, name);
     };
-    const unroute = (href) => ps.closeFrom(paneId, psMoment(href));      // the view says a moment is gone
+    const unroute = (href) => ps.closeFrom(paneId, psMoment(psRel(ns, href)));   // the view says a moment is gone
     el._ctx = { ps, paneId, route };                                        // menus route through the pane's target via this
     const raw = !!(ps.viewOf && ps.viewOf(paneId) === 'raw');              // toolbar toggle: skip all special rendering
-    if (ACTION_VIEWS[psArgs(path).view]) { actionView(ps, paneId, el, path); return el; }   // a form over this path
-    if (!raw && /\.layout$/.test(ns)) {                                    // this pane landed ON a layout → become it
+    if (ACTION_VIEWS[psArgs(path).view]) { actionView(ps, paneId, el, path, abs); return; }   // a form over this path
+    if (!raw && /\.layout$/.test(abs)) {                                   // this pane landed ON a layout → become it
       psWait(el, 'opening layout', ns);
       fetch(url).then((r) => r.ok ? r.json() : Promise.reject('x')).then((spec) => ps.replaceWithLayout(paneId, spec, ns)).catch(() => psWaitFail(el, 'not a valid layout', ns));
-      return el;
+      return;
     }
     // viewers get open(url, {name}) and close(url) over moments; onNavigate(url,
     // kind, {name}) is the same open with a kind hint, kept for every viewer
@@ -1321,7 +1425,7 @@ function setup(root, opts) {
         // mounted whether or not el is in the document: an inactive tab's
         // content is stashed off-document and shown later, and falling
         // through here would render it as rows instead
-        if (tv) { el._fv = tv.mount(el, { url, args: { root: ns }, onNavigate: onNav, open: vopen, close: vclose }); el._menu = (e) => listingMenu(e, el, url); return; }
+        if (tv) { el._fv = tv.mount(el, { url, args: { root: abs }, onNavigate: onNav, open: vopen, close: vclose }); el._menu = (e) => listingMenu(e, el, url); return; }
       }
       // the app is asked for the bare dir and for any view name of its own;
       // the host's own views (rows, grid, tree) never reach it
@@ -1329,11 +1433,11 @@ function setup(root, opts) {
       if (!raw && !hostView) { try { viewer = await viewerFor(url, 'dir', '', want); } catch (_) {} }
       if (viewer && viewer.layout) {                                       // the app opens this dir as a layout rooted here
         psWait(el, 'opening layout', ns);
-        const base = ns === '/' ? '' : ns.replace(/\/$/, '');
-        // './x' → the opened dir plus x; './' and './?args' → the dir itself (with args)
-        const rel = (p) => p === './' ? (base || '/') : p.startsWith('./?') ? (base || '/') + p.slice(2) : base + p.slice(1);
+        // a layout's relative entries ('./x', './', './?args', '../y') resolve
+        // against the opened dir as spelled (psRel); absolute and @name
+        // entries stay as written
         const rebase = (o) => Array.isArray(o) ? o.map(rebase)
-          : (o && typeof o === 'object') ? Object.fromEntries(Object.keys(o).map((k) => [k, (k === 'path' && typeof o[k] === 'string' && o[k].startsWith('./')) ? rel(o[k]) : rebase(o[k])]))
+          : (o && typeof o === 'object') ? Object.fromEntries(Object.keys(o).map((k) => [k, (k === 'path' && typeof o[k] === 'string') ? psRel(ns, o[k]) : rebase(o[k])]))
           : o;
         fetch(viewer.layout, { cache: 'no-store' }).then((r) => r.ok ? r.json() : Promise.reject('x'))
           .then((spec) => { if (el.isConnected) ps.replaceWithLayout(paneId, rebase(spec), ns); })
@@ -1343,7 +1447,7 @@ function setup(root, opts) {
       if (viewer && !viewer.blocked && viewer.mount) { el._fv = viewer.mount(el, { url, onNavigate: onNav, open: vopen, close: vclose, query: psArgs(path) }); paneLive(ps, paneId, el, viewer.follow); return; }
       const t = document.createElement(want === 'grid' ? 'file-grid' : 'file-table');
       t.style.height = '100%';
-      const up = ns.replace(/\/$/, '').replace(/\/[^/]+$/, '');
+      const up = psUp(ns, abs);
       if (want === 'grid') t.baseHref = ns.replace(/\/$/, '');
       else {
         if (ns !== '/') t.parentHref = up || '/';                      // ../ row → up in place; top-level dirs go to root
@@ -1369,12 +1473,12 @@ function setup(root, opts) {
         t.items = nd.children;
       }).catch(() => {});
       el._fv = { destroy() { clearTimeout(timer); }, onUpdate() { if (timer) return; timer = setTimeout(() => { timer = null; refreshRows(); }, 500); } };
-      paneLive(ps, paneId, el, [{ road: ns === '/' ? '/' : ns.replace(/\/$/, '') + '/', fold: true }]);
+      paneLive(ps, paneId, el, [{ road: abs === '/' ? '/' : abs.replace(/\/$/, '') + '/', fold: true }]);
     }).catch(async (why) => {
       if (why === 404) { psMarkDead(ps, el, ns); return; }                 // no such path: dead where it sits (a deleted thing in history)
       psClear(el);
       psKind.set(ns, 'file'); ps.redrawBars();                            // not a listing → it's a file
-      el._gone = psWatchFile(ps, paneId, el, ns);                           // its own file, one keep: del → dead, new → back
+      el._gone = psWatchFile(ps, paneId, el, ns, abs);                      // its own file, one keep: del → dead, new → back
       // rendered = JUST the declared viewer's rendering (no FileView chrome);
       // raw = the full Source|Preview|Build package. The viewer never rides
       // along inside raw — the two are separate panes you toggle between.
@@ -1389,11 +1493,10 @@ function setup(root, opts) {
       }
       const opts = { url, crumbBase: ROOT, onNavigate: onNav, open: vopen, close: vclose };          // raw, or no renderer → the raw package
       // right-click anywhere in the file: the file's own actions
-      el._menu = () => itemMenu(el, { kind: 'file', name: psBase(ns), __dir: psUrl(ns.replace(/\/[^/]*$/, '') || '/') });
-      try { el._fv = window.FileView.mount(el, opts); paneLive(ps, paneId, el, [{ road: ns }]); }   // the raw package follows its file
+      el._menu = () => itemMenu(el, { kind: 'file', name: psBase(abs), __dir: psUrl(abs.replace(/\/[^/]*$/, '') || '/') });
+      try { el._fv = window.FileView.mount(el, opts); paneLive(ps, paneId, el, [{ road: abs }]); }   // the raw package follows its file
       catch (e) { el.textContent = 'open failed: ' + e; }
     });
-    return el;
   }
   function saveTabs() {
     const panels = tabPanels().filter((p) => !p._panes);   // the panes scratchpad is ephemeral
@@ -1974,8 +2077,21 @@ function setup(root, opts) {
     ps.style.cssText = 'display:block;height:100%';
     ps.renderPath = (path, paneId) => paneContent(ps, paneId, path);
     ps.tabInfo = paneTabInfo;
+    ps.pathHint = (p) => { const ns = psNs(p); return psLink(ns) ? (psResolved.get(ns) || 'resolving ' + ns) : ''; };   // an @name moment's tooltip: where it landed
+    // the same path with new ?args: a viewer that takes args (onArgs on what
+    // mount returned) is handed them and stays mounted, so a docs pane turns
+    // the page without a remount, a wait block, or a refetch of its nav.
+    // Anything else (another path, a built-in rendering, an action view, a
+    // viewer without onArgs) is rebuilt as before.
+    ps.updateContent = (el, path) => {
+      if (!el || el._dead || !el._fv || typeof el._fv.onArgs !== 'function') return false;
+      if (psNs(el._moment || '') !== psNs(path)) return false;
+      el._moment = path;
+      el._fv.onArgs(psArgs(path));
+      return true;
+    };
     ps.viewModes = [{ id: 'rendered', glyph: '▣', title: 'rendered' }, { id: 'raw', glyph: '◰', title: 'raw file / plain listing' }];
-    ps.onDestroy = (id, body) => { const c = body.firstChild; try { if (c && c._live) c._live(); } catch (_) {} try { if (c && c._gone) c._gone(); } catch (_) {} try { if (c && c._fv) c._fv.destroy(); } catch (_) {} };
+    ps.onDestroy = (id, body) => { const c = body.firstChild; try { if (c && c._live) c._live(); } catch (_) {} try { if (c && c._gone) c._gone(); } catch (_) {} try { if (c && c._link) c._link(); } catch (_) {} try { if (c && c._fv) c._fv.destroy(); } catch (_) {} };
     root.appendChild(ps);
     // right-click: the rendering under the cursor answers (a viewer's
     // contextMenu, a built-in's _menu); nothing to say → the browser's own

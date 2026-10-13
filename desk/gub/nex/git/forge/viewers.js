@@ -37,9 +37,15 @@
       '.fgv-run .lane-msg{color:#57606a}' +
       '.fgv-run .lane-row{flex:none;display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid #d0d7de;background:#f6f8fa}' +
       '.fgv-run .lane-row input{flex:1;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;padding:5px 8px;border:1px solid #d0d7de;border-radius:6px;background:#fff}' +
-      '.fgv-repos{padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}' +
-      '.fgv-repos .card{border:1px solid #d0d7de;border-radius:8px;padding:10px 12px;cursor:pointer;background:#fff}.fgv-repos .card:hover{border-color:#0969da;background:#f6f8fa}' +
-      '.fgv-repos .name{font-weight:600;margin-bottom:4px}.fgv-repos .meta{color:#57606a;font-size:12px}.fgv-repos .last{margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+      // the repo selector: one row per repo, the clanker sidebar's shape
+      // (name over the last commit, the branch at the right); a single
+      // column at any width, never a grid that reflows
+      '.fgv-repos{display:flex;flex-direction:column}' +
+      '.fgv-repos .card{display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;border-bottom:1px solid #eaeef2;min-width:0}.fgv-repos .card:hover{background:#f6f8fa}' +
+      '.fgv-repos .main{flex:1;min-width:0}' +
+      '.fgv-repos .name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+      '.fgv-repos .last{color:#57606a;font-size:12px;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.fgv-repos .last.none{color:#8b949e;font-style:italic}' +
+      '.fgv-repos .meta{flex:none;color:#8b949e;font-size:11px;white-space:nowrap}' +
       '.fgv-set{padding:12px;max-width:560px}.fgv-set .sec{margin-bottom:16px}.fgv-set .sec-head{font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;color:#57606a}' +
       '.fgv-set label{display:block;margin-bottom:8px}.fgv-set label span{display:block;font-size:12px;color:#57606a;margin-bottom:2px}' +
       '.fgv-set input{width:100%;box-sizing:border-box;font:inherit;padding:5px 8px;border:1px solid #d0d7de;border-radius:6px;background:#fff}' +
@@ -203,13 +209,18 @@
       if (!repos.length) { grid.appendChild(el('div', 'fgv-empty', 'no repos')); return; }
       repos.forEach(function (r) {
         var card = el('div', 'card');
-        card.appendChild(el('div', 'name', String(r.name || '').replace(/\.git_repo$/, '')));
         var cur = r.current || {};
-        card.appendChild(el('div', 'meta mono', (r.repo || 'empty') + (cur.branch ? '  ·  ' + cur.branch + ' @ ' + String(cur.hash || '').slice(0, 7) : '')));
-        if (r.last && r.last.message) card.appendChild(el('div', 'last', (r.last.message || '').split('\n')[0]));
-        // the click names the tab it opens: the card the user picked is called this
         var short = String(r.name || '').replace(/\.git_repo$/, '');
-        card.addEventListener('click', function () { if (opts.onNavigate) opts.onNavigate(url.replace(/\/$/, '') + '/' + r.name, 'dir', { name: short }); });
+        var main = el('div', 'main');
+        main.appendChild(el('div', 'name', short));
+        var lastMsg = r.last && r.last.message ? (r.last.message || '').split('\n')[0] : '';
+        main.appendChild(el('div', 'last' + (lastMsg ? '' : ' none'), lastMsg || (r.repo ? 'no commits yet' : 'empty')));
+        card.appendChild(main);
+        if (cur.branch) card.appendChild(el('span', 'meta mono', cur.branch + ' @ ' + String(cur.hash || '').slice(0, 7)));
+        // the click names the tab it opens: the row the user picked is called this;
+        // relative to the repos dir this pane shows, however it is spelled
+        // (under @forge it stays under @forge)
+        card.addEventListener('click', function () { if (opts.onNavigate) opts.onNavigate('./' + r.name, 'dir', { name: short }); });
         grid.appendChild(card);
       });
     }

@@ -204,6 +204,24 @@
         ::  nav.json + coverage.json (read from the data nexus's precomputed
         ::  ui/ grubs), page (markdown + its resolved live blocks in one json),
         ::  and slice (the exact lines of a file at a pinned commit).
+        ::  /repo/<name>/layout.json → this repo's workspace layout: the
+        ::  template with the repo's short name filled in, so its docs tab
+        ::  can name the repo's own clanker chat (@clanker/projects/forge/
+        ::  <short>.clanker/chats/docs) as a pane beside the reader. Asking
+        ::  for the layout is what makes that clanker and its chats exist.
+        ?:  ?=([%repo @ %'layout.json' ~] suffix)
+          =/  seg=tape  (trip i.t.suffix)
+          =/  repo=@ta
+            ?:  =(".git_repo" (slag ?:((gth (lent seg) 9) (sub (lent seg) 9) 0) seg))
+              i.t.suffix
+            (cat 3 i.t.suffix '.git_repo')
+          ;<  got=(unit [cl=path short=@t])  bind:m  (ensure-repo-chats repo)
+          =/  short=@t
+            ?^  got  short.u.got
+            (crip (scag (sub (lent (trip repo)) 9) (trip repo)))
+          =/  txt=@t  (fill-repo q.q.repo-layout short)
+          ;<  ~  bind:m  (send-simple:s eyre-id (mime-response:http-utils [/application/json (as-octs:mimes:html txt)]))
+          (pure:m ~)
         ?:  ?=([%repo @ %docs *] suffix)
           ::  the url carries the SHORT repo name (as the workspace does); the
           ::  docs arms key by the full instance dir <name>.git_repo
@@ -254,70 +272,14 @@
             ::  pane on it. null when no clanker is installed (the panel is
             ::  then simply absent).
               [%chat ~]
-            ;<  cl=(unit lane:tarball)  bind:m  (resolve-link:io '@clanker')
-            ?.  ?=([~ %| *] cl)  (send-json rail eyre-id ~)
-            ;<  fo=(unit lane:tarball)  bind:m  (resolve-link:io '@forge')
-            ?.  ?=([~ %| *] fo)  (send-json rail eyre-id ~)
-            =/  short=@t  (crip (scag (sub (lent (trip repo)) 9) (trip repo)))
-            =/  inst=@t  (spat (weld p.u.fo /repos/[repo]))
-            =/  tree=@t  (spat (weld p.u.fo /repos/[repo]/data/tree))
-            =/  ui=@t  (spat (weld p.u.fo /repos/[repo]/data/ui))
-            =/  lane=@t  (cat 3 inst '/run.git-action')
-            ::  ONE clanker per repo, bundle "build": it can read the working
-            ::  tree and the docs cache, write the tree, and poke the repo's git
-            ::  lane. Which chat may do which is the chats' POLICY: docs is
-            ::  read-only (the writing tools withheld), build asks before any
-            ::  write or git command. Prompts and policies are seeds (made once).
-            =/  chat
-              |=  [name=@t system=@t policy=json]
-              ^-  json
-              (pairs:enjs:format ~[['name' s+name] ['system' s+system] ['policy' policy]])
-            =/  strs  |=(l=(list @t) ^-(json a+(turn l |=(s=@t `json`s+s))))
-            =/  ensure=json
-              %-  pairs:enjs:format
-              :~  ['action' s+'ensure']
-                  ['parent' s+'/forge']
-                  ['name' s+short]
-                  ['bundle' s+'build']
-                  ['system' s+(repo-clanker-prompt short tree)]
-                  ['repo' s+tree]
-                  ['config' (pairs:enjs:format ~[['ui' s+ui]])]
-                  :-  'roads'
-                  %-  pairs:enjs:format
-                  :~  ['peek' (strs ~[(cat 3 tree '/') (cat 3 ui '/') lane])]
-                      ['make' (strs ~[(cat 3 tree '/')])]
-                      ['poke' (strs ~[lane])]
-                  ==
-                  :-  'chats'
-                  :-  %a
-                  :~  %^  chat  'docs'  docs-chat-prompt
-                      %-  pairs:enjs:format
-                      :~  ['default' s+'allow']
-                          ['deny' (strs ~['repo_write' 'repo_edit' 'repo_git' 'write_file' 'delete_file'])]
-                      ==
-                      %^  chat  'build'  build-chat-prompt
-                      %-  pairs:enjs:format
-                      :~  ['default' s+'allow']
-                          ['ask' (strs ~['repo_write' 'repo_edit' 'repo_git' 'write_file' 'delete_file'])]
-                      ==
-                  ==
-              ==
-            ::  Robust to the clanker app being absent, stale, or old: no link
-            ::  → null above; a link whose nexus is gone or predates main.sig
-            ::  → the peek finds no file → null; a poke that never packs →
-            ::  the deadline → null. Forge never waits on the clanker app.
-            =/  sig=road:tarball  [%& %& p.u.cl %'main.sig']
-            ;<  sv=(unit view:nexus)  bind:m  (peek-soft:io sig ~)
-            ?.  ?=([~ %file *] sv)  (send-json rail eyre-id ~)
-            ;<  res=(unit (unit tang))  bind:m
-              %^  (with-timeout:io ,(unit tang))  /clanker-ensure  ~s15
-              (poke-soft:io sig [/ %json] ensure)
-            ?.  ?=([~ ~] res)  (send-json rail eyre-id ~)
+            ;<  got=(unit [cl=path short=@t])  bind:m  (ensure-repo-chats repo)
+            ?~  got  (send-json rail eyre-id ~)
+            =/  short=@t  short.u.got
             %^  send-json  rail  eyre-id
             %-  pairs:enjs:format
             :~  ['proj' s+(crip "/forge/{(trip short)}.clanker")]
                 ['chat' s+'docs']
-                ['url' s+(crip "/grubbery/ball{(spud p.u.cl)}/projects/forge/{(trip short)}.clanker/chats/docs/log.chat-log")]
+                ['url' s+(crip "/grubbery/ball{(spud cl.u.got)}/projects/forge/{(trip short)}.clanker/chats/docs/log.chat-log")]
                 ['viewer' s+'/grubbery/clanker/viewer.js']
             ==
             ::  /search?q= → full-text search over this repo's handbook pages,
@@ -551,6 +513,89 @@
   Commit messages say what changed and why, in plain prose. Never commit
   secrets, local paths or personal details.
   '''
+::  +ensure-repo-chats: the repo's clanker (forge/<short>.clanker in the
+::  clanker collection: bundle "build", tools that read this checkout, a
+::  weir reaching the working tree) and its docs + build chats, made if
+::  missing by a poke to @clanker's main.sig. ~ when no clanker app is
+::  linked, its nexus is gone, or the poke never packs: forge never waits
+::  on the clanker app. Else the collection's root and the repo's short
+::  name, for the places that address the chats.
+++  ensure-repo-chats
+  |=  repo=@ta
+  =/  m  (fiber:fiber:nexus ,(unit [cl=path short=@t]))
+  ^-  form:m
+  ;<  cl=(unit lane:tarball)  bind:m  (resolve-link:io '@clanker')
+  ?.  ?=([~ %| *] cl)  (pure:m ~)
+  ;<  fo=(unit lane:tarball)  bind:m  (resolve-link:io '@forge')
+  ?.  ?=([~ %| *] fo)  (pure:m ~)
+  =/  short=@t  (crip (scag (sub (lent (trip repo)) 9) (trip repo)))
+  =/  inst=@t  (spat (weld p.u.fo /repos/[repo]))
+  =/  tree=@t  (spat (weld p.u.fo /repos/[repo]/data/tree))
+  =/  ui=@t  (spat (weld p.u.fo /repos/[repo]/data/ui))
+  =/  lane=@t  (cat 3 inst '/run.git-action')
+  ::  ONE clanker per repo, bundle "build": it can read the working
+  ::  tree and the docs cache, write the tree, and poke the repo's git
+  ::  lane. Which chat may do which is the chats' POLICY: docs is
+  ::  read-only (the writing tools withheld), build asks before any
+  ::  write or git command. Prompts and policies are seeds (made once).
+  =/  chat
+    |=  [name=@t system=@t policy=json]
+    ^-  json
+    (pairs:enjs:format ~[['name' s+name] ['system' s+system] ['policy' policy]])
+  =/  strs  |=(l=(list @t) ^-(json a+(turn l |=(s=@t `json`s+s))))
+  =/  ensure=json
+    %-  pairs:enjs:format
+    :~  ['action' s+'ensure']
+        ['parent' s+'/forge']
+        ['name' s+short]
+        ['bundle' s+'build']
+        ['system' s+(repo-clanker-prompt short tree)]
+        ['repo' s+tree]
+        ['config' (pairs:enjs:format ~[['ui' s+ui]])]
+        :-  'roads'
+        %-  pairs:enjs:format
+        :~  ['peek' (strs ~[(cat 3 tree '/') (cat 3 ui '/') lane])]
+            ['make' (strs ~[(cat 3 tree '/')])]
+            ['poke' (strs ~[lane])]
+        ==
+        :-  'chats'
+        :-  %a
+        :~  %^  chat  'docs'  docs-chat-prompt
+            %-  pairs:enjs:format
+            :~  ['default' s+'allow']
+                ['deny' (strs ~['repo_write' 'repo_edit' 'repo_git' 'write_file' 'delete_file'])]
+            ==
+            %^  chat  'build'  build-chat-prompt
+            %-  pairs:enjs:format
+            :~  ['default' s+'allow']
+                ['ask' (strs ~['repo_write' 'repo_edit' 'repo_git' 'write_file' 'delete_file'])]
+            ==
+        ==
+    ==
+  ::  Robust to the clanker app being absent, stale, or old: no link
+  ::  → null above; a link whose nexus is gone or predates main.sig
+  ::  → the peek finds no file → null; a poke that never packs →
+  ::  the deadline → null. Forge never waits on the clanker app.
+  =/  sig=road:tarball  [%& %& p.u.cl %'main.sig']
+  ;<  sv=(unit view:nexus)  bind:m  (peek-soft:io sig ~)
+  ?.  ?=([~ %file *] sv)  (pure:m ~)
+  ;<  res=(unit (unit tang))  bind:m
+    %^  (with-timeout:io ,(unit tang))  /clanker-ensure  ~s15
+    (poke-soft:io sig [/ %json] ensure)
+  ?.  ?=([~ ~] res)  (pure:m ~)
+  (pure:m `[p.u.cl short])
+::  +fill-repo: a layout template with every {repo} filled with the
+::  repo's short name
+++  fill-repo
+  |=  [tpl=@t short=@t]
+  ^-  @t
+  =/  mark=tape  "\{repo}"
+  =/  s=tape  (trip short)
+  =/  t=tape  (trip tpl)
+  |-  ^-  @t
+  =/  i=(unit @ud)  (find mark t)
+  ?~  i  (crip t)
+  $(t :(weld (scag u.i t) s (slag (add u.i (lent mark)) t)))
 ++  docs-chat-prompt
   ^-  @t
   '''
@@ -882,9 +927,10 @@
         ['args' (pairs:enjs:format ~[['api' s+'/grubbery/forge/api']])]
         ['follow' a+~[(pairs:enjs:format ~[['road' s+(cat 3 (spat repos) '/')] ['fold' b+%.y]])]]
     ==
-  ::  a repo dir: the repo workspace rooted at it
+  ::  a repo dir: the repo workspace rooted at it, this repo's own copy
+  ::  (its docs tab names the repo's clanker chat by name)
   ?:  ?=([%repos @ ~] segs)
-    (send-json rail eyre-id (layout '/grubbery/forge/repo-layout.json'))
+    (send-json rail eyre-id (layout (crip "/grubbery/forge/repo/{(trip i.t.segs)}/layout.json")))
   ::  the panes the forge page has: status, history, run, settings
   =/  ui=path  /data/ui
   =/  rule=(unit [repo=@ta view=@t rails=(list rail:tarball)])
