@@ -30,6 +30,12 @@ function esc(s) {
   return d.innerHTML;
 }
 
+// a notification url comes from apps and other ships: http(s), mailto or relative only
+function safeUrl(u) {
+  var s = String(u || '').replace(/[\u0000-\u0020]/g, '');
+  return !/^[a-z][a-z0-9+.\-]*:/i.test(s) || /^(https?|mailto):/i.test(s);
+}
+
 function ago(ms) {
   var s = Math.floor((Date.now() - ms) / 1000);
   if (s < 60) return 'now';
@@ -81,7 +87,7 @@ function render() {
       card.style.cursor = 'pointer';
       card.onclick = function() {
         if (!acked) ack(n.id);
-        if (md.url) window.open(md.url, '_blank');
+        if (md.url && safeUrl(md.url)) window.open(md.url, '_blank');
       };
     }
     el.appendChild(card);

@@ -389,7 +389,12 @@
   |=  [base=tape chats=(map @t @t) messages=(list json)]
   ^-  manx
   =/  api=tape  "/grubbery/api"
-  =/  msgs-json=tape  (trip (en:json:html [%a messages]))
+  ::  the messages land inside a <script>, so a < in one is escaped:
+  ::  a Telegram message holding </script> would end it and run
+  =/  msgs-json=tape
+    %-  zing
+    %+  turn  (trip (en:json:html [%a messages]))
+    |=(c=@tD ?:(=('<' c) "\\u003c" [c ~]))
   ;html
     ;head
       ;title: Telegram Bot
@@ -483,7 +488,8 @@
             "document.getElementById('input').onkeydown=function(e)\{if(e.key==='Enter')doSend()};"
             ::  helpers
             "function scrollBottom()\{var m=document.getElementById('messages');m.scrollTop=m.scrollHeight}"
-            "function esc(s)\{var d=document.createElement('div');d.textContent=s;return d.innerHTML}"
+            ::  esc escapes quotes too: chat ids go into data-id attributes
+            "function esc(s)\{var d=document.createElement('div');d.textContent=s;return d.innerHTML.replace(/\"/g,'&quot;').replace(/'/g,'&#39;')}"
             ::  chat management — create/delete message files directly
             "document.getElementById('add-chat-btn').onclick=async function()\{var id=document.getElementById('add-chat-id').value.trim();var name=document.getElementById('add-chat-name').value.trim()||id;if(!id)\{alert('Chat ID required');return}await fetch(API+'/file/'+BASE+'/messages/'+id+'.json?blot=/json',\{method:'PUT',headers:\{'Content-Type':'application/json'},body:JSON.stringify(\{name:name,'chat-id':id,messages:[]})});location.reload()};"
             "document.getElementById('del-chat-btn').onclick=async function()\{if(curChat==='all')\{alert('Select a chat first');return}var el=document.querySelector('.chat-item.active');var name=el?el.textContent:curChat;if(!confirm('Delete chat \"'+name+'\" ('+curChat+')?'))return;await fetch(API+'/file/'+BASE+'/messages/'+curChat+'.json',\{method:'DELETE'});location.reload()};"

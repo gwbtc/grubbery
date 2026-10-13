@@ -36,10 +36,11 @@ function grubWrite(rel, jon) {
   });
 }
 
+// quotes too: names also go into attributes
 function esc(s) {
   var d = document.createElement('div');
   d.textContent = s == null ? '' : String(s);
-  return d.innerHTML;
+  return d.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 // ---- render -------------------------------------------------------
@@ -113,8 +114,8 @@ function renderAgents() {
           '/agents/' + esc(n) + '/page.html">' + esc(n) + '</a>' +
       '</div>' +
       '<div class="card-actions">' +
-        '<button class="hdr-btn" onclick="openConfig(\'agents\',\'' + n + '\')">config</button>' +
-        '<button class="delete-btn" onclick="deleteEntity(\'agents\',\'' + n + '\')">delete</button>' +
+        '<button class="hdr-btn" data-n="' + esc(n) + '" onclick="openConfig(\'agents\',this.dataset.n)">config</button>' +
+        '<button class="delete-btn" data-n="' + esc(n) + '" onclick="deleteEntity(\'agents\',this.dataset.n)">delete</button>' +
       '</div>';
     el.appendChild(card);
   });
@@ -139,8 +140,8 @@ function renderTyped(kind, items) {
         '<span class="entity-type">' + esc(it.type) + '</span>' +
       '</div>' +
       '<div class="card-actions">' +
-        '<button class="hdr-btn" onclick="openConfig(\'' + kind + '\',\'' + it.name + '\')">config</button>' +
-        '<button class="delete-btn" onclick="deleteEntity(\'' + kind + '\',\'' + it.name + '\')">delete</button>' +
+        '<button class="hdr-btn" data-n="' + esc(it.name) + '" onclick="openConfig(\'' + kind + '\',this.dataset.n)">config</button>' +
+        '<button class="delete-btn" data-n="' + esc(it.name) + '" onclick="deleteEntity(\'' + kind + '\',this.dataset.n)">delete</button>' +
       '</div>';
     el.appendChild(card);
   });

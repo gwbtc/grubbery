@@ -326,6 +326,56 @@
     mode('tree');
   }
 
+  // ---- markdown, safe for remote text ----
+  //
+  // Markdown here comes from fetched repos and other ships. marked passes
+  // raw HTML and javascript: links through, and 15.0.4 does not escape
+  // image alt text, so raw HTML is shown as text and images are built here.
+  // The output is parsed in an inert <template>; active elements, custom
+  // elements, on* and srcdoc go, and an href or src keeps only http(s),
+  // mailto or a relative url. The clean nodes are moved into el, never
+  // re-serialized.
+  function escHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function okUrl(u) {
+    u = String(u).replace(/[\u0000-\u0020]/g, '');
+    return !/^[a-z][a-z0-9+.\-]*:/i.test(u) || /^(https?|mailto):/i.test(u);
+  }
+  var MD_DROP = /^(script|style|iframe|object|embed|link|meta|base|form|svg|math|template)$/i;
+  function markdown(el, text) {
+    el.textContent = '';
+    var m = window.marked;
+    if (!m) {
+      var pre = document.createElement('pre');
+      pre.textContent = text;
+      el.appendChild(pre);
+      return;
+    }
+    if (!m._fpSafe) {
+      m.use({ renderer: {
+        html: function (t) { return escHtml(t.text); },
+        image: function (t) {
+          return '<img src="' + escHtml(t.href) + '" alt="' + escHtml(t.text) + '"' +
+            (t.title ? ' title="' + escHtml(t.title) + '"' : '') + '>';
+        }
+      } });
+      m._fpSafe = true;
+    }
+    var tpl = document.createElement('template');
+    tpl.innerHTML = m.parse(text);
+    Array.prototype.forEach.call(tpl.content.querySelectorAll('*'), function (n) {
+      // ponytail: denylist backstop for the next marked bug; raw html never gets here
+      if (MD_DROP.test(n.tagName) || n.tagName.indexOf('-') >= 0) { n.remove(); return; }
+      Array.prototype.slice.call(n.attributes).forEach(function (a) {
+        var k = a.name.toLowerCase();
+        if (k.indexOf('on') === 0 || k === 'srcdoc' || ((k === 'href' || k === 'src') && !okUrl(a.value))) n.removeAttribute(a.name);
+      });
+    });
+    el.appendChild(tpl.content);
+  }
+
   // dress the container as a centered, checkerboarded preview surface.
   function surface(el) {
     el.style.cssText += ';overflow:auto;display:flex;align-items:flex-start;' +
@@ -351,7 +401,9 @@
       var src = (o.text != null)
         ? 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(o.text)
         : o.rawUrl;
-      el.innerHTML = '<img style="' + IMG + '" src="' + src + '">';
+      // src set as a property: rawUrl carries the file path
+      el.innerHTML = '<img style="' + IMG + '">';
+      el.querySelector('img').src = src;
       attachZoom(el, el.querySelector('img'));
     } else if (k === 'html' && o.text != null) {
       surface(el);
@@ -363,7 +415,8 @@
       el.appendChild(f);
     } else if (k === 'image' && o.rawUrl) {
       surface(el);
-      el.innerHTML = '<img style="' + IMG + '" src="' + o.rawUrl + '">';
+      el.innerHTML = '<img style="' + IMG + '">';
+      el.querySelector('img').src = o.rawUrl;
       attachZoom(el, el.querySelector('img'));
     } else if (k === 'pdf' && o.rawUrl) {
       el.innerHTML = '';
@@ -379,7 +432,7 @@
       el.innerHTML = '';
       var md = document.createElement('div');
       md.className = 'fp-md';
-      try { md.innerHTML = window.marked ? marked.parse(o.text) : o.text; }
+      try { markdown(md, o.text); }
       catch (_) { md.textContent = o.text; }
       el.appendChild(md);
     } else if (k === 'csv' && o.text != null) {
@@ -405,5 +458,5 @@
     return k;
   }
 
-  window.FilePreview = { kind: kind, render: render };
+  window.FilePreview = { kind: kind, render: render, markdown: markdown };
 })();

@@ -546,7 +546,8 @@
       if (kind === 'md') {
         var d = document.createElement('div');
         d.className = 'fm-md';
-        try { d.innerHTML = window.marked ? marked.parse(text) : text; }
+        // FilePreview.markdown drops raw html and unsafe links (remote text)
+        try { if (window.FilePreview && FilePreview.markdown) FilePreview.markdown(d, text); else d.textContent = text; }
         catch (_) { d.textContent = text; }
         fmPrev.appendChild(d);
         return;
