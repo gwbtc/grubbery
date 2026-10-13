@@ -1641,6 +1641,7 @@
 ++  drop-hist
   |=  [here=rail:tarball =lose:nexus]
   ^+  this
+  =/  old-born=born:nexus  born
   =/  sk=hist:nexus  (need (get-born here))
   =/  entries=(list [key=cass:clay val=entry:hist:nexus])
     (tap:hon:hist:nexus sk)
@@ -1654,7 +1655,11 @@
       $(kept t.kept, new-hist (put:hon:hist:nexus new-hist key.i.kept val.i.kept))
     =.  this  (put-born here new-hist)
     =.  vale  (gc-vale-cache vale bins)
-    this
+    ::  a dropped top changes what the file reads as, so the trees roll
+    ::  up and watchers hear of it like any write. Dropping only older
+    ::  entries changes nothing anyone reads.
+    ?:  =((top:hist:nexus sk) (top:hist:nexus new-hist))  this
+    (propagate old-born here)
   =/  drop=?
     ?-    -.lose
         %pick
@@ -1739,54 +1744,59 @@
     (~(drop-ject si:nexus silo) u.p.pv)
   $(entries t.entries)
 ::  Set gain flag on a lane: single file or recursive on directory.
-::  For files, rewrites the leaf ject with the new gain flag.
-::  For directories, recurses into all descendant files.
+::  Rewrites each file's leaf ject with the new gain flag, then rolls
+::  the trees up and notifies, as any write does. Without the rollup a
+::  parent tree kept naming the old leaf, so the file and its directory
+::  disagreed and nobody watching heard of it. The trees roll up once
+::  per directory, deepest first, not once per file.
 ::
 ++  set-gain-lane
   |=  [=lane:tarball flag=?]
   ^+  this
-  ?-    -.lane
-      %&
-    ::  File: set gain on the leaf ject at this rail
-    =/  here=rail:tarball  p.lane
-    =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
-      (~(get of born) path.here)
-    ?~  node  this
-    =/  fh=(unit hist:nexus)  (~(get by file.u.node) name.here)
-    ?~  fh  this
-    =/  got=(unit [key=cass:clay val=entry:hist:nexus])
-      (ram:hon:hist:nexus u.fh)
-    ?~  got  this
-    ?:  ?=(%tomb -.pace.val.u.got)  this
-    ?~  p.pace.val.u.got  this
-    =/  jot  (~(get by jects.silo) u.p.pace.val.u.got)
-    ?~  jot  this
-    ?.  ?=(%leaf -.ject.u.jot)  this
-    ?:  =(gain.leaf.ject.u.jot flag)  this
-    ::  Rewrite leaf ject with new gain flag
-    =/  new-leaf=leaf:nexus  leaf.ject.u.jot(gain flag)
-    =.  silo  (~(drop-ject si:nexus silo) u.p.pace.val.u.got)
-    =/  [new-jobe=jobe:nexus new-silo=silo:nexus]
-      (~(put-ject si:nexus silo) [%leaf new-leaf])
-    =.  silo  new-silo
-    ::  Update hist to point to new ject lobe
-    =/  =pace:hist:nexus  ?:(flag [%firm `new-jobe] [%temp `new-jobe])
-    =/  new-hist=hist:nexus
-      (put-pace:hist:nexus u.fh key.u.got pace)
-    =.  this  (put-born here new-hist)
-    this
-      %|
-    ::  Directory: recurse into all files in subtree
-    =/  sub-ball=ball:tarball  (peek-ball-now p.lane)
-    =/  entries=(list [pax=path lp=lump:tarball])  ~(tap of sub-ball)
-    |-
-    ?~  entries  this
-    =/  files=(list @ta)  ~(tap in ~(key by contents.lp.i.entries))
-    |-
-    ?~  files  ^$(entries t.entries)
-    =.  this  (set-gain-lane &+[(weld p.lane pax.i.entries) i.files] flag)
-    $(files t.files)
-  ==
+  =/  rails=(list rail:tarball)
+    ?:  ?=(%& -.lane)  ~[p.lane]
+    %+  turn  ~(tap ba:tarball (peek-ball-now p.lane))
+    |=([=rail:tarball *] [(weld p.lane path.rail) name.rail])
+  =|  done=(list rail:tarball)
+  |-
+  ?^  rails
+    =/  nex=(unit _this)  (set-gain-leaf i.rails flag)
+    ?~  nex  $(rails t.rails)
+    =.  this  u.nex
+    $(rails t.rails, done [i.rails done])
+  =/  dirs=(list path)
+    %+  sort  ~(tap in (silt (turn done |=(r=rail:tarball path.r))))
+    |=([a=path b=path] (gth (lent a) (lent b)))
+  =|  bumped=(set lane:tarball)
+  |-
+  ?^  dirs
+    =^  bum=(set lane:tarball)  this  (record-trees-lanes i.dirs)
+    $(dirs t.dirs, bumped (~(uni in bumped) bum))
+  (notify-lanes (~(gas in bumped) (turn done |=(r=rail:tarball &+r))))
+::  +set-gain-leaf: rewrite one file's leaf ject with a gain flag, in
+::  place in its hist. ~ when there is nothing to change.
+::
+++  set-gain-leaf
+  |=  [here=rail:tarball flag=?]
+  ^-  (unit _this)
+  =/  fh=(unit hist:nexus)  (get-born here)
+  ?~  fh  ~
+  =/  got=(unit [key=cass:clay val=entry:hist:nexus])
+    (ram:hon:hist:nexus u.fh)
+  ?~  got  ~
+  ?:  ?=(%tomb -.pace.val.u.got)  ~
+  ?~  p.pace.val.u.got  ~
+  =/  jot  (~(get by jects.silo) u.p.pace.val.u.got)
+  ?~  jot  ~
+  ?.  ?=(%leaf -.ject.u.jot)  ~
+  ?:  =(gain.leaf.ject.u.jot flag)  ~
+  ::  the new leaf goes in before the old ref is dropped: dropping
+  ::  first takes the content noun with a leaf nothing else holds
+  =^  new-jobe=jobe:nexus  silo
+    (~(put-ject si:nexus silo) [%leaf leaf.ject.u.jot(gain flag)])
+  =.  silo  (~(drop-ject si:nexus silo) u.p.pace.val.u.got)
+  =/  =pace:hist:nexus  ?:(flag [%firm `new-jobe] [%temp `new-jobe])
+  `(put-born here (put-pace:hist:nexus u.fh key.u.got pace))
 ::  Promote current hist entry to %firm at a rail, with optional tags.
 ::
 ++  firm-hist
@@ -4703,13 +4713,16 @@
     (fall (~(get by dir.existing-tree) child-name) [*jobe:nexus ~])
   =/  new-tree=tree:nexus
     existing-tree(dir (~(put by dir.existing-tree) child-name old-entry(weir weir)))
+  =/  old-born=born:nexus  born
   =/  [* new-born=born:nexus new-silo=silo:nexus]
     (put-tree:nexus born silo now.bowl parent node new-tree)
   =.  born  new-born
   =.  silo  new-silo
-  ::  Record tree from parent up, notify
-  =/  old-born=born:nexus  born
-  =.  this  (record-trees parent)
+  ::  the parent's tree is already the new one, so record from the
+  ::  grandparent up: a walk from the parent finds its hash unchanged
+  ::  and stops, leaving every ancestor naming the old tree. Notify
+  ::  against the born from before the write.
+  =?  this  ?=(^ parent)  (record-trees (snip `path`parent))
   =.  this  (notify old-born)
   ::  Re-check subscriptions from watchers under this weir
   (audit-weir dest)
