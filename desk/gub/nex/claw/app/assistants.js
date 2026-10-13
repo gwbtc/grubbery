@@ -42,10 +42,11 @@ function grubWrite(rel, jon) {
   });
 }
 
+// quotes too: names also go into attributes
 function esc(s) {
   var d = document.createElement('div');
   d.textContent = s == null ? '' : String(s);
-  return d.innerHTML;
+  return d.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function recurLabel(cfg) {
@@ -137,10 +138,10 @@ function assistantCard(a) {
         (cfg.zone ? ' · ' + esc(cfg.zone) : '') + '</span>' +
     '</div>' +
     '<div class="card-actions">' +
-      '<button class="hdr-btn" onclick="toggleAssistant(\'' + a.path + '\')">' +
+      '<button class="hdr-btn" data-p="' + esc(a.path) + '" onclick="toggleAssistant(this.dataset.p)">' +
         (on ? 'disable' : 'enable') + '</button>' +
-      '<button class="hdr-btn" onclick="openAssistant(\'' + a.path + '\')">config</button>' +
-      '<button class="delete-btn" onclick="deleteAssistant(\'' + a.path + '\')">delete</button>' +
+      '<button class="hdr-btn" data-p="' + esc(a.path) + '" onclick="openAssistant(this.dataset.p)">config</button>' +
+      '<button class="delete-btn" data-p="' + esc(a.path) + '" onclick="deleteAssistant(this.dataset.p)">delete</button>' +
     '</div>';
   return card;
 }

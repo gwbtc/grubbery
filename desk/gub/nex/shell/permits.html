@@ -182,7 +182,8 @@
     var mode='pending', selected=(new URLSearchParams(location.search).get('app'))||null, editSet={}, dirty=false;
     var approvedState={}, weirsState={}, aliasMenus={}, asksData=[];
 
-    function esc(s){ var d=document.createElement('div'); d.textContent=(s==null)?'':String(s); return d.innerHTML; }
+    // quotes too: app paths, roads and aliases from weir.json go into attributes
+    function esc(s){ var d=document.createElement('div'); d.textContent=(s==null)?'':String(s); return d.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
     function leafOf(p){
       // display name: desk-nested apps keep their nested identity —
       // /apps/<desk>/desk/data/<app> renders as <desk>/<app>, never bare <app>.

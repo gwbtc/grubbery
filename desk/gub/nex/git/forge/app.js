@@ -9,10 +9,11 @@ var branches = [];         // local branch names for selected repo
 var mode = 'files';        // workspace mode: files (repo) | settings
 var panel = 'status';      // active bottom pane (files mode)
 
+// quotes too: the result also goes into attribute values
 function esc(s) {
   var d = document.createElement('div');
   d.textContent = (s == null) ? '' : String(s);
-  return d.innerHTML;
+  return d.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 // ── request loading indicator ──
 // every request goes through get()/post(); we count in-flight requests and

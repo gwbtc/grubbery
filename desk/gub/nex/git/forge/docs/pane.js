@@ -158,9 +158,13 @@
   }
   var markedP = null;
   function ensureMarked() {
-    if (window.marked) return Promise.resolve(window.marked);
+    if (window.marked && window.FilePreview) return Promise.resolve(window.marked);
     if (markedP) return markedP;
-    markedP = loadScript('/grubbery/forge/marked.min.js').then(function () { return window.marked || null; }).catch(function () { return null; });
+    // file-preview.js carries the sanitizer the handbook renders through
+    markedP = Promise.all([
+      window.marked ? null : loadScript('/grubbery/forge/marked.min.js'),
+      window.FilePreview ? null : loadScript('/grubbery/forge/file-preview.js')
+    ]).then(function () { return window.marked || null; }).catch(function () { return null; });
     return markedP;
   }
   function loadScript(src) {
@@ -400,8 +404,9 @@
     function render(md) {
       ensureMarked().then(function (mk) {
         if (!alive) return;
-        DOC.innerHTML = mk ? mk.parse(md) : '<pre></pre>';
-        if (!mk) DOC.querySelector('pre').textContent = md;
+        // repo markdown is remote: FilePreview.markdown drops raw html and unsafe links
+        if (mk && window.FilePreview && FilePreview.markdown) FilePreview.markdown(DOC, md);
+        else { DOC.innerHTML = '<pre></pre>'; DOC.querySelector('pre').textContent = md; }
         upgradeCallouts(); runUpgrade(); upgradeStaticBlocks(); buildOnThisPage();
       });
     }

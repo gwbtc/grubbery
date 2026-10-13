@@ -161,7 +161,8 @@ function renderModal(a) {
   if (a.status === 'code') {
     $('auth-user-code').textContent = a.user_code;
     $('auth-user-code').hidden = false;
-    $('auth-link').href = a.verification_uri;
+    // remote value: only an https link, never javascript:
+    $('auth-link').href = /^https:\/\//i.test(a.verification_uri || '') ? a.verification_uri : '#';
     $('auth-link').hidden = false;
     $('auth-state').textContent = 'waiting for approval…';
   } else if (a.status === 'done') {

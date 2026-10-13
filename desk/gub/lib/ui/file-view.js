@@ -269,7 +269,8 @@
     }
     function showSandboxBanner() {
       var b = $('sandbox-banner');
-      b.innerHTML = '<strong>Sandboxed</strong> — this file’s directory isn’t granted <code>/sys/eyre</code> access, so grubbery serves it as inert <code>text/plain</code> (with <code>nosniff</code>): it cannot run as code in your browser. The real type is still <code>' + (mite || '?') + '</code>; the bytes just aren’t delivered as it.';
+      b.innerHTML = '<strong>Sandboxed</strong> — this file’s directory isn’t granted <code>/sys/eyre</code> access, so grubbery serves it as inert <code>text/plain</code> (with <code>nosniff</code>): it cannot run as code in your browser. The real type is still <code class="fv-mite"></code>; the bytes just aren’t delivered as it.';
+      b.querySelector('.fv-mite').textContent = mite || '?';  // the file's own mime: text only
       b.style.display = '';
     }
 

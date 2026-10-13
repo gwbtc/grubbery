@@ -91,8 +91,9 @@ function collectLeaves(items, out) {
 }
 
 function render(md) {
-  DOC.innerHTML = window.marked ? marked.parse(md) : '<pre></pre>';
-  if (!window.marked) DOC.querySelector('pre').textContent = md;
+  // repo markdown is remote: FilePreview.markdown drops raw html and unsafe links
+  if (window.marked && window.FilePreview && FilePreview.markdown) FilePreview.markdown(DOC, md);
+  else { DOC.innerHTML = '<pre></pre>'; DOC.querySelector('pre').textContent = md; }
   upgradeCallouts();
   upgradeLiveBlocks();
   upgradeStaticBlocks();

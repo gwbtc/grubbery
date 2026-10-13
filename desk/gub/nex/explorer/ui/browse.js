@@ -607,7 +607,10 @@ function setup(root, opts) {
       if (viewer && viewer.blocked) {
         const note = document.createElement('div');
         note.style.cssText = 'margin:0 0 8px;padding:6px 10px;border:1px solid #e0d4f7;background:#f6f3fc;border-radius:7px;font:12px/1.5 -apple-system,sans-serif;color:#57606a';
-        note.innerHTML = '<b style="color:#8250df">' + viewer.label + ' ⊘</b> a pane is declared for this file but not allowed here: ' + viewer.blocked;
+        // label and reason come from a directory's view.json: text only
+        note.innerHTML = '<b style="color:#8250df"></b>';
+        note.firstChild.textContent = viewer.label + ' ⊘';
+        note.append(' a pane is declared for this file but not allowed here: ' + viewer.blocked);
         panel._body.insertBefore(note, panel._body.firstChild);
       }
     }

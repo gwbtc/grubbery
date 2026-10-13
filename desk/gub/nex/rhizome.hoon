@@ -467,7 +467,7 @@
   =.  out
     ;:  weld  out
       ?:(first "" ",")
-      "\"{(trip fname)}\":\"{escaped}\""
+      "\"{(escape-js (trip fname))}\":\"{escaped}\""
     ==
   $(pairs t.pairs, first %.n)
 ::
@@ -495,8 +495,8 @@
     |-  ^-  tape
     ?~  items  (weld a "]")
     =/  sep=tape  ?~(t.items "" ",")
-    $(items t.items, a ;:(weld a "\"{(trip i.items)}\"" sep))
-  =.  out  ;:(weld out "\"{(trip k)}\":" arr)
+    $(items t.items, a ;:(weld a "\"{(escape-js (trip i.items))}\"" sep))
+  =.  out  ;:(weld out "\"{(escape-js (trip k))}\":" arr)
   ?~  t.pairs  (weld out "}")
   $(pairs t.pairs, out (weld out ","))
 ::
@@ -513,6 +513,8 @@
       %'"'   (weld out "\\\"")
       %'\0a'  (weld out "\\n")
       %'\0d'  (weld out "\\r")
+      ::  a note holding </script> must not close the script it is in
+      %'<'    (weld out "\\u003c")
     ==
   $(t +.t)
 ::
@@ -599,7 +601,7 @@
     "  pane.innerHTML="
     "    '<div class=\"editor-wrap\">'+"
     "    '<div class=\"editor-header\">'+"
-    "    '<span class=\"fname\">'+fname+'</span>'+"
+    "    '<span class=\"fname\">'+escHtml(fname)+'</span>'+"
     "    '<button class=\"btn\" id=\"save-btn\" onclick=\"saveNote()\">Save</button>'+"
     "    '<span id=\"status\" class=\"saved\">saved</span>'+"
     "    '</div>'+"
@@ -608,8 +610,8 @@
     "    '<div class=\"preview-pane\" id=\"preview\"></div>'+"
     "    '</div>'+"
     "    '<div class=\"links-bar\">'+"
-    "    (fwdLinks.length?'<div class=\"section\"><span class=\"label\">links to:</span>'+fwdLinks.map(function(l)\{return '<span class=\"link\" onclick=\"navLink(\\''+l+'\\')\">' + l + '</span>'}).join('')+'</div>':'')+"
-    "    (backLinks.length?'<div class=\"section\"><span class=\"label\">linked from:</span>'+backLinks.map(function(l)\{return '<span class=\"link\" onclick=\"selectNote(\\''+l+'\\')\">' + l + '</span>'}).join('')+'</div>':'')+"
+    "    (fwdLinks.length?'<div class=\"section\"><span class=\"label\">links to:</span>'+fwdLinks.map(function(l)\{return '<span class=\"link\" data-n=\"'+escHtml(l)+'\" onclick=\"navLink(this.dataset.n)\">'+escHtml(l)+'</span>'}).join('')+'</div>':'')+"
+    "    (backLinks.length?'<div class=\"section\"><span class=\"label\">linked from:</span>'+backLinks.map(function(l)\{return '<span class=\"link\" data-n=\"'+escHtml(l)+'\" onclick=\"selectNote(this.dataset.n)\">'+escHtml(l)+'</span>'}).join('')+'</div>':'')+"
     "    '</div></div>';"
     "  renderPreview(txt);"
     "  document.getElementById('editor').oninput=function()\{"
@@ -629,7 +631,7 @@
     "}"
     ""
     "function escHtml(s)\{"
-    "  var d=document.createElement('div');d.textContent=s;return d.innerHTML;"
+    "  var d=document.createElement('div');d.textContent=s;return d.innerHTML.replace(/\"/g,'&quot;');"
     "}"
     ""
     "function saveNote()\{"
@@ -700,12 +702,12 @@
     "  s=s.replace(/\\[\\[([^\\]]+)\\]\\]/g,function(_,n)\{"
     "    var fname=n+'.md';"
     "    var cls=window._NOTES[fname]!=null?'wiki-link':'wiki-link broken';"
-    "    return '<span class=\"'+cls+'\" onclick=\"navLink(\\''+n+'\\')\">' + n + '</span>'"
+    "    return '<span class=\"'+cls+'\" data-n=\"'+n+'\" onclick=\"navLink(this.dataset.n)\">' + n + '</span>'"
     "  });"
     "  s=s.replace(/`([^`]+)`/g,'<code>$1</code>');"
     "  s=s.replace(/\\*\\*([^*]+)\\*\\*/g,'<strong>$1</strong>');"
     "  s=s.replace(/\\*([^*]+)\\*/g,'<em>$1</em>');"
-    "  s=s.replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g,'<a href=\"$2\">$1</a>');"
+    "  s=s.replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g,function(m,t,h)\{if(/[<\"]/.test(h))return m;var u=h.replace(/[\\u0000-\\u0020]/g,'');return /^[a-z][a-z0-9+.\\-]*:/i.test(u)&&!/^(https?|mailto):/i.test(u)?t:'<a href=\"'+h+'\">'+t+'</a>'});"
     "  return s"
     "}"
     ""
@@ -726,7 +728,7 @@
     "    var label=document.createElement('div');"
     "    label.className='dir-label';"
     "    label.style.paddingLeft=(8+depth*14)+'px';"
-    "    label.innerHTML='<span class=\"arrow open\">\\u25b6</span> '+d+'/';"
+    "    label.innerHTML='<span class=\"arrow open\">\\u25b6</span> '+escHtml(d)+'/';"
     "    label.onclick=function()\{"
     "      div.classList.toggle('open');"
     "      label.querySelector('.arrow').classList.toggle('open')};"
