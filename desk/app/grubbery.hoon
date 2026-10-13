@@ -1334,8 +1334,15 @@
 ::  handler's bumps. Shared by %data transfers and inline snaps.
 ::
 ++  merge-transfer-data
-  |=  got=silo:nexus
+  |=  [got=silo:nexus want=lobes:nexus]
   ^+  this
+  ::  only lobes a staged snap names are hashed and merged. A ship
+  ::  could otherwise send any amount of content we never asked for
+  ::  and have this event hash and sort all of it.
+  =.  got
+    ^-  silo:nexus
+    :-  (malt (skim ~(tap by nouns.got) |=([k=nobe:nexus *] (~(has in nouns.want) k))))
+    (malt (skim ~(tap by jects.got) |=([k=jobe:nexus *] (~(has in jects.want) k))))
   =/  good-nouns=(list [=nobe:nexus =noun])
     %+  murn  ~(tap by nouns.got)
     |=  [=nobe:nexus refs=@ud =noun]
@@ -1505,7 +1512,7 @@
     ::  the want/data legs are skipped entirely.
     ?:  ?=(^ data.resp)
       ~?  dbg  [%snap-inline-from src]
-      (merge-transfer-data u.data.resp)
+      (merge-transfer-data u.data.resp refs.u.snap.resp)
     =/  missing=lobes:nexus
       :-  (~(dif in jects.refs.u.snap.resp) ~(key by jects.silo))
       (~(dif in nouns.refs.u.snap.resp) ~(key by nouns.silo))
@@ -1531,7 +1538,18 @@
     ::
       %data
     ~?  dbg  [%data-received-from src]
-    (merge-transfer-data silo.resp)
+    ::  a %want went out only for a snap staged on a peek to this ship:
+    ::  what those snaps name is all the data we asked this ship for
+    =/  want=lobes:nexus
+      %+  roll  ~(val by peeks.remo)
+      |=  [pk=peek:remo:nexus acc=lobes:nexus]
+      ?.  &(=(ship.pk src) ?=(^ snap.pk))  acc
+      :-  (~(uni in jects.acc) jects.refs.u.snap.pk)
+      (~(uni in nouns.acc) nouns.refs.u.snap.pk)
+    ?:  &(=(~ jects.want) =(~ nouns.want))
+      ~?  dbg  [%data-unsolicited src]
+      this
+    (merge-transfer-data silo.resp want)
     ::
       %veto
     ::  Remote peek was blocked by weir. Discharge matching peeks.
