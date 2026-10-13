@@ -37,6 +37,10 @@
     wrap.append(strip, body);
     host.appendChild(wrap);
 
+    // TODO(perf): one ?tree=1 is the WHOLE subtree. On a clanker dir that
+    // descends into tools/runs/ (up to fifty run grubs) for a tab that
+    // rarely opens them. Either the explorer's ?tree=1 takes a depth, or
+    // this fetches children on expand (tree-view's getChildren can be async).
     fetch(urlOf(root) + '?tree=1').then((r) => r.ok ? r.json() : Promise.reject('t')).then((doc) => {
       const rootSegs = root.split('/').filter(Boolean);
       const nodeAt = (p) => { let n = doc; for (const s of p.split('/').filter(Boolean).slice(rootSegs.length)) n = n && n.dirs && n.dirs[s]; return n; };
