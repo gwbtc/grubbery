@@ -2644,11 +2644,11 @@
   ?~  pv  this
   ?:  ?=(%tomb -.u.pv)  this
   ?~  p.u.pv  this
-  =/  [new-jobe=jobe:nexus new-silo=silo:nexus]
-    (~(set-bang si:nexus silo) u.p.u.pv err)
+  =/  [new-jobe=jobe:nexus new-silo=silo:nexus kept=hist:nexus]
+    (~(set-bang si:nexus silo) u.sok u.cas u.p.u.pv err)
   =/  new-cass=cass:clay  (~(next-cass bo:nexus now.bowl born) u.cas)
   =/  new-sok=hist:nexus
-    (put-pace:hist:nexus u.sok new-cass [%temp `new-jobe])
+    (put-pace:hist:nexus kept new-cass [%temp `new-jobe])
   =.  silo  new-silo
   =.  this  (put-born here new-sok)
   =/  old-born=born:nexus  born
@@ -2669,11 +2669,11 @@
   ?~  pv  this
   ?:  ?=(%tomb -.u.pv)  this
   ?~  p.u.pv  this
-  =/  [new-jobe=jobe:nexus new-silo=silo:nexus]
-    (~(set-bang si:nexus silo) u.p.u.pv err)
+  =/  [new-jobe=jobe:nexus new-silo=silo:nexus kept=hist:nexus]
+    (~(set-bang si:nexus silo) fold.u.node u.cas u.p.u.pv err)
   =/  new-cass=cass:clay  (~(next-cass bo:nexus now.bowl born) u.cas)
   =/  new-fold=hist:nexus
-    (put-pace:hist:nexus fold.u.node new-cass [%temp `new-jobe])
+    (put-pace:hist:nexus kept new-cass [%temp `new-jobe])
   =.  silo  new-silo
   =.  born  (~(put of born) dest u.node(fold new-fold))
   =/  old-born=born:nexus  born
@@ -2752,11 +2752,11 @@
     ?~  pv  this
     ?:  ?=(%tomb -.u.pv)  this
     ?~  p.u.pv  this
-    =/  cleared  (~(clear-bang si:nexus silo) u.p.u.pv)
+    =/  cleared  (~(clear-bang si:nexus silo) fold.u.fil.bor u.fold-cas u.p.u.pv)
     ?~  cleared  this
     =/  new-cass=cass:clay  (~(next-cass bo:nexus now.bowl born) u.fold-cas)
     =/  new-fold=hist:nexus
-      (put-pace:hist:nexus fold.u.fil.bor new-cass [%temp `lobe.u.cleared])
+      (put-pace:hist:nexus hist.u.cleared new-cass [%temp `lobe.u.cleared])
     =.  silo  silo.u.cleared
     =.  born
       =/  node  (fall (~(get of born) pax) *[fold=hist:nexus file=(map @ta hist:nexus)])
@@ -2775,12 +2775,12 @@
     ?~  pv  $(files t.files)
     ?:  ?=(%tomb -.u.pv)  $(files t.files)
     ?~  p.u.pv  $(files t.files)
-    =/  cleared  (~(clear-bang si:nexus silo) u.p.u.pv)
+    =/  cleared  (~(clear-bang si:nexus silo) sok u.cas u.p.u.pv)
     ?~  cleared  $(files t.files)
     =/  here=rail:tarball  [pax name]
     =/  new-cass=cass:clay  (~(next-cass bo:nexus now.bowl born) u.cas)
     =/  new-sok=hist:nexus
-      (put-pace:hist:nexus sok new-cass [%temp `lobe.u.cleared])
+      (put-pace:hist:nexus hist.u.cleared new-cass [%temp `lobe.u.cleared])
     =.  silo  silo.u.cleared
     =.  this  (put-born here new-sok)
     $(files t.files)

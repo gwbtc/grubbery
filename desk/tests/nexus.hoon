@@ -645,6 +645,44 @@
     %+  expect-eq  !>(`@ud`0)  !>(~(wyt by nouns.silo4))
   ==
 ::
+++  test-si-set-bang-temp-replaced
+  ::  a bang on a %temp pace replaces it the way a write does: no pace
+  ::  is left naming a ject nothing owns, and dropping the hist frees
+  ::  everything
+  =/  hist=hist:nexus  ~
+  =/  [* silo1=silo:nexus hist1=_hist]
+    (~(record si:nexus *silo:nexus) 'alpha' [/ %txt] 0v0 / %.n [1 ~2024.1.1] [0 ~2024.1.1] hist)
+  =/  pv=pace:hist:nexus  (need (get-pace:hist:nexus hist1 [1 ~2024.1.1]))
+  ?>  ?=(%temp -.pv)
+  =/  [new=jobe:nexus silo2=silo:nexus kept=_hist]
+    (~(set-bang si:nexus silo1) hist1 [1 ~2024.1.1] (need p.pv) ~[leaf+"boom"])
+  =/  hist2=_hist  (put-pace:hist:nexus kept [2 ~2024.1.2] [%temp `new])
+  =/  silo3=silo:nexus  (~(drop-hist si:nexus silo2) hist2)
+  ;:  weld
+    %+  expect-eq  !>(`@ud`1)  !>((lent (tap:hon:hist:nexus hist2)))
+    %+  expect-eq  !>(%.y)  !>((~(has by jects.silo2) new))
+    %+  expect-eq  !>(`[@ud @ud]`[0 0])
+    !>(`[@ud @ud]`[~(wyt by nouns.silo3) ~(wyt by jects.silo3)])
+  ==
+::
+++  test-si-set-bang-firm-kept
+  ::  a bang on a %firm pace keeps it as history, and its ject with it
+  =/  hist=hist:nexus  ~
+  =/  [* silo1=silo:nexus hist1=_hist]
+    (~(record si:nexus *silo:nexus) 'alpha' [/ %txt] 0v0 / %.y [1 ~2024.1.1] [0 ~2024.1.1] hist)
+  =/  pv=pace:hist:nexus  (need (get-pace:hist:nexus hist1 [1 ~2024.1.1]))
+  ?>  ?=(%firm -.pv)
+  =/  [new=jobe:nexus silo2=silo:nexus kept=_hist]
+    (~(set-bang si:nexus silo1) hist1 [1 ~2024.1.1] (need p.pv) ~[leaf+"boom"])
+  =/  hist2=_hist  (put-pace:hist:nexus kept [2 ~2024.1.2] [%temp `new])
+  =/  silo3=silo:nexus  (~(drop-hist si:nexus silo2) hist2)
+  ;:  weld
+    %+  expect-eq  !>(`@ud`2)  !>((lent (tap:hon:hist:nexus hist2)))
+    %+  expect-eq  !>(%.y)  !>((~(has by jects.silo2) (need p.pv)))
+    %+  expect-eq  !>(`[@ud @ud]`[0 0])
+    !>(`[@ud @ud]`[~(wyt by nouns.silo3) ~(wyt by jects.silo3)])
+  ==
+::
 ::  ==========================================
 ::  +resolve-case tests
 ::  ==========================================
