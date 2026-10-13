@@ -8150,6 +8150,27 @@
         ==
       ==
     ==
+  ::  a sender registers itself, and claims its own directory or what is
+  ::  under it. Registering another rail (the shell for a desk's
+  ::  share.usergroups) or claiming a prefix anywhere else takes make
+  ::  authority there. Without this, an app allowed to poke the registry
+  ::  could claim / and grant the whole namespace to other ships, or
+  ::  evict and strip another app's row.
+  =/  may-make
+    |=  =lane:tarball
+    !?=([~ %|] (allowed-quiet %make sender `lane))
+  ?:  ?&  ?=(?(%register %deregister) -.act)
+          !=(sender rail.act)
+          !(may-make %& rail.act)
+      ==
+    ~&  >>  [%registry-refused-rail sender]
+    this
+  ?:  ?&  ?=(%register -.act)
+          !(is-prefix path.sender pax.act)
+          !(may-make %| pax.act)
+      ==
+    ~&  >>  [%registry-refused-prefix sender pax.act]
+    this
   ?-    -.act
       %register
     =/  new-prefix  pax.act
