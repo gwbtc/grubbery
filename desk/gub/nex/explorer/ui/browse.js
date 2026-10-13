@@ -648,6 +648,14 @@ function setup(root, opts) {
   // `view`: the moment's ?view= when it is not one the host renders itself
   // (rows|grid|tree); the app answers its own view names (a selector, a
   // record form) and the bare path (no view) with whatever it opens as
+  //
+  // TODO(perf): every leaf costs three serial trips: the ?list=1 probe in
+  // paneContent, this ask, then its data. (1) An app answering a LAYOUT
+  // already knows the layout's leaves: let it inline their rules
+  // ({layout, rules: {path: rule}}) so leaves under it skip the probe and
+  // the ask. (2) Then let it hydrate: each visible leaf's first body in the
+  // same answer, handed to mount as initial state → one request per
+  // visible layout on a cold open. See project memory "pane-split".
   async function viewerFor(path, kind, neck, askView) {
     try {
       await viewReady;
@@ -833,6 +841,7 @@ function setup(root, opts) {
   // a pane's waiting state: `text` over an optional `sub` line (what is being
   // fetched); psWaitFail turns the same block into the failure it ended in
   const psWait = (el, text, sub) => {
+    psChrome();                                                               // its styles ride with the workspace chrome: make sure they are in
     el.innerHTML = ''; el.className = 'ps-wait'; el.style.cssText = 'height:100%';
     const ring = document.createElement('div'); ring.className = 'ps-wait-ring';
     const t = document.createElement('div'); t.className = 'ps-wait-text'; t.textContent = text;
@@ -840,13 +849,50 @@ function setup(root, opts) {
     if (sub) { const s = document.createElement('div'); s.className = 'ps-wait-sub'; s.textContent = sub; s.title = sub; el.appendChild(s); }
   };
   const psWaitFail = (el, text, sub) => { psWait(el, text, sub); el.classList.add('fail'); };
+  // back to a bare content element once the answer is in
+  const psClear = (el) => { el.innerHTML = ''; el.className = ''; el.style.cssText = 'height:100%;overflow:auto'; };
   // a path's name + icon for its tab chip: basename + the kind we learn while
   // listing (dir) or opening (file). redrawBars() sharpens the glyph once known.
   const psKind = new Map();
   // a tab is its name; no glyph guessed from kind. A moment with ?page= (a
   // rendering's own sub-page: the docs pane) is named by that page, so the
   // history reads as the pages visited, not the same grub nine times
-  function paneTabInfo(p) { const pg = psArgs(p).page; return { icon: '', label: pg ? (pg.split('/').filter(Boolean).pop() || pg) : psBase(p) }; }
+  function paneTabInfo(p) { const pg = psArgs(p).page; return { icon: '', label: pg ? (pg.split('/').filter(Boolean).pop() || pg) : psBase(p), dead: psDead.has(psNs(p).replace(/\/$/, '') || '/') }; }
+  // ---- deletion: a moment whose path is gone is DEAD, not closed ----
+  // Every content moment follows its parent dir, folded (one event when a
+  // direct child is made or culled). On that event the moment's own path is
+  // checked: gone → its rendering is torn down and replaced by the failed
+  // wait block, its follows dropped, its path marked in psDead, and the tab
+  // chips redrawn. Only the leaf: a layout tab above it is a container, not
+  // a path, and says nothing of its own (its inner tabs do). A path that
+  // comes back revives the moment with a fresh render. Nothing closes by
+  // itself: the user does.
+  // The watch is per KIND, and never on a parent (a parent can be the root or
+  // an app dir, and a fold keep there diffs the whole namespace on every write;
+  // that wedges the ship). A file moment keeps its own file, one grub: `del`
+  // kills it, `new` revives it. A dir moment keeps nothing extra: its listing
+  // already follows the dir, and a refresh that finds it gone renders dead.
+  const psDead = new Set();
+  function psMarkDead(ps, el, ns) {
+    const key = ns.replace(/\/$/, '');
+    if (el._dead) return;
+    el._dead = true;
+    try { if (el._live) el._live(); } catch (_) {} el._live = null;
+    try { if (el._fv && el._fv.destroy) el._fv.destroy(); } catch (_) {} el._fv = null;
+    el._menu = null; el._dirUrl = null;
+    psWaitFail(el, 'deleted', key);
+    psDead.add(key);
+    ps.redrawBars();
+  }
+  function psWatchFile(ps, paneId, el, ns) {
+    if (!ns || ns === '/') return () => {};
+    const key = ns.replace(/\/$/, '');
+    const idOf = () => { const p = el.closest('.ps-pane'); return p ? p.dataset.paneId : paneId; };
+    return live([{ road: key }], (ev) => {
+      if (ev.kind === 'del') psMarkDead(ps, el, ns);
+      else if (el._dead) { psDead.delete(key); ps.redrawBars(); ps.refresh(idOf()); }
+    }, null);
+  }
   // live: the page's one SSE stream and the follow set behind it. Every
   // rendered instance registers the roads it depends on (a dir road ends in
   // '/', a file road does not); the union is POSTed to the ship whenever it
@@ -913,6 +959,10 @@ function setup(root, opts) {
     // register: follow = [{road, body?}]; onEvent(ev) patches in place, or
     // null → refetch() (debounced); gate(ev) optionally drops events the
     // instance does not care about. Returns the unregister.
+    // TODO(perf): refetches are debounced per instance only; a burst under a
+    // busy dir (a turn writing log + status + runs) makes several panes
+    // refetch the same URL at once. One shared in-flight fetch per URL
+    // would dedupe that.
     return function register(follow, onEvent, refetch, gate) {
       if (!follow || !follow.length) return () => {};
       let timer = null;
@@ -955,7 +1005,10 @@ function setup(root, opts) {
            capped so a short pane shows the card, not its margin. */
         /* a pane waiting on the ship (a layout being fetched): a quiet ring and a
            label, centered; the same block names a failure with the ring stopped */
-        '.ps-wait{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#8b949e;font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#fff;user-select:none}' +
+        /* shown only after a beat, so a fast answer never flashes it */
+        '.ps-wait{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#8b949e;font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#fff;user-select:none;animation:ps-wait-in .25s .2s both}' +
+        '@keyframes ps-wait-in{from{opacity:0}to{opacity:1}}' +
+        '.ps-wait.fail{animation:none}' +
         '.ps-wait-ring{width:22px;height:22px;border-radius:50%;border:2px solid #eaeef2;border-top-color:#8b949e;animation:ps-spin .9s linear infinite}' +
         '.ps-wait-text{letter-spacing:.01em}.ps-wait-sub{font:11px ui-monospace,SFMono-Regular,Menlo,monospace;color:#8b949e;max-width:80%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
         '.ps-wait.fail .ps-wait-ring{animation:none;border-color:#ffcecb;border-top-color:#cf222e}.ps-wait.fail .ps-wait-text{color:#cf222e}' +
@@ -1061,7 +1114,7 @@ function setup(root, opts) {
     // move/copy go to the pane's TARGET: the dir the target pane shows is the
     // destination. That is what a target is for. No target → ask for a path.
     const ctx = el._ctx || {};
-    const tgtDir = () => { const t = ctx.ps && ctx.ps.targetId && ctx.ps.targetId(ctx.paneId); const p = t && ctx.ps.pathOf(t); return p ? psNs(p).replace(/\/$/, '') : null; };
+    const tgtDir = () => { const t = ctx.ps && ctx.ps.routeTargetId && ctx.ps.routeTargetId(ctx.paneId); const p = t && ctx.ps.pathOf(t); return p ? psNs(p).replace(/\/$/, '') : null; };
     const send = (verb) => () => {
       const act = isDir ? verb + '-folder' : verb + '-grub', key = isDir ? 'foldername' : 'filename';
       const d = tgtDir();
@@ -1228,20 +1281,16 @@ function setup(root, opts) {
     const el = document.createElement('div');
     el.style.cssText = 'height:100%;overflow:auto';
     const ns = psNs(path), url = psUrl(path);
-    // route a link: to the pane's target if it has one, else in place. `name`
-    // names the tab a 'tab'-mode target opens (the user clicked a thing with
-    // a name; the viewer passes it along). It applies only at creation.
+    // route a link: the view says WHAT (a moment, maybe with an offered name);
+    // the layout this pane sits in says WHERE (its routing table; in place by
+    // default). ⌘-click is the user's own override: a new pane beside.
     const route = (href, kind, mods, name) => {
       const h = psMoment(href);
       if (kind) psKind.set(psNs(h), kind === 'dir' ? 'dir' : 'file');      // glyph the target before nav
       if (mods && (mods.meta || mods.ctrl)) { ps.open(h, 'beside'); return; }   // ⌘-click → new pane
-      const tgt = ps.targetId && ps.targetId(paneId);                      // a pane with openTo sends ALL its links to the target
-      if (tgt) {
-        const mode = ps.targetMode ? ps.targetMode(paneId) : 'replace';
-        if (mode === 'tab') ps.newTab(tgt, h, name); else ps.navigate(tgt, h);   // new tab vs replace current
-        ps.focusPane(tgt);
-      } else ps.navigate(paneId, h);                                       // no target → navigate in place
+      ps.openFrom(paneId, h, name);
     };
+    const unroute = (href) => ps.closeFrom(paneId, psMoment(href));      // the view says a moment is gone
     el._ctx = { ps, paneId, route };                                        // menus route through the pane's target via this
     const raw = !!(ps.viewOf && ps.viewOf(paneId) === 'raw');              // toolbar toggle: skip all special rendering
     if (ACTION_VIEWS[psArgs(path).view]) { actionView(ps, paneId, el, path); return el; }   // a form over this path
@@ -1250,9 +1299,16 @@ function setup(root, opts) {
       fetch(url).then((r) => r.ok ? r.json() : Promise.reject('x')).then((spec) => ps.replaceWithLayout(paneId, spec, ns)).catch(() => psWaitFail(el, 'not a valid layout', ns));
       return el;
     }
-    const onNav = (u, k, o) => route(u, k === 'file' ? 'file' : 'dir', null, o && o.name);   // viewers: onNavigate(url, kind, {name})
-    fetch(url + '?list=1').then((r) => r.ok ? r.json() : Promise.reject('f')).then(async (d) => {
+    // viewers get open(url, {name}) and close(url) over moments; onNavigate(url,
+    // kind, {name}) is the same open with a kind hint, kept for every viewer
+    // written against it
+    const onNav = (u, k, o) => route(u, k === 'file' ? 'file' : 'dir', null, o && o.name);
+    const vopen = (u, o) => route(u, null, null, o && o.name);
+    psWait(el, 'loading', ns);                                                // until the first answer lands (fades in after a beat)
+    const vclose = (u) => unroute(u);
+    fetch(url + '?list=1').then((r) => r.ok ? r.json() : Promise.reject(r.status)).then(async (d) => {
       if (!d || !Array.isArray(d.children)) throw 'f';
+      psClear(el);
       psKind.set(ns, 'dir'); ps.redrawBars();                              // this path lists → it's a dir
       el._dirUrl = url;                                                    // whitespace right-click: this dir's actions
       // ?view= says how this dir is looked at: tree (the stock tree viewer),
@@ -1265,7 +1321,7 @@ function setup(root, opts) {
         // mounted whether or not el is in the document: an inactive tab's
         // content is stashed off-document and shown later, and falling
         // through here would render it as rows instead
-        if (tv) { el._fv = tv.mount(el, { url, args: { root: ns }, onNavigate: onNav }); el._menu = (e) => listingMenu(e, el, url); return; }
+        if (tv) { el._fv = tv.mount(el, { url, args: { root: ns }, onNavigate: onNav, open: vopen, close: vclose }); el._menu = (e) => listingMenu(e, el, url); return; }
       }
       // the app is asked for the bare dir and for any view name of its own;
       // the host's own views (rows, grid, tree) never reach it
@@ -1284,7 +1340,7 @@ function setup(root, opts) {
           .catch(() => psWaitFail(el, 'not a valid layout', viewer.layout));
         return;
       }
-      if (viewer && !viewer.blocked && viewer.mount) { el._fv = viewer.mount(el, { url, onNavigate: onNav, query: psArgs(path) }); paneLive(ps, paneId, el, viewer.follow); return; }
+      if (viewer && !viewer.blocked && viewer.mount) { el._fv = viewer.mount(el, { url, onNavigate: onNav, open: vopen, close: vclose, query: psArgs(path) }); paneLive(ps, paneId, el, viewer.follow); return; }
       const t = document.createElement(want === 'grid' ? 'file-grid' : 'file-table');
       t.style.height = '100%';
       const up = ns.replace(/\/$/, '').replace(/\/[^/]+$/, '');
@@ -1307,15 +1363,18 @@ function setup(root, opts) {
       // constantly, and a listing that rebuilt itself on each move could not
       // be clicked. Refreshes coalesce to at most one every 500ms.
       let timer = null;
-      const refreshRows = () => fetch(url + '?list=1', { cache: 'no-store' }).then((r) => r.ok ? r.json() : null).then((nd) => {
+      const refreshRows = () => fetch(url + '?list=1', { cache: 'no-store' }).then((r) => { if (r.status === 404) { psMarkDead(ps, el, ns); return null; } return r.ok ? r.json() : null; }).then((nd) => {
         if (!nd || !Array.isArray(nd.children) || !el.isConnected) return;
         nd.children.forEach((c) => { c.__dir = url; });
         t.items = nd.children;
       }).catch(() => {});
       el._fv = { destroy() { clearTimeout(timer); }, onUpdate() { if (timer) return; timer = setTimeout(() => { timer = null; refreshRows(); }, 500); } };
       paneLive(ps, paneId, el, [{ road: ns === '/' ? '/' : ns.replace(/\/$/, '') + '/', fold: true }]);
-    }).catch(async () => {
+    }).catch(async (why) => {
+      if (why === 404) { psMarkDead(ps, el, ns); return; }                 // no such path: dead where it sits (a deleted thing in history)
+      psClear(el);
       psKind.set(ns, 'file'); ps.redrawBars();                            // not a listing → it's a file
+      el._gone = psWatchFile(ps, paneId, el, ns);                           // its own file, one keep: del → dead, new → back
       // rendered = JUST the declared viewer's rendering (no FileView chrome);
       // raw = the full Source|Preview|Build package. The viewer never rides
       // along inside raw — the two are separate panes you toggle between.
@@ -1324,11 +1383,11 @@ function setup(root, opts) {
         if (v && !v.blocked && v.mount) {
           // the moment's ?args ride along as `query`: a viewer may read how it
           // is being looked at (a docs pane's ?page=, say) without parsing urls
-          try { el._fv = v.mount(el, { url, onNavigate: onNav, query: psArgs(path) }); paneLive(ps, paneId, el, v.follow); } catch (e) { el.textContent = 'viewer failed: ' + e; }
+          try { el._fv = v.mount(el, { url, onNavigate: onNav, open: vopen, close: vclose, query: psArgs(path) }); paneLive(ps, paneId, el, v.follow); } catch (e) { el.textContent = 'viewer failed: ' + e; }
           return;                                                         // rendered: the rendering alone
         }
       }
-      const opts = { url, crumbBase: ROOT, onNavigate: onNav };          // raw, or no renderer → the raw package
+      const opts = { url, crumbBase: ROOT, onNavigate: onNav, open: vopen, close: vclose };          // raw, or no renderer → the raw package
       // right-click anywhere in the file: the file's own actions
       el._menu = () => itemMenu(el, { kind: 'file', name: psBase(ns), __dir: psUrl(ns.replace(/\/[^/]*$/, '') || '/') });
       try { el._fv = window.FileView.mount(el, opts); paneLive(ps, paneId, el, [{ road: ns }]); }   // the raw package follows its file
@@ -1916,7 +1975,7 @@ function setup(root, opts) {
     ps.renderPath = (path, paneId) => paneContent(ps, paneId, path);
     ps.tabInfo = paneTabInfo;
     ps.viewModes = [{ id: 'rendered', glyph: '▣', title: 'rendered' }, { id: 'raw', glyph: '◰', title: 'raw file / plain listing' }];
-    ps.onDestroy = (id, body) => { const c = body.firstChild; try { if (c && c._live) c._live(); } catch (_) {} try { if (c && c._fv) c._fv.destroy(); } catch (_) {} };
+    ps.onDestroy = (id, body) => { const c = body.firstChild; try { if (c && c._live) c._live(); } catch (_) {} try { if (c && c._gone) c._gone(); } catch (_) {} try { if (c && c._fv) c._fv.destroy(); } catch (_) {} };
     root.appendChild(ps);
     // right-click: the rendering under the cursor answers (a viewer's
     // contextMenu, a built-in's _menu); nothing to say → the browser's own

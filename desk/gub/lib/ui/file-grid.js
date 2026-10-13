@@ -55,9 +55,9 @@ const STYLE = `
     -webkit-box-orient: vertical; overflow-wrap: anywhere;
   }
   .loading {
-    display: flex; align-items: center; gap: 8px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
     font-size: 12px; color: #8b949e; user-select: none;
-    padding: 18px;
+    padding: 28px 18px; grid-column: 1 / -1;
   }
   .loading .d { animation: dpulse 1.1s ease-in-out infinite; }
   @keyframes dpulse { 50% { opacity: .2; } }

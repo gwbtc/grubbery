@@ -7,7 +7,7 @@
 //   mount(host, { url, args, onNavigate }) -> { destroy }
 // args.root  — the NAMESPACE path to show the tree of (default '/').
 // onNavigate — called with a namespace path when a row is opened; the host
-//              routes it (in pane-split: through the pane's openTo).
+//              routes it (in pane-split: by the layout's routing table).
 //
 // It leans on <tree-view> (kit): one ?tree=1 fetch feeds getChildren
 // synchronously; clicks fire onOpenFile/onOpenDir. A compact strip carries the

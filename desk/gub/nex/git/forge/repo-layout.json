@@ -1,6 +1,8 @@
-{"bar":true,"nav":false,"activeTab":0,"tabs":[
+{"bar":true,"nav":false,"activeTab":0,
+ "open":{"0/a":{"to":"0/b/0/a","mode":"replace"}},
+ "tabs":[
  {"label":"repo","entries":[{"div":{"dir":"horizontal","ratio":0.22,
-   "a":{"openTo":{"to":"../b/a","mode":"replace"},"tabs":[{"entries":[{"path":"./data/tree?view=tree"}],"cursor":0}]},
+   "a":{"tabs":[{"entries":[{"path":"./data/tree?view=tree"}],"cursor":0}]},
    "b":{"tabs":[{"entries":[{"div":{"dir":"vertical","ratio":0.6,
      "a":{"bar":true,"nav":false,"tabs":[{"entries":[],"cursor":-1}]},
      "b":{"bar":true,"nav":false,"activeTab":0,"tabs":[

@@ -143,7 +143,7 @@ class FileTable extends HTMLElement {
   showLoading() {
     this.#rows.innerHTML =
       '<tr class="loading"><td colspan="' + (this.#columns.length + (this.#actionsFn ? 1 : 0)) +
-      '"><span class="dload">◆</span> loading…</td></tr>';
+      '" style="padding:28px 12px;text-align:center"><span class="dload">◆</span> loading…</td></tr>';
   }
 
   #emit(name, detail) {

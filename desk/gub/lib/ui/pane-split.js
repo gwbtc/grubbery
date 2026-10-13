@@ -94,6 +94,8 @@ const CSS = `
   .ps-tab:hover { background:#eaeef2; }
   .ps-tab.on { background:#fff; color:#1f2328; border-color:#e2e7ee; }
   .ps-tab.named { font:600 13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+  .ps-tab.dead .ps-tab-t { text-decoration:line-through; color:#cf222e; opacity:.75; }
+  .ps-tab.dead .ps-tab-ic { color:#cf222e; }
   .ps-tab-t { overflow:hidden; text-overflow:ellipsis; max-width:220px; }
   .ps-tab-edit { all:unset; box-sizing:border-box; height:18px; padding:0 4px; border:1px solid #0969da; border-radius:4px; background:#fff; color:#1f2328; font:600 13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; box-shadow:0 0 0 2px rgba(9,105,218,.15); }
   .ps-tab-edit::placeholder { color:#8b949e; font-weight:400; }
@@ -262,7 +264,7 @@ class PaneSplit extends HTMLElement {
     // quick-action bar; it lingers (grace timer) and the bar itself holds it
     // open while you interact (wired where the element is built).
     dom.addEventListener('mousemove', (e) => this.#onTopHover(e, id));
-    const pane = { kind: 'pane', id, dom, body, bar, tabs: [{ entries: [], cursor: -1 }], activeTab: 0, parent: null, showBar: false, nav: true, openTo: null, view: null };
+    const pane = { kind: 'pane', id, dom, body, bar, tabs: [{ entries: [], cursor: -1 }], activeTab: 0, parent: null, showBar: false, nav: true, open: null, view: null };
     this.#panes.set(id, pane);
     this.#renderPane(pane);
     return pane;
@@ -321,7 +323,8 @@ class PaneSplit extends HTMLElement {
   #editTabName(pane, i, b, txt) {
     const tab = pane.tabs[i]; if (!tab) return;
     const input = document.createElement('input');
-    input.className = 'ps-tab-edit'; input.value = tab.label || ''; input.placeholder = this.#entryMeta(tab.entries[tab.cursor]).label;
+    const e = tab.entries[tab.cursor];
+    input.className = 'ps-tab-edit'; input.value = tab.label || ''; input.placeholder = (e && e.name) || this.#entryMeta(e).label;
     input.style.width = Math.max(60, txt.offsetWidth + 16) + 'px';
     let done = false;
     const finish = (keep) => {
@@ -345,10 +348,10 @@ class PaneSplit extends HTMLElement {
       // reads as a word: sans, no glyph. An unnamed one describes its current
       // entry: the kind glyph and the path's basename, in mono. Double-click
       // names it; an empty name is no name.
-      const named = !!tab.label;
-      b.className = 'ps-tab' + (i === pane.activeTab ? ' on' : '') + (named ? ' named' : '');
-      b.title = this.#tabTitle(tab) + '\n(double-click to name)';
       const m = this.#tabMeta(tab);
+      const named = !!tab.label || !!m.offered;
+      b.className = 'ps-tab' + (i === pane.activeTab ? ' on' : '') + (named ? ' named' : '') + (m.dead ? ' dead' : '');
+      b.title = this.#tabTitle(tab) + (m.dead ? '\n(deleted)' : '') + '\n(double-click to name)';
       if (m.icon && !named) { const ic = document.createElement('span'); ic.className = 'ps-tab-ic'; ic.textContent = m.icon; b.appendChild(ic); }
       const txt = document.createElement('span'); txt.className = 'ps-tab-t'; txt.textContent = m.label; b.appendChild(txt);
       b.addEventListener('click', (e) => { e.stopPropagation(); this.selectTab(pane.id, i); });
@@ -365,10 +368,11 @@ class PaneSplit extends HTMLElement {
     if (bar._nav !== document.activeElement) bar._nav.value = navVal;
     bar._nav.placeholder = (e && (e.div || e.pane)) ? (this.#entrySrc(e) || 'layout') : 'path…';
     // target control: the relative address + how links land there
-    bar._tpick.title = pane.openTo
-      ? 'target: ' + pane.openTo.to + (pane.openTo.mode === 'tab' ? ' (new tab)' : '') + ' — click to re-pick; shift-click a pane to open there in a new tab'
+    const route = this.routeOf(pane.id);
+    bar._tpick.title = route
+      ? 'opens into: ' + (route.to || '.') + (route.mode === 'tab' ? ' (new tab)' : '') + ' — click to re-pick; shift-click a pane to open there in a new tab'
       : 'set target — click the pane links should open into (shift-click: in a new tab there)';
-    bar._tpick.style.color = pane.openTo ? 'var(--ps-accent,#0969da)' : '';
+    bar._tpick.style.color = route ? 'var(--ps-accent,#0969da)' : '';
     // per-pane render-mode toggle — an ACTION button, so it shows the mode it
     // will switch TO (not the current one).
     if (this.viewModes && this.viewModes.length) {
@@ -381,11 +385,23 @@ class PaneSplit extends HTMLElement {
   // {icon,label} for one entry — host's tabInfo(path) wins for leaf entries.
   #entryMeta(e) {
     if (!e) return { icon: '', label: 'empty' };
-    if (e.div || e.pane) { const s = this.#entrySrc(e); return { icon: '▣', label: s ? base(s) : 'layout' }; }
-    if (this.tabInfo) { try { const m = this.tabInfo(e.path); if (m) return { icon: m.icon || '', label: m.label || base(e.path) || 'empty' }; } catch (_) {} }
+    // `dead` (from the host's tabInfo): the path this entry shows is gone
+    if (e.div || e.pane) {
+      const s = this.#entrySrc(e); let dead = false;
+      if (s && this.tabInfo) { try { const m = this.tabInfo(s); dead = !!(m && m.dead); } catch (_) {} }
+      return { icon: '▣', label: s ? base(s) : 'layout', dead };
+    }
+    if (this.tabInfo) { try { const m = this.tabInfo(e.path); if (m) return { icon: m.icon || '', label: m.label || base(e.path) || 'empty', dead: !!m.dead }; } catch (_) {} }
     return { icon: '', label: base(e.path) || 'empty' };
   }
-  #tabMeta(tab) { const m = this.#entryMeta(tab.entries[tab.cursor]); return tab.label ? { icon: m.icon, label: tab.label } : m; }
+  // a tab's chip: the user's name (tab.label) over the moment's offered name
+  // (entry.name, given when content opened it) over the derived description
+  #tabMeta(tab) {
+    const e = tab.entries[tab.cursor], m = this.#entryMeta(e);
+    if (tab.label) return { icon: m.icon, label: tab.label, dead: m.dead };
+    if (e && e.name) return { icon: '', label: e.name, dead: m.dead, offered: true };
+    return m;
+  }
   // the tab's entry list (its history) for a back/forward dropdown.
   historyList(id) {
     const p = this.#panes.get(id ?? this.#activeId); if (!p) return [];
@@ -505,7 +521,115 @@ class PaneSplit extends HTMLElement {
     return id;
   }
   // push a leaf entry onto the active tab (drops the forward tail). History stays.
-  navigate(id, path) { this.#pushEntry(id ?? this.#activeId, { path }); }
+  // `name` is the moment's offered name (content's description of it).
+  navigate(id, path, name) { this.#pushEntry(id ?? this.#activeId, name ? { path, name } : { path }); }
+  // ---- routing: where a moment from a pane goes ----
+  // A view says WHAT (a moment); its context says WHERE. A layout carries one
+  // table, `open: {<origin>: {to, mode}}`, at its root (a division or a pane):
+  // origin and destination are addresses within that root, exact. The origin
+  // pane climbs its holders (itself, its division, that division's owner, …)
+  // and the first holder whose table names its address decides; a nested
+  // layout is opaque to the ones above (they see the slot it sits in). With
+  // no rule anywhere the moment opens in place.
+  //
+  // Addresses within a holder: at a pane, a segment is a tab index whose
+  // CURRENT entry is the next step; at a division entry, 'a' or 'b'; at a
+  // pane entry, 'a'. '.' is the holder itself. So '0/a' from a tabbed root
+  // is the left side of its first tab.
+  #addrWithin(holder, pane) {
+    if (holder === pane) return '.';
+    const segs = [];
+    let n = pane;
+    for (;;) {
+      const par = n && n.parent; if (!par) return null;
+      let node, entry;
+      if (par.div) { segs.unshift(par.slot); node = par.div.owner; entry = (e) => e.div === par.div; if (par.div === holder) return segs.join('/'); }
+      else { segs.unshift('a'); node = par.host; entry = (e) => e.pane === n; }
+      if (!node) return null;
+      const ti = node.tabs.findIndex((t) => t.entries.some(entry));
+      if (ti < 0) return null;
+      segs.unshift(String(ti));
+      if (node === holder) return segs.join('/');
+      n = node;
+    }
+  }
+  #descend(holder, addr) {
+    addr = String(addr || '').trim();
+    if (addr === '.' || addr === '') return holder.kind === 'pane' ? holder : null;
+    const parts = addr.split('/').filter((s) => s.length && s !== '.');
+    let at = holder;                                   // a pane, or a division
+    for (const seg of parts) {
+      if (at.kind === 'pane') {
+        const t = at.tabs[Number(seg)]; if (!t) return null;
+        const e = t.entries[t.cursor]; if (!e) return null;
+        at = e.div ? e.div : e.pane ? { pane: e.pane } : null; if (!at) return null;
+        continue;
+      }
+      if (at.pane) { if (seg !== 'a') return null; at = at.pane; continue; }   // a pane entry's single slot
+      if (seg !== 'a' && seg !== 'b') return null;
+      at = at[seg]; if (!at) return null;              // a division's side
+    }
+    return at.kind === 'pane' ? at : at.pane || null;
+  }
+  // the holders above a pane, nearest first: the pane, its division, the
+  // division's owner pane, that pane's host, …
+  *#holdersOf(pane) {
+    let n = pane;
+    while (n) {
+      yield n;
+      const par = n.parent; if (!par) return;
+      if (par.div) { yield par.div; n = par.div.owner; } else n = par.host;
+    }
+  }
+  #routeFrom(pane) {
+    for (const h of this.#holdersOf(pane)) {
+      if (!h.open) continue;
+      const a = this.#addrWithin(h, pane); if (a == null) continue;
+      const rule = h.open[a]; if (!rule) continue;
+      const t = this.#descend(h, rule.to);
+      if (t) return { target: t, mode: rule.mode === 'tab' ? 'tab' : 'replace' };
+    }
+    return { target: pane, mode: 'replace' };
+  }
+  routeTargetId(id) { const p = this.#panes.get(id ?? this.#activeId); if (!p) return null; const r = this.#routeFrom(p); return r.target !== p ? r.target.id : null; }
+  // openFrom(id, path, name): a view in pane `id` wants `path` shown. Routed;
+  // tab mode selects a tab already on that exact moment, else makes one that
+  // carries `name` as its offered name; replace mode navigates the target.
+  openFrom(id, path, name) {
+    const p = this.#panes.get(id ?? this.#activeId); if (!p || path == null) return;
+    const { target, mode } = this.#routeFrom(p);
+    if (mode === 'tab') this.newTab(target.id, path, name); else this.navigate(target.id, path, name);
+    this.focusPane(target.id);
+  }
+  // closeFrom(id, path): a view in pane `id` says `path` is gone. Routed the
+  // same way; every tab in the target CURRENTLY on that exact moment steps
+  // off it (to the entry before, else after); a tab left with nothing closes.
+  // History elsewhere is untouched.
+  closeFrom(id, path) {
+    const p = this.#panes.get(id ?? this.#activeId); if (!p || path == null) return;
+    const { target } = this.#routeFrom(p);
+    this.closeMoment(target.id, path);
+  }
+  closeMoment(id, path) {
+    const p = this.#panes.get(id ?? this.#activeId); if (!p) return;
+    const at = (e) => !!e && ((e.div || e.pane) ? this.#entrySrc(e) === path : e.path === path);
+    let changed = false;
+    for (let i = p.tabs.length - 1; i >= 0; i--) {
+      const t = p.tabs[i], e = t.entries[t.cursor];
+      if (!at(e)) continue;
+      changed = true;
+      if (e.div) { this.#forgetPane(e.div.a); this.#forgetPane(e.div.b); } else if (e.pane) this.#forgetPane(e.pane);
+      t.entries.splice(t.cursor, 1);
+      if (!t.entries.length) {
+        this.#dropStash(p, t); p.tabs.splice(i, 1);
+        if (p.activeTab >= i && p.activeTab > 0) p.activeTab--;
+      } else { t.cursor = Math.max(0, t.cursor - 1); if (t.el) { this.#dropStash(p, t); } }
+    }
+    if (!changed) return;
+    if (!p.tabs.length) p.tabs.push({ entries: [], cursor: -1 });
+    if (p.activeTab >= p.tabs.length) p.activeTab = p.tabs.length - 1;
+    this.#renderPane(p); this.#reconcileCursor(); this.#afterStructure(); this.#persist();
+  }
   // push a division entry built from a layout spec. History stays — back/forward
   // steps in and out of it. `spec` is a serialized division (see serialize()).
   openLayout(id, spec) {
@@ -524,6 +648,8 @@ class PaneSplit extends HTMLElement {
     if (!entry) return;
     if (src) { if (entry.div) entry.div.src = src; else entry.src = src; }
     const tab = pane.tabs[pane.activeTab];
+    const was = tab.entries[tab.cursor];
+    if (was && was.name) entry.name = was.name;                    // the moment's offered name survives becoming a layout
     if (tab.cursor < 0) { tab.entries = [entry]; tab.cursor = 0; }
     else tab.entries[tab.cursor] = entry;
     this.#renderPane(pane); this.#afterStructure(); this.#persist();
@@ -535,51 +661,23 @@ class PaneSplit extends HTMLElement {
     if (spec.tabs) return { pane: this.#deserPane(spec, { host, slot: 'a' }), src: spec.src || null };
     return null;
   }
-  // where a pane's navigations go: openTo = { to, mode }. `to` is a RELATIVE
-  // structural address from the SOURCE pane — '..' climbs to the owner, 'a'/'b'
-  // descend through active divisions (like a filesystem path: '../b', '../../a/b').
-  // `mode` is 'tab' (new tab in the target) or 'replace' (in place, default).
-  // Resolved on demand against the CURRENT structure; the host decides WHEN to
-  // use it (e.g. files, not dirs).
-  #targetPane(source) {
-    const spec = source && source.openTo;
-    if (!spec || !spec.to) return null;
-    // '.' in tab mode is the pane itself: "open in a new tab here" (a chats
-    // list whose rows become tabs beside it); '.' in replace mode is no target
-    if (String(spec.to).trim() === '.') return spec.mode === 'tab' ? source : null;
-    const parts = String(spec.to).split('/').filter((s) => s.length && s !== '.');
-    let n = source, i = 0;
-    while (i < parts.length && parts[i] === '..') { n = this.#ownerOf(n); if (!n) return null; i++; }
-    for (; i < parts.length; i++) {
-      const slot = parts[i]; if (slot !== 'a' && slot !== 'b') return null;
-      const e = this.#curEntry(n); if (!e) return null;
-      if (e.pane) { if (slot !== 'a') return null; n = e.pane; continue; }   // a pane moment's single slot is a
-      if (!e.div) return null;
-      n = e.div[slot]; if (!n) return null;
-    }
-    return n !== source ? n : null;
-  }
-  targetId(id) { const t = this.#targetPane(this.#panes.get(id ?? this.#activeId)); return t && this.#panes.has(t.id) ? t.id : null; }
-  targetMode(id) { const p = this.#panes.get(id ?? this.#activeId); return (p && p.openTo && p.openTo.mode) || 'replace'; }
-  // ---- editing a target ----
-  // the relative address from source to target (inverse of #targetPane): climb
-  // source to their common ancestor, then descend to target.
-  #addrOf(source, target) {
-    if (!source || !target || source === target) return null;
-    const anc = new Set(); for (let t = target; t; t = this.#ownerOf(t)) anc.add(t);
-    let a = source, ups = 0;
-    while (a && !anc.has(a)) { a = this.#ownerOf(a); ups++; }
-    if (!a) return null;
-    const slots = []; for (let t = target; t && t !== a; t = this.#ownerOf(t)) slots.unshift(t.parent.slot);
-    return '../'.repeat(ups) + slots.join('/');
-  }
-  // arm "set target": the next pane click becomes this pane's target.
+  // ---- editing a route by hand ----
+  // The bar's target pick writes a rule into the WORKSPACE ROOT's table: the
+  // picked pane's origin address → the chosen pane's address, both within the
+  // root. (The inspector will edit any layout's table; the pick is the quick
+  // way.) A pick of the pane itself in replace mode removes its root rule.
+  #rootAddr(pane) { return this.#addrWithin(this.#root, pane); }
+  // the route a pane's moments take now, for the bar: null when in place
+  routeOf(id) { const p = this.#panes.get(id ?? this.#activeId); if (!p) return null; const r = this.#routeFrom(p); return (r.target === p && r.mode === 'replace') ? null : { to: this.#rootAddr(r.target), mode: r.mode }; }
   armTargetPick(id) { this.#armTarget = id ?? this.#activeId; this.classList.add('ps-arming'); this.focus(); this.#showAim(this.#armTarget); }
   #cancelTargetPick() { if (this.#armTarget == null) return; this.#armTarget = null; this.classList.remove('ps-arming'); this.#hideAim(); this.#flashHint(''); }
   setTargetTo(id, addr, mode) {
     const p = this.#panes.get(id ?? this.#activeId); if (!p) return;
+    const a = this.#rootAddr(p); if (a == null) return;
     addr = (addr || '').trim();
-    p.openTo = addr ? { to: addr, mode: mode || (p.openTo && p.openTo.mode) || 'replace' } : null;
+    const table = Object.assign({}, this.#root.open || {});
+    if (!addr || (addr === a && mode !== 'tab')) delete table[a]; else table[a] = { to: addr, mode: mode === 'tab' ? 'tab' : 'replace' };
+    this.#root.open = Object.keys(table).length ? table : null;
     this.#renderBar(p); this.#render(); this.#persist();
   }
   // picking a target rides the structural cursor: click a pane (or move with
@@ -588,7 +686,7 @@ class PaneSplit extends HTMLElement {
   // Enter confirms (⇧Enter: open there in a new tab), Esc cancels. The dashed
   // box marks the pane's current target meanwhile.
   #showAim(srcId) {
-    const src = this.#panes.get(srcId), cur = src && this.#targetPane(src);
+    const src = this.#panes.get(srcId), r = src && this.#routeFrom(src), cur = r && r.target !== src ? r.target : null;
     if (cur && this.#aimBox) this.#placeBox(this.#aimBox, cur); else this.#aimBox?.classList.remove('on');
     if (this.#selLevel < 2) this.#selLevel = 2;                     // containers must be selectable to be targets
     this.#aimUpdate();
@@ -596,15 +694,15 @@ class PaneSplit extends HTMLElement {
   #aimUpdate() {
     if (this.#armTarget == null) return;
     const src = this.#panes.get(this.#armTarget), c = this.cursor;
-    const addr = (src && c && c !== src) ? this.#addrOf(src, c) : null;
-    this.#flashHint((addr ? 'target → ' + addr : 'target → (pick a pane: click it, or move the cursor)') +
+    const addr = (src && c && c.kind === 'pane') ? this.#rootAddr(c) : null;
+    this.#flashHint((addr != null ? (this.#rootAddr(src) || '.') + ' → ' + (addr || '.') : 'target → (pick a pane: click it, or move the cursor)') +
       '   ·   Enter: set · ⇧Enter: set, open in new tab · [ parent · ] child · Esc: cancel');
   }
   #confirmPick(mode) {
     const src = this.#armTarget, s = this.#panes.get(src), c = this.cursor;
     this.#cancelTargetPick();
-    if (!s || !c || c === s) return;
-    this.setTargetTo(src, this.#addrOf(s, c), mode);
+    if (!s || !c || c.kind !== 'pane') return;
+    this.setTargetTo(src, this.#rootAddr(c), mode);
     const hb = this.#hoverBox; if (hb) { this.#placeBox(hb, c); hb.classList.add('flash'); setTimeout(() => { hb.classList.remove('on', 'flash'); }, 500); }
     this.cursorTo(s);
   }
@@ -632,9 +730,9 @@ class PaneSplit extends HTMLElement {
   }
   back(id) { const p = this.#panes.get(id ?? this.#activeId); if (!this.#canBack(p)) return; p.tabs[p.activeTab].cursor--; this.#renderPane(p); this.#afterStructure(); this.#persist(); }
   forward(id) { const p = this.#panes.get(id ?? this.#activeId); if (!this.#canFwd(p)) return; p.tabs[p.activeTab].cursor++; this.#renderPane(p); this.#afterStructure(); this.#persist(); }
-  // newTab(id, path, label): `label` names the tab at creation (the user
-  // opened something with a name); it is the same field a hand rename sets.
-  newTab(id, path, label) {
+  // newTab(id, path, name): `name` is the moment's offered name (content's
+  // description, kept on the entry); the tab's own name stays the user's.
+  newTab(id, path, name) {
     const p = this.#panes.get(id ?? this.#activeId); if (!p) return;
     // a tab already showing this exact moment (path with its args, as its
     // CURRENT entry; a layout entry by the path that opened it) is selected
@@ -645,10 +743,11 @@ class PaneSplit extends HTMLElement {
     }
     const cur = p.tabs[p.activeTab];
     // a sole empty tab is filled rather than joined by a second
-    if (path != null && p.tabs.length === 1 && cur && cur.cursor < 0) { cur.entries = [{ path }]; cur.cursor = 0; if (label) cur.label = label; this.#renderPane(p); this.#afterStructure(); this.#persist(); return; }
+    const entry = name ? { path, name } : { path };
+    if (path != null && p.tabs.length === 1 && cur && cur.cursor < 0) { cur.entries = [entry]; cur.cursor = 0; this.#renderPane(p); this.#afterStructure(); this.#persist(); return; }
     const body = p.body.firstChild;
     if (body && body.tagName !== 'SPLIT-VIEW' && !body.classList.contains('ps-pane')) { cur.el = body; body.remove(); }   // the leaving tab keeps its content
-    p.tabs.push({ entries: path != null ? [{ path }] : [], cursor: path != null ? 0 : -1, label: label || null });
+    p.tabs.push({ entries: path != null ? [entry] : [], cursor: path != null ? 0 : -1, label: null });
     p.activeTab = p.tabs.length - 1;
     this.#renderPane(p); this.#afterStructure(); this.#persist();
   }
@@ -848,6 +947,7 @@ class PaneSplit extends HTMLElement {
   // backrefs stay correct after history/tab moves, and lay out split-views.
   #reconnectDivs() {
     const walk = (pane) => {
+      if (pane.cold) { pane.cold = false; this.#renderPane(pane); }   // first time visible: render now
       const e = this.#curEntry(pane);
       if (e && e.div) {
         const div = e.div;
@@ -1158,12 +1258,13 @@ class PaneSplit extends HTMLElement {
   serialize() { return this.#serPane(this.#root); }
   #serPane(pane) {
     if (!pane) return null;
-    return { tabs: pane.tabs.map(t => ({ entries: t.entries.map(e => this.#serEntry(e)), cursor: t.cursor, label: t.label || undefined })), activeTab: pane.activeTab, bar: pane.showBar || undefined, nav: pane.nav === false ? false : undefined, openTo: pane.openTo || undefined, view: pane.view || undefined };
+    return { tabs: pane.tabs.map(t => ({ entries: t.entries.map(e => this.#serEntry(e)), cursor: t.cursor, label: t.label || undefined })), activeTab: pane.activeTab, bar: pane.showBar || undefined, nav: pane.nav === false ? false : undefined, open: pane.open || undefined, view: pane.view || undefined };
   }
   #serEntry(e) {
-    if (e.div) return { div: { dir: e.div.dir, ratio: e.div.ratio, fold: e.div.fold || undefined, src: e.div.src || undefined, a: this.#serPane(e.div.a), b: this.#serPane(e.div.b) } };
-    if (e.pane) return { pane: Object.assign(this.#serPane(e.pane), { src: e.src || undefined }) };
-    return { path: e.path };
+    const name = e.name || undefined;
+    if (e.div) return { name, div: { dir: e.div.dir, ratio: e.div.ratio, fold: e.div.fold || undefined, src: e.div.src || undefined, open: e.div.open || undefined, a: this.#serPane(e.div.a), b: this.#serPane(e.div.b) } };
+    if (e.pane) return { name, pane: Object.assign(this.#serPane(e.pane), { src: e.src || undefined }) };
+    return name ? { path: e.path, name } : { path: e.path };
   }
   restore(spec) {
     if (this.#root) { this.#eachPaneDeep(this.#root, p => this.#forgetPane(p), true); if (this.#hoisted) this.#hoisted.dom.remove(); this.#root.dom?.remove(); }
@@ -1181,7 +1282,7 @@ class PaneSplit extends HTMLElement {
     const s = spec.div;
     const sv = document.createElement('split-view');
     sv.setAttribute('orientation', s.dir || 'horizontal'); sv.setAttribute('min', '40');
-    const div = { dir: s.dir || 'horizontal', ratio: typeof s.ratio === 'number' ? s.ratio : 0.5, fold: s.fold || null, src: s.src || null, a: null, b: null, sv, owner: hostPane || null };
+    const div = { dir: s.dir || 'horizontal', ratio: typeof s.ratio === 'number' ? s.ratio : 0.5, fold: s.fold || null, src: s.src || null, open: (s.open && typeof s.open === 'object') ? s.open : null, a: null, b: null, sv, owner: hostPane || null };
     sv.__psdiv = div;
     div.a = this.#deserPane(s.a, { div, slot: 'a' });
     div.b = this.#deserPane(s.b, { div, slot: 'b' });
@@ -1192,20 +1293,35 @@ class PaneSplit extends HTMLElement {
     pane.parent = parent;
     if (!spec) return pane;
     pane.tabs = (spec.tabs || [{ entries: [], cursor: -1 }]).map(t => ({
-      entries: (t.entries || []).map(e => e.div ? { div: this.#buildDiv(e, pane) } : e.pane ? { pane: this.#deserPane(e.pane, { host: pane, slot: 'a' }), src: e.pane.src || null } : { path: e.path }),
+      entries: (t.entries || []).map(e => {
+        const name = (typeof e.name === 'string' && e.name) ? e.name : null;
+        const out = e.div ? { div: this.#buildDiv(e, pane) } : e.pane ? { pane: this.#deserPane(e.pane, { host: pane, slot: 'a' }), src: e.pane.src || null } : { path: e.path };
+        if (name) out.name = name;
+        return out;
+      }),
       cursor: typeof t.cursor === 'number' ? t.cursor : (t.entries && t.entries.length ? 0 : -1),
       label: (typeof t.label === 'string' && t.label) || null,
     }));
     pane.activeTab = typeof spec.activeTab === 'number' ? spec.activeTab : 0;
-    pane.openTo = spec.openTo || null;
+    pane.open = (spec.open && typeof spec.open === 'object') ? spec.open : null;   // this pane as a layout root: its routing table
     pane.view = spec.view || null;
     if (spec.nav === false) { pane.nav = false; pane.dom.classList.add('ps-nav-off'); }
     // bind division owners for every entry (not just the active one)
     pane.tabs.forEach(t => t.entries.forEach(e => { if (e.div) e.div.owner = pane; }));
     if (spec.bar) { pane.showBar = true; pane.dom.classList.add('ps-bar-on'); }
-    this.#renderPane(pane);
+    // COLD: the structure is built, the content is not. A pane renders the
+    // first time it is reachable through active entries (#reconnectDivs
+    // walks exactly that path after every structural change), so a tab
+    // nobody has selected, or a layout deep in some history, costs no
+    // requests until it is looked at.
+    pane.cold = true;
     return pane;
   }
+  // TODO(perf): history is unbounded, and every layout a tab ever walked
+  // through stays in it as a full pane tree (a real workspace reached 87
+  // structural panes for 4 visible). Cold building makes that free at load,
+  // but it is still built and serialized on every change. Cap history per
+  // tab, or drop layout entries past N steps back.
   #saveKey() { const a = this.getAttribute('persist'); return a ? 'pane-split:' + a : null; }
   #persist() { const k = this.#saveKey(); if (!k) return; clearTimeout(this.#saveTimer); this.#saveTimer = setTimeout(() => { try { localStorage.setItem(k, JSON.stringify(this.serialize())); } catch (_) {} }, 150); }
 
