@@ -760,9 +760,18 @@
   ;<  ~  bind:m  (write-repo-file rd1 [[/ %mime] [/application/octet-stream pack-data]])
   ;<  rd2=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /data/packs idx-name])
   ;<  ~  bind:m  (write-repo-file rd2 [[/ %mime] [/text/plain idx-octs]])
+  ::  a pull never overwrites a dirty tree: HEAD and the checked-out
+  ::  branch hold still, and only origin moves under it
+  ;<  clean=?  bind:m  working-tree-clean
   ;<  rd4=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /data %'HEAD'])
-  ;<  ~  bind:m  (write-repo-file rd4 [[/ %mime] [/text/plain head-octs]])
-  ::  write individual ref files — both local and remote tracking
+  ;<  ~  bind:m
+    =/  m  (fiber:fiber:nexus ,~)
+    ?.  clean  (pure:m ~)
+    (write-repo-file rd4 [[/ %mime] [/text/plain head-octs]])
+  ::  origin/<name> always takes the advertised head. The local branch
+  ::  follows only when it has nothing of its own: it is new, or still
+  ::  where origin was at the last fetch. A branch with local commits
+  ::  keeps them, where writing the remote head over it dropped them.
   |-
   ?~  branch-refs  (pure:m ~)
   =/  hash-text=tape  (print-hash-sha-1:git-transport hash.i.branch-refs)
@@ -770,11 +779,27 @@
   =/  bname=@ta  (crip (trip name.i.branch-refs))
   ;<  head-rd=road:tarball  bind:m
     (ancestor-road:io [/git %repo] [%& /data/refs/heads bname])
-  ;<  ~  bind:m  (write-repo-file head-rd [[/ %mime] [/text/plain hash-octs]])
   ;<  remote-rd=road:tarball  bind:m
     (ancestor-road:io [/git %repo] [%& /data/refs/remotes/origin bname])
+  ;<  local=@t  bind:m  (ref-text head-rd)
+  ;<  was=@t  bind:m  (ref-text remote-rd)
+  ;<  ~  bind:m
+    =/  m  (fiber:fiber:nexus ,~)
+    ?.  |(=('' local) =(local was))  (pure:m ~)
+    ?:  &(!clean =(bname ref-name))  (pure:m ~)
+    (write-repo-file head-rd [[/ %mime] [/text/plain hash-octs]])
   ;<  ~  bind:m  (write-repo-file remote-rd [[/ %mime] [/text/plain hash-octs]])
   $(branch-refs t.branch-refs)
+::  +ref-text: the text of a ref file, '' when there is none
+::
+++  ref-text
+  |=  rd=road:tarball
+  =/  m  (fiber:fiber:nexus ,@t)
+  ^-  form:m
+  ;<  =view:nexus  bind:m  (peek:io rd `[/ %mime])
+  ?.  ?=([%file *] view)  (pure:m '')
+  =/  mim=mime  !<(mime (need-vase:tarball sang.view))
+  (pure:m (crip (trip q.q.mim)))
 ::
 ::  +write-head: update HEAD in repo sub-nexus
 ::
