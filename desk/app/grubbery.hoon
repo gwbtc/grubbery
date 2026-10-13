@@ -7438,9 +7438,25 @@
   |=  [sender=rail:tarball =wire vaz=vase]
   ^+  this
   =/  act=eyre-action:nexus  !<(eyre-action:nexus vaz)
+  ::  a route belongs to the grub that bound it. Anyone who may poke
+  ::  /sys/eyre could otherwise take over another app's route, unbind
+  ::  it, or answer its requests. A handler owns the grubs under its
+  ::  own directory too: its per-request grubs live there and send.
+  =/  owns
+    |=  handler=rail:tarball
+    (is-prefix path.handler path.sender)
+  ::  a binding held by a handler that no longer exists may be taken
+  ::  over, so an app that moved or was deleted cannot pin its route
+  =/  may-bind
+    |=  =binding:eyre
+    =/  cur=(unit rail:tarball)  (~(get by bindings:get-server-state) binding)
+    ?|  ?=(~ cur)
+        =(sender u.cur)
+        ?=(~ (peek-grub-now u.cur))
+    ==
   ::  the server-state grub is read per branch, not up front. %send
-  ::  fires on every header, body chunk and kick, and it needs nothing
-  ::  from the grub.
+  ::  fires on every header, body chunk and kick, and it needs the
+  ::  grub only to find the handler of a bound connection.
   ?-    -.act
       %bind
     ::  NB: avoid dots in binding paths. Eyre parses a dotted final
@@ -7448,6 +7464,10 @@
     ::  bindings against the STRIPPED path, so a binding ending in
     ::  a dotted segment never matches a slash-less URL (it falls
     ::  through to docket's catch-all). Bind dot-free paths.
+    ::  the handler is the sender: +bind-http names its own rail
+    ?.  &(=(sender handler.act) (may-bind binding.act))
+      ~&  >>  [%eyre-bind-refused sender path.binding.act]
+      this
     =/  st=server-state:nexus  get-server-state
     =.  bindings.st  (~(put by bindings.st) binding.act handler.act)
     =.  this  (save-server-state st)
@@ -7457,12 +7477,20 @@
     ::  bind requests to the SENDER — the kernel already knows who poked,
     ::  so the caller needn't walk to root (get-here-abs) to self-report a
     ::  handler rail. This is the common case: a nexus serving its own UI.
+    ?.  (may-bind binding.act)
+      ~&  >>  [%eyre-bind-refused sender path.binding.act]
+      this
     =/  st=server-state:nexus  get-server-state
     =.  bindings.st  (~(put by bindings.st) binding.act sender)
     =.  this  (save-server-state st)
     (emit-card [%pass /eyre-bind %arvo %e %connect binding.act dap.bowl])
   ::
       %unbind
+    =/  cur=(unit rail:tarball)
+      (~(get by bindings:get-server-state) binding.act)
+    ?:  &(?=(^ cur) !(owns u.cur))
+      ~&  >>  [%eyre-unbind-refused sender path.binding.act]
+      this
     =/  orphans=(list @ta)
       %+  murn  ~(tap by conns)
       |=  [eid=@ta =binding:eyre]
@@ -7485,6 +7513,21 @@
     (save-server-state st)
   ::
       %send
+    ::  only the handler of a bound connection answers it. A /grubbery/api
+    ::  request is no bound connection: its own request grub answers. A
+    ::  send on no connection at all is quietly dropped: a cancel can
+    ::  land before a request fiber's last send, and Eyre has no one to
+    ::  give it to anyway.
+    =/  bid=(unit binding:eyre)  (~(get by conns) eyre-id.act)
+    ?~  bid
+      ?.  =(sender [/sys/eyre/requests eyre-id.act])
+        ~?  >>  dbg  [%eyre-send-no-conn sender eyre-id.act]
+        this
+      (emit-cards (eyre-response-cards eyre-id.act eyre-update.act))
+    =/  hand=(unit rail:tarball)  (~(get by bindings:get-server-state) u.bid)
+    ?.  &(?=(^ hand) (owns u.hand))
+      ~&  >>  [%eyre-send-refused sender eyre-id.act]
+      this
     =/  crds=(list card)
       (eyre-response-cards eyre-id.act eyre-update.act)
     ::  %kick and %simple end the connection, so forget it. %header and
