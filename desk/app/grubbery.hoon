@@ -6649,12 +6649,20 @@
 ++  route-http
   |=  [eyre-id=@ta req=inbound-request:eyre]
   ^+  this
+  ::  every owner check downstream asks src == our. Eyre on our kelvins
+  ::  already sends a guest identity for a request with no session, but
+  ::  an older or forked Eyre sends our own ship for every request. So
+  ::  an unauthenticated request never reaches a handler as our: it
+  ::  goes on as a fresh comet-sized guest, as Eyre's own guests do.
+  =/  who=@p
+    ?.  &(=(src.bowl our.bowl) !authenticated.req)  src.bowl
+    (end 7 (shas %grubbery-guest eny.bowl))
   =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
   ?+    site
-    (forward-http eyre-id req site)
+    (forward-http eyre-id who req site)
     ::
       [%grubbery %push *]
-    (handle-push-http eyre-id src.bowl req t.t.site args)
+    (handle-push-http eyre-id who req t.t.site args)
     ::
       [%grubbery %api *]
     ::  ARCHITECTURAL RULE: a request enters the namespace (materializes
@@ -6666,11 +6674,11 @@
     ::  make+cull cascade, no permanent event-log record per read.
     ::
     =/  handled=(unit (list card:agent:gall))
-      (serve-api-read-sync eyre-id src.bowl req)
+      (serve-api-read-sync eyre-id who req)
     ?^  handled
       (emit-cards u.handled)
     ::  needs a fiber: materialize the request grub as before
-    (make /sys/eyre [%& /sys/eyre/requests eyre-id] %.n %.n [%| [[/ %http-request] [src.bowl req]] ~])
+    (make /sys/eyre [%& /sys/eyre/requests eyre-id] %.n %.n [%| [[/ %http-request] [who req]] ~])
   ==
 ::  +serve-api-read-sync: answer a /grubbery/api request inline when it
 ::  is a pure read of current state. Returns [~ cards] when handled (the
@@ -6789,7 +6797,7 @@
 ::  bound handler, recording the connection; 404 if nothing matches.
 ::
 ++  forward-http
-  |=  [eyre-id=@ta req=inbound-request:eyre site=path]
+  |=  [eyre-id=@ta who=@p req=inbound-request:eyre site=path]
   ^+  this
   =/  match=(unit [=binding:eyre handler=rail:tarball])
     (find-eyre-binding bindings:get-server-state site)
@@ -6802,7 +6810,7 @@
   ::  recording the connection is agent state only. this runs on every
   ::  inbound request, so it must never reach save-server-state.
   =.  conns  (~(put by conns) eyre-id binding.u.match)
-  (poke ~ handler.u.match [[/ %handle-http-request] [eyre-id src.bowl req]])
+  (poke ~ handler.u.match [[/ %handle-http-request] [eyre-id who req]])
 ::
 ++  find-eyre-binding
   |=  [bindings=(map binding:eyre rail:tarball) site=path]
