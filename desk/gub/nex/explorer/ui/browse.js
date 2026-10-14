@@ -950,14 +950,17 @@ function setup(root, opts) {
   // kills it, `new` revives it. A dir moment keeps nothing extra: its listing
   // already follows the dir, and a refresh that finds it gone renders dead.
   const psDead = new Set();
-  function psMarkDead(ps, el, ns) {
+  // `why` is what the block says: 'deleted' when the stream saw it go (a
+  // del event), 'does not exist' when it was simply never there (a 404 on
+  // the first look, a layout naming a dir nothing has made yet)
+  function psMarkDead(ps, el, ns, why) {
     const key = ns.replace(/\/$/, '');
     if (el._dead) return;
     el._dead = true;
     try { if (el._live) el._live(); } catch (_) {} el._live = null;
     try { if (el._fv && el._fv.destroy) el._fv.destroy(); } catch (_) {} el._fv = null;
     el._menu = null; el._dirUrl = null;
-    psWaitFail(el, 'deleted', key);
+    psWaitFail(el, why || 'does not exist', key);
     psDead.add(key);
     ps.redrawBars();
   }
@@ -968,7 +971,7 @@ function setup(root, opts) {
     const key = ns.replace(/\/$/, '');
     const idOf = () => { const p = el.closest('.ps-pane'); return p ? p.dataset.paneId : paneId; };
     return live([{ road: abs.replace(/\/$/, '') }], (ev) => {
-      if (ev.kind === 'del') psMarkDead(ps, el, ns);
+      if (ev.kind === 'del') psMarkDead(ps, el, ns, 'deleted');
       else if (el._dead) { psDead.delete(key); ps.redrawBars(); ps.refresh(idOf()); }
     }, null);
   }
@@ -1464,11 +1467,20 @@ function setup(root, opts) {
       if (viewer && !viewer.blocked && viewer.mount) { el._fv = viewer.mount(el, { url, onNavigate: onNav, open: vopen, close: vclose, query: psArgs(path) }); paneLive(ps, paneId, el, viewer.follow); psLanded(ps, paneId, el); return; }
       const t = document.createElement(want === 'grid' ? 'file-grid' : 'file-table');
       t.style.height = '100%';
+      // ?scope: this listing is the top of what the pane may show. A layout
+      // names a dir as `./files?scope=1` and the listing has no `../`;
+      // links to child dirs carry `?scope=<that top>` so a descent stays
+      // fenced: `../` climbs back up to the top and no further. The scope
+      // is a moment arg, so it is how the dir is looked at, not where it is
+      const scopeArg = psArgs(path).scope;
+      const scope = scopeArg === '1' ? ns.replace(/\/$/, '') : (scopeArg || null);
+      const atTop = scope != null && ns.replace(/\/$/, '') === scope;
+      const scoped = (p) => scope != null ? p + '?scope=' + encodeURIComponent(scope) : p;
       const up = psUp(ns, abs);
       if (want === 'grid') t.baseHref = ns.replace(/\/$/, '');
       else {
-        if (ns !== '/') t.parentHref = up || '/';                      // ../ row → up in place; top-level dirs go to root
-          t.columns = ft.columns.map((c) => c.key === 'name' ? Object.assign({}, c, { link: (item) => ns.replace(/\/$/, '') + '/' + item.name })
+        if (ns !== '/' && !atTop) t.parentHref = scoped(up || '/');     // ../ row → up in place; top-level dirs go to root; none at a scope's top
+          t.columns = ft.columns.map((c) => c.key === 'name' ? Object.assign({}, c, { link: (item) => { const h = ns.replace(/\/$/, '') + '/' + item.name; return item.kind === 'dir' ? scoped(h) : h; } })
           // the weir tag opens that dir's weir view where links open
           : c.key === 'weir' ? Object.assign({}, c, { decorate: (cell, item) => { if (item.kind !== 'dir') return; cell.style.cursor = 'pointer'; cell.style.color = item.weir ? '#9a6700' : '#1a7f37'; cell.title = "this directory's weir"; cell.addEventListener('click', (e) => { e.stopPropagation(); route(ns.replace(/\/$/, '') + '/' + item.name + '?view=weir', 'dir', null); }); } })
           : c);
@@ -1484,7 +1496,7 @@ function setup(root, opts) {
       // constantly, and a listing that rebuilt itself on each move could not
       // be clicked. Refreshes coalesce to at most one every 500ms.
       let timer = null;
-      const refreshRows = () => fetch(url + '?list=1', { cache: 'no-store' }).then((r) => { if (r.status === 404) { psMarkDead(ps, el, ns); return null; } return r.ok ? r.json() : null; }).then((nd) => {
+      const refreshRows = () => fetch(url + '?list=1', { cache: 'no-store' }).then((r) => { if (r.status === 404) { psMarkDead(ps, el, ns, 'deleted'); return null; } return r.ok ? r.json() : null; }).then((nd) => {
         if (!nd || !Array.isArray(nd.children) || !el.isConnected) return;
         nd.children.forEach((c) => { c.__dir = url; });
         t.items = nd.children;

@@ -76,6 +76,7 @@ const CSS = `
      tab chips, nothing else); the quickbar still brings the structure icons on hover */
   .ps-pane.ps-nav-off > .ps-bar > .ps-bar-row:nth-child(2) { display:none; }
   .ps-pane.ps-nav-off > .ps-bar > .ps-bar-row:first-child > .ps-bar-btn:not(.ps-bar-menu) { display:none; }
+  .ps-pane.ps-nav-off > .ps-bar .ps-tab-x { display:none; }   /* tabs only: no close glyph to hit by accident */
   .ps-bar-row { display:flex; align-items:center; gap:2px; min-width:0; }
   /* one fixed height for every bar control (buttons, tab chips, the quickbar's) so the bar's
      first row and the quickbar come out the same height by construction, not by font math */
@@ -288,6 +289,9 @@ class PaneSplit extends HTMLElement {
       btn('×', 'close pane', () => this.closeLeaf(id)));
     // row 2 — history + navbar
     const row2 = document.createElement('div'); row2.className = 'ps-bar-row';
+    // refresh: re-render the current moment in place (what it shows is
+    // refetched; history, tabs and scroll stay)
+    const reload = btn('↻', 'refresh this moment', () => this.refresh(id));
     const back = document.createElement('button'); back.className = 'ps-bar-btn'; back.textContent = '◀'; back.title = 'back (hold for history)';
     const fwd = document.createElement('button'); fwd.className = 'ps-bar-btn'; fwd.textContent = '▶'; fwd.title = 'forward (hold for history)';
     this.#wireHold(back, id, () => this.back(id), 'back');     // click = step, hold = history dropdown
@@ -304,7 +308,7 @@ class PaneSplit extends HTMLElement {
     nav.appendChild(input);
     // where links from this pane land is the layout's routing table (its
     // `open` rules), edited in the layout file: nothing on the bar sets it
-    row2.append(back, fwd, nav);
+    row2.append(back, fwd, reload, nav);
     bar.append(row1, row2);
     bar._back = back; bar._fwd = fwd; bar._tabs = tabs; bar._nav = input; bar._view = viewBtn;
     return bar;
@@ -598,6 +602,10 @@ class PaneSplit extends HTMLElement {
     const p = this.#panes.get(id ?? this.#activeId); if (!p || path == null) return;
     const { target, mode } = this.#routeFrom(p);
     if (mode === 'tab') this.newTab(target.id, path, name); else this.navigate(target.id, path, name);
+    // open means VISIBLE: a target in a folded slot (a collapsed sidebar,
+    // a folded chat pane) is unfolded, all the way up. Structure only —
+    // the zoom is the user's viewport and is left where it is
+    this.#unfold(target);
     // an open selects what it opened: the first LEAF under the target (a
     // tab already holding a layout is a container; its chat is inside),
     // and the keyboard goes to that content — now if it is there, else
@@ -979,6 +987,16 @@ class PaneSplit extends HTMLElement {
   // the pane one level up: the owner of the division this pane sits in, or
   // the host whose tab holds this pane (a pane moment)
   #ownerOf(pane) { const par = pane && pane.parent; return par ? (par.div ? par.div.owner : par.host) : null; }
+  // clear every fold that hides `pane`, from it up to the root
+  #unfold(pane) {
+    let n = pane, changed = false;
+    while (n && n.parent) {
+      const par = n.parent;
+      if (par.div && par.div.fold === par.slot) { par.div.fold = null; this.#applyDivLayout(par.div); changed = true; }
+      n = this.#ownerOf(n);
+    }
+    if (changed) { this.#afterStructure(); this.#persist(); }
+  }
   climb() { const o = this.#ownerOf(this.cursor); if (o) this.cursorTo(o); }
   // select the parent container (the division that owns this pane) and show the
   // purple container box around it.
