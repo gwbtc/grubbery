@@ -1,8 +1,9 @@
 ::  shell nexus: the home surface. Composes services — the launcher grid
-::  (from the tiles store) and the notifications bell — over HTTP, and
-::  owns the cross-ship discovery state: public.json, the derived
-::  directory of this ship's shared desks, and /peers/, live mirrors
-::  of other ships' directories.
+::  (from the tiles store) and the notifications bell — over HTTP, holds
+::  the notifications inbox itself (/notifications, lib/shell/notifications), and owns
+::  the cross-ship discovery state: public.json, the derived directory
+::  of this ship's shared desks, and /peers/, live mirrors of other
+::  ships' directories.
 ::
 ::  Terminology — the shell/kernel distinction. The "shell" is the
 ::  userspace permission MANAGER: it reads apps' declared link.json /
@@ -12,13 +13,25 @@
 ::  permits registry below lives entirely on the deciding side; the
 ::  stopping is the kernel's job. Manager vs enforcer, shell vs kernel.
 ::
+::  the pages, under shell/ui: the home page and its script and style,
+::  the permissions page, the peers panes, and the notifications inbox
 /<  feather-icons  /lib/feather-icons.hoon
-/<  app-js         shell/app.js
-/<  app-css        shell/style.css
-/<  permits-html   shell/permits.html
-/<  home-html      shell/home.html
+/<  app-js         shell/ui/app.js
+/<  app-css        shell/ui/style.css
+/<  permits-html   shell/ui/permits.html
+/<  home-html      shell/ui/home.html
 ::  peers: the usergroups panes of the explorer mounted on /sys/ames
-/&  peers-js       shell/peers.js
+/&  peers-js       shell/ui/peers.js
+::  notifications: the service (lib/shell/notifications), its page at
+::  /grubbery/inbox, and its tools nexus (push_notify)
+/<  notifications  /lib/shell/notifications.hoon
+/<  nib            /lib/inbox.hoon
+/<  nex-tools      /lib/tools.hoon
+/&  notif-bundle   /lib/notifications-bundle/
+/&  notif-icon     shell/ui/notifications/icon.svg
+/&  notif-html     shell/ui/notifications/index.html
+/&  notif-js       shell/ui/notifications/app.js
+/&  notif-css      shell/ui/notifications/style.css
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -26,7 +39,22 @@
       ^-  bole:tarball
       %+  spin:loader  ball
       :~  (manifest:loader 0)
-          [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
+          ::  /ui: everything served over HTTP. http.sig binds the routes and
+          ::  spawns a request grub per hit under /ui/requests; the pages and
+          ::  their assets sit beside it, the notifications page in its own
+          ::  subdirectory.
+          [%fall %| /ui empty-dir:loader]
+          [%fall %& [/ui %'http.sig'] [[/ %sig] ~]]
+          [%fall %| /ui/requests empty-dir:loader]
+          [%over %& [/ui %'app.js'] [[/ %mime] app-js]]
+          [%over %& [/ui %'style.css'] [[/ %mime] app-css]]
+          [%over %& [/ui %'permits.html'] [[/ %mime] permits-html]]
+          [%over %& [/ui %'peers.js'] [[/ %mime] peers-js]]
+          [%fall %| /ui/notifications empty-dir:loader]
+          [%over %& [/ui/notifications %'index.html'] [[/ %mime] notif-html]]
+          [%over %& [/ui/notifications %'app.js'] [[/ %mime] notif-js]]
+          [%over %& [/ui/notifications %'style.css'] [[/ %mime] notif-css]]
+          [%over %& [/ui/notifications %'icon.svg'] [[/ %mime] notif-icon]]
           ::  usergroups.sig: the shell's ONE registry liaison. Registrant
           ::  prefixes nest-clobber (%how replaces every road under the
           ::  sender's prefix), so exactly one root-prefix fiber makes all
@@ -89,11 +117,6 @@
           ::  version live. Rebuilt from the live grants by the followers.
           [%fall %| /share empty-dir:loader]
           [%fall %| /peers empty-dir:loader]
-          [%fall %| /requests empty-dir:loader]
-          [%over %& [/ %'app.js'] [[/ %mime] app-js]]
-          [%over %& [/ %'style.css'] [[/ %mime] app-css]]
-          [%over %& [/ %'permits.html'] [[/ %mime] permits-html]]
-          [%over %& [/ %'peers.js'] [[/ %mime] peers-js]]
           ::  local tiles: the home page's own launcher entries, one subdir
           ::  /tiles/<name>/ holding tile.json (apps declare theirs in their
           ::  own root's tile.json). %fall: seeded once with Landscape, then
@@ -106,6 +129,16 @@
           ::  replaces the old hardcoded hidden set (any tile can be hidden or
           ::  shown now); seeded empty.
           [%fall %& [/ %'hidden-tiles.json'] [[/ %json] [%a ~]]]
+          ::  /notifications: the service (see lib/shell/notifications).
+          ::  /sys/link/notifications points here, so senders poke
+          ::  @notifications/main.sig and land on notifications/main.sig.
+          ::  The registry and the inbox are user data; the page (under
+          ::  /ui/notifications) is chrome, the home page's bell, not a tile.
+          [%fall %| /notifications empty-dir:loader]
+          [%fall %& [/notifications %'main.sig'] [[/ %sig] ~]]
+          [%fall %& [/notifications %'registry.json'] [[/ %json] [%o ~]]]
+          [%fall %& [/notifications %'inbox.inbox'] [[/ %inbox] *inbox:nib]]
+          [%over %| /notifications/tools (seed-tools:nex-tools notif-bundle)]
       ==
     ::
     ++  on-file
@@ -115,11 +148,21 @@
       =/  m  (fiber:fiber:nexus ,~)
       ^-  process:fiber:nexus
       ?+    rail  stay:m
-          [~ %'main.sig']
-        ;<  ~  bind:m  (rise-wait:io prod "%shell main: failed")
+          ::  ui/http.sig: every route the shell serves. The home page and
+          ::  its API, the permissions page and its API, the peers panes,
+          ::  and the notifications inbox page.
+          [[%ui ~] %'http.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%shell http: failed")
         ;<  ~  bind:m  (bind-http:io [~ /apps/grubbery])
         ;<  ~  bind:m  (bind-http:io [~ /grubbery/tiles])
+        ;<  ~  bind:m  (bind-http:io [~ /grubbery/inbox])
         (http-dispatch:io %shell)
+          ::  notifications/main.sig: the bus's poke loop (register, notify,
+          ::  ack, clear); lib/shell/notifications does the work
+          ::
+          [[%notifications ~] %'main.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%shell notifications: failed")
+        serve:notifications
           ::  usergroups.sig: register once, then hold every shell grant
           ::  current — the base /public grant on public.json plus the
           ::  per-group /sys/link shares from permit/share.json — and keep
@@ -313,7 +356,7 @@
         ;<  ~  bind:m  (refresh-mirror s)
         $
           ::
-          [[%requests ~] @]
+          [[%ui %requests ~] @]
         ;<  ~  bind:m  (rise-wait:io prod "%shell request: failed")
         =/  eyre-id=@ta  name.rail
         ;<  [src=@p req=inbound-request:eyre]  bind:m  (get-state-as:io ,[src=@p inbound-request:eyre])
@@ -323,6 +366,9 @@
           (pure:m ~)
         =/  prefix=path  /grubbery/tiles
         =/  site=path  site:(parse-url:http-utils url.request.req)
+        ::  /grubbery/inbox[/<file>] → the notifications page
+        ?:  ?=([%grubbery %inbox *] site)
+          (serve-page:notifications rail)
         =/  suffix=path  (slag (lent prefix) site)
         ::  POST /apps/grubbery/peers/{create,members,permissions}: the three
         ::  writes the peers panes need. Reads are the explorer's; these are
@@ -571,7 +617,7 @@
           =/  fname=@ta  ?>(?=([@ ~] suffix) i.suffix)
           =/  ctype=@t   ?:(?=([%'app.js' ~] suffix) 'text/javascript' 'text/css')
           ;<  fv=view:nexus  bind:m
-            (peek:io (nex-road:io rail [%& ~ fname]) `[/ %mime])
+            (peek:io (nex-road:io rail [%& /ui fname]) `[/ %mime])
           ?.  ?=([%file *] fv)
             ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
             (pure:m ~)
@@ -588,7 +634,7 @@
           ::  finishes. So the page itself asks for that work, in the background,
           ::  once it has rendered - see POST /permits/refresh below.
           ;<  fv=view:nexus  bind:m
-            (peek:io (nex-road:io rail [%& ~ %'permits.html']) `[/ %mime])
+            (peek:io (nex-road:io rail [%& /ui %'permits.html']) `[/ %mime])
           ?.  ?=([%file *] fv)
             ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
             (pure:m ~)
@@ -738,7 +784,7 @@
 ::  helper core, where the nexus core above can see it.
 ::
 ++  dbg  ^-(? |)
-++  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])
+++  srv  ~(. http-res:io [%| 1 %& ~ %'http.sig'])
 ::  === peers: usergroups + ships as the explorer mounted on /sys/ames ===
 ::  The page is the explorer's browse page with one declaration injected:
 ::  route /apps/grubbery/peers, root /sys/ames, and a viewer endpoint.

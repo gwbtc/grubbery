@@ -81,7 +81,6 @@
         [%fall %| /apps/'shell.shell' [`[`[/ %shell] ~ %.n ~] ~]]
         [%fall %| /apps/'explorer.explorer' [`[`[/ %explorer] ~ %.n ~] ~]]
         [%fall %| /apps/'mcp.mcp' [`[`[/ %mcp] ~ %.n ~] ~]]
-        [%fall %| /apps/'notifications.notifications' [`[`[/ %notifications] ~ %.n ~] ~]]
         ::
         ::  forge: the UI over git repo instances, housing them at
         ::  /repos inside itself.
@@ -101,8 +100,11 @@
         [%fall %& [/sys/link/explorer %'dest.lanes'] [[/ %lanes] ~[`lane:tarball`[%| /apps/'explorer.explorer']]]]
         [%fall %| /sys/link/mcp [`[~ ~ %.n ~] ~]]
         [%fall %& [/sys/link/mcp %'dest.lanes'] [[/ %lanes] ~[`lane:tarball`[%| /apps/'mcp.mcp']]]]
+        ::  notifications: the inbox is a service of the shell (its
+        ::  /notifications directory); the name points into it, so
+        ::  @notifications/main.sig is the shell's notifications/main.sig.
         [%fall %| /sys/link/notifications [`[~ ~ %.n ~] ~]]
-        [%fall %& [/sys/link/notifications %'dest.lanes'] [[/ %lanes] ~[`lane:tarball`[%| /apps/'notifications.notifications']]]]
+        [%fall %& [/sys/link/notifications %'dest.lanes'] [[/ %lanes] ~[`lane:tarball`[%| /apps/'shell.shell'/notifications]]]]
         [%fall %| /sys/link/forge [`[~ ~ %.n ~] ~]]
         [%fall %& [/sys/link/forge %'dest.lanes'] [[/ %lanes] ~[`lane:tarball`[%| /apps/'forge.git_forge']]]]
         [%fall %| /sys/link/github [`[~ ~ %.n ~] ~]]

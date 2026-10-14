@@ -1757,7 +1757,7 @@
 ++  push-road  `road:tarball`[%& %& /sys/push %'main.push-state']
 ::
 ::  Notification service helpers — the human-addressed message bus
-::  at /apps/notifications.notifications. Register once (a registrant
+::  (the shell's /notifications, named so in /sys/link). Register once (a registrant
 ::  covers its directory subtree), then notify; payload jobj is
 ::  opaque (title/body/url are conventions). The service owns
 ::  delivery (push) and ack tracking.

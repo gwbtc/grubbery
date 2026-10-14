@@ -1,15 +1,14 @@
 var API='/grubbery/api';var BALL='apps/shell.shell'; // local tiles live in the shell's own root
   // inbox bell: landscape-style notifications panel over the tiles
-  var NBALL = 'apps/notifications.notifications';
+  var NBALL = 'apps/shell.shell/notifications';
   var bellNotes = [];
 
   // Pending permission requests belong in the bell too. An app that has asked
   // for roads and not been answered is exactly the thing this panel exists to
-  // draw the user to, and until now nothing did: the shell's own notify goes to
-  // a notifications nexus this distribution does not carry. So the bell reads
-  // the permissions caches directly and lists each unanswered ask as an item
-  // that opens the permissions page on that app. They are not read or
-  // dismissed here; they resolve by being granted.
+  // draw the user to. The bell reads the permissions caches directly and
+  // lists each unanswered ask as an item that opens the permissions page on
+  // that app, beside the inbox's own notes. They are not read or dismissed
+  // here; they resolve by being granted.
   function sameRoads(a, b) { a = (a || []).slice().sort(); b = (b || []).slice().sort(); return a.length === b.length && a.every(function(x, i) { return x === b[i]; }); }
   function roadsOf(x) { return (x || []).map(function(r) { return typeof r === 'string' ? r : r.road; }); }
   function pendingAsks() {
