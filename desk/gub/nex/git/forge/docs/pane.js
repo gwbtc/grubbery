@@ -519,9 +519,22 @@
       var links = NAV.querySelectorAll('a');
       for (var i = 0; i < links.length; i++) {
         var on = links[i].dataset.path === path; links[i].classList.toggle('active', on);
-        if (on) { var sec = links[i].closest('.sec'); while (sec) { sec.classList.remove('collapsed'); sec = sec.parentElement.closest('.sec'); } }
+        if (on) {
+          var sec = links[i].closest('.sec'); while (sec) { sec.classList.remove('collapsed'); sec = sec.parentElement.closest('.sec'); }
+          if (nk) nk.setCursor(links[i]);                          // the keyboard cursor follows the page shown
+        }
       }
     }
+    // the nav's keys (nav-keys.js): rows are the doc links and section heads
+    // as shown (a collapsed section hides its rows); Enter opens a doc or
+    // toggles a section, ← → fold and unfold, ← on a doc climbs to its section
+    var nk = window.navKeys ? window.navKeys(NAV, {
+      rows: function () { return Array.prototype.slice.call(NAV.querySelectorAll('a[data-path], .sec-head')).filter(function (r) { return r.offsetParent !== null; }); },
+      open: function (row) { if (row.dataset.path) openDoc(row.dataset.path); else row.click(); },
+      folded: function (row) { var sec = row.classList.contains('sec-head') ? row.parentElement : null; return sec ? sec.classList.contains('collapsed') : null; },
+      fold: function (row, open) { var sec = row.parentElement; sec.classList.toggle('collapsed', !open); },
+      parent: function (row) { var sec = row.closest('.sec'); if (!sec) return null; if (row.classList.contains('sec-head')) sec = sec.parentElement.closest('.sec'); return sec ? sec.querySelector('.sec-head') : null; }
+    }) : null;
     function showLoading() {
       clearOnThisPage();
       DOC.innerHTML = '<div class="doc-skeleton"><div class="sk sk-title"></div><div class="sk"></div><div class="sk"></div><div class="sk sk-short"></div><div class="sk-gap"></div><div class="sk sk-sub"></div><div class="sk"></div><div class="sk"></div><div class="sk"></div><div class="sk sk-short"></div></div>';

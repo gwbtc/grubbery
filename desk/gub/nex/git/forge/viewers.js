@@ -220,10 +220,17 @@
         // the click names the tab it opens: the row the user picked is called this;
         // relative to the repos dir this pane shows, however it is spelled
         // (under @forge it stays under @forge)
-        card.addEventListener('click', function () { if (opts.onNavigate) opts.onNavigate('./' + r.name, 'dir', { name: short }); });
+        card._open = function (beside) { if (opts.onNavigate) opts.onNavigate('./' + r.name, 'dir', { name: short, beside: !!beside }); };
+        card.addEventListener('click', function () { card._open(false); });
         grid.appendChild(card);
       });
+      if (nk) nk.mark();
     }
+    // the keys every navigator has (nav-keys.js): ↓↑ move, Enter opens, ⇧Enter beside
+    var nk = window.navKeys ? window.navKeys(grid, {
+      rows: function () { return Array.prototype.slice.call(grid.querySelectorAll('.card')); },
+      open: function (row, m) { if (row._open) row._open(m && m.beside); }
+    }) : null;
     function load() { get(api + '/list').then(function (r) { repos = Array.isArray(r) ? r : repos; draw(); }); }
     load();
     return { destroy: function () { box.remove(); }, onUpdate: function () { load(); } };

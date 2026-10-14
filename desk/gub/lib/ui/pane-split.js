@@ -192,7 +192,10 @@ class PaneSplit extends HTMLElement {
     this.#barToggle.addEventListener('mouseenter', () => this.#holdPill());         // interacting → keep it open
     this.#barToggle.addEventListener('mouseleave', () => this.#schedulePillHide(5000));
     this.#histMenu = this.#chrome('ps-histmenu');
-    this.addEventListener('keydown', this.#onKey);
+    // capture: once the prefix is down (or a move/resize repeat is armed) the
+    // next key is ours before any content handler (a navigator's list) can
+    // take it; at every other time #onKey lets the key pass untouched
+    this.addEventListener('keydown', this.#onKey, true);
     window.addEventListener('keydown', this.#onKeyGlobal, true);     // armed-swap: bare Space anywhere
     this.addEventListener('mousedown', (e) => { if (this.#histMenu && this.#histMenu.classList.contains('on') && !this.#histMenu.contains(e.target) && !(e.target.closest && e.target.closest('.ps-histcaret'))) this.#closeHistMenu(); }, true);
     this.addEventListener('sv-resize', this.#onSvResize);
@@ -206,7 +209,7 @@ class PaneSplit extends HTMLElement {
   }
 
   disconnectedCallback() {
-    this.removeEventListener('keydown', this.#onKey);
+    this.removeEventListener('keydown', this.#onKey, true);
     window.removeEventListener('keydown', this.#onKeyGlobal, true);
     this.removeEventListener('sv-resize', this.#onSvResize);
     this.removeEventListener('sv-collapse', this.#onSvCollapse);
@@ -591,7 +594,13 @@ class PaneSplit extends HTMLElement {
     const p = this.#panes.get(id ?? this.#activeId); if (!p || path == null) return;
     const { target, mode } = this.#routeFrom(p);
     if (mode === 'tab') this.newTab(target.id, path, name); else this.navigate(target.id, path, name);
-    this.focusPane(target.id);
+    // an open selects what it opened: the first LEAF under the target (a
+    // tab already holding a layout is a container; its chat is inside),
+    // and the keyboard goes to that content — now if it is there, else
+    // the content root, which hands focus on when the content mounts
+    const leaf = firstVisibleLeaf(target, this);
+    this.focusPane(leaf.id);
+    this.focusContent(leaf.id);
   }
   // closeFrom(id, path): a view in pane `id` says `path` is gone. Routed the
   // same way; every tab in the target CURRENTLY on that exact moment steps
@@ -645,6 +654,10 @@ class PaneSplit extends HTMLElement {
     if (tab.cursor < 0) { tab.entries = [entry]; tab.cursor = 0; }
     else tab.entries[tab.cursor] = entry;
     this.#renderPane(pane); this.#afterStructure(); this.#persist();
+    // the pane that was selected just became a container: the selection
+    // follows into its first leaf (a chat's layout → the chat itself), so
+    // the keyboard lands on content, not on the structure around it
+    if (this.#activeId === pane.id) { const leaf = firstVisibleLeaf(pane, this); if (leaf !== pane) this.cursorTo(leaf); }
   }
   // a moment from a layout spec: {div} → division, {tabs} → pane moment
   #buildEntry(spec, host) {
@@ -941,6 +954,21 @@ class PaneSplit extends HTMLElement {
     this.#emit('ps-focus', { id: pane.id, kind: this.#divides(pane) ? 'split' : 'leaf' });
   }
   focusPane(id) { const p = this.#panes.get(id); if (p) this.cursorTo(p); }
+  // DOM focus into the active pane's content, so unprefixed keys reach it:
+  // the element the content marks data-focus (a chat's message box), else a
+  // navigator's list (data-nk, see nav-keys.js), else the content element
+  // itself (made focusable; keys then bubble up here and do nothing).
+  // Called when the KEYBOARD chose the pane, and by prefix-i on demand; a
+  // click focuses whatever was clicked by itself.
+  focusContent(id) {
+    let p = this.#panes.get(id ?? this.#activeId); if (!p) return;
+    p = firstVisibleLeaf(p, this);                                   // a container: its first leaf is where content is
+    const c = p.body.firstChild;
+    if (!c || c.tagName === 'SPLIT-VIEW' || c.classList.contains('ps-pane')) return;
+    const t = c.querySelector('[data-focus]') || c.querySelector('[data-nk]') || c;
+    if (t.tabIndex < 0 && !t.hasAttribute('tabindex')) t.tabIndex = -1;
+    try { t.focus({ preventScroll: true }); } catch (_) {}
+  }
   // the pane one level up: the owner of the division this pane sits in, or
   // the host whose tab holds this pane (a pane moment)
   #ownerOf(pane) { const par = pane && pane.parent; return par ? (par.div ? par.div.owner : par.host) : null; }
@@ -1306,6 +1334,7 @@ class PaneSplit extends HTMLElement {
     const raw = (this.getAttribute('prefix') || 'ctrl+b').toLowerCase().split('+');
     return { key: raw.pop(), ctrl: raw.includes('ctrl'), meta: raw.includes('meta') || raw.includes('cmd'), alt: raw.includes('alt') };
   }
+  #isPrefix(e) { const p = this.#prefix; return e.key.toLowerCase() === p.key && e.ctrlKey === p.ctrl && e.metaKey === p.meta && e.altKey === p.alt; }
   // a set mark ARMS a swap: bare Space completes it from anywhere on the page
   // (no prefix, even mid-move), as long as you're not typing in a field. Lives
   // at window level so it fires regardless of which element holds focus.
@@ -1316,6 +1345,10 @@ class PaneSplit extends HTMLElement {
   };
   #cancelClose() { if (!this.#pendingClose) return; this.#pendingClose = null; this.#flashHint(''); }
   #onKey = (e) => {
+    // typing in a field (the navbar, a chat box) is the field's, except the
+    // prefix chord itself, which must work from anywhere to leave the field;
+    // a prefix already down, or a repeat, still owns the next key
+    if (!this.#awaiting && !this.#repeat && !this.#pendingClose && isEditable(e.target) && !this.#isPrefix(e)) return;
     if (this.#pendingClose) {
       const p = this.#pendingClose;
       e.preventDefault(); e.stopPropagation();
@@ -1331,10 +1364,9 @@ class PaneSplit extends HTMLElement {
       if (e.key === 'Escape') { e.preventDefault(); return; }
     }
     if (!this.#awaiting) {
-      const p = this.#prefix;
-      if (e.key.toLowerCase() === p.key && e.ctrlKey === p.ctrl && e.metaKey === p.meta && e.altKey === p.alt) {
+      if (this.#isPrefix(e)) {
         this.#awaiting = true;
-        this.#flashHint('% split · " stack · c/e collapse/expand · z/Z zoom · x close · t/w tab · T bar · : path · <> tab · ,. hist · m mark · ␣ swap · [ ] climb/descend · Tab sibling · h highlight · b bars · 1-9 jump · ←↑↓→ move · ⇧←↑↓→ resize');
+        this.#flashHint('% split · " stack · c/e collapse/expand · z/Z zoom · x close · t/w tab · T bar · : path · i content · <> tab · ,. hist · m mark · ␣ swap · [ ] climb/descend · Tab sibling · h highlight · b bars · 1-9 jump · ←↑↓→ move · ⇧←↑↓→ resize');
         clearTimeout(this.#awaitTimer);
         this.#awaitTimer = setTimeout(() => { this.#awaiting = false; this.#flashHint(''); }, 2500);
         e.preventDefault(); e.stopPropagation();
@@ -1362,6 +1394,7 @@ class PaneSplit extends HTMLElement {
     else if (k === 't') this.newTab(this.#activeId, this.#curPath(this.#activeId));
     else if (k === 'T') this.setBar(this.#activeId);   // toggle the selected pane's bar
     else if (k === ':') this.focusNav(this.#activeId); // jump to the navbar to type a path
+    else if (k === 'i') { /* into the content: its input or navigator (focusContent runs below) */ }
     else if (k === 'w') this.closeTab(this.#activeId, this.cursor ? this.cursor.activeTab : -1);
     else if (k === '<' || k === ',') { if (k === '<') this.#cycleTab(-1); else this.back(); }
     else if (k === '>' || k === '.') { if (k === '>') this.#cycleTab(1); else this.forward(); }
@@ -1372,22 +1405,32 @@ class PaneSplit extends HTMLElement {
     else if (k >= '1' && k <= '9') this.focusIndex(+k - 1);
     else if (k === 'r') this.#arm('resize');
     else if (dir && e.shiftKey) { this.nudge(dir); this.#arm('resize'); }
-    else if (dir) { this.focusMove(dir); this.#arm('move'); }
+    // a prefixed arrow moves ONCE and hands the keys to the pane it landed in,
+    // so ↓ ↑ there walk its navigator right away; another move is another
+    // prefix. Only resize (r, ⇧arrows) keeps the arrows as a repeat.
+    else if (dir) this.focusMove(dir);
     else handled = false;
     if (handled) { e.preventDefault(); e.stopPropagation(); }
+    // the keyboard chose a pane: give its content the keys. Not while a
+    // move/resize repeat is armed (the arrows are ours until it ends) and not
+    // after `:`, which put the caret in the navbar on purpose
+    if (handled && !this.#repeat && k !== ':') this.focusContent();
   };
   #cycleTab(delta) { const p = this.cursor; if (!p || p.tabs.length < 2) return; this.selectTab(p.id, (p.activeTab + delta + p.tabs.length) % p.tabs.length); }
   #arm(kind) { this.#repeat = kind; this.#flashHint((kind === 'resize' ? 'resize' : 'move') + ': ←↑↓→  (any other key or Esc to exit)'); }
-  #endRepeat() { this.#repeat = null; this.#flashHint(''); }
+  #endRepeat() { this.#repeat = null; this.#flashHint(''); this.focusContent(); }
   #flashHint(msg) { if (!this.#hint) return; this.#hint.textContent = msg; this.#hint.classList.toggle('on', !!msg); }
   #emit(name, detail) { this.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true })); }
 }
 
 function isEditable(el) { if (!el) return false; const t = el.tagName; return t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT' || !!el.isContentEditable; }
 function center(el) { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }
+// the first leaf under a pane: through a division's `a` side and through a
+// pane moment's nested pane, down to a pane whose moment is a path
 function firstVisibleLeaf(pane, ps) {
   const e = pane.tabs[pane.activeTab] && pane.tabs[pane.activeTab].entries[pane.tabs[pane.activeTab].cursor];
   if (e && e.div) return firstVisibleLeaf(e.div.a, ps);
+  if (e && e.pane) return firstVisibleLeaf(e.pane, ps);
   return pane;
 }
 

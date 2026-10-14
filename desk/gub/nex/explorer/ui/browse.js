@@ -1065,6 +1065,21 @@ function setup(root, opts) {
   // wire a mounted pane content to live: the viewer's declared follow, or the
   // built-in rendering's own path. A viewer's onUpdate (on what mount returned)
   // takes the events; without one, the pane re-renders
+  // content just mounted in a pane: if it is the active pane and the
+  // keyboard is not somewhere on purpose (nothing focused, or focus sat on
+  // this pane's bare content while it loaded), land the keyboard on it:
+  // the chat's message box, a navigator's list. Covers page load, where
+  // the active pane's content arrives after the workspace is built.
+  function psLanded(ps, paneId, el) {
+    const p = el.closest('.ps-pane'), id = p ? p.dataset.paneId : paneId;
+    if (!ps.cursor) return;
+    // the active pane, or a container selected above it (a layout whose
+    // first leaf this is)
+    if (ps.cursor.id !== id) { const cdom = ps.querySelector('.ps-pane[data-pane-id="' + ps.cursor.id + '"]'); if (!cdom || !cdom.contains(el)) return; }
+    const a = document.activeElement;
+    if (a && a !== document.body && a !== ps && a !== el && !el.contains(a)) return;   // ps itself: the host's own focus on load
+    ps.focusContent(id);
+  }
   function paneLive(ps, paneId, el, follow, gate) {
     if (!el.isConnected) return;                                   // the pane moved on while we fetched: nothing to keep live
     const fv = el._fv, on = (fv && typeof fv.onUpdate === 'function') ? (ev) => fv.onUpdate(ev) : null;
@@ -1406,8 +1421,10 @@ function setup(root, opts) {
     // viewers get open(url, {name}) and close(url) over moments; onNavigate(url,
     // kind, {name}) is the same open with a kind hint, kept for every viewer
     // written against it
-    const onNav = (u, k, o) => route(u, k === 'file' ? 'file' : 'dir', null, o && o.name);
-    const vopen = (u, o) => route(u, null, null, o && o.name);
+    // {beside: true} is the keyboard's ⌘-click: open in a new pane beside
+    const mods = (o) => (o && o.beside) ? { meta: true } : null;
+    const onNav = (u, k, o) => route(u, k === 'file' ? 'file' : 'dir', mods(o), o && o.name);
+    const vopen = (u, o) => route(u, null, mods(o), o && o.name);
     psWait(el, 'loading', ns);                                                // until the first answer lands (fades in after a beat)
     const vclose = (u) => unroute(u);
     fetch(url + '?list=1').then((r) => r.ok ? r.json() : Promise.reject(r.status)).then(async (d) => {
@@ -1425,7 +1442,7 @@ function setup(root, opts) {
         // mounted whether or not el is in the document: an inactive tab's
         // content is stashed off-document and shown later, and falling
         // through here would render it as rows instead
-        if (tv) { el._fv = tv.mount(el, { url, args: { root: abs }, onNavigate: onNav, open: vopen, close: vclose }); el._menu = (e) => listingMenu(e, el, url); return; }
+        if (tv) { el._fv = tv.mount(el, { url, args: { root: abs }, onNavigate: onNav, open: vopen, close: vclose }); el._menu = (e) => listingMenu(e, el, url); psLanded(ps, paneId, el); return; }
       }
       // the app is asked for the bare dir and for any view name of its own;
       // the host's own views (rows, grid, tree) never reach it
@@ -1444,7 +1461,7 @@ function setup(root, opts) {
           .catch(() => psWaitFail(el, 'not a valid layout', viewer.layout));
         return;
       }
-      if (viewer && !viewer.blocked && viewer.mount) { el._fv = viewer.mount(el, { url, onNavigate: onNav, open: vopen, close: vclose, query: psArgs(path) }); paneLive(ps, paneId, el, viewer.follow); return; }
+      if (viewer && !viewer.blocked && viewer.mount) { el._fv = viewer.mount(el, { url, onNavigate: onNav, open: vopen, close: vclose, query: psArgs(path) }); paneLive(ps, paneId, el, viewer.follow); psLanded(ps, paneId, el); return; }
       const t = document.createElement(want === 'grid' ? 'file-grid' : 'file-table');
       t.style.height = '100%';
       const up = psUp(ns, abs);
@@ -1487,14 +1504,14 @@ function setup(root, opts) {
         if (v && !v.blocked && v.mount) {
           // the moment's ?args ride along as `query`: a viewer may read how it
           // is being looked at (a docs pane's ?page=, say) without parsing urls
-          try { el._fv = v.mount(el, { url, onNavigate: onNav, open: vopen, close: vclose, query: psArgs(path) }); paneLive(ps, paneId, el, v.follow); } catch (e) { el.textContent = 'viewer failed: ' + e; }
+          try { el._fv = v.mount(el, { url, onNavigate: onNav, open: vopen, close: vclose, query: psArgs(path) }); paneLive(ps, paneId, el, v.follow); psLanded(ps, paneId, el); } catch (e) { el.textContent = 'viewer failed: ' + e; }
           return;                                                         // rendered: the rendering alone
         }
       }
       const opts = { url, crumbBase: ROOT, onNavigate: onNav, open: vopen, close: vclose };          // raw, or no renderer → the raw package
       // right-click anywhere in the file: the file's own actions
       el._menu = () => itemMenu(el, { kind: 'file', name: psBase(abs), __dir: psUrl(abs.replace(/\/[^/]*$/, '') || '/') });
-      try { el._fv = window.FileView.mount(el, opts); paneLive(ps, paneId, el, [{ road: abs }]); }   // the raw package follows its file
+      try { el._fv = window.FileView.mount(el, opts); paneLive(ps, paneId, el, [{ road: abs }]); psLanded(ps, paneId, el); }   // the raw package follows its file
       catch (e) { el.textContent = 'open failed: ' + e; }
     });
   }

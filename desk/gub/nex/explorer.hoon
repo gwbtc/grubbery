@@ -21,6 +21,7 @@
 ::  experimental tmux-style pane splitting — served but unlinked from the
 ::  live finder; exercised only via panes.html (see below).
 /&  ps-js       /lib/ui/pane-split.js
+/&  nk-js       /lib/ui/nav-keys.js
 /&  panes-html  explorer/ui/panes.html
 /&  browse-html  explorer/ui/browse.html
 /&  browse-js    explorer/ui/browse.js
@@ -83,6 +84,7 @@
             (wrap ft-js)
             (wrap fg-js)
             (wrap sv-js)
+            (wrap nk-js)
             (wrap ps-js)
             (wrap tg-js)
             (wrap tv-js)
@@ -118,6 +120,7 @@
           [%over %& [/ %'browse.js'] [[/ %mime] browse-js]]
           [%over %& [/ %'view.html'] [[/ %mime] view-html]]
           [%over %& [/ %'pane-split.js'] [[/ %mime] ps-js]]
+          [%over %& [/ %'nav-keys.js'] [[/ %mime] nk-js]]
           [%over %& [/ %'panes.html'] [[/ %mime] panes-html]]
           [%over %& [/ %'marked.min.js'] [[/ %mime] marked-js]]
           [%over %& [/ %'cm.js'] [[/ %mime] cm-bundle]]
