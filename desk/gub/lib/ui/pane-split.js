@@ -161,6 +161,7 @@ class PaneSplit extends HTMLElement {
   #pillTimer = null;            // interval that counts the quickbar's sticky grace down
   #pillEnd = 0;                 // when the quickbar is due to retract (ms epoch)
   #padBody = null;             // the pane body currently padded down to make room for the quickbar
+  #pillPane = null;            // the pane the quickbar is showing for (the selected pane, or a bar-less container it sits in)
   #repeat = null;
   #awaiting = false;
   #awaitTimer = null;
@@ -179,14 +180,17 @@ class PaneSplit extends HTMLElement {
     this.#markBox = this.#chrome('ps-mark-box');
     this.#barToggle = this.#chrome('ps-quickbar');
     const act = (t, title, fn) => { const b = document.createElement('button'); b.className = 'ps-qb-btn'; b.textContent = t; b.title = title; b.addEventListener('mousedown', (e) => e.stopPropagation()); b.addEventListener('click', (e) => { e.stopPropagation(); if (this.#activeId) fn(); }); return b; };
+    // the quickbar acts on the pane it dropped for: a bar-less container
+    // the selection sits in, or the selected pane itself
+    const pid = () => (this.#pillPane || this.cursor || {}).id || this.#activeId;
     this.#barToggle.append(
-      act('▾', 'materialize the full topbar', () => this.setBar(this.#activeId, true)),
-      act('⤓', 'collapse pane', () => this.collapse(this.#activeId)),
-      act('⬉', 'select parent container', () => this.selectParent(this.#activeId)),
-      act('⛶', 'zoom to this pane', () => this.zoomPane(this.#activeId)),
-      act('↑', 'zoom to parent', () => this.zoomParent(this.#activeId)),
+      act('▾', 'materialize the full topbar', () => this.setBar(pid(), true)),
+      act('⤓', 'collapse pane', () => this.collapse(pid())),
+      act('⬉', 'select parent container', () => this.selectParent(pid())),
+      act('⛶', 'zoom to this pane', () => this.zoomPane(pid())),
+      act('↑', 'zoom to parent', () => this.zoomParent(pid())),
       act('⤢', 'zoom all the way out', () => this.zoomReset()),
-      act('×', 'close pane', () => this.closeLeaf(this.#activeId)));
+      act('×', 'close pane', () => this.closeLeaf(pid())));
     const count = document.createElement('span'); count.className = 'ps-qb-count';   // sticky countdown, right-aligned
     this.#barToggle.append(count); this.#barToggle._count = count;
     this.#barToggle.addEventListener('mouseenter', () => this.#holdPill());         // interacting → keep it open
@@ -945,7 +949,10 @@ class PaneSplit extends HTMLElement {
   cursorTo(pane) {
     if (!pane) return;
     if (this.#pendingClose && this.#pendingClose !== pane) this.#cancelClose();   // moving on backs out of a pending close
-    if (pane.id !== this.#activeId) this.#hidePill();   // pill belongs to the pane you hovered; re-hover the new one
+    // the pill belongs to the pane you hovered: moving the selection OUT of
+    // it hides it, moving within it (a click on a leaf inside the layout it
+    // dropped for) keeps it
+    if (pane.id !== this.#activeId && !(this.#pillPane && (pane === this.#pillPane || this.#owns(this.#pillPane, pane)))) this.#hidePill();
     this.#activeId = pane.id;
     // record a descend breadcrumb up the ownership chain
     let n = pane, owner = this.#ownerOf(pane);
@@ -1016,26 +1023,33 @@ class PaneSplit extends HTMLElement {
   // hide it if that pane went away, got hidden, or locked its bar on.
   #positionBarToggle() {
     const t = this.#barToggle; if (!t || !t.classList.contains('on')) return;
-    const c = this.cursor;
-    if (!c || c.showBar || this.#hidden(c)) { this.#hidePill(); return; }
+    const c = this.#pillPane || this.cursor;
+    if (!c || c.showBar || this.#hidden(c) || !this.#panes.has(c.id)) { this.#hidePill(); return; }
     this.#placeToggle(c);
   }
-  // ---- sticky quickbar (thin host-level drop-down on top-edge hover of the selected pane) ----
+  // ---- sticky quickbar (thin host-level drop-down on top-edge hover) ----
+  // It drops for a pane with no bar that the selection is in: the selected
+  // pane itself, or a container above it (a layout's own pane, whose leaf
+  // inside is what is selected; the leaf has a bar, the layout has none)
   #onTopHover(e, id) {
-    if (id !== this.#activeId || !this.#hoverToggle) return;
+    if (!this.#hoverToggle) return;
     const p = this.#panes.get(id); if (!p || p.showBar || this.#hidden(p)) return;
+    if (id !== this.#activeId && !this.#owns(p, this.cursor)) return;
     const r = p.dom.getBoundingClientRect();
-    if (e.clientY - r.top <= 24) this.#showPill();                 // near the top → drop it + refresh grace
+    if (e.clientY - r.top <= 24) this.#showPill(p);                // near the top → drop it + refresh grace
   }
+  #owns(p, leaf) { let n = leaf; while (n) { n = this.#ownerOf(n); if (n === p) return true; } return false; }
   #placeToggle(c) {
     const t = this.#barToggle, cr = this.getBoundingClientRect(), r = c.dom.getBoundingClientRect(), m = 3;
     t.style.left = (r.left - cr.left + m) + 'px';                   // inset so the selection frame stays visible
     t.style.top = (r.top - cr.top + m) + 'px';
     t.style.width = (r.width - m * 2) + 'px';
   }
-  #showPill() {
-    const t = this.#barToggle, c = this.cursor;
+  #showPill(p) {
+    const t = this.#barToggle, c = p || this.cursor;
     if (!t || !this.#hoverToggle || !c || c.showBar || this.#hidden(c)) return;
+    if (this.#pillPane && this.#pillPane !== c) this.#undisplace();
+    this.#pillPane = c;
     this.#placeToggle(c);
     t.classList.add('on');
     this.#displace(c);                                             // shift the pane's content down beneath the bar
@@ -1059,7 +1073,7 @@ class PaneSplit extends HTMLElement {
     if (sv) sv.style.top = '';
     this.#padBody = null;
   }
-  #hidePill() { if (this.#barToggle) this.#barToggle.classList.remove('on'); this.#undisplace(); this.#holdPill(); }
+  #hidePill() { if (this.#barToggle) this.#barToggle.classList.remove('on'); this.#undisplace(); this.#holdPill(); this.#pillPane = null; }
   #holdPill() { if (this.#pillTimer) { clearInterval(this.#pillTimer); this.#pillTimer = null; } const el = this.#barToggle && this.#barToggle._count; if (el) el.textContent = ''; }
   #schedulePillHide(ms) { this.#holdPill(); this.#pillEnd = Date.now() + ms; this.#tickPill(); this.#pillTimer = setInterval(() => this.#tickPill(), 200); }
   #tickPill() {
