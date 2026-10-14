@@ -215,6 +215,28 @@
     var ed = $('ed'), edwrap = $('edwrap'), display = $('src-display'), src = $('src');
     var textView = $('text-view'), mimeView = $('mime-view'), buildView = $('build-view'), viewPane = $('view-pane');
     var tabText = $('tab-text'), tabMime = $('tab-mime'), tabBuild = $('tab-build'), tabView = $('tab-view');
+    // the keyboard lands on the root when the pane is chosen by keyboard
+    // (the host focuses the content element, which this is mounted on);
+    // the reader keys scroll whichever body is showing: ↓ ↑ j k a line,
+    // PageDown PageUp / space a screen, Home End the ends. Typing in the
+    // editor is the editor's.
+    if (root.tabIndex < 0 && !root.hasAttribute('tabindex')) root.tabIndex = -1;
+    root.addEventListener('keydown', function (e) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      var t = e.target, tag = t && t.tagName;
+      if (tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT' || (t && t.isContentEditable)) return;
+      var scroller = [textView, mimeView, buildView, viewPane, edwrap, display].find(function (x) { return x && x.offsetParent !== null && x.scrollHeight > x.clientHeight; });
+      if (!scroller) return;
+      var line = 40, page = Math.max(line, scroller.clientHeight * 0.9), k = e.key, used = true;
+      if (k === 'ArrowDown' || k === 'j') scroller.scrollTop += line;
+      else if (k === 'ArrowUp' || k === 'k') scroller.scrollTop -= line;
+      else if (k === 'PageDown' || k === ' ') scroller.scrollTop += page;
+      else if (k === 'PageUp') scroller.scrollTop -= page;
+      else if (k === 'Home') scroller.scrollTop = 0;
+      else if (k === 'End') scroller.scrollTop = scroller.scrollHeight;
+      else used = false;
+      if (used) { e.preventDefault(); e.stopPropagation(); }
+    });
     // opts.viewer = { label, mount(root, opts) -> { destroy() } }: a pane the
     // host adds for this file's mark, shown first; mounted on first show
     var viewer = opts.viewer || null, viewerHandle = null;

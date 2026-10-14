@@ -642,6 +642,7 @@ class PaneSplit extends HTMLElement {
     if (!p.tabs.length) p.tabs.push({ entries: [], cursor: -1 });
     if (p.activeTab >= p.tabs.length) p.activeTab = p.tabs.length - 1;
     this.#renderPane(p); this.#reconcileCursor(); this.#afterStructure(); this.#persist();
+    this.#refocus();
   }
   // push a division entry built from a layout spec. History stays — back/forward
   // steps in and out of it. `spec` is a serialized division (see serialize()).
@@ -753,6 +754,7 @@ class PaneSplit extends HTMLElement {
     if (!p.tabs.length) p.tabs.push({ entries: [], cursor: -1 });
     if (p.activeTab >= p.tabs.length) p.activeTab = p.tabs.length - 1;
     this.#renderPane(p); this.#reconcileCursor(); this.#afterStructure(); this.#persist();
+    this.#refocus();
   }
 
   // ---- topbar visibility ----
@@ -861,6 +863,7 @@ class PaneSplit extends HTMLElement {
       if (this.#curEntry(pane)) { this.#eachEntryPane({ entries: tab.entries, cursor: tab.cursor }, cp => { if (cp !== pane) this.#forgetPane(cp); }); }
       tab.entries = []; tab.cursor = -1;
       this.#renderPane(pane); this.#reconcileCursor(); this.#afterStructure(); this.#persist();
+      this.#refocus();
       return;
     }
     if (par.host) {
@@ -894,8 +897,19 @@ class PaneSplit extends HTMLElement {
     this.#restoreScroll(scroll);
     this.cursorTo(owner);
     this.#emit('ps-close', {}); this.#persist();
+    this.#refocus();
   }
   closeLeaf(id) { const p = this.#panes.get(id); if (p) this.close(p); }
+  // the keyboard was in a pane that is gone: DOM focus fell to the body,
+  // where the host's key listener cannot hear it. Land it in the active
+  // pane's content, else on the host itself
+  #refocus() {
+    const a = document.activeElement;
+    if (a && a !== document.body && this.contains(a)) return;
+    this.focusContent();
+    const b = document.activeElement;
+    if (!b || b === document.body || !this.contains(b)) this.focus({ preventScroll: true });
+  }
   #forgetPane(pane) { if (!pane) return; pane.tabs.forEach(t => this.#dropStash(pane, t)); try { if (this.onDestroy) this.onDestroy(pane.id, pane.body); } catch (_) {} this.#panes.delete(pane.id); pane.dom.remove(); }
   // after moving an entry into a new owner, fix the division's owner backref.
   #reparentDiv(entry, owner) { if (!entry) return; if (entry.div) entry.div.owner = owner; else if (entry.pane) entry.pane.parent = { host: owner, slot: 'a' }; }
@@ -1398,7 +1412,7 @@ class PaneSplit extends HTMLElement {
     if (!this.#awaiting) {
       if (this.#isPrefix(e)) {
         this.#awaiting = true;
-        this.#flashHint('% split · " stack · c/e collapse/expand · z/Z zoom · x close · t/w tab · T bar · : path · i content · <> tab · ,. hist · m mark · ␣ swap · [ ] climb/descend · Tab sibling · h highlight · b bars · 1-9 jump · ←↑↓→ move · ⇧←↑↓→ resize');
+        this.#flashHint('% split · " stack · c/e collapse/expand · z/Z zoom · x close · t/w tab · T bar · : path · i content · <> tab · ,. back/fwd · R refresh · m mark · ␣ swap · [ ] climb/descend · Tab sibling · h highlight · b bars · 1-9 jump · ←↑↓→ move · ⇧←↑↓→ resize');
         clearTimeout(this.#awaitTimer);
         this.#awaitTimer = setTimeout(() => { this.#awaiting = false; this.#flashHint(''); }, 2500);
         e.preventDefault(); e.stopPropagation();
@@ -1436,6 +1450,7 @@ class PaneSplit extends HTMLElement {
     else if (k === 'Escape') this.escape();
     else if (k >= '1' && k <= '9') this.focusIndex(+k - 1);
     else if (k === 'r') this.#arm('resize');
+    else if (k === 'R') this.refresh(this.#activeId);   // refresh the moment in place
     else if (dir && e.shiftKey) { this.nudge(dir); this.#arm('resize'); }
     // a prefixed arrow moves ONCE and hands the keys to the pane it landed in,
     // so ↓ ↑ there walk its navigator right away; another move is another

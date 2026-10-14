@@ -1490,6 +1490,7 @@ function setup(root, opts) {
       el.appendChild(t);
       d.children.forEach((c) => { c.__dir = url; });
       t.items = d.children;
+      psLanded(ps, paneId, el);                                            // the keyboard lands on the table if this pane is the one chosen
       // the listing follows its dir in FOLD mode: one event whenever anything
       // under it moves. The answer is a row refresh on the SAME table, never a
       // pane re-render: a dir with busy nexuses beneath it (/apps) moves

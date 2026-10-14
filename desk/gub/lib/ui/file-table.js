@@ -62,6 +62,10 @@ const STYLE = `
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   tr:hover td { background: #f6f8fa; }
+  tr.sel td { background: #f6f8fa; }
+  tr.sel td:first-child { box-shadow: inset 3px 0 0 #0969da; }
+  :host(:focus) tr.sel td { background: #eef3fb; }
+  :host { outline: none; }
   td.mono {
     font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
     color: #57606a;
@@ -114,9 +118,57 @@ class FileTable extends HTMLElement {
     this.shadowRoot.appendChild(TPL.content.cloneNode(true));
     this.#hdr = this.shadowRoot.getElementById('hdr');
     this.#rows = this.shadowRoot.getElementById('rows');
+    // the table is a navigator: the keyboard lands on it (data-nk is what
+    // the pane host looks for) and the navigator keys apply:
+    //   ↓ ↑ j k      move the cursor      Enter   open the row
+    //   ⇧Enter       open beside          ← h     up to the parent dir
+    //   → l          open a dir row       Home End  first / last
+    //   a letter     type-ahead           Esc     clear
+    // (attributes are set in connectedCallback: a constructor may not)
+    this.addEventListener('keydown', (e) => this.#key(e));
+    this.addEventListener('focus', () => { if (!this.#cur) this.#select(this.#rowList()[0] || null); });
+  }
+  #cur = null;            // the selected row (a <tr>)
+  #ahead = ''; #aheadAt = 0;
+  #rowList() { return Array.from(this.#rows.querySelectorAll('tr:not(.loading)')); }
+  #select(tr) {
+    if (this.#cur) { this.#cur.classList.remove('sel'); this.#cur.removeAttribute('aria-selected'); }
+    this.#cur = tr || null;
+    if (this.#cur) { this.#cur.classList.add('sel'); this.#cur.setAttribute('aria-selected', 'true'); this.#cur.scrollIntoView({ block: 'nearest' }); }
+  }
+  #open(tr, mods) {
+    if (!tr) return;
+    const a = tr.querySelector('a.name'); if (!a) return;
+    const href = a.getAttribute('href');
+    this.#emit('ft-navigate', { item: tr.__item || null, href, column: 'name', mods: mods || { meta: false, ctrl: false, shift: false, alt: false } });
+  }
+  #key(e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;                       // chords are never the table's
+    const rows = this.#rowList(); if (!rows.length) return;
+    const i = rows.indexOf(this.#cur), k = e.key;
+    let used = true;
+    const to = (n) => this.#select(rows[Math.max(0, Math.min(rows.length - 1, n))]);
+    if (k === 'ArrowDown' || k === 'j') to(i < 0 ? 0 : i + 1);
+    else if (k === 'ArrowUp' || k === 'k') to(i < 0 ? rows.length - 1 : i - 1);
+    else if (k === 'Home') to(0);
+    else if (k === 'End') to(rows.length - 1);
+    else if (k === 'Enter') { if (!this.#cur) to(0); this.#open(this.#cur, { meta: e.shiftKey, ctrl: false, shift: e.shiftKey, alt: false }); }
+    else if (k === 'ArrowRight' || k === 'l') { if (this.#cur && this.#cur.__item && this.#cur.__item.kind === 'dir') this.#open(this.#cur); else used = false; }
+    else if (k === 'ArrowLeft' || k === 'h') { if (this.#parentHref) this.#emit('ft-navigate', { item: null, href: this.#parentHref, mods: { meta: false, ctrl: false, shift: false, alt: false } }); else used = false; }
+    else if (k === 'Escape') { if (this.#ahead) this.#ahead = ''; else this.#select(null); }
+    else if (k.length === 1 && /\S/.test(k)) {
+      const now = Date.now(); this.#ahead = (now - this.#aheadAt < 700 ? this.#ahead : '') + k.toLowerCase(); this.#aheadAt = now;
+      const start = i < 0 ? 0 : (this.#ahead.length === 1 ? i + 1 : i);
+      for (let n = 0; n < rows.length; n++) { const r = rows[(start + n) % rows.length]; const nm = (r.__item && r.__item.name) || r.textContent.trim(); if (nm.toLowerCase().indexOf(this.#ahead) === 0) { this.#select(r); break; } }
+    }
+    else used = false;
+    if (used) { e.preventDefault(); e.stopPropagation(); }
   }
 
   connectedCallback() {
+    if (!this.hasAttribute('tabindex')) this.tabIndex = 0;
+    if (!this.hasAttribute('data-nk')) this.setAttribute('data-nk', '');
+    if (!this.hasAttribute('role')) this.setAttribute('role', 'listbox');
     if (!this.#sortKey && this.hasAttribute('sort-key'))
       this.#sortKey = this.getAttribute('sort-key');
     if (this.hasAttribute('sort-dir'))
@@ -204,6 +256,8 @@ class FileTable extends HTMLElement {
   }
 
   #render() {
+    const keep = this.#cur && this.#cur.__item ? this.#cur.__item.name : (this.#cur ? '..' : null);   // the cursor survives a redraw, by name
+    this.#cur = null;
     this.#rows.textContent = '';
     // parent row
     if (this.#parentHref) {
@@ -225,6 +279,7 @@ class FileTable extends HTMLElement {
     const rows = this.#sorted();
     for (const item of rows)
       this.#rows.appendChild(this.#row(item));
+    if (keep != null) { const back = this.#rowList().find((r) => (r.__item ? r.__item.name : '..') === keep); if (back) this.#select(back); }
     // empty state — so a genuinely empty directory reads as empty, not broken
     if (!rows.length) {
       const tr = document.createElement('tr');
