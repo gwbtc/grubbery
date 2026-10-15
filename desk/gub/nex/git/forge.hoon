@@ -568,6 +568,11 @@
   =/  deploy-pokes=(list @t)
     ?.  clay-deploy  ~
     ~['/sys/clay/main.clay-state' '/sys/scry/main.sig']
+  ::  a clay deploy also reads the kernel's log stream while the commit
+  ::  settles, to report what compiled
+  =/  deploy-peeks=(list @t)
+    ?.  clay-deploy  ~
+    ~['/sys/dill/logs.dill-told']
   =/  ensure=json
     %-  pairs:enjs:format
     :~  ['action' s+'ensure']
@@ -579,7 +584,7 @@
         ['config' (pairs:enjs:format ~[['ui' s+ui] ['deploy' deploy]])]
         :-  'roads'
         %-  pairs:enjs:format
-        :~  ['peek' (strs ~[(cat 3 tree '/') (cat 3 ui '/') lane])]
+        :~  ['peek' (strs (weld ~[(cat 3 tree '/') (cat 3 ui '/') lane] deploy-peeks))]
             ['make' (strs ~[(cat 3 tree '/')])]
             ['poke' (strs (weld ~[lane] deploy-pokes))]
         ==
