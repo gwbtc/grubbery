@@ -505,17 +505,31 @@
     follows  (~(put by follows) n [road body.i.new fold.i.new u.init])
     keys     (~(put by keys) key.i.new n)
   ==
-::  +sse-fold: a fold follow — one `upd <dir>` when the dir's own node
-::  (its fold revision, or the set/revisions of its direct children)
-::  differs between the two waves; nothing when only deeper things moved
+::  +sse-fold: a fold follow — one `upd <dir>` when the dir's LISTING
+::  differs between the two waves: a direct file added, removed or
+::  rewritten, or a subdirectory added or removed. Nothing when only
+::  deeper things moved.
+::
+::  The dir's fold revision is deliberately not compared. It bumps for a
+::  move anywhere beneath the dir, and a listing re-fetched on every
+::  deep move is a loop for any dir that holds this explorer's own
+::  requests/ (each re-fetch makes a request grub, which bumps the fold,
+::  which re-fetches): following / or /apps used to spin the ship on
+::  exactly that. A subdirectory's inner changes are its own pane's
+::  business. What this costs: in a listing, a subdirectory's modified
+::  time and its bang flag are as of the last fetch (a direct change, or
+::  ↻, refreshes them); neither is worth a listing per deep event.
 ::
 ++  sse-fold
   |=  [eyre-id=@ta =road:tarball prev=wave:nexus new=wave:nexus]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ::  the dir's own node: its fold revision bumps for any move beneath it,
-  ::  so this is "the dir changed, somewhere" as one event, never per file
-  ?:  =(fil.prev fil.new)  (pure:m ~)
+  =/  files-prev=(map @ta cass:clay)  ?~(fil.prev ~ file.u.fil.prev)
+  =/  files-new=(map @ta cass:clay)   ?~(fil.new ~ file.u.fil.new)
+  ?:  ?&  =(files-prev files-new)
+          =(~(key by dir.prev) ~(key by dir.new))
+      ==
+    (pure:m ~)
   ::  a dir spells with its trailing slash, as the page followed it
   =/  dir=@t  (road-to-cord:tarball road)
   =?  dir  !=('/' dir)  (cat 3 dir '/')

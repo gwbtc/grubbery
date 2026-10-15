@@ -720,6 +720,10 @@ class PaneSplit extends HTMLElement {
   }
   // the source a pane's current moment came from (a layout file), or null
   srcOf(id) { const p = this.#panes.get(id ?? this.#activeId); return p ? this.#entrySrc(this.#curEntry(p)) : null; }
+  // every pane whose current moment came from a layout file: [{id, src}].
+  // A restored workspace holds the built structure, not the file, so the
+  // host re-follows these sources after a restore (the follow is its)
+  layoutSources() { const out = []; for (const p of this.#panes.values()) { const src = this.#entrySrc(this.#curEntry(p)); if (src) out.push({ id: p.id, src }); } return out; }
   // a line in the hint strip, from the host
   hint(msg) { this.#flashHint(msg || ''); }
   // a moment from a layout spec: {div} → division, {tabs} → pane moment

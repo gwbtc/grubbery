@@ -1386,10 +1386,29 @@ function setup(root, opts) {
   }
   // re-read a layout file and reapply it to the pane showing it (a refresh
   // on a layout pane, or a followed source that changed)
-  function psReloadLayout(ps, paneId, ns) {
-    psResolve(ns).then((abs) => fetch(psUrl(abs), { cache: 'no-store' })).then((r) => r.ok ? r.json() : Promise.reject(r.status))
-      .then((spec) => { if (ps.srcOf(paneId) === ns) ps.reapplyLayout(paneId, spec, ns); })
+  // a layout's source is the MOMENT it was opened as (path + ?args), so a
+  // restored pane keeps ?follow=1
+  function psReloadLayout(ps, paneId, src) {
+    psResolve(psNs(src)).then((abs) => fetch(psUrl(abs), { cache: 'no-store' })).then((r) => r.ok ? r.json() : Promise.reject(r.status))
+      .then((spec) => { if (ps.srcOf(paneId) === src) ps.reapplyLayout(paneId, spec, src); })
       .catch((e) => ps.hint('could not re-read the layout: ' + e));
+  }
+  // follow a layout pane's source for as long as the pane shows it. By
+  // default a shown layout is the user's (their resizes, folds and tabs): a
+  // change to the file only says so in the hint, and ↻ or ⌃B R re-applies
+  // it. `?follow=1` on the moment re-applies on every change, live leaves
+  // kept where their address and moment match. Called when a pane lands on
+  // a layout, and again for every layout pane a restored workspace holds.
+  function psFollowLayout(ps, paneId, src) {
+    const ns = psNs(src), follow = psArgs(src).follow === '1';
+    psResolve(ns).then((abs) => {
+      const un = live([{ road: abs }], (ev) => {
+        if (ps.srcOf(paneId) !== src) { un(); return; }                 // the pane moved on: this follow is done
+        if (ev.kind === 'del') { un(); ps.hint('layout source deleted: ' + ns); return; }
+        if (follow) psReloadLayout(ps, paneId, src);
+        else ps.hint('layout source changed · ↻ or ⌃B R to re-apply · ' + ns);
+      }, null);
+    }).catch(() => {});
   }
   function paneContent(ps, paneId, path) {
     const el = document.createElement('div');
@@ -1426,19 +1445,8 @@ function setup(root, opts) {
     if (!raw && /\.layout$/.test(abs)) {                                   // this pane landed ON a layout → become it
       psWait(el, 'opening layout', ns);
       fetch(url).then((r) => r.ok ? r.json() : Promise.reject('x')).then((spec) => {
-        ps.replaceWithLayout(paneId, spec, ns);
-        // the layout's SOURCE is followed for as long as the pane shows it.
-        // By default a shown layout is the user's (their resizes, folds and
-        // tabs): a change to the file only says so in the hint, and ↻ or
-        // ⌃B R re-applies it. `?follow=1` on the moment re-applies on every
-        // change, live leaves kept where their address and moment match.
-        const follow = psArgs(path).follow === '1';
-        const un = live([{ road: abs }], (ev) => {
-          if (ps.srcOf(paneId) !== ns) { un(); return; }                 // the pane moved on: this follow is done
-          if (ev.kind === 'del') { un(); ps.hint('layout source deleted: ' + ns); return; }
-          if (follow) psReloadLayout(ps, paneId, ns);
-          else ps.hint('layout source changed · ↻ or ⌃B R to re-apply · ' + ns);
-        }, null);
+        ps.replaceWithLayout(paneId, spec, path);                        // the source is the moment, ?args and all
+        psFollowLayout(ps, paneId, path);
       }).catch((e) => psWaitFail(el, 'not a valid layout: ' + ((e && e.message) || e), ns));   // the file, or applying it
       return;
     }
@@ -2217,6 +2225,7 @@ function setup(root, opts) {
     }, true);
     let saved = null; try { saved = localStorage.getItem('pane-split:' + K + '-standalone'); } catch (_) {}
     if (!saved) ps.open('/', 'here');                   // fresh → root; otherwise the persisted workspace restores (stateful)
+    ps.layoutSources().forEach(({ id, src }) => psFollowLayout(ps, id, src));   // restored layout panes follow their files again
     psSnaps(ps);
     return;
   }
