@@ -222,6 +222,20 @@
   ?+  cl  (pure:m %.n)
     [~ %b %.y]  (pure:m %.y)
   ==
+::  +local-ahead: how many local commits the remote-tracking ref lacks
+::  (data/ui/status.json "ahead"); 0 when unknown.
+::
+++  local-ahead
+  =/  m  (fiber:fiber:nexus ,@ud)
+  ^-  form:m
+  ;<  status-rd=road:tarball  bind:m
+    (ancestor-road:io [/git %repo] [%& /data/ui %'status.json'])
+  ;<  status-view=view:nexus  bind:m  (peek:io status-rd `[/ %json])
+  =/  status-json=json  (view-to-json status-view)
+  ?.  ?=(%o -.status-json)  (pure:m 0)
+  =/  ah  (~(get by p.status-json) 'ahead')
+  ?.  ?=([~ %n *] ah)  (pure:m 0)
+  (pure:m (fall (rush p.u.ah dem) 0))
 ::  +op-branch: create refs/heads/<name> at the current HEAD.
 ::
 ++  op-branch
@@ -460,10 +474,30 @@
         ~
       (fall match 0x0)
     =/  head-text=@t  (crip (print-hash-sha-1:git-transport head-hash))
-    ;<  ~  bind:m  (save-repo new-pack-data idx-text pack-num branch-refs head-text active-ref)
+    ::  the fetched objects and the remote-tracking refs always land; the
+    ::  LOCAL branch and the tree move only when there is nothing of ours
+    ::  to lose: a clean tree and no local commits the remote lacks. A
+    ::  dirty tree or an unpushed commit keeps local HEAD where it is and
+    ::  the tree untouched (a poll once reset a tree over a day's uncommitted
+    ::  work and a commit made seconds before); the outcome says so, and
+    ::  the merge is the user's move
+    ::  status.json is rebuilt only when the data nexus loads, so it may
+    ::  predate writes to the tree; a reload with HEAD unchanged keeps the
+    ::  tree and recomputes it before the decision is read
     ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
     ;<  ~  bind:m  (reload:io data-rd)
-    (pure:m [%ok (crip "fetched {(scow %ud (lent want-hashes))} new objects")])
+    ;<  clean=?  bind:m  working-tree-clean
+    ;<  ahead=@ud  bind:m  local-ahead
+    =/  advance=?  &(clean =(0 ahead))
+    ;<  ~  bind:m  (save-repo new-pack-data idx-text pack-num branch-refs head-text active-ref advance)
+    =/  fetched=tape  "fetched {(scow %ud (lent want-hashes))} new objects"
+    ?.  advance
+      =/  why=tape
+        ?.  clean  "the working tree has uncommitted changes"
+        "local {(trip active-ref)} is {(scow %ud ahead)} commit(s) ahead of origin"
+      (pure:m [%ok (crip "{fetched}; local {(trip active-ref)} and the tree kept: {why}. Commit or stash, then pull, or push first.")])
+    ;<  ~  bind:m  (reload:io data-rd)
+    (pure:m [%ok (crip fetched)])
   ::  === full clone ===
   ;<  clone-err=(unit @t)  bind:m  (do-full-clone cfg disc)
   ?^  clone-err  (pure:m [%error u.clone-err])
@@ -707,7 +741,7 @@
   ::  clear old packs before writing fresh clone
   ;<  packs-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data/packs])
   ;<  *  bind:m  (cull-soft:io packs-rd)
-  ;<  ~  bind:m  (save-repo pack-data idx-text 0 branch-refs head-text active-ref)
+  ;<  ~  bind:m  (save-repo pack-data idx-text 0 branch-refs head-text active-ref %.y)
   ;<  sync-data-rd=road:tarball  bind:m
     (ancestor-road:io [/git %repo] [%| /data])
   ~?  dbg  "%git/repo: clone complete"
@@ -739,7 +773,10 @@
 ::
 ::  +save-repo: write pack + index + refs + HEAD into repo sub-nexus
 ::
-::  pack-num is the pack slot to write (0 for full clone, N for incremental)
+::  pack-num is the pack slot to write (0 for full clone, N for incremental).
+::  advance: also move HEAD and the LOCAL branch refs to the remote's
+::  hashes (a fast-forward). %.n writes the objects and the remote-tracking
+::  refs only, leaving local HEAD, local branches and the tree as they are.
 ::
 ++  save-repo
   |=  $:  pack-data=octs
@@ -748,6 +785,7 @@
           branch-refs=(list [name=@t hash=hash:git-repo])
           head-text=@t
           ref-name=@t
+          advance=?
       ==
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
@@ -760,17 +798,23 @@
   ;<  ~  bind:m  (write-repo-file rd1 [[/ %mime] [/application/octet-stream pack-data]])
   ;<  rd2=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /data/packs idx-name])
   ;<  ~  bind:m  (write-repo-file rd2 [[/ %mime] [/text/plain idx-octs]])
-  ;<  rd4=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /data %'HEAD'])
-  ;<  ~  bind:m  (write-repo-file rd4 [[/ %mime] [/text/plain head-octs]])
-  ::  write individual ref files — both local and remote tracking
+  ;<  ~  bind:m
+    =/  m  (fiber:fiber:nexus ,~)
+    ?.  advance  (pure:m ~)
+    ;<  rd4=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /data %'HEAD'])
+    (write-repo-file rd4 [[/ %mime] [/text/plain head-octs]])
+  ::  write individual ref files — remote tracking always, local on advance
   |-
   ?~  branch-refs  (pure:m ~)
   =/  hash-text=tape  (print-hash-sha-1:git-transport hash.i.branch-refs)
   =/  hash-octs=octs  (as-octt:bytestream hash-text)
   =/  bname=@ta  (crip (trip name.i.branch-refs))
-  ;<  head-rd=road:tarball  bind:m
-    (ancestor-road:io [/git %repo] [%& /data/refs/heads bname])
-  ;<  ~  bind:m  (write-repo-file head-rd [[/ %mime] [/text/plain hash-octs]])
+  ;<  ~  bind:m
+    =/  m  (fiber:fiber:nexus ,~)
+    ?.  advance  (pure:m ~)
+    ;<  head-rd=road:tarball  bind:m
+      (ancestor-road:io [/git %repo] [%& /data/refs/heads bname])
+    (write-repo-file head-rd [[/ %mime] [/text/plain hash-octs]])
   ;<  remote-rd=road:tarball  bind:m
     (ancestor-road:io [/git %repo] [%& /data/refs/remotes/origin bname])
   ;<  ~  bind:m  (write-repo-file remote-rd [[/ %mime] [/text/plain hash-octs]])

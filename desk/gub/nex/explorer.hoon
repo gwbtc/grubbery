@@ -29,6 +29,8 @@
 ::  the explorer's own copy: importing the shell's tied the explorer's build
 ::  to the shell's files, and every page that embeds the explorer with it
 /&  marked-js  explorer/marked.min.js
+::  snaps: the page renders a pane to a PNG on request (see /snaps below)
+/&  h2c-js     explorer/html2canvas.min.js
 /&  cm-js      /lib/cm/codemirror.min.js
 /&  cm-css     /lib/cm/codemirror.min.css
 /&  cm-vim     /lib/cm/vim.min.js
@@ -101,6 +103,13 @@
           [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %| /requests empty-dir:loader]
+          ::  /snaps: pictures of the page for tools. A tool writes
+          ::  <id>.json {moment}; the open explorer page (the only thing
+          ::  that can see itself) renders the pane showing that moment and
+          ::  uploads <id>.png beside it; the tool awaits the png and culls
+          ::  both. Calls protocol: the requester keeps the png road.
+          [%fall %| /snaps empty-dir:loader]
+          [%over %& [/ %'html2canvas.min.js'] [[/ %mime] h2c-js]]
           [%over %& [/ %'README.md'] [[/ %mime] man]]
           [%over %& [/ %'hoon-grammar.json'] [[/ %mime] gram]]
           [%over %& [/ %'view.js'] [[/ %mime] view-js]]

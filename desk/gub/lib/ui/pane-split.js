@@ -147,6 +147,7 @@ class PaneSplit extends HTMLElement {
   tabInfo = null;      // optional (path) => { icon?:string, label?:string } for the tab chip
   pathHint = null;     // optional (path) => string: the navbar's tooltip for a moment (what a symbolic path resolved to)
   updateContent = null; // optional (el, path, paneId) => bool: update the shown content to a new moment in place; false → rebuild
+  reloadLayout = null;  // optional (paneId, src) => void: re-read a layout's source and reapplyLayout (a refresh on a layout pane)
   viewModes = null;    // optional [{id, glyph, title}] → a per-pane render-mode toggle on the bar; host's renderPath reads viewOf(id)
 
   #root = null;                 // the root PANE
@@ -504,6 +505,10 @@ class PaneSplit extends HTMLElement {
   // pane shows has moved underneath it); scroll position survives
   refresh(id) {
     const p = this.#panes.get(id ?? this.#activeId); if (!p) return;
+    // a pane showing a layout from a file: refresh re-reads the file (the
+    // host fetches and re-applies); its live leaves are kept where they match
+    const src = this.#entrySrc(this.#curEntry(p));
+    if (src && this.reloadLayout && !this.#showsSrc(p)) { try { this.reloadLayout(p.id, src); } catch (_) {} return; }
     const body = p.body.firstChild, top = body ? body.scrollTop : 0;
     this.#renderPane(p, true);                                      // a refresh always rebuilds: the content is what moved
     const nb = p.body.firstChild; if (nb && top) requestAnimationFrame(() => { nb.scrollTop = top; });
@@ -672,6 +677,51 @@ class PaneSplit extends HTMLElement {
     // the keyboard lands on content, not on the structure around it
     if (this.#activeId === pane.id) { const leaf = firstVisibleLeaf(pane, this); if (leaf !== pane) this.cursorTo(leaf); }
   }
+  // reapplyLayout(id, spec, src): the pane's current layout, rebuilt from a
+  // new spec of the same source (the file changed; a refresh). A reshape,
+  // not a flash: a leaf of the new tree whose address and moment match a
+  // leaf of the old tree takes the old pane's LIVE content (viewer, follows,
+  // scroll) instead of rendering again; everything else is new. The user's
+  // ratios and folds are the spec's business now, since the spec is what
+  // changed. Falls back to replaceWithLayout when the pane shows no layout.
+  reapplyLayout(id, spec, src) {
+    const pane = this.#panes.get(id ?? this.#activeId);
+    if (!pane) return;
+    const was = this.#curEntry(pane);
+    const oldHolder = was && was.div ? was.div : (was && was.pane ? was.pane : null);
+    if (!oldHolder) { this.replaceWithLayout(id, spec, src); return; }
+    const entry = this.#buildEntry(spec, pane);
+    if (!entry) return;
+    if (src) { if (entry.div) entry.div.src = src; else entry.src = src; }
+    if (was.name) entry.name = was.name;
+    const newHolder = entry.div ? entry.div : entry.pane;
+    // carry live content across by address + moment
+    const leaves = (p, fn) => { const e = this.#curEntry(p); if (e && e.div) { leaves(e.div.a, fn); leaves(e.div.b, fn); } else if (e && e.pane) leaves(e.pane, fn); else fn(p); };
+    const roots = newHolder.kind === 'pane' ? [newHolder] : [newHolder.a, newHolder.b];
+    roots.forEach((r) => leaves(r, (np) => {
+      const addr = this.#addrWithin(newHolder, np); if (addr == null) return;
+      const op = this.#descend(oldHolder, addr); if (!op || op.kind !== 'pane') return;
+      const ne = this.#curEntry(np), oe = this.#curEntry(op);
+      if (!ne || !oe || ne.path == null || oe.path == null || ne.path !== oe.path) return;
+      const live = op.body.firstChild;
+      if (!live || live.tagName === 'SPLIT-VIEW' || live.classList.contains('ps-pane')) return;
+      op.body.removeChild(live); np.body.textContent = ''; np.body.appendChild(live); np.cold = false;   // moved (a fresh pane's body holds the empty placeholder; the old pane's destroy finds nothing)
+      np.showBar = op.showBar; np.dom.classList.toggle('ps-bar-on', np.showBar);
+      if (op.view) np.view = op.view;
+      this.#renderBar(np);                                         // a fresh pane's bar was drawn before it had tabs: draw it for real
+    }));
+    // the old tree goes (a moved leaf is empty by now; its viewer lives on)
+    this.#eachEntryPane({ entries: [was], cursor: 0 }, (cp) => this.#forgetPane(cp));
+    if (was.div) was.div.sv.__psdiv = null;
+    const tab = pane.tabs[pane.activeTab];
+    tab.entries[tab.cursor] = entry;
+    this.#renderPane(pane); this.#reconcileCursor(); this.#afterStructure(); this.#persist();
+    this.#refocus();
+  }
+  // the source a pane's current moment came from (a layout file), or null
+  srcOf(id) { const p = this.#panes.get(id ?? this.#activeId); return p ? this.#entrySrc(this.#curEntry(p)) : null; }
+  // a line in the hint strip, from the host
+  hint(msg) { this.#flashHint(msg || ''); }
   // a moment from a layout spec: {div} → division, {tabs} → pane moment
   #buildEntry(spec, host) {
     if (!spec) return null;
@@ -1303,8 +1353,11 @@ class PaneSplit extends HTMLElement {
     sv.setAttribute('orientation', s.dir || 'horizontal'); sv.setAttribute('min', '40');
     const div = { dir: s.dir || 'horizontal', ratio: typeof s.ratio === 'number' ? s.ratio : 0.5, fold: s.fold || null, src: s.src || null, open: (s.open && typeof s.open === 'object') ? s.open : null, a: null, b: null, sv, owner: hostPane || null };
     sv.__psdiv = div;
-    div.a = this.#deserPane(s.a, { div, slot: 'a' });
-    div.b = this.#deserPane(s.b, { div, slot: 'b' });
+    // a side is a pane. A side written as a bare {div} (the natural way to
+    // nest splits by hand) is taken as a bar-less pane holding that division
+    const side = (sp, slot) => this.#deserPane((sp && sp.div && !sp.tabs) ? { tabs: [{ entries: [sp], cursor: 0 }] } : sp, { div, slot });
+    div.a = side(s.a, 'a');
+    div.b = side(s.b, 'b');
     return div;
   }
   #deserPane(spec, parent) {

@@ -512,6 +512,14 @@
   and why in the message before the tool call, so the user can decide.
   Commit messages say what changed and why, in plain prose. Never commit
   secrets, local paths or personal details.
+
+  Deploying: when a desk follows this working tree (a code/version.json
+  at its root), raising that number is the deploy: the desk re-syncs the
+  whole tree and every app in it, this clanker included, reloads on the
+  new code. A change is live only after that bump, so a change meant to
+  run ends with one: edit code/version.json to the next integer (its own
+  small commit is fine). Expect your own turn to be interrupted and
+  resumed by that reload.
   '''
 ::  +ensure-repo-chats: the repo's clanker (forge/<short>.clanker in the
 ::  clanker collection: bundle "build", tools that read this checkout, a

@@ -1384,6 +1384,13 @@ function setup(root, opts) {
     el._fv = { destroy() {}, onUpdate() { load(); } };
     paneLive(ps, paneId, el, [{ road: ns === '/' ? '/' : ns.replace(/\/$/, '') + '/', fold: true }]);
   }
+  // re-read a layout file and reapply it to the pane showing it (a refresh
+  // on a layout pane, or a followed source that changed)
+  function psReloadLayout(ps, paneId, ns) {
+    psResolve(ns).then((abs) => fetch(psUrl(abs), { cache: 'no-store' })).then((r) => r.ok ? r.json() : Promise.reject(r.status))
+      .then((spec) => { if (ps.srcOf(paneId) === ns) ps.reapplyLayout(paneId, spec, ns); })
+      .catch((e) => ps.hint('could not re-read the layout: ' + e));
+  }
   function paneContent(ps, paneId, path) {
     const el = document.createElement('div');
     el.style.cssText = 'height:100%;overflow:auto';
@@ -1418,7 +1425,21 @@ function setup(root, opts) {
     if (ACTION_VIEWS[psArgs(path).view]) { actionView(ps, paneId, el, path, abs); return; }   // a form over this path
     if (!raw && /\.layout$/.test(abs)) {                                   // this pane landed ON a layout → become it
       psWait(el, 'opening layout', ns);
-      fetch(url).then((r) => r.ok ? r.json() : Promise.reject('x')).then((spec) => ps.replaceWithLayout(paneId, spec, ns)).catch(() => psWaitFail(el, 'not a valid layout', ns));
+      fetch(url).then((r) => r.ok ? r.json() : Promise.reject('x')).then((spec) => {
+        ps.replaceWithLayout(paneId, spec, ns);
+        // the layout's SOURCE is followed for as long as the pane shows it.
+        // By default a shown layout is the user's (their resizes, folds and
+        // tabs): a change to the file only says so in the hint, and ↻ or
+        // ⌃B R re-applies it. `?follow=1` on the moment re-applies on every
+        // change, live leaves kept where their address and moment match.
+        const follow = psArgs(path).follow === '1';
+        const un = live([{ road: abs }], (ev) => {
+          if (ps.srcOf(paneId) !== ns) { un(); return; }                 // the pane moved on: this follow is done
+          if (ev.kind === 'del') { un(); ps.hint('layout source deleted: ' + ns); return; }
+          if (follow) psReloadLayout(ps, paneId, ns);
+          else ps.hint('layout source changed · ↻ or ⌃B R to re-apply · ' + ns);
+        }, null);
+      }).catch((e) => psWaitFail(el, 'not a valid layout: ' + ((e && e.message) || e), ns));   // the file, or applying it
       return;
     }
     // viewers get open(url, {name}) and close(url) over moments; onNavigate(url,
@@ -1461,7 +1482,7 @@ function setup(root, opts) {
           : o;
         fetch(viewer.layout, { cache: 'no-store' }).then((r) => r.ok ? r.json() : Promise.reject('x'))
           .then((spec) => { if (el.isConnected) ps.replaceWithLayout(paneId, rebase(spec), ns); })
-          .catch(() => psWaitFail(el, 'not a valid layout', viewer.layout));
+          .catch((e) => psWaitFail(el, 'not a valid layout: ' + ((e && e.message) || e), viewer.layout));
         return;
       }
       if (viewer && !viewer.blocked && viewer.mount) { el._fv = viewer.mount(el, { url, onNavigate: onNav, open: vopen, close: vclose, query: psArgs(path) }); paneLive(ps, paneId, el, viewer.follow); psLanded(ps, paneId, el); return; }
@@ -2082,6 +2103,56 @@ function setup(root, opts) {
     ctx.querySelectorAll('[data-ctx]').forEach(b => { b.style.display = ''; });
   });
 
+  // ---- snaps: pictures of the page for tools on the ship ----
+  // A tool writes snaps/<id>.json {moment} under the explorer; this page,
+  // the only thing that can see itself, renders the pane showing that
+  // moment (or the whole workspace when none does) to a PNG and uploads
+  // <id>.png beside the request. The tool awaits the png and culls both.
+  const SNAPS = '/apps/explorer.explorer/snaps/';
+  let h2c = null;
+  function html2canvasLoad() {
+    if (h2c) return h2c;
+    return h2c = new Promise((res, rej) => {
+      if (window.html2canvas) return res(window.html2canvas);
+      const s = document.createElement('script');
+      s.src = PREFIX + '/apps/explorer.explorer/html2canvas.min.js';
+      s.onload = () => res(window.html2canvas);
+      s.onerror = () => { h2c = null; rej(new Error('html2canvas did not load')); };
+      document.head.appendChild(s);
+    });
+  }
+  // the pane whose content shows `moment`: the exact moment first, else the
+  // same place under other ?args
+  function psPaneShowing(ps, moment) {
+    if (!moment) return null;
+    const want = psNs(moment);
+    let near = null;
+    for (const body of ps.querySelectorAll('.ps-pane-body')) {
+      const el = body.firstChild; if (!el || !el._moment) continue;
+      const pane = body.closest('.ps-pane');
+      if (el._moment === moment) return pane;
+      if (!near && psNs(el._moment) === want) near = pane;
+    }
+    return near;
+  }
+  function psSnaps(ps) {
+    live([{ road: SNAPS, body: true }], async (ev) => {
+      if (ev.kind !== 'new' || !ev.path.endsWith('.json')) return;
+      const id = ev.path.slice(SNAPS.length, -5);
+      const moment = ev.body && typeof ev.body === 'object' ? String(ev.body.moment || '') : '';
+      try {
+        const render = await html2canvasLoad();
+        const target = psPaneShowing(ps, moment) || ps;
+        const w = target.getBoundingClientRect().width || 1;
+        const canvas = await render(target, { useCORS: true, logging: false, backgroundColor: '#ffffff', scale: Math.min(1, 1600 / w) });
+        const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
+        const fd = new FormData(); fd.append('file', blob, id + '.png');
+        const r = await fetch(PREFIX + SNAPS.replace(/\/$/, ''), { method: 'POST', body: fd, redirect: 'manual' });
+        if (r.status >= 400) throw new Error('upload ' + r.status);
+      } catch (e) { toast('snap failed: ' + (e && e.message || e), true); }
+    }, null);
+  }
+
   // ---- toast ----
   let toastTimer = null;
   function toast(msg, err) {
@@ -2113,6 +2184,7 @@ function setup(root, opts) {
     // the page without a remount, a wait block, or a refetch of its nav.
     // Anything else (another path, a built-in rendering, an action view, a
     // viewer without onArgs) is rebuilt as before.
+    ps.reloadLayout = (id, src) => psReloadLayout(ps, id, src);           // ↻ on a layout pane re-reads its file
     ps.updateContent = (el, path) => {
       if (!el || el._dead || !el._fv || typeof el._fv.onArgs !== 'function') return false;
       if (psNs(el._moment || '') !== psNs(path)) return false;
@@ -2145,6 +2217,7 @@ function setup(root, opts) {
     }, true);
     let saved = null; try { saved = localStorage.getItem('pane-split:' + K + '-standalone'); } catch (_) {}
     if (!saved) ps.open('/', 'here');                   // fresh → root; otherwise the persisted workspace restores (stateful)
+    psSnaps(ps);
     return;
   }
   load();
