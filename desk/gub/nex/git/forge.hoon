@@ -495,8 +495,9 @@
   repo_read to read a file, repo_grep to search, docs_page to read a
   handbook page as rendered; repo_write and repo_edit change files in the
   working tree; repo_git runs one git command through the forge (add,
-  commit, push, pull, status, checkout). Paths are relative to the repo
-  root, like "lib/foo.hoon". Read before you answer or change anything;
+  commit, push, pull, status, checkout); repo_deploy makes the committed
+  tree live. Paths are relative to the repo root, like "lib/foo.hoon".
+  Read before you answer or change anything;
   name the files and lines you relied on. Which tools a chat may use, and
   which ask the user first, is that chat's policy. Your own directory
   (memories, skills) is yours to keep notes in.
@@ -513,13 +514,13 @@
   Commit messages say what changed and why, in plain prose. Never commit
   secrets, local paths or personal details.
 
-  Deploying: when a desk follows this working tree (a code/version.json
-  at its root), raising that number is the deploy: the desk re-syncs the
-  whole tree and every app in it, this clanker included, reloads on the
-  new code. A change is live only after that bump, so a change meant to
-  run ends with one: edit code/version.json to the next integer (its own
-  small commit is fine). Expect your own turn to be interrupted and
-  resumed by that reload.
+  Deploying: a committed change is not running yet. repo_deploy makes the
+  working tree live, in whatever way this repository deploys (it reads
+  the repo's deploy config: a version bump that a following desk picks
+  up, or a commit of the tree into a Clay desk for the kernel). So a
+  change meant to run goes: edit, commit, repo_deploy, then verify. A
+  deploy reloads the code this clanker runs on, so expect your own turn
+  to be interrupted and resumed by it; the work already done stays done.
   '''
 ::  +ensure-repo-chats: the repo's clanker (forge/<short>.clanker in the
 ::  clanker collection: bundle "build", tools that read this checkout, a
@@ -551,6 +552,22 @@
     ^-  json
     (pairs:enjs:format ~[['name' s+name] ['system' s+system] ['policy' policy]])
   =/  strs  |=(l=(list @t) ^-(json a+(turn l |=(s=@t `json`s+s))))
+  ::  how this repo deploys (the repo's config.json "deploy", set by the
+  ::  shell's stock list): copied into the clanker's config for its
+  ::  repo_deploy tool. A clay deploy commits the tree into a Clay desk
+  ::  through the kernel's clay and scry services, so those two roads go
+  ::  with it; a version deploy only edits a file in the tree
+  ;<  rcfg=(unit json)  bind:m
+    (peek-as:io [%& %& (weld p.u.fo /repos/[repo]) %'config.json'] ,json)
+  =/  deploy=json
+    ?.  ?=([~ %o *] rcfg)  ~
+    (fall (~(get by p.u.rcfg) 'deploy') ~)
+  =/  clay-deploy=?
+    ?.  ?=([%o *] deploy)  %.n
+    ?=([~ %s %'clay'] (~(get by p.deploy) 'kind'))
+  =/  deploy-pokes=(list @t)
+    ?.  clay-deploy  ~
+    ~['/sys/clay/main.clay-state' '/sys/scry/main.sig']
   =/  ensure=json
     %-  pairs:enjs:format
     :~  ['action' s+'ensure']
@@ -559,12 +576,12 @@
         ['bundle' s+'build']
         ['system' s+(repo-clanker-prompt short tree)]
         ['repo' s+tree]
-        ['config' (pairs:enjs:format ~[['ui' s+ui]])]
+        ['config' (pairs:enjs:format ~[['ui' s+ui] ['deploy' deploy]])]
         :-  'roads'
         %-  pairs:enjs:format
         :~  ['peek' (strs ~[(cat 3 tree '/') (cat 3 ui '/') lane])]
             ['make' (strs ~[(cat 3 tree '/')])]
-            ['poke' (strs ~[lane])]
+            ['poke' (strs (weld ~[lane] deploy-pokes))]
         ==
         :-  'chats'
         :-  %a
@@ -576,7 +593,7 @@
             %^  chat  'build'  build-chat-prompt
             %-  pairs:enjs:format
             :~  ['default' s+'allow']
-                ['ask' (strs ~['repo_write' 'repo_edit' 'repo_git' 'write_file' 'delete_file'])]
+                ['ask' (strs ~['repo_write' 'repo_edit' 'repo_git' 'repo_deploy' 'write_file' 'delete_file'])]
             ==
         ==
     ==

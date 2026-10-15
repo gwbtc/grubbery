@@ -997,13 +997,33 @@
 ::  a stock entry is either a github repo (shell provisions a git_repo that
 ::  polls it, then a desk following the checkout) or a direct /code path (just
 ::  a desk following that namespace dir, like a plain /desk).
+::  how a github entry's checkout becomes live code, which is also what
+::  its build chat's repo_deploy tool does after a commit:
+::    %desk  a /desk follows the tree's /code and deploys when its
+::           code/version.json is bumped (the stock app path)
+::    %clay  the tree's <dir> IS a Clay desk: deploying commits it into
+::           the named desk, the way a Unix |commit does (the kernel)
++$  deploy-spec
+  $%  [%desk ~]
+      [%clay desk=@tas dir=@t]
+  ==
 +$  stock-entry
-  $%  [%github name=@t repo=@t ref=@t]
+  $%  [%github name=@t repo=@t ref=@t deploy=deploy-spec]
       [%code name=@t code=@t]
   ==
 ++  default-repos
   ^-  (list stock-entry)
-  :~  [%github 'hatchery' 'gwbtc/hatchery' 'main']
+  :~  [%github 'hatchery' 'gwbtc/hatchery' 'main' [%desk ~]]
+      [%github 'grubbery' 'gwbtc/grubbery' 'develop' [%clay %grubbery 'desk']]
+  ==
+::  deploy-json: the deploy spec as the repo's config.json carries it
+::  (and the forge copies into the repo clanker's config for repo_deploy)
+++  deploy-json
+  |=  d=deploy-spec
+  ^-  json
+  ?-  -.d
+    %desk  (pairs:enjs:format ~[['kind' s+'version'] ['file' s+'code/version.json']])
+    %clay  (pairs:enjs:format ~[['kind' s+'clay'] ['desk' s+desk.d] ['dir' s+dir.d]])
   ==
 ::  stock-name / stock-code: pull the name (and, for %code, the code path)
 ::  out of an entry regardless of kind.
@@ -1011,13 +1031,14 @@
 ::  repo-config: the config.json a git_repo instance is seeded with.
 ::
 ++  repo-config
-  |=  [repo=@t ref=@t]
+  |=  [repo=@t ref=@t deploy=deploy-spec]
   ^-  json
   %-  pairs:enjs:format
   :~  ['repo' s+repo]
       ['ref' s+ref]
       ['token' s+'']
       ['poll' n+'15']
+      ['deploy' (deploy-json deploy)]
   ==
 ::  ensure-pairing: idempotently stand up ONE git_repo + desk pairing.
 ::  Guarded makes (skip what exists) + a replace-in-place source poke, so
@@ -1078,24 +1099,39 @@
       =/(v (~(get by cur-obj) 'repo') ?:(?=([~ %s *] v) p.u.v ''))
     =/  cur-ref=@t
       =/(v (~(get by cur-obj) 'ref') ?:(?=([~ %s *] v) p.u.v ''))
+    =/  cur-deploy=(unit json)  (~(get by cur-obj) 'deploy')
+    =/  want-deploy=json  (deploy-json deploy.entry)
     ;<  ~  bind:m
-      ?:  &(=(cur-repo repo.entry) =(cur-ref ref.entry))  (pure:m ~)
+      ?:  ?&  =(cur-repo repo.entry)
+              =(cur-ref ref.entry)
+              =(cur-deploy `want-deploy)
+          ==
+        (pure:m ~)
       ::  config.json is a plain data grub (no poke handler), so overwrite
       ::  it with over:io — poke:io would nack and crash this handler.
-      (over:io [%& %& repo-dir %'config.json'] [[/ %json] (repo-config repo.entry ref.entry)])
+      ::  A user's other fields (author, account, token) are kept.
+      =/  cfg=json  (repo-config repo.entry ref.entry deploy.entry)
+      =/  merged=json
+        ?.  ?=([%o *] cfg)  cfg
+        [%o (~(uni by cur-obj) p.cfg)]
+      (over:io [%& %& repo-dir %'config.json'] [[/ %json] merged])
     ::  the poll daemon reads poll.json, not config.json's `poll`: a repo
     ::  is seeded with minutes 0 (off) and nothing ever copied the cadence
     ::  across, so a stock mirror only pulled when something poked it —
     ::  a version pushed to github never reached the distributor on its
     ::  own. Turn the daemon on once; a cadence someone set stays.
     (ensure-poll repo-dir)
-  ::  2. the desk, BEFORE any network work
+  ::  2. the desk, BEFORE any network work. Only a %desk deploy has one:
+  ::  a %clay entry (the kernel) deploys by committing its tree into a
+  ::  Clay desk, which its build chat's repo_deploy does; no follower
+  =/  follower=?  ?:(?=(%github -.entry) ?=(%desk -.deploy.entry) %.y)
   ;<  has-desk=?  bind:m  (peek-exists:io [%& %| desk-dir])
   ;<  ~  bind:m
-    ?:  has-desk  (pure:m ~)
+    ?:  |(has-desk !follower)  (pure:m ~)
     (make:io [%& %| desk-dir] &+`bole:tarball`[`[`[/ %desk] ~ %.n ~] ~])
   ::  3. always wire the desk's source at the computed code path
   ;<  ~  bind:m
+    ?.  follower  (pure:m ~)
     (poke:io [%& %& desk-dir %'source.json'] [[/ %json] (pairs:enjs:format ~[['code' s+code]])])
   ::  4. LAST, and SOFT: ask for a fresh fetch, so "sync" still means "pull
   ::  latest" when the network cooperates. Soft because a nack here would
@@ -1171,7 +1207,13 @@
   ;<  src=(unit json)  bind:m
     ?.  has-desk  (pure:(fiber:fiber:nexus ,(unit json)) ~)
     (peek-as:io [%& %& desk-dir %'source.json'] ,json)
+  ::  a clay-deployed entry (the kernel) has no following desk: it is
+  ::  synced when its repo mirror exists
+  ;<  has-repo=?  bind:m
+    ?.  ?=(%github -.i.todo)  (pure:(fiber:fiber:nexus ,?) %.n)
+    (peek-exists:io [%& %| /apps/'forge.git_forge'/repos/[(cat 3 `@ta`name '.git_repo')]])
   =/  synced=?
+    ?:  &(?=(%github -.i.todo) ?=(%clay -.deploy.i.todo))  has-repo
     ?&  has-desk
         ?=(^ src)
         ?=([%o *] u.src)
@@ -1182,6 +1224,7 @@
         %github
       :~  ['name' s+name]  ['kind' s+'github']
           ['repo' s+repo.i.todo]  ['ref' s+ref.i.todo]  ['synced' b+synced]
+          ['deploy' (deploy-json deploy.i.todo)]
       ==
         %code
       :~  ['name' s+name]  ['kind' s+'code']
