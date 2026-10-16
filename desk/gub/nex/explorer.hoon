@@ -20,7 +20,7 @@
 /&  ba-js    /lib/ui/badges.js
 ::  experimental tmux-style pane splitting — served but unlinked from the
 ::  live finder; exercised only via panes.html (see below).
-/&  ps-js       /lib/ui/pane-split.js
+/&  gmux-js     /lib/ui/gmux.js
 /&  nk-js       /lib/ui/nav-keys.js
 /&  panes-html  explorer/ui/panes.html
 /&  browse-html  explorer/ui/browse.html
@@ -87,7 +87,7 @@
             (wrap fg-js)
             (wrap sv-js)
             (wrap nk-js)
-            (wrap ps-js)
+            (wrap gmux-js)
             (wrap tg-js)
             (wrap tv-js)
             (wrap ba-js)
@@ -128,7 +128,7 @@
           [%over %& [/ %'browse.html'] [[/ %mime] browse-html]]
           [%over %& [/ %'browse.js'] [[/ %mime] browse-js]]
           [%over %& [/ %'view.html'] [[/ %mime] view-html]]
-          [%over %& [/ %'pane-split.js'] [[/ %mime] ps-js]]
+          [%over %& [/ %'gmux.js'] [[/ %mime] gmux-js]]
           [%over %& [/ %'nav-keys.js'] [[/ %mime] nk-js]]
           [%over %& [/ %'panes.html'] [[/ %mime] panes-html]]
           [%over %& [/ %'marked.min.js'] [[/ %mime] marked-js]]

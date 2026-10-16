@@ -45,11 +45,11 @@
     <label class="chk"><input type="checkbox" id="fvmode"> FileView leaves</label>
     <input id="path" value="/grubbery/ball/apps/explorer.explorer/view.js" spellcheck="false">
   </div>
-  <pane-split id="host"></pane-split>
+  <gmux-host id="host"></gmux-host>
 
-  <!-- kit.js bundles split-view + FileView + friends; pane-split rides on top -->
+  <!-- kit.js bundles split-view + FileView + friends; gmux rides on top -->
   <script src="kit.js"></script>
-  <script src="pane-split.js"></script>
+  <script src="gmux.js"></script>
   <script>
     const host = document.getElementById('host');
     const COLORS = ['#eef6ff', '#fff4ec', '#f0fff4', '#f7f0ff', '#fffbe6', '#f0fdff'];
@@ -99,7 +99,7 @@
     const HL = ['none', 'active only', 'full'];
     document.getElementById('hl').onclick = act(() => { const lv = host.cycleHighlight(); document.getElementById('hl').textContent = 'Highlight: ' + HL[lv]; });
 
-    host.focus();   // keyboard works without a click first (pane-split also self-focuses on connect)
+    host.focus();   // keyboard works without a click first (gmux also self-focuses on connect)
   </script>
 </body>
 </html>

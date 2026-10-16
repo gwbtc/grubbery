@@ -1,4 +1,4 @@
-// <pane-split> — a tiling window manager. THE ONLY NOUN IS A PANE.
+// gmux — the tiling window manager (<gmux-host>). THE ONLY NOUN IS A PANE.
 //
 // THE MODEL (pure, serializable data — panes all the way down):
 //   pane  = { tabs:[tab], activeTab }        a rectangle; owns its tabs + bar
@@ -23,6 +23,16 @@
 // Four cursors read this one structure: selection (which pane), zoom (which
 // viewport), tab (which history-line), history (which entry in time).
 //
+// ZOOM IS RELATIVE. A zoom is a pane shown alone inside a FRAME. The frame
+// is the nearest CONTEXT above the pane, else the window. z on the cursor:
+// it fills its frame (the rest of the frame folds into a wall; the rest of
+// the window stays). Contexts are standing: C toggles any pane as one (a
+// wall marks it); any number may be set; the root always is one (there is
+// no window zoom, only the outermost pane as frame). z on a context itself fills the
+// next context above it. Contexts and zooms persist with the structure. Zooms stack,
+// inner inside outer; Z pops one. A zoomed frame shows a thicker, darker
+// wall around its body on every side, each saying zoomed.
+//
 // CONTRACT (host sets in JS):
 //   renderPath (path, paneId) => HTMLElement   content for a leaf path
 //   leafFactory (paneId) => HTMLElement        optional: empty-pane placeholder
@@ -36,7 +46,7 @@
 //   data: serialize() · restore(spec) · instantiate(spec)
 //
 //   KEYS (after prefix): % / | split right · " / - split down · c collapse · e expand ·
-//     z/Z zoom in/out · x close · b lock bars · o cycle · m mark · ␣ swap ·
+//     z/Z zoom in/out · C set/clear zoom context · x close · b lock bars · o cycle · m mark · ␣ swap ·
 //     [ ] climb/descend · Tab sibling · Esc reset · h highlight · 1-9 jump ·
 //     t new tab · w close tab · T toggle bar · : focus navbar · < > prev/next tab · , . back/forward ·
 //     arrows move · shift+arrows / r resize (sticky).
@@ -45,10 +55,10 @@
 // division nests via a <split-view> living in the owner pane's body; each child
 // pane renders its own bar + body, so bars appear at every level.
 
-const STYLE_ID = 'pane-split-style';
+const STYLE_ID = 'gmux-style';
 const CSS = `
-  pane-split { display:block; width:100%; height:100%; min-width:0; min-height:0; position:relative; }
-  pane-split split-view { width:100%; height:100%; }
+  gmux-host { display:block; width:100%; height:100%; min-width:0; min-height:0; position:relative; }
+  gmux-host split-view { width:100%; height:100%; }
   .ps-pane {
     position:relative; width:100%; height:100%; min-width:0; min-height:0;
     box-sizing:border-box; overflow:hidden; display:flex; flex-direction:column;
@@ -61,6 +71,19 @@ const CSS = `
     outline:1px solid transparent; outline-offset:-1px; transition:outline-color .1s;
   }
   .ps-pane.ps-active::after { outline:2px solid var(--ps-accent,#0969da); outline-offset:-2px; }
+  /* a zoomed frame: a pane whose body shows one descendant alone. Its wall is the
+     ordinary pane border, thicker and a shade darker: structure, not selection.
+     The folded siblings are that wall with their names set into it, on the side
+     they lived; a click on it zooms back out. */
+  .ps-pane.ps-zoom-frame > .ps-pane-body { padding:3px; }
+  .ps-pane.ps-zoom-ctx > .ps-pane-body { padding:3px; box-shadow: inset 0 0 0 3px var(--ps-wall,#cfd5db); }
+  .ps-zoom-wall { position:absolute; z-index:3; background:var(--ps-wall,#cfd5db); color:#57606a; font:600 11px ui-monospace,Menlo,monospace; cursor:pointer; display:flex; gap:12px; align-items:center; overflow:hidden; white-space:nowrap; user-select:none; box-sizing:border-box; }
+  .ps-zoom-wall:hover { background:#c2c9d0; color:#24292f; }
+  .ps-zoom-wall.left { left:0; top:0; bottom:0; width:16px; padding:8px 0; writing-mode:vertical-rl; }
+  .ps-zoom-wall.right { right:0; top:0; bottom:0; width:16px; padding:8px 0; writing-mode:vertical-rl; }
+  .ps-zoom-wall.top { left:0; right:0; top:0; height:16px; padding:0 8px; }
+  .ps-zoom-wall.bottom { left:0; right:0; bottom:0; height:16px; padding:0 8px; }
+  .ps-zoom-wall .ps-zw-n { opacity:.7; font-weight:400; }
   .ps-sel-box { position:absolute; pointer-events:none; z-index:20; display:none; border:3px solid var(--ps-sel,#8250df); box-sizing:border-box; border-radius:3px; }
   .ps-sel-box.on { display:block; }
   .ps-mark-box { position:absolute; pointer-events:none; z-index:19; display:none; border:3px dashed var(--ps-mark,#bf8700); box-sizing:border-box; border-radius:3px; }
@@ -122,7 +145,7 @@ const CSS = `
   .ps-qb-btn { all:unset; cursor:pointer; padding:0 6px; height:22px; box-sizing:border-box; display:inline-flex; align-items:center; border-radius:4px; color:#57606a; font-size:14px; line-height:1; }
   .ps-qb-btn:hover { background:#eaeef2; color:#24292f; }
   .ps-qb-count { margin-left:auto; padding:0 4px 0 8px; height:22px; box-sizing:border-box; display:inline-flex; align-items:center; justify-content:flex-end; color:#8b949e; font:600 12px ui-monospace,SFMono-Regular,Menlo,monospace; min-width:20px; }
-  pane-split.ps-no-hovertoggle .ps-quickbar { display:none !important; }
+  gmux-host.ps-no-hovertoggle .ps-quickbar { display:none !important; }
   .ps-hint { position:absolute; left:8px; bottom:8px; z-index:10; background:#1f2328; color:#fff; font:12px ui-monospace,Menlo,monospace; padding:4px 9px; border-radius:6px; opacity:0; transition:opacity .1s; pointer-events:none; }
   .ps-hint.on { opacity:.92; }
 `;
@@ -139,7 +162,7 @@ const DIR = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 
 const MODS = { Shift: 1, Control: 1, Alt: 1, Meta: 1 };
 const base = (p) => (p || '').split('/').filter(Boolean).pop() || p || '';
 
-class PaneSplit extends HTMLElement {
+class Gmux extends HTMLElement {
   renderPath = null;
   leafFactory = null;
   onDestroy = null;
@@ -154,11 +177,12 @@ class PaneSplit extends HTMLElement {
   #panes = new Map();           // id -> pane
   #activeId = null;             // the selected/active pane id
   #selLevel = 2;
-  #zoomStack = [];              // panes hoisted to viewport (ancestry path)
+  #zoomStack = [];              // zooms, outer to inner: { pane, frame }; the root is a frame like any other
   #mark = null;                 // a marked pane (for swap)
+  #contexts = new Set();        // standing zoom frames (C toggles a pane); z fills the nearest one above the cursor, else the window
   #pendingClose = null;         // a pane with content whose close awaits Enter
   #closing = false;             // set only while Enter runs the confirmed close
-  #hoisted = null;              // the pane currently hoisted for zoom
+  #hoists = [];                 // zooms applied to the DOM: { entry, hid, wall, pad }
   #hoverToggle = true;
   #pillTimer = null;            // interval that counts the quickbar's sticky grace down
   #pillEnd = 0;                 // when the quickbar is due to retract (ms epoch)
@@ -209,7 +233,13 @@ class PaneSplit extends HTMLElement {
     window.addEventListener('resize', this.#reposition);
     let restored = false;
     const k = this.#saveKey();
-    if (k) { try { const s = JSON.parse(localStorage.getItem(k) || 'null'); if (s) { this.restore(s); restored = true; } } catch (_) {} }
+    if (k) {
+      try {
+        let s = JSON.parse(localStorage.getItem(k) || 'null'), legacy = false;
+        if (!s) { s = JSON.parse(localStorage.getItem(this.#legacyKey()) || 'null'); legacy = !!s; }
+        if (s) { this.restore(s); restored = true; if (legacy) this.#persist(); }
+      } catch (_) {}
+    }
     if (!restored && !this.#root) this.seed();
     this.focus({ preventScroll: true });
   }
@@ -458,6 +488,7 @@ class PaneSplit extends HTMLElement {
   // re-instantiated from its path (we keep paths, never live views). A division
   // entry mounts its (persistent) split-view; its children render themselves.
   #renderPane(pane, rebuild = false) {
+    this.#dropZoomsFramedBy(pane);                                  // its body is about to be rebuilt: nothing stays hoisted in it
     const prev = pane.body.firstChild;
     const entry = this.#curEntry(pane);
     // a leaf moving to another moment: the host may update the content it
@@ -857,7 +888,7 @@ class PaneSplit extends HTMLElement {
     // the parent tab loses its history to childA; it now holds the division.
     tab.entries = [{ div }]; tab.cursor = 0;
     this.#renderPane(pane);                     // pane.body is now empty → mounts the division
-    if (savedZoom.length) { this.#zoomStack = savedZoom.map(z => z === pane ? pane : z); this.#applyZoom(); }
+    if (savedZoom.length) { this.#zoomStack = savedZoom; this.#applyZoom(); }
     this.#afterStructure();
     this.#restoreScroll(scroll);
     this.focusPane(childB.id);
@@ -981,7 +1012,7 @@ class PaneSplit extends HTMLElement {
     if (div.fold) { sv.setAttribute('primary', primaryEnd ? 'end' : 'start'); sv.setAttribute('collapsed', ''); }
     else { sv.setAttribute('primary', 'start'); sv.removeAttribute('collapsed'); }
   }
-  #afterStructure() { this.#reconnectDivs(); this.#reposition(); }
+  #afterStructure() { if (this.#zoomStack.length) this.#applyZoom(); else this.#reconnectDivs(); this.#reposition(); }
   // walk the visible tree, (re)binding each division's owner + child parents, so
   // backrefs stay correct after history/tab moves, and lay out split-views.
   #reconnectDivs() {
@@ -1103,6 +1134,7 @@ class PaneSplit extends HTMLElement {
     if (this.#selLevel >= 2 && sel && this.#divides(sel) && !this.#hidden(sel)) this.#placeBox(this.#selBox, sel);
     else this.#selBox?.classList.remove('on');
     this.#renderMark();
+    this.#renderContext();
     this.#positionBarToggle();
   };
   // keep a showing quickbar anchored to the selected pane across scroll/resize;
@@ -1179,10 +1211,18 @@ class PaneSplit extends HTMLElement {
   // a pane is hidden if a zoom excludes it, an ancestor folded its branch, or an
   // ancestor switched its tab/history away from the division that contains it.
   #hidden(pane) {
-    const top = this.#zoomStack[this.#zoomStack.length - 1];
-    if (top && !this.#within(top, pane)) return true;
+    // a zoom hides everything in its frame that is not in its pane
+    for (const z of this.#zoomStack) {
+      if (z.frame === pane) continue;                              // a frame is not hidden by the zoom it holds
+      const inFrame = this.#within(z.frame, pane);
+      if (inFrame && !this.#within(z.pane, pane)) return true;
+    }
     let n = pane;
-    while (n && n !== top) {
+    while (n) {
+      // a hoisted pane sits in its frame's body: what lies between the two
+      // (divisions, folds, tabs) no longer applies to it; a window zoom ends the walk
+      const z = this.#zoomStack.find(z => z.pane === n);
+      if (z) { n = z.frame; continue; }
       const par = n.parent; if (!par) break;
       const owner = this.#ownerOf(n), ce = this.#curEntry(owner);
       if (par.div) {
@@ -1217,51 +1257,105 @@ class PaneSplit extends HTMLElement {
     if (best) this.focusPane(best.id);
   }
 
-  // ---- zoom (viewport stack of panes) ----
+  // ---- zoom: a pane alone inside a frame; zooms stack outer to inner ----
 
+  // z: the cursor fills its frame: the context when one is set and the
+  // cursor is inside it, else the window. The same zoom again pops it.
   zoomToggle(pane) {
     pane = pane ?? this.cursor;
-    if (!pane) return;
+    if (!pane || !pane.parent) return;                              // the root already fills the window
+    // the nearest context strictly above the cursor; the root is always one
+    let frame = this.#root;
+    for (let n = this.#ownerOf(pane); n; n = this.#ownerOf(n)) if (this.#contexts.has(n) || n === this.#root) { frame = n; break; }
+    const z = { pane, frame };
     const top = this.#zoomStack[this.#zoomStack.length - 1];
-    if (pane === top) this.#zoomStack.pop();
-    else { if (!pane.parent) return; if (top && !this.#within(top, pane)) return; this.#zoomStack.push(pane); }
-    this.#afterZoom(pane);
+    if (top && top.pane === z.pane && top.frame === z.frame) { this.#zoomStack.pop(); this.#afterZoom(z.pane); return; }
+    if (this.#hidden(z.pane)) return;                               // not on screen: nothing to zoom
+    // one zoom per pane and one per frame; a pane that is itself a FRAME of
+    // an inner zoom may still be zoomed outward (the context goes full screen)
+    if (this.#zoomStack.some(o => (o.pane === z.pane) || (z.frame && o.frame === z.frame))) return;
+    this.#zoomStack.push(z);
+    this.#afterZoom(z.pane);
   }
-  zoomOut() { if (this.#zoomStack.length) { this.#zoomStack.pop(); this.#afterZoom(this.#zoomStack[this.#zoomStack.length - 1] ?? this.cursor); } }
+  // C: toggles the cursor as a standing zoom context. Any number of panes
+  // may be contexts; z fills the nearest one above the cursor.
+  contextToggle() {
+    const c = this.cursor; if (!c) return false;
+    if (c === this.#root) return true;                              // the root is always a context
+    const on = !this.#contexts.has(c);
+    if (on) this.#contexts.add(c); else this.#contexts.delete(c);
+    this.#renderContext(); this.#persist();
+    return on;
+  }
+  clearContext() { this.#contexts.clear(); this.#renderContext(); }
+  #renderContext() {
+    for (const p of this.#panes.values()) p.dom.classList.toggle('ps-zoom-ctx', p !== this.#root && this.#contexts.has(p) && !this.#hidden(p));
+  }
+  // Z: pop the innermost zoom; the cursor stays on what WAS zoomed, not its frame
+  zoomOut() { if (this.#zoomStack.length) { const z = this.#zoomStack.pop(); this.#afterZoom(z.pane); } }
   zoomReset() { if (this.#zoomStack.length) { this.#zoomStack = []; this.#afterZoom(this.cursor); } }
-  // make a specific pane fill the viewport (toolbar "full screen this").
+  // make a specific pane fill the window (toolbar "full screen this").
   zoomPane(id) {
     const p = this.#panes.get(id ?? this.#activeId);
     if (!p || !p.parent) { this.zoomReset(); return; }   // root already fills
-    this.#zoomStack = [p]; this.#afterZoom(p);
+    this.#zoomStack = [{ pane: p, frame: this.#root }]; this.#afterZoom(p);
   }
-  // step the zoom out to the parent of what's currently zoomed (or of this pane).
+  // step the window zoom out to the parent of what's currently zoomed (or of this pane).
   zoomParent(id) {
     const top = this.#zoomStack[this.#zoomStack.length - 1];
-    const from = top || this.#panes.get(id ?? this.#activeId);
+    const from = (top && top.pane) || this.#panes.get(id ?? this.#activeId);
     const owner = from && this.#ownerOf(from);
-    if (owner && owner.parent) { this.#zoomStack = [owner]; this.#afterZoom(owner); }
+    if (owner && owner.parent) { this.#zoomStack = [{ pane: owner, frame: this.#root }]; this.#afterZoom(owner); }
     else this.zoomReset();                                 // parent is the root → show everything
   }
-  #afterZoom(focusPane) { this.#applyZoom(); if (focusPane) this.cursorTo(focusPane); this.#emit('ps-zoom', { depth: this.#zoomStack.length }); }
+  #afterZoom(focusPane) { this.#applyZoom(); if (focusPane) this.cursorTo(focusPane); this.#emit('ps-zoom', { depth: this.#zoomStack.length }); this.#persist(); }
+  // a frame about to rebuild its body cannot keep a pane hoisted in it
+  #dropZoomsFramedBy(pane) {
+    if (!this.#zoomStack.some(z => z.frame === pane)) return;
+    this.#zoomStack = this.#zoomStack.filter(z => z.frame !== pane);
+    this.#applyZoom();
+  }
+  // bring the DOM to the stack: undo hoists no longer wanted (inner first),
+  // make the ones missing (outer first). Idempotent; cheap when nothing changed.
   #applyZoom() {
     const scroll = this.#snapshotScroll();   // reparenting a pane zeroes its scrollers — keep them
-    const top = this.#zoomStack[this.#zoomStack.length - 1] || null;
-    if (this.#hoisted && this.#hoisted !== top) {
-      const hn = this.#hoisted;
-      if (hn.parent) { const hp = hn.parent; if (hp.div) this.#placePane(hn, hp.div.sv, hp.slot === 'a' ? 'start' : 'end'); else this.#placePane(hn, hp.host.body, null); }
-      this.#hoisted = null;
-    }
-    if (top) {
-      if (this.#hoisted !== top) { this.#placePane(top, this, null); this.#hoisted = top; }
-      if (this.#root) this.#root.dom.style.display = (top === this.#root) ? '' : 'none';
-      this.classList.add('ps-zoomed');
-    } else {
-      if (this.#root) this.#root.dom.style.display = '';
-      this.classList.remove('ps-zoomed');
-    }
+    const want = this.#zoomStack;
+    for (const h of [...this.#hoists].reverse()) if (!want.includes(h.entry)) this.#unhoist(h);
+    this.#hoists = this.#hoists.filter(h => want.includes(h.entry));
+    for (const z of want) if (!this.#hoists.some(h => h.entry === z)) this.#hoists.push(this.#hoist(z));
+    for (const p of this.#panes.values()) p.dom.classList.toggle('ps-zoom-frame', want.some(z => z.frame === p));
     this.#reconnectDivs();
     this.#restoreScroll(scroll);
+  }
+  #hoist(z) {
+    const body = z.frame.body, hid = body.firstChild;                // the frame's division (or nested pane)
+    if (hid) hid.style.display = 'none';
+    this.#placePane(z.pane, body, null);
+    const wall = this.#buildWall(z);
+    let pad = null;
+    if (wall) { body.appendChild(wall); pad = 'all'; body.style.padding = '16px'; }
+    return { entry: z, hid, wall, pad };
+  }
+  #unhoist(h) {
+    const z = h.entry, p = z.pane;
+    if (h.wall) h.wall.remove();
+    if (h.pad) z.frame.body.style.padding = '';
+    if (h.hid) h.hid.style.display = '';
+    if (p.parent) { const pp = p.parent; if (pp.div) this.#placePane(p, pp.div.sv, pp.slot === 'a' ? 'start' : 'end'); else this.#placePane(p, pp.host.body, null); }
+  }
+  // the frame's wall: thick on the side of the frame's own division that X
+  // is not in; a click on it unfolds
+  // the frame's walls, one on every side; a click on any of them unfolds
+  #buildWall(z) {
+    const e = this.#curEntry(z.frame); if (!e || !e.div) return null;
+    const box = document.createElement('div'); box.className = 'ps-zoom-walls';
+    for (const side of ['top', 'bottom', 'left', 'right']) {
+      const w = document.createElement('div'); w.className = 'ps-zoom-wall ' + side;
+      w.title = 'click, or Z, to unzoom';
+      w.addEventListener('click', (ev) => { ev.stopPropagation(); const i = this.#zoomStack.indexOf(z); if (i >= 0) { this.#zoomStack.splice(i, 1); this.#afterZoom(z.pane); } });
+      box.appendChild(w);
+    }
+    return box;
   }
   // snapshot/restore scroll offsets across a DOM reparent (scrollTop zeroes on move)
   #snapshotScroll() { const m = []; this.querySelectorAll('*').forEach((el) => { if (el.scrollTop || el.scrollLeft) m.push([el, el.scrollTop, el.scrollLeft]); }); return m; }
@@ -1331,7 +1425,8 @@ class PaneSplit extends HTMLElement {
   serialize() { return this.#serPane(this.#root); }
   #serPane(pane) {
     if (!pane) return null;
-    return { tabs: pane.tabs.map(t => ({ entries: t.entries.map(e => this.#serEntry(e)), cursor: t.cursor, label: t.label || undefined })), activeTab: pane.activeTab, bar: pane.showBar || undefined, nav: pane.nav === false ? false : undefined, open: pane.open || undefined, view: pane.view || undefined };
+    const z = this.#zoomStack.find(z => z.frame === pane);
+    return { tabs: pane.tabs.map(t => ({ entries: t.entries.map(e => this.#serEntry(e)), cursor: t.cursor, label: t.label || undefined })), activeTab: pane.activeTab, bar: pane.showBar || undefined, nav: pane.nav === false ? false : undefined, open: pane.open || undefined, view: pane.view || undefined, ctx: this.#contexts.has(pane) || undefined, zoom: z ? (this.#addrWithin(pane, z.pane) || undefined) : undefined };
   }
   #serEntry(e) {
     const name = e.name || undefined;
@@ -1340,12 +1435,16 @@ class PaneSplit extends HTMLElement {
     return name ? { path: e.path, name } : { path: e.path };
   }
   restore(spec) {
-    if (this.#root) { this.#eachPaneDeep(this.#root, p => this.#forgetPane(p), true); if (this.#hoisted) this.#hoisted.dom.remove(); this.#root.dom?.remove(); }
-    this.#panes.clear(); this.#zoomStack = []; this.#hoisted = null; this.#activeId = null; this.#mark = null;
-    this.classList.remove('ps-zoomed');
+    if (this.#root) { this.#eachPaneDeep(this.#root, p => this.#forgetPane(p), true); for (const h of this.#hoists) h.entry.pane.dom.remove(); this.#root.dom?.remove(); }
+    this.#panes.clear(); this.#zoomStack = []; this.#hoists = []; this.#activeId = null; this.#mark = null; this.#contexts.clear();
     this.#root = spec ? this.#deserPane(spec, null) : this.#makePane();
     this.#placePane(this.#root, this, null);
     this.#afterStructure();
+    // zooms are structure too: each frame that saved one gets it back, outer first
+    const frames = []; this.#eachPaneDeep(this.#root, (p) => { if (p._zoomAddr) frames.push(p); }, true);
+    frames.sort((a, b) => this.#depthOf(a) - this.#depthOf(b));
+    for (const f of frames) { const addr = f._zoomAddr; delete f._zoomAddr; const target = this.#descend(f, addr); if (target && target !== f) this.#zoomStack.push({ pane: target, frame: f }); }
+    if (this.#zoomStack.length) this.#applyZoom();
     this.cursorTo(firstVisibleLeaf(this.#root, this));
   }
   // build a detached pane subtree from a spec (for openLayout / instantiate)
@@ -1380,6 +1479,8 @@ class PaneSplit extends HTMLElement {
     }));
     pane.activeTab = typeof spec.activeTab === 'number' ? spec.activeTab : 0;
     pane.open = (spec.open && typeof spec.open === 'object') ? spec.open : null;   // this pane as a layout root: its routing table
+    if (spec.ctx) this.#contexts.add(pane);
+    if (typeof spec.zoom === 'string') pane._zoomAddr = spec.zoom;                // rebuilt in restore once the tree stands
     pane.view = spec.view || null;
     if (spec.nav === false) { pane.nav = false; pane.dom.classList.add('ps-nav-off'); }
     // bind division owners for every entry (not just the active one)
@@ -1398,7 +1499,10 @@ class PaneSplit extends HTMLElement {
   // structural panes for 4 visible). Cold building makes that free at load,
   // but it is still built and serialized on every change. Cap history per
   // tab, or drop layout entries past N steps back.
-  #saveKey() { const a = this.getAttribute('persist'); return a ? 'pane-split:' + a : null; }
+  #depthOf(pane) { let d = 0; for (let n = this.#ownerOf(pane); n; n = this.#ownerOf(n)) d++; return d; }
+  #saveKey() { const a = this.getAttribute('persist'); return a ? 'gmux:' + a : null; }
+  // a workspace saved under the old name (pane-split:) is read once and re-saved under gmux:
+  #legacyKey() { const a = this.getAttribute('persist'); return a ? 'pane-split:' + a : null; }
   #persist() { const k = this.#saveKey(); if (!k) return; clearTimeout(this.#saveTimer); this.#saveTimer = setTimeout(() => { try { localStorage.setItem(k, JSON.stringify(this.serialize())); } catch (_) {} }, 150); }
 
   // ---- traversal helpers ----
@@ -1469,7 +1573,7 @@ class PaneSplit extends HTMLElement {
     if (!this.#awaiting) {
       if (this.#isPrefix(e)) {
         this.#awaiting = true;
-        this.#flashHint('% split · " stack · c/e collapse/expand · z/Z zoom · x close · t/w tab · T bar · : path · i content · <> tab · ,. back/fwd · R refresh · m mark · ␣ swap · [ ] climb/descend · Tab sibling · h highlight · b bars · 1-9 jump · ←↑↓→ move · ⇧←↑↓→ resize');
+        this.#flashHint('gmux · % split · " stack · c/e collapse/expand · z/Z zoom · C context · x close · t/w tab · T bar · : path · i content · <> tab · ,. back/fwd · R refresh · m mark · ␣ swap · [ ] climb/descend · Tab sibling · h highlight · b bars · 1-9 jump · ←↑↓→ move · ⇧←↑↓→ resize');
         clearTimeout(this.#awaitTimer);
         this.#awaitTimer = setTimeout(() => { this.#awaiting = false; this.#flashHint(''); }, 2500);
         e.preventDefault(); e.stopPropagation();
@@ -1487,13 +1591,14 @@ class PaneSplit extends HTMLElement {
     else if (k === 'n') { this.nest(); this.#flashHint('nested: this tab now holds a pane of its own'); }
     else if (k === 'z') this.zoomToggle();
     else if (k === 'Z') this.zoomOut();
+    else if (k === 'C') { const on = this.contextToggle(); this.#flashHint(on ? 'context: z on a pane inside it fills it · C here again clears' : 'context cleared'); }
     else if (k === 'b') { const on = this.toggleBars(); this.#flashHint('pane bars: ' + (on ? 'toggleable on hover' : 'locked')); }
     else if (k === 'c') this.collapse();
     else if (k === 'e' || k === 'E') this.expand();
     else if (k === 'h') { const lv = this.cycleHighlight(); this.#flashHint('highlight: ' + ['none', 'active only', 'full'][lv]); }
     else if (k === 'o') this.focusNext();
     else if (k === ' ') this.swap();
-    else if (k === 'm') { const on = this.markToggle(); this.#flashHint(on ? 'marked — move the cursor, then space to swap' : 'mark cleared'); }
+    else if (k === 'm') { const on = this.markToggle(); this.#flashHint(on ? 'marked — space on another pane swaps' : 'mark cleared'); }
     else if (k === 't') this.newTab(this.#activeId, this.#curPath(this.#activeId));
     else if (k === 'T') this.setBar(this.#activeId);   // toggle the selected pane's bar
     else if (k === ':') this.focusNav(this.#activeId); // jump to the navbar to type a path
@@ -1538,4 +1643,4 @@ function firstVisibleLeaf(pane, ps) {
   return pane;
 }
 
-customElements.define('pane-split', PaneSplit);
+customElements.define('gmux-host', Gmux);

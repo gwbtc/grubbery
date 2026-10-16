@@ -1,13 +1,13 @@
 // tree-viewer: a reusable VIEWER WIDGET (not part of the explorer core). An app
 // declares it in a view.json — `{view:"tree", script:<this file>, args:{root}}` —
-// and any pane-split pane (or explorer tab) that opens the declaring path mounts
-// it through the standard viewer system. Zero changes to pane-split/explorer.
+// and any gmux pane (or explorer tab) that opens the declaring path mounts
+// it through the standard viewer system. Zero changes to gmux/explorer.
 //
 // Contract (window.Viewers[name], same as FileView):
 //   mount(host, { url, args, onNavigate }) -> { destroy }
 // args.root  — the NAMESPACE path to show the tree of (default '/').
 // onNavigate — called with a namespace path when a row is opened; the host
-//              routes it (in pane-split: by the layout's routing table).
+//              routes it (in gmux: by the layout's routing table).
 //
 // It leans on <tree-view> (kit): one ?tree=1 fetch feeds getChildren
 // synchronously; clicks fire onOpenFile/onOpenDir. A compact strip carries the
