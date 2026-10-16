@@ -2445,11 +2445,23 @@ function setup(root, opts) {
   // standalone panes endpoint (/grubbery/explorer): stand the pane workspace up
   // full-screen using the SAME wiring as the ⊞ panes tab — no finder.
   if (opts.panes) {
+    // /grubbery/explorer: the SESSIONS page — the workspaces the ship holds,
+    // open one (attaching this tab to it, taking it over from another), or
+    // start one. /grubbery/explorer/s/<name>: attached to that session.
+    // Any other /grubbery/explorer/<path>: a workspace kept in this browser
+    // alone (localStorage), as before — the old standalone page.
     while (root.firstChild) root.removeChild(root.firstChild);
     root.style.cssText = 'display:block;height:100vh';
     document.body.classList.add('cols');
+    const SESSION_API = PREFIX.replace(/\/ball$/, '/explorer') + '/session';
+    const SESSIONS_DIR = '/apps/explorer.explorer/sessions/';
+    const here = location.pathname.replace(/\/+$/, '');
+    const sm = here.match(/^\/grubbery\/explorer\/s\/([a-z][a-z0-9-]*)$/);
+    const sessionName = sm ? sm[1] : null;
+    if (!sessionName && here === '/grubbery/explorer') { sessionsPage(root, SESSION_API, psWait, psWaitFail); return; }
+    const persistKey = sessionName ? null : K + '-standalone';
     const ps = document.createElement('gmux-host');
-    ps.setAttribute('persist', K + '-standalone');
+    if (persistKey) ps.setAttribute('persist', persistKey);
     ps.style.cssText = 'display:block;height:100%';
     ps.renderPath = (path, paneId) => paneContent(ps, paneId, path);
     ps.tabInfo = paneTabInfo;
@@ -2490,13 +2502,179 @@ function setup(root, opts) {
       e.preventDefault();
       showMenu(items, e.clientX, e.clientY);
     }, true);
-    let saved = null; try { saved = localStorage.getItem('gmux:' + K + '-standalone') || localStorage.getItem('pane-split:' + K + '-standalone'); } catch (_) {}
-    if (!saved) ps.open('/', 'here');                   // fresh → root; otherwise the persisted workspace restores (stateful)
-    ps.layoutSources().forEach(({ id, src }) => psFollowLayout(ps, id, src));   // restored layout panes follow their files again
+    if (!sessionName) {
+      let saved = null; try { saved = localStorage.getItem('gmux:' + K + '-standalone') || localStorage.getItem('pane-split:' + K + '-standalone'); } catch (_) {}
+      if (!saved) ps.open('/', 'here');                 // fresh → root; otherwise the persisted workspace restores (stateful)
+      ps.layoutSources().forEach(({ id, src }) => psFollowLayout(ps, id, src));   // restored layout panes follow their files again
+      psSnaps(ps);
+      return;
+    }
+    // ---- a session: this tab is its one client ----
+    // The session grub is the record. We attach (taking over any other tab),
+    // restore its spec, apply the ops waiting in it, and from then on: every
+    // change gmux announces is written back (debounced) with the ids of the
+    // ops applied; the grub is followed, and a change of it brings either
+    // ops to apply (an agent's, another sender's) or the news that another
+    // client attached — then this tab goes passive until it takes over again.
+    const clientId = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+    const sessionRoad = SESSIONS_DIR + sessionName + '.json';
+    const api = (body) => fetch(SESSION_API, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(Object.assign({ name: sessionName }, body)) })
+      .then(async (r) => ({ status: r.status, json: await r.json().catch(() => null) }));
+    let attached = false, passive = false, ver = 0, mirrored = null;
+    const appliedIds = new Set(); let toReport = [];
+    const banner = document.createElement('div');
+    banner.style.cssText = 'position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:50;background:#fff8c5;color:#4d2d00;border:1px solid #d4a72c;border-radius:8px;padding:8px 14px;font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.12);display:none;gap:12px;align-items:center';
+    root.appendChild(banner);
+    const say = (text, action, run) => { banner.textContent = ''; banner.style.display = 'flex'; banner.appendChild(document.createTextNode(text)); if (action) { const b = document.createElement('button'); b.textContent = action; b.style.cssText = 'font:inherit;font-weight:600;padding:3px 10px;border-radius:6px;border:1px solid #b08800;background:#fff;cursor:pointer'; b.addEventListener('click', run); banner.appendChild(b); } const x = document.createElement('button'); x.textContent = '×'; x.title = 'dismiss'; x.style.cssText = 'font:inherit;border:0;background:none;cursor:pointer;color:inherit'; x.addEventListener('click', () => { banner.style.display = 'none'; }); banner.appendChild(x); };
+    const doOp = (op) => {
+      const t = op && op.type;
+      if (t === 'open' && typeof op.path === 'string') { if (op.where === 'here') ps.navigate(null, op.path); else ps.open(op.path, 'beside'); }
+      else if (t === 'close' && typeof op.path === 'string') { const want = psNs(op.path); for (const p of ps.querySelectorAll('.ps-pane[data-pane-id]')) { const id = p.dataset.paneId, cur = ps.pathOf(id); if (cur && psNs(cur) === want) { ps.closeLeaf(id); break; } } }
+      else if (t === 'layout' && op.spec && typeof op.spec === 'object') { ps.restore(op.spec); ps.layoutSources().forEach(({ id, src }) => psFollowLayout(ps, id, src)); }
+      else if (t === 'split') { if (op.dir === 'down') ps.splitDown(); else ps.splitRight(); }
+      else if (t === 'collapse') ps.collapse();
+    };
+    const applyOps = (ops) => {
+      if (!Array.isArray(ops)) return;
+      for (const op of ops) { if (!op || typeof op.id !== 'number' || appliedIds.has(op.id)) continue; appliedIds.add(op.id); toReport.push(op.id); try { doOp(op); } catch (e) { toast('session op failed: ' + (e && e.message || e), true); } }
+      if (toReport.length) writeBack();
+    };
+    let wbTimer = null, wbChain = Promise.resolve();
+    const writeBack = () => { if (!attached || passive) return; clearTimeout(wbTimer); wbTimer = setTimeout(() => { wbChain = wbChain.then(async () => {
+      if (!attached || passive) return;
+      const applied = toReport; toReport = [];
+      const r = await api({ client: clientId, spec: ps.serialize(), applied });
+      if (r.status === 409) { goPassive(r.json); return; }
+      if (r.status !== 200 || !r.json) { toast('session: write failed (' + r.status + ')', true); toReport = applied.concat(toReport); return; }
+      ver = r.json.ver || ver;
+    }).catch(() => {}); }, 250); };
+    const goPassive = (st) => {
+      if (passive) return;
+      passive = true;
+      const who = st && st.client && st.client.since ? new Date(st.client.since).toLocaleTimeString() : '';
+      say('This session is now open in another tab' + (who ? ' (since ' + who + ')' : '') + '. This tab is passive.', 'Take over', attach);
+    };
+    // while attaching, the workspace sits under the same waiting block a pane
+    // shows while it fetches; a failed attach leaves it there, stopped
+    const cover = document.createElement('div');
+    const covering = (text, sub, fail) => { (fail ? psWaitFail : psWait)(cover, text, sub); cover.style.cssText = 'position:absolute;inset:0;z-index:40'; if (!cover.parentNode) root.appendChild(cover); };
+    root.style.position = 'relative';
+    const attach = async () => {
+      banner.style.display = 'none';
+      covering('attaching', sessionName);
+      const r = await api({ attach: clientId });
+      if (r.status !== 200 || !r.json) { covering('could not attach to this session', 'http ' + r.status, true); say('Could not attach to session "' + sessionName + '" (' + r.status + ').', 'Sessions', () => { location.href = '/grubbery/explorer'; }); return; }
+      cover.remove();
+      const st = r.json;
+      passive = false; attached = true; ver = st.ver || 0; mirrored = null;
+      if (st.spec && typeof st.spec === 'object') ps.restore(st.spec);
+      else if (typeof st.layout === 'string' && st.layout) {
+        ps.open('/', 'here');
+        try { const spec = await fetch(psUrl(st.layout), { cache: 'no-store' }).then((x) => x.ok ? x.json() : Promise.reject(x.status)); ps.replaceWithLayout(ps.cursor.id, spec, st.layout); } catch (e) { toast('layout did not load: ' + e, true); }
+      } else ps.open('/', 'here');
+      ps.layoutSources().forEach(({ id, src }) => psFollowLayout(ps, id, src));
+      applyOps(st.ops);
+      writeBack();
+    };
+    ps.addEventListener('gmux-change', () => writeBack());
+    live([{ road: sessionRoad, body: true }], (ev) => {
+      if (ev.kind === 'del') { attached = false; say('Session "' + sessionName + '" was deleted.', 'Sessions', () => { location.href = '/grubbery/explorer'; }); return; }
+      const st = ev.body; if (!st || typeof st !== 'object') return;
+      if (st.client && st.client.id && st.client.id !== clientId) {
+        // another tab drives: this one mirrors what it writes, read-only
+        goPassive(st);
+        if (!st.spec || typeof st.spec !== 'object') return;
+        // only the selection moved → hop; anything else → rebuild from the spec
+        const sansCursor = (sp) => { const c = Object.assign({}, sp); delete c.cursor; return JSON.stringify(c); };
+        const key = sansCursor(st.spec);
+        if (key !== mirrored) { mirrored = key; ps.restore(st.spec); ps.layoutSources().forEach(({ id, src }) => psFollowLayout(ps, id, src)); }
+        else if (typeof st.spec.cursor === 'string' && st.spec.cursor !== ps.cursorAddr()) ps.cursorToAddr(st.spec.cursor);
+        return;
+      }
+      if (!passive && attached) applyOps(st.ops);
+    }, null);
+    window.addEventListener('pagehide', () => { if (attached && !passive) { try { navigator.sendBeacon(SESSION_API, new Blob([JSON.stringify({ name: sessionName, detach: clientId })], { type: 'application/json' })); } catch (_) {} } });
+    document.title = sessionName + ' · gmux';
     psSnaps(ps);
+    attach();
     return;
   }
   load();
+}
+
+// the sessions page (/grubbery/explorer): the workspaces the ship holds.
+// Each row: name, who holds it (a client attached, since when) or free, when
+// it last changed; open attaches this tab (taking over). The list scrolls;
+// the new-session form stays put. New: a name, and either an empty
+// workspace or a layout file to start from.
+function sessionsPage(root, api, wait, waitFail) {
+  const css = document.createElement('style');
+  css.textContent = '.ss-wrap{max-width:720px;margin:0 auto;padding:40px 24px 24px;height:100%;box-sizing:border-box;display:flex;flex-direction:column;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#1f2328}' +
+    '.ss-wrap h1{font-size:20px;font-weight:600;margin:0 0 4px}.ss-sub{color:#57606a;margin:0 0 24px}' +
+    '.ss-list{border:1px solid #d0d7de;border-radius:8px;overflow:auto;margin-bottom:28px;flex:0 1 auto;min-height:0}.ss-list.loading{border-color:transparent;min-height:96px}.ss-row,.ss-row:hover,.ss-row *{text-decoration:none}.ss-row{display:flex;align-items:center;gap:14px;padding:12px 16px;border-top:1px solid #d0d7de;color:inherit}.ss-row:first-child{border-top:0}.ss-row:hover{background:#f6f8fa}' +
+    '.ss-name{font:600 14px ui-monospace,Menlo,monospace;min-width:140px}.ss-meta{color:#57606a;flex:1}.ss-held{color:#9a6700}.ss-free{color:#1a7f37}.ss-del{border:0;background:none;color:#8c959f;cursor:pointer;font-size:16px;padding:0 4px}.ss-del:hover{color:#cf222e}' +
+    '.ss-empty{padding:20px 16px;color:#57606a}' +
+    '.ss-new{border:1px solid #d0d7de;border-radius:8px;padding:16px;flex:0 0 auto}.ss-hint{color:#57606a;font-size:13px;margin:0 0 10px}.ss-hint code{font:12px ui-monospace,Menlo,monospace;background:#f6f8fa;padding:1px 5px;border-radius:4px}.ss-new h2{font-size:14px;font-weight:600;margin:0 0 12px}.ss-new label{display:flex;gap:10px;align-items:center;margin:10px 0 2px}.ss-new label span{min-width:90px;color:#57606a}.ss-new input[type=text]{flex:1;font:13px ui-monospace,Menlo,monospace;padding:6px 8px;border:1px solid #d0d7de;border-radius:6px}.ss-help{margin:0 0 6px 100px;color:#57606a;font-size:12px}' +
+    '.ss-new button{font:inherit;font-weight:600;padding:6px 14px;border-radius:6px;border:1px solid #1f883d;background:#2da44e;color:#fff;cursor:pointer;margin-top:12px}.ss-err{color:#cf222e;margin-top:8px}';
+  document.head.appendChild(css);
+  root.style.cssText = 'display:block;height:100vh;overflow:hidden;background:#fff';
+  const wrap = document.createElement('div'); wrap.className = 'ss-wrap'; root.appendChild(wrap);
+  const h1 = document.createElement('h1'); h1.textContent = 'gmux sessions'; wrap.appendChild(h1);
+  const sub = document.createElement('p'); sub.className = 'ss-sub'; sub.textContent = 'A workspace the ship keeps. One tab holds a session at a time; opening it here takes it over.'; wrap.appendChild(sub);
+  const list = document.createElement('div'); list.className = 'ss-list'; wrap.appendChild(list);
+  const when = (ms) => { if (!ms) return ''; const d = new Date(ms); const today = new Date(); return d.toDateString() === today.toDateString() ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : d.toLocaleDateString(); };
+  let known = [];                                                  // the names in the list, for a default that is new
+  const load = async () => {
+    list.textContent = ''; list.classList.add('loading');
+    const w = document.createElement('div'); list.appendChild(w); wait(w, 'loading sessions'); w.style.cssText = 'height:96px';
+    let rows = [], failed = false;
+    try { const r = await fetch(api, { cache: 'no-store' }); if (!r.ok) throw new Error(r.status); const j = await r.json(); rows = Array.isArray(j.sessions) ? j.sessions : []; } catch (e) { failed = true; }
+    if (failed) { waitFail(w, 'could not list sessions', api); w.style.cssText = 'height:96px'; return; }
+    list.textContent = ''; list.classList.remove('loading');
+    known = rows.map((r) => r.name);
+    rows.sort((a, b) => (b.updated || 0) - (a.updated || 0));
+    if (!rows.length) { const e = document.createElement('div'); e.className = 'ss-empty'; e.textContent = 'No sessions yet. Start one below.'; list.appendChild(e); return; }
+    for (const s of rows) {
+      const a = document.createElement('a'); a.className = 'ss-row'; a.href = '/grubbery/explorer/s/' + encodeURIComponent(s.name);
+      const n = document.createElement('div'); n.className = 'ss-name'; n.textContent = s.name;
+      const m = document.createElement('div'); m.className = 'ss-meta';
+      const held = s.client && s.client.id;
+      const st = document.createElement('span'); st.className = held ? 'ss-held' : 'ss-free'; st.textContent = held ? 'held since ' + when(s.client.since) : 'free';
+      m.appendChild(st);
+      if (s.updated) m.appendChild(document.createTextNode(' · changed ' + when(s.updated)));
+      if (s.layout) m.appendChild(document.createTextNode(' · from ' + s.layout));
+      const del = document.createElement('button'); del.className = 'ss-del'; del.title = 'delete this session'; del.textContent = '×';
+      del.addEventListener('click', async (e) => { e.preventDefault(); e.stopPropagation(); if (del.dataset.armed) { await fetch(api, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: s.name, delete: true }) }); load(); } else { del.dataset.armed = '1'; del.textContent = 'delete?'; setTimeout(() => { delete del.dataset.armed; del.textContent = '×'; }, 2500); } });
+      a.append(n, m, del); list.appendChild(a);
+    }
+  };
+  const form = document.createElement('div'); form.className = 'ss-new'; wrap.appendChild(form);
+  const h2 = document.createElement('h2'); h2.textContent = 'New session'; form.appendChild(h2);
+  const code = (t) => { const c = document.createElement('code'); c.textContent = t; return c; };
+  const field = (label, ...help) => { const l = document.createElement('label'); const sp = document.createElement('span'); sp.textContent = label; const i = document.createElement('input'); i.type = 'text'; i.spellcheck = false; l.append(sp, i); form.appendChild(l); const h = document.createElement('div'); h.className = 'ss-help ss-hint'; h.append(...help); form.appendChild(h); return i; };
+  const name = field('name', 'One word: lowercase letters, digits, dashes. Empty picks one.');
+  name.placeholder = 'main';
+  const layout = field('layout', 'Optional. A ', code('.layout'), ' file in the namespace to start from, such as ', code('/apps/forge.git_forge/ui/forge.layout'), '. Empty starts at the root.');
+  const go = document.createElement('button'); go.textContent = 'start'; form.appendChild(go);
+  const err = document.createElement('div'); err.className = 'ss-err'; form.appendChild(err);
+  const start = async () => {
+    err.textContent = '';
+    let n = name.value.trim();
+    if (!n) { n = 'main'; for (let i = 2; known.includes(n); i++) n = 'main-' + i; }   // just "start": the first free name
+    if (!/^[a-z][a-z0-9-]*$/.test(n)) { err.textContent = 'a session name is lowercase letters, digits and dashes'; name.focus(); return; }
+    const body = { name: n, create: true };
+    const lay = layout.value.trim(); if (lay) body.layout = lay;
+    go.disabled = true;
+    try {
+      const r = await fetch(api, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+      if (!r.ok) { let why = 'could not create (' + r.status + ')'; try { why = (await r.json()).error || why; } catch (_) {} throw new Error(why); }
+      location.href = '/grubbery/explorer/s/' + encodeURIComponent(n);
+    } catch (e) { err.textContent = e && e.message || String(e); go.disabled = false; }
+  };
+  go.addEventListener('click', start);
+  [name, layout].forEach((i) => i.addEventListener('keydown', (e) => { if (e.key === 'Enter') start(); }));
+  load();
+  name.focus();
 }
 
 // the component. mount() builds the explorer's markup inside the element (light

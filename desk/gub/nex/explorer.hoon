@@ -103,6 +103,9 @@
           [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %| /requests empty-dir:loader]
+          ::  /sessions: gmux workspaces as the ship's record, one json grub
+          ::  each (see +session-loop and browse.js sessions)
+          [%fall %| /sessions empty-dir:loader]
           ::  /snaps: pictures of the page for tools. A tool writes
           ::  <id>.json {moment}; the open explorer page (the only thing
           ::  that can see itself) renders the pane showing that moment and
@@ -150,6 +153,9 @@
         ;<  ~  bind:m  (bind-http:io [~ /grubbery/explorer])
         ~?  dbg  "%explorer /main: ready"
         (http-dispatch:io %explorer)
+          [[%sessions ~] @]
+        ;<  ~  bind:m  (rise-wait:io prod "%explorer /sessions: failed, poke to restart")
+        session-loop
           [[%requests ~] @]
         ;<  ~  bind:m  (rise-wait:io prod "%explorer /requests: failed, poke to restart")
         =/  eyre-id=@ta  name.rail
@@ -172,6 +178,11 @@
         ::  keystrokes, session tasks (see +handle-term)
         ?:  ?=([%grubbery %explorer %term ~] site)
           (handle-term eyre-id req args)
+        ::  /grubbery/explorer/session: the workspace sessions — list, create,
+        ::  delete, and the attached client's attach / write-back / ops
+        ::  (see +handle-session)
+        ?:  ?=([%grubbery %explorer %session ~] site)
+          (handle-session eyre-id req)
         ::  /grubbery/explorer[/...]: the standalone pane workspace — same shell,
         ::  browse.js renders panes full-screen; it fetches data from /grubbery/ball.
         ?:  ?=([%grubbery %explorer *] site)
@@ -417,6 +428,179 @@
     %^  send-json  eyre-id  404
     (pairs:enjs:format ~[['error' s+'no such session'] ['why' s+why] ['road' s+(road-to-cord:tarball road)]])
   (send-json eyre-id 200 (pairs:enjs:format ~[['ok' b+%.y]]))
+::  Workspace sessions. A gmux workspace is a SESSION: a json grub under
+::  /sessions, {spec, ver, seq, client, ops, layout, updated}, the ship's
+::  record of it. One client is attached at a time (attaching takes over);
+::  it alone computes layout (gmux is JS), so it applies the ops anyone
+::  sends — a tab's own, an agent's — and writes the resulting spec back
+::  with the ids of the ops it applied. A write-back from a client that is
+::  not the attached one is dropped here and reported as 409 by the http
+::  layer, which is how a taken-over tab learns it is passive.
+::
+::  pokes (json): {attach: id} · {detach: id} · {op: {type, …}} ·
+::  {client: id, spec, applied: [ids]}; `now` (ms) rides along from the
+::  http layer so the step stays pure and lands in the same event as the
+::  poke (the ack is the signal that the grub is current).
+::
+++  session-loop
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  |-  ^-  form:m
+  ;<  =sage:tarball  bind:m  take-poke:io
+  ?.  =([/ %json] p.sage)  $
+  =/  in  (mule |.(!<(json q.sage)))
+  ?:  ?=(%| -.in)  $
+  ;<  st=json  bind:m  (get-state-as:io ,json)
+  =/  new=(unit json)  (session-step st p.in)
+  ?~  new  $
+  ;<  ~  bind:m  (replace:io u.new)
+  $
+::  +session-step: the session after one poke, or ~ for a poke that
+::  changes nothing (a write-back from a client that is not attached)
+::
+++  session-step
+  |=  [st=json in=json]
+  ^-  (unit json)
+  ?.  ?=([%o *] in)  ~
+  =/  spec=json         (fall (jget st 'spec') ~)
+  =/  ver=@ud           (jnum st 'ver' 0)
+  =/  seq=@ud           (jnum st 'seq' 0)
+  =/  client=json       (fall (jget st 'client') ~)
+  =/  ops=(list json)   (jarr st 'ops')
+  =/  layout=json       (fall (jget st 'layout') ~)
+  =/  now=json          (fall (jget in 'now') (fall (jget st 'updated') ~))
+  =/  client-id=(unit @t)  (jstr client 'id')
+  =/  build
+    |=  [spec=json client=json ops=(list json) seq=@ud]
+    ^-  json
+    %-  pairs:enjs:format
+    :~  ['spec' spec]
+        ['ver' (numb:enjs:format +(ver))]
+        ['seq' (numb:enjs:format seq)]
+        ['client' client]
+        ['ops' a+ops]
+        ['layout' layout]
+        ['updated' now]
+    ==
+  =/  attach=(unit @t)  (jstr in 'attach')
+  ?^  attach
+    `(build spec (pairs:enjs:format ~[['id' s+u.attach] ['since' now]]) ops seq)
+  =/  detach=(unit @t)  (jstr in 'detach')
+  ?^  detach
+    ?.  =(detach client-id)  ~
+    `(build spec ~ ops seq)
+  =/  op=(unit json)  (jget in 'op')
+  ?^  op
+    ?.  ?=([~ %o *] op)  ~
+    =/  tagged=json  [%o (~(put by p.u.op) 'id' (numb:enjs:format +(seq)))]
+    `(build spec client (snoc ops tagged) +(seq))
+  =/  who=(unit @t)  (jstr in 'client')
+  ?~  who  ~
+  ?.  =(who client-id)  ~
+  =/  new-spec=json  (fall (jget in 'spec') spec)
+  =/  applied=(list @ud)
+    %+  murn  (jarr in 'applied')
+    |=(j=json ?.(?=([%n *] j) ~ (rush p.j dem)))
+  =/  left=(list json)
+    %+  skip  ops
+    |=(o=json ?=(^ (find ~[(jnum o 'id' 0)] applied)))
+  `(build new-spec client left seq)
+::  +handle-session: GET lists the sessions ({sessions: [{name, client,
+::  updated, ver, layout}]}); POST {name, create: true, spec?, layout?}
+::  makes one, {name, delete: true} culls one, anything else is poked to
+::  the session (attach, detach, op, write-back) and answered with the
+::  session as it then is — 409 when the sender names a client that is
+::  not the attached one.
+::
+++  handle-session
+  |=  [eyre-id=@ta req=inbound-request:eyre]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  bad  |=([code=@ud why=@t] (send-json eyre-id code (pairs:enjs:format ~[['error' s+why]])))
+  ?.  =('POST' method.request.req)
+    ;<  dir=road:tarball  bind:m  (ancestor-road:io [/ %explorer] [%| /sessions])
+    ;<  v=view:nexus  bind:m  (peek-shallow:io dir ~)
+    =/  names=(list @ta)
+      ?.  ?=([%ball *] v)  ~
+      ?~  fil.ball.v  ~
+      ~(tap in ~(key by contents.u.fil.ball.v))
+    =|  acc=(list json)
+    |-  ^-  form:m
+    ?~  names
+      (send-json eyre-id 200 (pairs:enjs:format ~[['sessions' a+(flop acc)]]))
+    ;<  road=road:tarball  bind:m  (ancestor-road:io [/ %explorer] [%& /sessions i.names])
+    ;<  fv=view:nexus  bind:m  (peek:io road `[/ %json])
+    =/  j=(unit json)
+      ?.  ?=([%file *] fv)  ~
+      =/  r  (mule |.(!<(json (need-vase:tarball sang.fv))))
+      ?:(?=(%| -.r) ~ `p.r)
+    ?~  j  $(names t.names)
+    =/  nm=@t  (session-name i.names)
+    =/  row=json
+      %-  pairs:enjs:format
+      :~  ['name' s+nm]
+          ['client' (fall (jget u.j 'client') ~)]
+          ['updated' (fall (jget u.j 'updated') ~)]
+          ['ver' (fall (jget u.j 'ver') ~)]
+          ['layout' (fall (jget u.j 'layout') ~)]
+      ==
+    $(names t.names, acc [row acc])
+  =/  jon=(unit json)
+    ?~  body.request.req  ~
+    (de:json:html q.u.body.request.req)
+  ?.  ?=([~ %o *] jon)  (bad 400 'json object body required')
+  =/  name=(unit @t)  (jstr u.jon 'name')
+  ?~  name  (bad 400 'name required')
+  ?.  (valid-session-name u.name)  (bad 400 'a session name is lowercase letters, digits and dashes')
+  =/  fname=@ta  (cat 3 u.name '.json')
+  ;<  road=road:tarball  bind:m  (ancestor-road:io [/ %explorer] [%& /sessions fname])
+  ;<  now=@da  bind:m  get-time:io
+  =/  now-ms=json  (time:enjs:format now)
+  ?^  (jget u.jon 'create')
+    ;<  v=view:nexus  bind:m  (peek:io road ~)
+    ?:  ?=([%file *] v)  (bad 409 'a session by that name exists')
+    =/  init=json
+      %-  pairs:enjs:format
+      :~  ['spec' (fall (jget u.jon 'spec') ~)]
+          ['ver' (numb:enjs:format 1)]
+          ['seq' (numb:enjs:format 0)]
+          ['client' ~]
+          ['ops' a+~]
+          ['layout' (fall (jget u.jon 'layout') ~)]
+          ['updated' now-ms]
+      ==
+    ;<  ~  bind:m  (make:io road |+[[[/ %json] init] ~])
+    (send-json eyre-id 200 init)
+  ?^  (jget u.jon 'delete')
+    ;<  ~  bind:m  (cull:io road)
+    (send-json eyre-id 200 (pairs:enjs:format ~[['ok' b+&]]))
+  =/  stamped=json  [%o (~(put by p.u.jon) 'now' now-ms)]
+  ;<  err=(unit tang)  bind:m  (poke-soft:io road [[/ %json] stamped])
+  ?^  err  (bad 404 'no such session')
+  ;<  v=view:nexus  bind:m  (peek:io road `[/ %json])
+  ?.  ?=([%file *] v)  (bad 404 'no such session')
+  =/  r  (mule |.(!<(json (need-vase:tarball sang.v))))
+  ?:  ?=(%| -.r)  (bad 500 'session unreadable')
+  =/  mine=(unit @t)  (jstr u.jon 'client')
+  =/  held=(unit @t)  (jstr (fall (jget p.r 'client') ~) 'id')
+  ?:  &(?=(^ mine) !=(mine held))  (send-json eyre-id 409 p.r)
+  (send-json eyre-id 200 p.r)
+++  valid-session-name
+  |=  n=@t
+  ^-  ?
+  ?=(^ (rush n ;~(plug low (star ;~(pose low nud hep)))))
+++  session-name
+  |=  f=@ta
+  ^-  @t
+  =/  t=tape  (trip f)
+  =/  len=@ud  (lent t)
+  ?.  &((gth len 5) =(".json" (slag (sub len 5) t)))  f
+  (crip (scag (sub len 5) t))
+::  json field helpers
+++  jget  |=([j=json k=@t] ^-((unit json) ?.(?=([%o *] j) ~ (~(get by p.j) k))))
+++  jstr  |=([j=json k=@t] ^-((unit @t) =/(v (jget j k) ?.(?=([~ %s *] v) ~ `p.u.v))))
+++  jarr  |=([j=json k=@t] ^-((list json) =/(v (jget j k) ?.(?=([~ %a *] v) ~ p.u.v))))
+++  jnum  |=([j=json k=@t d=@ud] ^-(@ud =/(v (jget j k) ?.(?=([~ %n *] v) d (fall (rush p.u.v dem) d)))))
 ::  +handle-term: what a terminal pane needs of a dill session (see
 ::  browse.js psTerminal). GET ?session=&last=&from= answers the
 ::  session's blit history as json, {cur, versions: [{ud, da, blits}]}:

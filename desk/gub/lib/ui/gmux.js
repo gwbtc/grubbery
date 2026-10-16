@@ -1065,6 +1065,7 @@ class Gmux extends HTMLElement {
     while (owner) { const ce = this.#curEntry(owner); if (ce && ce.div) ce.div.last = n.parent.slot; n = owner; owner = this.#ownerOf(owner); }
     this.#render();
     this.#emit('ps-focus', { id: pane.id, kind: this.#divides(pane) ? 'split' : 'leaf' });
+    this.#persist();                                                 // the selection is part of the saved workspace
   }
   focusPane(id) { const p = this.#panes.get(id); if (p) this.cursorTo(p); }
   // DOM focus into the active pane's content, so unprefixed keys reach it:
@@ -1420,7 +1421,11 @@ class Gmux extends HTMLElement {
 
   // ---- serialize / restore / instantiate / persist ----
 
-  serialize() { return this.#serPane(this.#root); }
+  // the workspace, with the selected pane as an address from the root: a
+  // session's mirror follows the selection too (see browse.js sessions)
+  serialize() { const s = this.#serPane(this.#root); if (s) { const c = this.#addrWithin(this.#root, this.cursor); if (c) s.cursor = c; } return s; }
+  cursorAddr() { return this.#root ? this.#addrWithin(this.#root, this.cursor) : null; }
+  cursorToAddr(addr) { if (!this.#root || typeof addr !== 'string') return false; const t = this.#descend(this.#root, addr); if (!t) return false; this.cursorTo(t); return true; }
   #serPane(pane) {
     if (!pane) return null;
     const z = this.#zoomStack.find(z => z.frame === pane);
@@ -1443,7 +1448,8 @@ class Gmux extends HTMLElement {
     frames.sort((a, b) => this.#depthOf(a) - this.#depthOf(b));
     for (const f of frames) { const addr = f._zoomAddr; delete f._zoomAddr; const target = this.#descend(f, addr); if (target && target !== f) this.#zoomStack.push({ pane: target, frame: f }); }
     if (this.#zoomStack.length) this.#applyZoom();
-    this.cursorTo(firstVisibleLeaf(this.#root, this));
+    const sel = spec && typeof spec.cursor === 'string' ? this.#descend(this.#root, spec.cursor) : null;
+    this.cursorTo(sel || firstVisibleLeaf(this.#root, this));
   }
   // build a detached pane subtree from a spec (for openLayout / instantiate)
   instantiate(spec) { return this.#deserPane(spec, null); }
@@ -1501,7 +1507,9 @@ class Gmux extends HTMLElement {
   #saveKey() { const a = this.getAttribute('persist'); return a ? 'gmux:' + a : null; }
   // a workspace saved under the old name (pane-split:) is read once and re-saved under gmux:
   #legacyKey() { const a = this.getAttribute('persist'); return a ? 'pane-split:' + a : null; }
-  #persist() { const k = this.#saveKey(); if (!k) return; clearTimeout(this.#saveTimer); this.#saveTimer = setTimeout(() => { try { localStorage.setItem(k, JSON.stringify(this.serialize())); } catch (_) {} }, 150); }
+  // every change of the workspace is announced (gmux-change) whether or not
+  // it persists locally: a session client writes it to the ship from that
+  #persist() { this.#emit('gmux-change', {}); const k = this.#saveKey(); if (!k) return; clearTimeout(this.#saveTimer); this.#saveTimer = setTimeout(() => { try { localStorage.setItem(k, JSON.stringify(this.serialize())); } catch (_) {} }, 150); }
 
   // ---- traversal helpers ----
 
