@@ -187,7 +187,7 @@ class Gmux extends HTMLElement {
   #pillTimer = null;            // interval that counts the quickbar's sticky grace down
   #pillEnd = 0;                 // when the quickbar is due to retract (ms epoch)
   #padBody = null;             // the pane body currently padded down to make room for the quickbar
-  #pillPane = null;            // the pane the quickbar is showing for (the selected pane, or a bar-less container it sits in)
+  #pillPane = null;            // the pane the quickbar is showing for: always the selected one
   #repeat = null;
   #awaiting = false;
   #awaitTimer = null;
@@ -1056,10 +1056,9 @@ class Gmux extends HTMLElement {
   cursorTo(pane) {
     if (!pane) return;
     if (this.#pendingClose && this.#pendingClose !== pane) this.#cancelClose();   // moving on backs out of a pending close
-    // the pill belongs to the pane you hovered: moving the selection OUT of
-    // it hides it, moving within it (a click on a leaf inside the layout it
-    // dropped for) keeps it
-    if (pane.id !== this.#activeId && !(this.#pillPane && (pane === this.#pillPane || this.#owns(this.#pillPane, pane)))) this.#hidePill();
+    // the quickbar belongs to the pane it dropped for, which is the selected
+    // one: selecting any other pane retracts it, leaf or container alike
+    if (this.#pillPane && pane !== this.#pillPane) this.#hidePill();
     this.#activeId = pane.id;
     // record a descend breadcrumb up the ownership chain
     let n = pane, owner = this.#ownerOf(pane);
@@ -1146,17 +1145,16 @@ class Gmux extends HTMLElement {
     this.#placeToggle(c);
   }
   // ---- sticky quickbar (thin host-level drop-down on top-edge hover) ----
-  // It drops for a pane with no bar that the selection is in: the selected
-  // pane itself, or a container above it (a layout's own pane, whose leaf
-  // inside is what is selected; the leaf has a bar, the layout has none)
+  // It drops for the SELECTED pane only, when it has no bar. A container
+  // (the root, a layout's own pane) gets it once selected — shift+click a
+  // pane or prefix+[ climbs to it — never because a leaf inside it is.
   #onTopHover(e, id) {
     if (!this.#hoverToggle) return;
     const p = this.#panes.get(id); if (!p || p.showBar || this.#hidden(p)) return;
-    if (id !== this.#activeId && !this.#owns(p, this.cursor)) return;
+    if (id !== this.#activeId) return;
     const r = p.dom.getBoundingClientRect();
     if (e.clientY - r.top <= 24) this.#showPill(p);                // near the top → drop it + refresh grace
   }
-  #owns(p, leaf) { let n = leaf; while (n) { n = this.#ownerOf(n); if (n === p) return true; } return false; }
   #placeToggle(c) {
     const t = this.#barToggle, cr = this.getBoundingClientRect(), r = c.dom.getBoundingClientRect(), m = 3;
     t.style.left = (r.left - cr.left + m) + 'px';                   // inset so the selection frame stays visible
