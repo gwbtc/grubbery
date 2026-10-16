@@ -1083,6 +1083,16 @@
   =/  m  (fiber ,~)
   ^-  form:m
   (poke &+&+[/sys/dill %'main.sig'] [[/ %dill-belt] [session belt]])
+::  Open, shut or resize a dill session via /sys/dill/ runtime service.
+::  Opening makes /sys/dill/sessions/<session> and views it from then
+::  on; shutting leaves the grub and its history.
+::
+++  send-dill-task
+  |=  [session=@tas task=session-task:dill]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ?>  ?=(?(%open %shut %blew) -.task)
+  (poke &+&+[/sys/dill %'main.sig'] [[/ %dill-task] [session task]])
 ::  +get-code: peek the code (bins) slice at a road
 ::
 ++  get-code

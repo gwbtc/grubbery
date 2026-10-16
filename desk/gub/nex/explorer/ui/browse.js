@@ -655,7 +655,7 @@ function setup(root, opts) {
   // ({layout, rules: {path: rule}}) so leaves under it skip the probe and
   // the ask. (2) Then let it hydrate: each visible leaf's first body in the
   // same answer, handed to mount as initial state → one request per
-  // visible layout on a cold open. See project memory "pane-split".
+  // visible layout on a cold open. See project memory "gmux".
   async function viewerFor(path, kind, neck, askView) {
     try {
       await viewReady;
@@ -816,16 +816,16 @@ function setup(root, opts) {
     openInNewTab(path, kind);
   }
 
-  // experimental: a tab holding a <pane-split> tiling workspace. Each pane is a
+  // experimental: a tab holding a <gmux-host> tiling workspace. Each pane is a
   // <tab-group> of file views (dir tables / FileViews). Click an item -> new TAB
   // in that pane; cmd/ctrl/shift-click -> new PANE beside it. A hover grip
   // (top-left) carries close-pane / split. One tab shows no strip; closing the
   // last tab leaves the pane empty (close the pane from the grip or Ctrl-B x).
-  // experimental: a tab holding a <pane-split> tiling workspace. pane-split owns
+  // experimental: a tab holding a <gmux-host> tiling workspace. gmux owns
   // the tabs + per-tab history now; the host just renders a path's content and
   // routes navigation back in (plain = in place, ⌘-click = new pane). The whole
   // workspace persists to localStorage (the `persist` attr) as pure data.
-  // pane-split holds bare NAMESPACE paths (e.g. /apps/explorer.explorer), not
+  // gmux holds bare NAMESPACE paths (e.g. /apps/explorer.explorer), not
   // http urls — the /grubbery/ball serve prefix is added here, only at fetch.
   // a moment is a path, optionally with ?args saying HOW that path is looked
   // at (a dir's ?view=rows|grid|tree). Args never change what is fetched.
@@ -1186,7 +1186,7 @@ function setup(root, opts) {
   // <item>?view=rename, <item>?view=delete, <dir>?view=weir. The menu routes
   // there like any link, so it opens in the pane's target (or in place), sits
   // in history, and back returns. Nothing pops over the pane you are in.
-  const ACTION_VIEWS = { new: 1, rename: 1, delete: 1, weir: 1, upload: 1 };
+  const ACTION_VIEWS = { new: 1, rename: 1, delete: 1, weir: 1, upload: 1, 'term-new': 1 };
   function go(el, href, kind) { const r = el._ctx && el._ctx.route; if (r) r(href, kind, null); }
   // the menu for a listing-like rendering (table, grid, tree): the row's item
   // under the cursor, or the rendering's own dir on whitespace
@@ -1197,6 +1197,10 @@ function setup(root, opts) {
     return dirMenu(el, dirUrl);
   }
   function dirMenu(el, dirUrl) {
+    if (dirUrl === PREFIX + SESSIONS.replace(/\/$/, '')) return [       // the dill sessions: terminals
+      { label: 'Terminal', run: () => go(el, dirUrl + '?view=term', 'dir') },
+      { label: 'New terminal…', run: () => go(el, dirUrl + '?view=term-new', 'dir') },
+    ];
     return [
       { label: 'New…', run: () => go(el, dirUrl + '?view=new', 'dir') },
       { label: 'Weir…', run: () => go(el, dirUrl + '?view=weir', 'dir') },
@@ -1282,6 +1286,23 @@ function setup(root, opts) {
         return psPost(url, params);
       });
       onEnter(nm, b); onEnter(extra, b); nm.focus();
+    } else if (view === 'term-new') {
+      // a new dill session on hood's dojo; the pane becomes its terminal
+      h('New terminal', ns);
+      note('A new dojo session. The name is one word: letters, digits, dashes.');
+      const nm = field('session', '', 'name');
+      const b = buttons('open', false, async () => {
+        const n = nm.value.trim();
+        if (!/^[a-z][a-z0-9-]*$/.test(n)) { toast('a session name is lowercase letters, digits and dashes', true); nm.focus(); return false; }
+        try {
+          const r = await fetch(TERM, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session: n, open: true }) });
+          if (!r.ok) { let why = 'open failed (' + r.status + ')'; try { why = (await r.json()).error || why; } catch (_) {} throw new Error(why); }
+        } catch (e) { toast('terminal: ' + (e && e.message || e), true); return false; }
+        psKind.set(SESSIONS + n, 'file');
+        ps.openFrom(paneId, SESSIONS + n);
+        return false;                                                  // the pane moved on to the session; nothing to go back to
+      });
+      onEnter(nm, b); nm.focus();
     } else if (view === 'rename') {
       h('Rename', ns + (isDir ? '/' : ''));
       const nm = field('new name', name);
@@ -1468,6 +1489,7 @@ function setup(root, opts) {
       // grid, or rows. Absent, a viewer the app declares for the dir wins,
       // else rows. raw ignores all of it: the plain listing.
       const want = raw ? null : (psArgs(path).view || null);
+      if (want === 'term' && abs === SESSIONS) { psTerminal(ps, paneId, el, ns, abs, '', psArgs(path)); return; }   // the default session's terminal
       const hostView = want === 'tree' || want === 'grid' || want === 'rows';
       if (want === 'tree') {
         const tv = await stockViewer('tree', TREE_JS);
@@ -1541,6 +1563,10 @@ function setup(root, opts) {
       // rendered = JUST the declared viewer's rendering (no FileView chrome);
       // raw = the full Source|Preview|Build package. The viewer never rides
       // along inside raw — the two are separate panes you toggle between.
+      // a dill session: a terminal. The default session's grub has the empty
+      // name, so /sys/dill/sessions/ itself IS that file (the kernel serves
+      // it there), and the pane on it is the ship's own terminal
+      if (!raw && abs.startsWith(SESSIONS) && !abs.slice(SESSIONS.length).includes('/')) { psTerminal(ps, paneId, el, ns, abs, abs.slice(SESSIONS.length), psArgs(path)); return; }
       if (!raw) {
         let v = null; try { v = await viewerFor(url, 'file', '', psArgs(path).view || null); } catch (_) {}
         if (v && !v.blocked && v.mount) {
@@ -2161,6 +2187,247 @@ function setup(root, opts) {
     }, null);
   }
 
+  // ---- terminal panes: a dill session as a document of lines (explorer.hoon +handle-term) ----
+  // A session grub /sys/dill/sessions/<name> holds one version per blit batch
+  // dill emitted. dill's output is line-oriented: drum edits the ONE line
+  // the cursor is on (hop sets the column, put/klr write at it, wyp wipes
+  // it) and commits it with nel. So a session renders as what it is: a
+  // scrollable document of committed lines, wrapping to the pane, with the
+  // live line last and the cursor in it. No grid, no emulator, nothing to
+  // size — the browser lays out, wraps, scrolls, selects and copies.
+  // The pane replays the last batches for history (with the slogs from the
+  // same span of time), then follows the grub and fetches each new batch BY
+  // VERSION, so none is missed when several land between stream events.
+  // Slogs — dill's %logs told for a named session, and the runtime's
+  // /~_~/slog stream for every pane (~&, printfs, crash traces: those go to
+  // the tty and that stream, never through dill) — go in above the live
+  // line, grey italic. Keys go back as belts through /grubbery/explorer/term.
+  const TERM = PREFIX.replace(/\/ball$/, '/explorer') + '/term';
+  const SESSIONS = '/sys/dill/sessions/';
+  const LOGS = '/sys/dill/logs.dill-told';
+  const termUrl = (session, q) => TERM + '?session=' + encodeURIComponent(session) + q;
+  // the runtime's slog stream: one connection per page, every terminal pane
+  // hears it; the stream has no history, so a pane shows them from when it
+  // opened. (vere drops the priority, so there is no red/yellow/green.)
+  const slogStream = (() => {
+    const subs = new Set(); let started = false;
+    async function connect() {
+      if (started) return; started = true;
+      let backoff = 1000;
+      for (;;) {
+        try {
+          const r = await fetch('/~_~/slog', { headers: { Accept: 'text/event-stream' }, cache: 'no-store' });
+          if (!r.ok || !r.body) throw new Error('slog ' + r.status);
+          backoff = 1000;
+          const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
+          for (;;) {
+            const c = await rd.read(); if (c.done) break;
+            buf += dec.decode(c.value, { stream: true });
+            const blocks = buf.split('\n\n'); buf = blocks.pop();
+            for (const b of blocks) {
+              const lines = b.split('\n').filter((l) => l.startsWith('data:')).map((l) => l.slice(5).replace(/^ /, ''));
+              if (lines.length) for (const s of subs) { try { s(lines); } catch (_) {} }
+            }
+          }
+        } catch (_) { /* reconnect */ }
+        await new Promise((res) => setTimeout(res, backoff)); backoff = Math.min(backoff * 2, 15000);
+      }
+    }
+    return (fn) => { subs.add(fn); connect(); return () => subs.delete(fn); };
+  })();
+  // a styled run's css, from the dill-blit mark's stye {deco, back, fore}
+  const TINT = { k: '#1f2328', r: '#cf222e', g: '#1a7f37', y: '#9a6700', b: '#0969da', m: '#8250df', c: '#1b7c83', w: '#6e7781' };
+  const tintCss = (t) => t == null ? null : typeof t === 'string' ? (TINT[t] || null) : 'rgb(' + ((t.r || 0) % 256) + ',' + ((t.g || 0) % 256) + ',' + ((t.b || 0) % 256) + ')';
+  function styleOf(s) {
+    if (!s) return '';
+    const parts = [];
+    (s.deco || []).forEach((d) => { if (d === 'br') parts.push('font-weight:600'); else if (d === 'un') parts.push('text-decoration:underline'); else if (d === 'bl') parts.push('opacity:.7'); });
+    const f = tintCss(s.fore), b = tintCss(s.back);
+    if (f) parts.push('color:' + f);
+    if (b) parts.push('background:' + b);
+    return parts.join(';');
+  }
+  const SLOG_CSS = 'color:#6e7781;font-style:italic';
+  const toldLines = (told) => {
+    if (!told || typeof told !== 'object') return [];
+    let lines = told.type === 'text' ? [String(told.text || '')] : (told.lines || []).map(String);
+    if (told.type === 'crud') { if (!lines.length) return []; lines = ['ERROR [' + (told.tag || '') + ']:'].concat(lines); }   // the grub's seed is an empty crud
+    return lines;
+  };
+  // the screen: committed lines, the live line last, a cursor column in it.
+  // Each line is cells {ch, css}; a slog line is marked. Renders into `doc`
+  // incrementally: only lines from the first changed one are redrawn.
+  function makeScreen(doc, host) {
+    const MAX = 5000;
+    const lines = [];                                         // {cells, slog?, dom?}
+    let col = 0, dirty = 0, focused = false;
+    const live = () => { if (!lines.length) { lines.push({ cells: [] }); touch(lines.length - 1); } return lines[lines.length - 1]; };
+    const touch = (i) => { if (i < dirty) dirty = i; };
+    const write = (text, css) => {
+      const l = live(); touch(lines.length - 1);
+      while (l.cells.length < col) l.cells.push({ ch: ' ', css: '' });
+      for (const ch of [...text]) { l.cells[col] = { ch, css }; col++; }
+    };
+    const apply = (b) => {
+      if (!b || typeof b !== 'object') return;
+      switch (b.type) {
+        case 'mor': (b.blits || []).forEach(apply); break;
+        case 'hop': { const p = b.pos; col = typeof p === 'number' ? p : ((p && p.x) || 0); live(); touch(lines.length - 1); break; }
+        case 'put': write(b.text || '', ''); break;
+        case 'klr': (b.stub || []).forEach((s) => write(s.text || '', styleOf(s.stye))); break;
+        case 'wyp': live().cells.length = 0; col = 0; touch(lines.length - 1); break;
+        case 'nel': live(); lines.push({ cells: [] }); col = 0; touch(lines.length - 2); break;
+        case 'clr': live(); break;                            // dill clears on resize/open and redraws the prompt: a document has nothing to clear
+        case 'url': if (b.url) try { window.open(b.url); } catch (_) {} break;
+        default: break;                                       // bel, sag, sav
+      }
+    };
+    const slog = (text) => { live(); lines.splice(lines.length - 1, 0, { cells: [...text].map((ch) => ({ ch, css: SLOG_CSS })), slog: true }); touch(lines.length - 2); };
+    const render = (l, isLive) => {
+      const d = l.dom || (l.dom = document.createElement('div'));
+      d.className = 'tm-line' + (l.slog ? ' tm-slog' : '') + (isLive ? ' tm-live' : '');
+      d.textContent = '';
+      const cells = l.cells, n = isLive ? Math.max(cells.length, col + 1) : cells.length;
+      let i = 0;
+      while (i < n) {
+        const c = cells[i] || { ch: ' ', css: '' };
+        if (isLive && i === col) { const cur = document.createElement('span'); cur.className = 'tm-cursor' + (focused ? '' : ' tm-blur'); cur.textContent = c.ch; d.appendChild(cur); i++; continue; }
+        let j = i, text = '';
+        while (j < n && !(isLive && j === col) && (cells[j] || { css: '' }).css === c.css) { text += (cells[j] || { ch: ' ' }).ch; j++; }
+        const sp = document.createElement('span'); if (c.css) sp.style.cssText = c.css; sp.textContent = text; d.appendChild(sp);
+        i = j;
+      }
+      if (!n) d.appendChild(document.createTextNode('​'));   // an empty line keeps its height
+      return d;
+    };
+    const flush = () => {
+      const pinned = host.scrollHeight - host.scrollTop - host.clientHeight < 24;
+      if (lines.length > MAX) { const drop = lines.splice(0, lines.length - MAX); drop.forEach((l) => l.dom && l.dom.remove()); dirty = 0; }
+      for (let i = dirty; i < lines.length; i++) {
+        const d = render(lines[i], i === lines.length - 1);
+        const before = i + 1 < lines.length ? lines[i + 1].dom : null;
+        if (d.parentNode !== doc || (before && d.nextSibling !== before)) doc.insertBefore(d, before && before.parentNode === doc ? before : null);
+      }
+      dirty = lines.length;
+      if (pinned) host.scrollTop = host.scrollHeight;
+    };
+    const clear = () => { lines.forEach((l) => l.dom && l.dom.remove()); lines.length = 0; col = 0; dirty = 0; };
+    const focus = (f) => { focused = f; if (lines.length) { touch(lines.length - 1); flush(); } };
+    return { apply, slog, flush, clear, focus };
+  }
+  // a key as a belt: dill's shapes (see explorer.hoon +json-to-belt).
+  // ⌘ stays the browser's (copy, paste, tabs); ⌥ is dill's %met; ctrl is
+  // %ctl except ctrl-d, which would end the session.
+  function keyBelt(e) {
+    if (e.isComposing) return null;
+    const k = e.key;
+    if (e.metaKey) return null;
+    if (k === 'Enter') return 'ret';
+    if (k === 'Backspace') return e.altKey ? { mod: { mod: 'met', key: 'bac' } } : 'bac';
+    if (k === 'Delete') return 'del';
+    if (k === 'Tab') return { txt: '  ' };
+    if (k === 'ArrowUp') return { aro: 'u' };
+    if (k === 'ArrowDown') return { aro: 'd' };
+    if (k === 'ArrowLeft') return { aro: 'l' };
+    if (k === 'ArrowRight') return { aro: 'r' };
+    if (k === 'Escape') return null;
+    if (k.length === 1) {
+      if (e.ctrlKey) { const c = k.toLowerCase(); return c === 'd' ? null : { mod: { mod: 'ctl', key: c } }; }
+      if (e.altKey) return { mod: { mod: 'met', key: k } };
+      return k;
+    }
+    return null;
+  }
+  let termCss = false;
+  function termChrome() {
+    if (termCss) return; termCss = true;
+    const s = document.createElement('style');
+    s.textContent =
+      '.tm-doc{min-height:100%;box-sizing:border-box;padding:6px 10px 8px;display:flex;flex-direction:column;justify-content:flex-end;background:#fff;color:#1f2328;font:13px/1.4 "SF Mono",Menlo,Consolas,"Roboto Mono","Courier New",monospace;cursor:text}' +
+      '.tm-line{white-space:pre-wrap;word-break:break-all;min-height:1.4em}' +
+      '.tm-cursor{background:#1f2328;color:#fff;border-radius:1px}' +
+      '.tm-cursor.tm-blur{background:transparent;color:inherit;box-shadow:inset 0 0 0 1px #8c959f}' +
+      '.tm-input{position:absolute;width:1px;height:1px;opacity:0;border:0;padding:0;margin:0;resize:none;overflow:hidden}';
+    document.head.appendChild(s);
+  }
+  function psTerminal(ps, paneId, el, ns, abs, session, args) {
+    termChrome();
+    psClear(el);
+    el.style.overflow = 'auto';
+    el.style.position = 'relative';
+    const doc = document.createElement('div'); doc.className = 'tm-doc';
+    const inp = document.createElement('textarea'); inp.className = 'tm-input'; inp.setAttribute('aria-label', 'terminal input'); inp.autocapitalize = 'off'; inp.spellcheck = false;
+    inp.dataset.focus = '1';                                        // gmux lands the keyboard here when the pane is selected (focusContent); arrows then reach dill, not the workspace
+    el.append(inp, doc);
+    const screen = makeScreen(doc, el);
+    const own = session !== '';                                    // a named session: this pane sizes it, once
+    const post = (body) => fetch(TERM, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(Object.assign({ session }, body)) })
+      .then(async (r) => { if (!r.ok) { let why = 'term ' + r.status; try { why = (await r.json()).error || why; } catch (_) {} throw new Error(why); } });
+    // dill's own width, for how drum lays the live line out: wide, so dill
+    // does not fold lines the document wraps anyway. ?cols= overrides.
+    const cols = (() => { const n = parseInt(args && args.cols, 10); return n >= 20 && n <= 500 ? n : 160; })();
+    if (own) post({ blew: { w: cols, h: 40 } }).catch(() => {});
+    const batch = (blits) => { blits.forEach(screen.apply); screen.flush(); };
+    const slog = (told) => { const ls = toldLines(told); if (!ls.length) return; ls.forEach(screen.slog); screen.flush(); };
+    // history, then each new batch by version; reads are serialized so a
+    // burst of events is one read after another, never two at once
+    let cur = 0, chain = Promise.resolve();
+    const play = (d) => {
+      // dill prints the slogs into the default session itself; a grey copy
+      // there would double every line. A named session sees them only here.
+      const items = (d.versions || []).map((v) => ({ da: v.da || 0, v })).concat(own ? (d.logs || []).map((l) => ({ da: l.da || 0, l })) : []);
+      items.sort((a, b) => a.da - b.da);
+      items.forEach((it) => { if (it.v) { cur = Math.max(cur, it.v.ud || 0); (it.v.blits || []).forEach(screen.apply); } else toldLines(it.l.told).forEach(screen.slog); });
+      if (typeof d.cur === 'number') cur = Math.max(cur, d.cur);
+      screen.flush();
+    };
+    const pull = (first) => chain = chain.then(async () => {
+      if (el._dead) return;
+      const r = await fetch(termUrl(session, first ? '&last=300' : '&from=' + (cur + 1)), { cache: 'no-store' });
+      if (r.status === 404) { psMarkDead(ps, el, ns, 'no such session'); return; }
+      if (!r.ok) throw new Error('term ' + r.status);
+      play(await r.json());
+      if (first) el.scrollTop = el.scrollHeight;
+    }).catch((e) => { if (first) toast('terminal: ' + (e && e.message || e), true); });
+    pull(true);
+    const send = (belts) => belts.forEach((b) => post({ belt: b }).catch((e) => toast('terminal: ' + (e && e.message || e), true)));
+    // the keyboard is either IN the prompt (arrows are dojo's history) or
+    // on the pane (arrows scroll the document): Escape steps out, prefix+i
+    // or a click steps back in; PageUp/PageDown scroll from either place
+    el.tabIndex = -1;
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); inp.blur(); el.focus({ preventScroll: true }); return; }
+      if (e.key === 'PageUp' || e.key === 'PageDown') { e.preventDefault(); el.scrollBy({ top: (e.key === 'PageUp' ? -1 : 1) * el.clientHeight * 0.9 }); return; }
+      const b = keyBelt(e); if (b == null) return; e.preventDefault(); send([b]);
+    });
+    inp.addEventListener('compositionend', (e) => { if (e.data) send([{ txt: e.data }]); inp.value = ''; });
+    inp.addEventListener('input', () => { if (!inp.value) return; const v = inp.value; inp.value = ''; if (v.length) send([v.length === 1 ? v : { txt: v }]); });   // what keydown did not take: dead keys, mobile
+    inp.addEventListener('paste', (e) => { e.preventDefault(); const t = (e.clipboardData || window.clipboardData).getData('text'); if (t) send([{ txt: t.replace(/\r?\n/g, ' ') }]); });
+    inp.addEventListener('focus', () => screen.focus(true));
+    inp.addEventListener('blur', () => screen.focus(false));
+    // a click focuses the input unless it is selecting text; the pane keeps
+    // native selection and copy
+    el.addEventListener('mouseup', () => { const sel = window.getSelection(); if (!sel || sel.isCollapsed) inp.focus({ preventScroll: true }); });
+    const unslog = slogStream((lines) => { lines.forEach(screen.slog); screen.flush(); });
+    el._fv = {
+      destroy() { el._dead = true; unslog(); },
+      onUpdate(ev) {
+        if (ev.road === LOGS) { if (own && ev.body && typeof ev.body === 'object') slog(ev.body); return; }
+        if (!own || ev.path === abs) pull(false);                      // a named session follows its own grub; the default follows the dir
+      },
+    };
+    el._menu = () => [
+      { label: 'New terminal…', run: () => go(el, PREFIX + SESSIONS.replace(/\/$/, '') + '?view=term-new', 'dir') },
+      { label: 'Clear', run: () => { screen.clear(); screen.flush(); } },
+      own ? { label: 'Close session', danger: true, run: () => post({ shut: true }).then(() => ps.back(paneId)).catch((e) => toast('terminal: ' + (e && e.message || e), true)) } : null,
+    ].filter(Boolean);
+    // the session's grub by name (the default session's is the empty name
+    // under the dir, so the dir is followed for it) and the slog stream
+    paneLive(ps, paneId, el, own ? [{ road: abs }, { road: LOGS, body: true }] : [{ road: SESSIONS }]);
+    psLanded(ps, paneId, el);
+    inp.focus({ preventScroll: true });
+  }
+
   // ---- toast ----
   let toastTimer = null;
   function toast(msg, err) {
@@ -2181,7 +2448,7 @@ function setup(root, opts) {
     while (root.firstChild) root.removeChild(root.firstChild);
     root.style.cssText = 'display:block;height:100vh';
     document.body.classList.add('cols');
-    const ps = document.createElement('pane-split');
+    const ps = document.createElement('gmux-host');
     ps.setAttribute('persist', K + '-standalone');
     ps.style.cssText = 'display:block;height:100%';
     ps.renderPath = (path, paneId) => paneContent(ps, paneId, path);
@@ -2223,7 +2490,7 @@ function setup(root, opts) {
       e.preventDefault();
       showMenu(items, e.clientX, e.clientY);
     }, true);
-    let saved = null; try { saved = localStorage.getItem('pane-split:' + K + '-standalone'); } catch (_) {}
+    let saved = null; try { saved = localStorage.getItem('gmux:' + K + '-standalone') || localStorage.getItem('pane-split:' + K + '-standalone'); } catch (_) {}
     if (!saved) ps.open('/', 'here');                   // fresh → root; otherwise the persisted workspace restores (stateful)
     ps.layoutSources().forEach(({ id, src }) => psFollowLayout(ps, id, src));   // restored layout panes follow their files again
     psSnaps(ps);
@@ -2292,7 +2559,7 @@ namespace-explorer #finder-tabs { flex: 1; min-height: 0; }
 namespace-explorer #finder-tabs[hidden] { display: none; }
 namespace-explorer #finder-preview .finder-empty { flex: 1; }
 namespace-explorer #finder-tabs [tab-label] { overflow: auto; }
-/* pane-split workspace: tab strip auto-hides at one tab (pane chrome is pane-split's own) */
+/* gmux workspace: tab strip auto-hides at one tab (pane chrome is gmux's own) */
 tab-group[data-one]::part(strip) { display: none; }
 namespace-explorer #finder-dir { height: 100%; overflow: auto; }
 namespace-explorer #finder-dir-ft { margin: 0; min-width: max-content; }

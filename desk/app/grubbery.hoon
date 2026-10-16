@@ -7146,10 +7146,41 @@
     ~  :: unknown clay poke, fall through
   ::
       %dill
-    ?.  =([/ %dill-belt] p.sage)  ~
-    =/  [session=@tas =belt:dill]  !<([@tas belt:dill] q.sage)
-    =.  this  (emit-card [%pass /dill/belt %arvo %d %shot session %belt belt])
-    `(enqu-take here ~ ~ %pack wir ~)
+    ?:  =([/ %dill-belt] p.sage)
+      =/  [session=@tas =belt:dill]  !<([@tas belt:dill] q.sage)
+      =.  this  (emit-card [%pass /dill/belt %arvo %d %shot session %belt belt])
+      `(enqu-take here ~ ~ %pack wir ~)
+    ::  a session task: open a session (its grub appears and is viewed
+    ::  from then on, as +sync-dill does for the ones found at boot),
+    ::  shut one (stop viewing; the grub and its history stay), or tell
+    ::  dill the size of the terminal looking at it
+    ?.  =([/ %dill-task] p.sage)  ~
+    =/  [ses=@tas task=session-task:dill]  !<([@tas session-task:dill] q.sage)
+    ::  dill crashes on a task for a session that is not there (or an
+    ::  open of one that is), and that crash would be this event's: a
+    ::  task that does not fit the sessions dill has is dropped
+    =/  have=?
+      %.  ses
+      %~  has  in
+      .^((set @tas) %dy /(scot %p our.bowl)/$/(scot %da now.bowl)/sessions)
+    ?:  =(have ?=(%open -.task))  `(enqu-take here ~ ~ %pack wir ~)
+    ?+    -.task  ~
+        %open
+      =.  this  (emit-card [%pass /dill/session/[ses] %arvo %d %shot ses task])
+      =.  this  (save-file [/sys/dill/sessions ses] [[/ %dill-blit] *(list blit:dill)])
+      =.  this  (set-gain-lane [%& /sys/dill/sessions ses] %.y)
+      =.  this  (emit-card [%pass /dill/session/[ses] %arvo %d %shot ses %view ~])
+      `(enqu-take here ~ ~ %pack wir ~)
+    ::
+        %shut
+      =.  this  (emit-card [%pass /dill/session/[ses] %arvo %d %shot ses %flee ~])
+      =.  this  (emit-card [%pass /dill/session/[ses] %arvo %d %shot ses task])
+      `(enqu-take here ~ ~ %pack wir ~)
+    ::
+        %blew
+      =.  this  (emit-card [%pass /dill/session/[ses] %arvo %d %shot ses task])
+      `(enqu-take here ~ ~ %pack wir ~)
+    ==
   ::
       %gall
     ?.  =([/ %gall-poke] p.sage)  ~

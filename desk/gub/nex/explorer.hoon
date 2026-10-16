@@ -168,6 +168,10 @@
           (serve-sse eyre-id req)
         ?:  ?=([%grubbery %explorer %follow ~] site)
           (handle-follow eyre-id req)
+        ::  /grubbery/explorer/term: a terminal pane's history read and its
+        ::  keystrokes, session tasks (see +handle-term)
+        ?:  ?=([%grubbery %explorer %term ~] site)
+          (handle-term eyre-id req args)
         ::  /grubbery/explorer[/...]: the standalone pane workspace — same shell,
         ::  browse.js renders panes full-screen; it fetches data from /grubbery/ball.
         ?:  ?=([%grubbery %explorer *] site)
@@ -276,6 +280,7 @@
       :-  %a
       :~  (line '/sys/bowl.sig' 'read the current time and our ship — get-time / get-our')
           (line '/sys/eyre/' 'bind /grubbery/ball and send page responses')
+          (line '/sys/dill/main.sig' 'type into a dill session, open and shut sessions, tell dill a terminal pane\'s size')
       ==
       :-  'peek'
       :-  %a
@@ -412,6 +417,170 @@
     %^  send-json  eyre-id  404
     (pairs:enjs:format ~[['error' s+'no such session'] ['why' s+why] ['road' s+(road-to-cord:tarball road)]])
   (send-json eyre-id 200 (pairs:enjs:format ~[['ok' b+%.y]]))
+::  +handle-term: what a terminal pane needs of a dill session (see
+::  browse.js psTerminal). GET ?session=&last=&from= answers the
+::  session's blit history as json, {cur, versions: [{ud, da, blits}]}:
+::  from `from` on, else the last `last` (default 200) — and, on that
+::  first read, the slog entries from the same span of time ({logs:
+::  [{ud, da, told}]}), so a pane opening on a session shows what
+::  happened before it looked. POST {session, belt} types into the
+::  session; {session, open: true} opens one on hood's dojo, as webterm
+::  does; {session, shut: true} shuts it; {session, blew: {w, h}} tells
+::  dill the pane's size. The default session is the empty name.
+::
+++  handle-term
+  |=  [eyre-id=@ta req=inbound-request:eyre args=quay:eyre]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ?:  =('POST' method.request.req)
+    (term-post eyre-id req)
+  =/  ses=@ta  `@ta`(fall (get-key:kv:html-utils 'session' args) '')
+  =/  from=(unit @ud)
+    =/  f=(unit @t)  (get-key:kv:html-utils 'from' args)
+    ?~(f ~ (rush u.f dem))
+  =/  last=@ud
+    =/  l=(unit @t)  (get-key:kv:html-utils 'last' args)
+    ?~(l 200 (fall (rush u.l dem) 200))
+  =/  ses-road=road:tarball  [%& %& /sys/dill/sessions ses]
+  ;<  =view:nexus  bind:m  (peek:io ses-road ~)
+  ?.  ?=([%file *] view)
+    (send-json eyre-id 404 (pairs:enjs:format ~[['error' s+'no such session']]))
+  =/  cur=@ud  ud.cass.view
+  =/  lo=@ud  ?^(from u.from ?:((lth cur last) 1 +((sub cur last))))
+  =/  num  numb:enjs:format
+  ?:  (gth lo cur)
+    (send-json eyre-id 200 (pairs:enjs:format ~[['cur' (num cur)] ['versions' a+~] ['logs' a+~]]))
+  ;<  res=(each (list [=cass:clay =sage:tarball]) tang)  bind:m
+    (peep:io ses-road [%numb `lo `cur])
+  ?:  ?=(%| -.res)
+    (send-json eyre-id 500 (pairs:enjs:format ~[['error' s+'history read failed']]))
+  ;<  blit-tube=(unit tube:clay)  bind:m
+    (get-tube:io [%& %| /code] [[/ %dill-blit] [/ %json]])
+  ::  oldest first; the json of a version that fails to convert is null
+  =/  versions=(list [=cass:clay =sage:tarball])
+    (sort p.res |=([a=[=cass:clay *] b=[=cass:clay *]] (lth ud.cass.a ud.cass.b)))
+  =/  vers-json=json
+    :-  %a
+    %+  turn  versions
+    |=  [=cass:clay =sage:tarball]
+    ^-  json
+    =/  blits=json
+      ?~  blit-tube  ~
+      =/  r  (mule |.(!<(json (u.blit-tube q.sage))))
+      ?:(?=(%| -.r) ~ p.r)
+    (pairs:enjs:format ~[['ud' (num ud.cass)] ['da' (time:enjs:format da.cass)] ['blits' blits]])
+  ::  the slog entries from the oldest version on (first read only)
+  ;<  logs-json=json  bind:m
+    =/  ml  (fiber:fiber:nexus ,json)
+    ?:  |(?=(^ from) ?=(~ versions))  (pure:ml a+~)
+    ;<  now=@da  bind:ml  get-time:io
+    =/  lo-da=@da  da.cass.i.versions
+    =/  logs-road=road:tarball  [%& %& /sys/dill %'logs.dill-told']
+    ;<  lres=(each (list [=cass:clay =sage:tarball]) tang)  bind:ml
+      (peep:io logs-road [%date `lo-da `now])
+    ?:  ?=(%| -.lres)  (pure:ml a+~)
+    ;<  told-tube=(unit tube:clay)  bind:ml
+      (get-tube:io [%& %| /code] [[/ %dill-told] [/ %json]])
+    ?~  told-tube  (pure:ml a+~)
+    =/  logs=(list [=cass:clay =sage:tarball])
+      (sort p.lres |=([a=[=cass:clay *] b=[=cass:clay *]] (lth ud.cass.a ud.cass.b)))
+    %-  pure:ml
+    :-  %a
+    %+  murn  logs
+    |=  [=cass:clay =sage:tarball]
+    ^-  (unit json)
+    =/  r  (mule |.(!<(json (u.told-tube q.sage))))
+    ?:  ?=(%| -.r)  ~
+    `(pairs:enjs:format ~[['ud' (num ud.cass)] ['da' (time:enjs:format da.cass)] ['told' p.r]])
+  %^  send-json  eyre-id  200
+  (pairs:enjs:format ~[['cur' (num cur)] ['versions' vers-json] ['logs' logs-json]])
+::  +term-post: a keystroke or a session task from a terminal pane
+::
+++  term-post
+  |=  [eyre-id=@ta req=inbound-request:eyre]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  bad  |=(why=@t (send-json eyre-id 400 (pairs:enjs:format ~[['error' s+why]])))
+  =/  ok  (send-json eyre-id 200 (pairs:enjs:format ~[['ok' b+%.y]]))
+  =/  jon=(unit json)
+    ?~  body.request.req  ~
+    (de:json:html q.u.body.request.req)
+  ?.  ?=([~ %o *] jon)  (bad 'json object body required')
+  =/  ses=@ta
+    =/  s=(unit json)  (~(get by p.u.jon) 'session')
+    ?.(?=([~ %s *] s) '' `@ta`p.u.s)
+  =/  belt=(unit json)  (~(get by p.u.jon) 'belt')
+  ?^  belt
+    =/  b=(unit belt:dill)  (json-to-belt u.belt)
+    ?~  b  (bad 'not a belt')
+    ;<  ~  bind:m  (send-belt:io ses u.b)
+    ok
+  ?^  (~(get by p.u.jon) 'open')
+    ?:  =('' ses)  (bad 'the default session is already open')
+    ;<  our=@p  bind:m  get-our:io
+    ;<  ~  bind:m  (send-dill-task:io ses [%open %hood ~[[our %dojo]]])
+    ok
+  ?^  (~(get by p.u.jon) 'shut')
+    ?:  =('' ses)  (bad 'the default session cannot be shut')
+    ;<  ~  bind:m  (send-dill-task:io ses [%shut ~])
+    ok
+  =/  blew=(unit json)  (~(get by p.u.jon) 'blew')
+  ?^  blew
+    =/  r  (mule |.(((ot:dejs:format ~[w+ni:dejs:format h+ni:dejs:format]) u.blew)))
+    ?:  ?=(%| -.r)  (bad 'blew wants {w, h}')
+    ;<  ~  bind:m  (send-dill-task:io ses [%blew p.r])
+    ok
+  (bad 'belt, open, shut or blew')
+::  +json-to-belt: a keystroke as the pane spells it (webterm's shapes):
+::  a one-character string, "ret" "bac" "del", {txt: "…"}, {aro: "u"},
+::  {hit: {x, y}}, {mod: {mod: "ctl"|"met"|"hyp", key: <a bolt>}}
+::
+++  json-to-belt
+  |=  jon=json
+  ^-  (unit belt:dill)
+  ?.  ?=([%o *] jon)
+    =/  b=(unit bolt:dill)  (json-to-bolt jon)
+    ?~(b ~ `u.b)
+  =/  txt=(unit json)  (~(get by p.jon) 'txt')
+  ?^  txt
+    ?.  ?=([~ %s *] txt)  ~
+    `[%txt (tuba (trip p.u.txt))]
+  =/  mod=(unit json)  (~(get by p.jon) 'mod')
+  ?^  mod
+    ?.  ?=([~ %o *] mod)  ~
+    =/  which=(unit json)  (~(get by p.u.mod) 'mod')
+    =/  key=(unit json)  (~(get by p.u.mod) 'key')
+    ?.  &(?=([~ %s *] which) ?=(^ key))  ~
+    ?.  ?=(?(%ctl %met %hyp) p.u.which)  ~
+    =/  k=(unit bolt:dill)  (json-to-bolt u.key)
+    ?~  k  ~
+    `[%mod p.u.which u.k]
+  =/  b=(unit bolt:dill)  (json-to-bolt jon)
+  ?~(b ~ `u.b)
+++  json-to-bolt
+  |=  jon=json
+  ^-  (unit bolt:dill)
+  ?+    jon  ~
+      [%s *]
+    ?:  =('ret' p.jon)  `[%ret ~]
+    ?:  =('bac' p.jon)  `[%bac ~]
+    ?:  =('del' p.jon)  `[%del ~]
+    =/  cs=(list @c)  (tuba (trip p.jon))
+    ?.  ?=([@ ~] cs)  ~
+    `i.cs
+  ::
+      [%o *]
+    =/  aro=(unit json)  (~(get by p.jon) 'aro')
+    ?^  aro
+      ?.  ?=([~ %s *] aro)  ~
+      ?.  ?=(?(%d %l %r %u) p.u.aro)  ~
+      `[%aro p.u.aro]
+    =/  hit=(unit json)  (~(get by p.jon) 'hit')
+    ?~  hit  ~
+    =/  r  (mule |.(((ot:dejs:format ~[x+ni:dejs:format y+ni:dejs:format]) u.hit)))
+    ?:  ?=(%| -.r)  ~
+    `[%hit p.r]
+  ==
 ::  +take-sse-in: what the stream waits on — news on any wire, the
 ::  follow poke (a json bask), or the keep-alive timer
 ::
