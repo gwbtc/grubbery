@@ -1,14 +1,14 @@
 {"bar":true,"nav":false,"activeTab":0,
- "open":{"0/a":{"to":"0/b/0/a","mode":"replace"}},
  "tabs":[
- {"label":"repo","entries":[{"div":{"dir":"horizontal","ratio":0.22,
-   "a":{"tabs":[{"entries":[{"path":"./data/tree?view=tree"}],"cursor":0}]},
-   "b":{"tabs":[{"entries":[{"div":{"dir":"vertical","ratio":0.6,
-     "a":{"bar":true,"nav":false,"tabs":[{"entries":[],"cursor":-1}]},
-     "b":{"bar":true,"nav":false,"activeTab":0,"tabs":[
-       {"label":"status","entries":[{"path":"./data/ui/status.json"}],"cursor":0},
-       {"label":"history","entries":[{"path":"./data/ui/commits.json"}],"cursor":0},
-       {"label":"run","entries":[{"path":"./run.git-action"}],"cursor":0}]}}}],"cursor":0}]}}}],"cursor":0},
+ {"label":"repo","entries":[{"div":{"dir":"vertical","ratio":0.6,
+   "a":{"tabs":[{"entries":[{"div":{"dir":"horizontal","ratio":0.22,
+     "open":{"a":{"to":"b","mode":"replace"}},
+     "a":{"tabs":[{"entries":[{"path":"./data/tree?view=tree"}],"cursor":0}]},
+     "b":{"bar":true,"nav":false,"tabs":[{"entries":[],"cursor":-1}]}}}],"cursor":0}]},
+   "b":{"bar":true,"nav":false,"activeTab":0,"tabs":[
+     {"label":"status","entries":[{"path":"./data/ui/status.json"}],"cursor":0},
+     {"label":"history","entries":[{"path":"./data/ui/commits.json"}],"cursor":0},
+     {"label":"run","entries":[{"path":"./run.git-action"}],"cursor":0}]}}}],"cursor":0},
  {"label":"settings","entries":[{"path":"./config.json"}],"cursor":0},
  {"label":"docs","entries":[{"div":{"dir":"horizontal","ratio":0.68,"fold":"b",
    "a":{"tabs":[{"entries":[{"path":"./data/ui/docs-nav.json"}],"cursor":0}]},
