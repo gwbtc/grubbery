@@ -2679,7 +2679,7 @@ function setup(root, opts) {
       // a view that opens a moment is ROUTED by the layout, exactly as on the
       // desktop: it lands in the pane the table names, not on top of the
       // navigator that opened it. The aperture then follows it there.
-      open(p) { routeOpen(at, p); },
+      open(p) { routeOpen(seat, p); },
       openFrom(addr, p, name) { routeOpen(addr, p, name); },
       closeFrom(addr, p) { if (model.cursorToAddr(addr)) { model.closeFrom(model.cursor && model.cursor.id, p); redraw(); } },
       // a dir an app opens as a layout becomes a real subtree in the model,
@@ -2739,12 +2739,13 @@ function setup(root, opts) {
     };
 
     // ---- rendering ----
-    // where we are standing. The session's own state is the system of record
-    // for this — gmux serializes the cursor onto the workspace — so it is NOT
-    // mirrored into the URL: a copy there is a second truth with no owner, and
-    // an opaque one to read. Seeded from the session's cursor on the first
-    // draw, and owned by goTo() from then on.
-    let at = '.', seeded = false;
+    // THE SEAT: where this client sits in the tree. The phone shows one level,
+    // so it needs no selector — nothing to disambiguate — and it must not write
+    // the workspace's cursor, which says what is SELECTED and belongs to the
+    // desktop along with its nested per-context zooms. The seat is the phone's
+    // alone, carried in session state so a session resumes where you were
+    // sitting, and never in the URL.
+    let seat = '.', seeded = false;
     let drag = null;                 // an in-flight swipe: the two levels on a track
     let tree = treeOf(model.serialize());
     // what opened a container: a division carries it on the div, a held pane on the entry
@@ -2911,19 +2912,19 @@ function setup(root, opts) {
       tree = treeOf(spec);
       // resume where the session says we were, and make that the baseline entry
       // so the first back has somewhere to land instead of leaving the session
-      if (!seeded) { seeded = true; at = (spec && spec.cursor) || '.'; try { history.replaceState({ mbAt: at }, ''); } catch (_) {} }
+      if (!seeded) { seeded = true; seat = (typeof model.seat === 'string' && model.seat) || '.'; try { history.replaceState({ seat: seat }, ''); } catch (_) {} }
       // An address names a tab index at every level, so switching an ancestor's
       // tab takes yours out of the tree. Fall back to the nearest surviving
       // ancestor, but REMEMBER where you were: switching that tab back puts
       // you there again instead of leaving you at the top.
-      let node = find(tree, at);
-      if (!node) { if (!orphan) orphan = at; node = nearest(at); at = node.addr; }
-      else if (orphan) { const back = find(tree, orphan); if (back) { at = orphan; node = back; } orphan = null; }
-      const key = JSON.stringify(spec) + '|' + at;
+      let node = find(tree, seat);
+      if (!node) { if (!orphan) orphan = seat; node = nearest(seat); seat = node.addr; }
+      else if (orphan) { const back = find(tree, orphan); if (back) { seat = orphan; node = back; } orphan = null; }
+      const key = JSON.stringify(spec) + '|' + seat;
       if (key === drawn) return;
       // selecting a pane changes only the cursor: move the mark and redo the
       // bar, and leave the panes standing
-      const bodyKey = JSON.stringify(Object.assign({}, spec, { cursor: null })) + '|' + at;
+      const bodyKey = JSON.stringify(Object.assign({}, spec, { cursor: null, seat: null })) + '|' + seat;
       if (bodyKey === drawnBody && body.firstChild) {
         drawn = key;
         const c = spec && spec.cursor;
@@ -2940,7 +2941,15 @@ function setup(root, opts) {
       body.appendChild(levelEl(node, h, cursorAddr, 0, true));        // standing here: the bar at the bottom is this pane's bar
       prune();
       drawBar(node);
+      sitHere();
     }
+    // the seat rides in the workspace, so a session resumes where you sat. Set
+    // it where the draw settles, and tell the session to save when it moved.
+    const sitHere = () => {
+      if (model.seat === seat) return;
+      model.seat = seat;
+      try { model.dispatchEvent(new CustomEvent('gmux-change')); } catch (_) {}
+    };
     let pending = null;
     const schedule = () => { if (pending) return; pending = setTimeout(() => { pending = null; draw(); }, 0); };
     const redraw = () => { drawn = ''; drawnBody = ''; draw(); };
@@ -2982,7 +2991,7 @@ function setup(root, opts) {
         b('⬓', 'split this pane in two', true, () => withCursor(() => { model.splitDown(); redraw(); })),
         b('⇄', 'flip the two panes here', !!flipAt, () => {
           const inner = node.kind === 'div';
-          if (model.cursorToAddr(flipAt) && model.flip()) { if (!inner) at = model.cursorAddr() || at; redraw(); }
+          if (model.cursorToAddr(flipAt) && model.flip()) { if (!inner) seat = model.cursorAddr() || seat; redraw(); }
         }),
         b('×', 'close this pane', true, () => askClose(node), 'danger'));
       // the path this pane shows, editable; a container takes one too, and
@@ -3008,7 +3017,7 @@ function setup(root, opts) {
     function closeNode(node) {
       if (!model.cursorToAddr(node.addr)) return;
       model.closeLeaf(model.cursor && model.cursor.id, true);
-      at = model.cursorAddr() || '.';
+      seat = model.cursorAddr() || '.';
       redraw();
     }
     // closing a pane with content is asked for first: gmux asks with Enter,
@@ -3074,22 +3083,23 @@ function setup(root, opts) {
       drop(node);
       redraw();
     }
-    const withCursor = (fn) => { if (model.cursorToAddr(at)) fn(); };
+    // actions BORROW the model's cursor for the length of the call — gmux acts
+    // on a cursor — but nothing persists it: walking never selects.
+    const withCursor = (fn) => { if (model.cursorToAddr(seat)) fn(); };
     // Walking in pushes a history entry, so the back gesture climbs back out
     // instead of abandoning the session — and the Android edge-swipe, which no
     // page can intercept, becomes the right gesture rather than a hazard. The
     // position rides in history.state, NOT in the URL: the session's own state
     // stays the system of record and the link stays clean.
     function goTo(addr) {
-      orphan = null; at = addr; model.cursorToAddr(addr);
-      try { history.pushState({ mbAt: addr }, ''); } catch (_) {}
+      orphan = null; seat = addr;
+      try { history.pushState({ seat: addr }, ''); } catch (_) {}
       redraw();
     }
     window.addEventListener('popstate', (e) => {
-      const a = e.state && e.state.mbAt;
+      const a = e.state && e.state.seat;
       orphan = null;
-      at = a || (model.cursorAddr() || '.');
-      model.cursorToAddr(at);
+      seat = a || '.';
       redraw();
     });
     function routeOpen(addr, path, name) {
@@ -3106,8 +3116,8 @@ function setup(root, opts) {
       // the sidebar, so the aperture stays put and the mark moves. Only when
       // the destination is somewhere you cannot see from here do you follow it.
       const dest = model.cursorAddr();
-      const seen = find(treeOf(model.serialize()), at);
-      if (dest && !(seen && holds(seen, dest))) at = dest;
+      const seen = find(treeOf(model.serialize()), seat);
+      if (dest && !(seen && holds(seen, dest))) seat = dest;
       redraw();
     }
     function navTo(path) { withCursor(() => { model.navigate(null, path); redraw(); }); }
@@ -3141,11 +3151,11 @@ function setup(root, opts) {
       return false;
     };
     const destFor = (dx) => {
-      const node = find(tree, at); if (!node) return null;
+      const node = find(tree, seat); if (!node) return null;
       return sibling(node, dx < 0 ? 'b' : 'a');            // left → the side to your right
     };
     const beginDrag = (dx) => {
-      const node = find(tree, at); if (!node) return null;
+      const node = find(tree, seat); if (!node) return null;
       const dest = destFor(dx); if (!dest) return null;
       const w = body.clientWidth; if (!w) return null;
       const h = body.clientHeight || window.innerHeight - 90;

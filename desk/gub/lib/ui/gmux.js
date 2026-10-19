@@ -171,6 +171,9 @@ class Gmux extends HTMLElement {
   pathHint = null;     // optional (path) => string: the navbar's tooltip for a moment (what a symbolic path resolved to)
   updateContent = null; // optional (el, path, paneId) => bool: update the shown content to a new moment in place; false → rebuild
   reloadLayout = null;  // optional (paneId, src) => void: re-read a layout's source and reapplyLayout (a refresh on a layout pane)
+  seat = null;                  // the phone client's SEAT: where it sits in the tree.
+                                // Carried in the workspace and never read here — desktop
+                                // has a cursor and nested zooms instead, and does not sit.
   viewModes = null;    // optional [{id, glyph, title}] → a per-pane render-mode toggle on the bar; host's renderPath reads viewOf(id)
 
   #root = null;                 // the root PANE
@@ -1530,7 +1533,7 @@ class Gmux extends HTMLElement {
 
   // the workspace, with the selected pane as an address from the root: a
   // session's mirror follows the selection too (see browse.js sessions)
-  serialize() { const s = this.#serPane(this.#root); if (s) { const c = this.#addrWithin(this.#root, this.cursor); if (c) s.cursor = c; } return s; }
+  serialize() { const s = this.#serPane(this.#root); if (s) { const c = this.#addrWithin(this.#root, this.cursor); if (c) s.cursor = c; if (this.seat) s.seat = this.seat; } return s; }
   cursorAddr() { return this.#root ? this.#addrWithin(this.#root, this.cursor) : null; }
   cursorToAddr(addr) { if (!this.#root || typeof addr !== 'string') return false; const t = this.#descend(this.#root, addr); if (!t) return false; this.cursorTo(t); return true; }
   #serPane(pane) {
@@ -1547,6 +1550,7 @@ class Gmux extends HTMLElement {
   restore(spec) {
     if (this.#root) { this.#eachPaneDeep(this.#root, p => this.#forgetPane(p), true); for (const h of this.#hoists) h.entry.pane.dom.remove(); this.#root.dom?.remove(); }
     this.#panes.clear(); this.#refIndex = null; this.#zoomStack = []; this.#hoists = []; this.#activeId = null; this.#mark = null; this.#contexts.clear();
+    this.seat = (spec && typeof spec.seat === 'string' && spec.seat) || null;   // carried through, for whoever sits
     this.#root = spec ? this.#deserPane(spec, null) : this.#makePane();
     this.#placePane(this.#root, this, null);
     this.#afterStructure();
