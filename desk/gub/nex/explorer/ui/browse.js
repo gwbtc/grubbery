@@ -2645,7 +2645,11 @@ function setup(root, opts) {
   function mobileWorkspace(root, sessionName) {
     mobileChrome();
     while (root.firstChild) root.removeChild(root.firstChild);
-    root.style.cssText = 'display:flex;flex-direction:column;height:100vh;background:#fff;position:relative';
+    // dvh, not vh: on mobile Chrome 100vh is the viewport with the URL bar
+    // RETRACTED, so a column that tall pushes the bars below the fold — the
+    // phone client renders with no bottom toolbar at all. dvh tracks what is
+    // actually visible; vh stays as the fallback for anything without dvh.
+    root.style.cssText = 'display:flex;flex-direction:column;height:100vh;height:100dvh;background:#fff;position:relative';
     document.title = sessionName + ' · gmux';
     // the model, never shown
     const model = document.createElement('gmux-host');
@@ -3106,7 +3110,7 @@ function setup(root, opts) {
     // Any other /grubbery/explorer/<path>: a workspace kept in this browser
     // alone (localStorage), as before — the old standalone page.
     while (root.firstChild) root.removeChild(root.firstChild);
-    root.style.cssText = 'display:block;height:100vh';
+    root.style.cssText = 'display:block;height:100vh;height:100dvh';
     document.body.classList.add('cols');
     const here = location.pathname.replace(/\/+$/, '');
     const sm = here.match(/^\/grubbery\/explorer\/s\/([a-z][a-z0-9-]*)$/);
@@ -3239,7 +3243,7 @@ function sessionsPage(root, api, wait, waitFail) {
       '.ss-new button{width:100%;padding:11px 14px;font-size:15px}' +
     '}';
   document.head.appendChild(css);
-  root.style.cssText = 'display:block;height:100vh;overflow:hidden;background:#fff';
+  root.style.cssText = 'display:block;height:100vh;height:100dvh;overflow:hidden;background:#fff';
   const wrap = document.createElement('div'); wrap.className = 'ss-wrap'; root.appendChild(wrap);
   const h1 = document.createElement('h1'); h1.textContent = 'gmux sessions'; wrap.appendChild(h1);
   const sub = document.createElement('p'); sub.className = 'ss-sub'; sub.textContent = 'A workspace the ship keeps. One tab holds a session at a time; opening it here takes it over.'; wrap.appendChild(sub);
