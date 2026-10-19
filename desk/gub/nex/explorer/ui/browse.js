@@ -2444,6 +2444,653 @@ function setup(root, opts) {
 
   // standalone panes endpoint (/grubbery/explorer): stand the pane workspace up
   // full-screen using the SAME wiring as the ⊞ panes tab — no finder.
+  const SESSION_API = PREFIX.replace(/\/ball$/, '/explorer') + '/session';
+  const SESSIONS_DIR = '/apps/explorer.explorer/sessions/';
+  // ---- the session protocol: every client of a workspace speaks it ----
+  // The session grub is the record. A client attaches (taking over whoever
+  // held it), restores the spec, applies the ops waiting in it, and from then
+  // on writes back every change its model announces, carrying the ids of the
+  // ops it applied. The grub is followed: a change brings either ops to apply
+  // or the news that someone else attached, and then this client goes passive
+  // and mirrors what the driver writes until it takes over again.
+  // `settled` is the renderer's cue that the model changed under it.
+  function sessionClient(ps, root, sessionName, settled) {
+    settled = settled || function () {};
+    // The session grub is the record. We attach (taking over any other tab),
+    // restore its spec, apply the ops waiting in it, and from then on: every
+    // change gmux announces is written back (debounced) with the ids of the
+    // ops applied; the grub is followed, and a change of it brings either
+    // ops to apply (an agent's, another sender's) or the news that another
+    // client attached — then this tab goes passive until it takes over again.
+    const clientId = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+    const sessionRoad = SESSIONS_DIR + sessionName + '.json';
+    const api = (body) => fetch(SESSION_API, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(Object.assign({ name: sessionName }, body)) })
+      .then(async (r) => ({ status: r.status, json: await r.json().catch(() => null) }));
+    let attached = false, passive = false, ver = 0, mirrored = null;
+    const appliedIds = new Set(); let toReport = [];
+    const banner = document.createElement('div');
+    banner.style.cssText = 'position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:50;background:#fff8c5;color:#4d2d00;border:1px solid #d4a72c;border-radius:8px;padding:8px 14px;font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.12);display:none;gap:12px;align-items:center';
+    root.appendChild(banner);
+    const say = (text, action, run) => { banner.textContent = ''; banner.style.display = 'flex'; banner.appendChild(document.createTextNode(text)); if (action) { const b = document.createElement('button'); b.textContent = action; b.style.cssText = 'font:inherit;font-weight:600;padding:3px 10px;border-radius:6px;border:1px solid #b08800;background:#fff;cursor:pointer'; b.addEventListener('click', run); banner.appendChild(b); } const x = document.createElement('button'); x.textContent = '×'; x.title = 'dismiss'; x.style.cssText = 'font:inherit;border:0;background:none;cursor:pointer;color:inherit'; x.addEventListener('click', () => { banner.style.display = 'none'; }); banner.appendChild(x); };
+    const doOp = (op) => {
+      const t = op && op.type;
+      if (t === 'open' && typeof op.path === 'string') { if (op.where === 'here') ps.navigate(null, op.path); else ps.open(op.path, 'beside'); }
+      else if (t === 'close' && typeof op.path === 'string') { const want = psNs(op.path); for (const p of ps.querySelectorAll('.ps-pane[data-pane-id]')) { const id = p.dataset.paneId, cur = ps.pathOf(id); if (cur && psNs(cur) === want) { ps.closeLeaf(id); break; } } }
+      else if (t === 'layout' && op.spec && typeof op.spec === 'object') { ps.restore(op.spec); settled(); }
+      else if (t === 'split') { if (op.dir === 'down') ps.splitDown(); else ps.splitRight(); }
+      else if (t === 'collapse') ps.collapse();
+    };
+    const applyOps = (ops) => {
+      if (!Array.isArray(ops)) return;
+      for (const op of ops) { if (!op || typeof op.id !== 'number' || appliedIds.has(op.id)) continue; appliedIds.add(op.id); toReport.push(op.id); try { doOp(op); } catch (e) { toast('session op failed: ' + (e && e.message || e), true); } }
+      if (toReport.length) writeBack();
+    };
+    let wbTimer = null, wbChain = Promise.resolve();
+    const writeBack = () => { if (!attached || passive) return; clearTimeout(wbTimer); wbTimer = setTimeout(() => { wbChain = wbChain.then(async () => {
+      if (!attached || passive) return;
+      const applied = toReport; toReport = [];
+      const r = await api({ client: clientId, spec: ps.serialize(), applied });
+      if (r.status === 409) { goPassive(r.json); return; }
+      if (r.status !== 200 || !r.json) { toast('session: write failed (' + r.status + ')', true); toReport = applied.concat(toReport); return; }
+      ver = r.json.ver || ver;
+    }).catch(() => {}); }, 250); };
+    const goPassive = (st) => {
+      if (passive) return;
+      passive = true;
+      const who = st && st.client && st.client.since ? new Date(st.client.since).toLocaleTimeString() : '';
+      say('This session is now open in another tab' + (who ? ' (since ' + who + ')' : '') + '. This tab is passive.', 'Take over', attach);
+    };
+    // while attaching, the workspace sits under the same waiting block a pane
+    // shows while it fetches; a failed attach leaves it there, stopped
+    const cover = document.createElement('div');
+    const covering = (text, sub, fail) => { (fail ? psWaitFail : psWait)(cover, text, sub); cover.style.cssText = 'position:absolute;inset:0;z-index:40'; if (!cover.parentNode) root.appendChild(cover); };
+    root.style.position = 'relative';
+    const attach = async () => {
+      banner.style.display = 'none';
+      covering('attaching', sessionName);
+      const r = await api({ attach: clientId });
+      if (r.status !== 200 || !r.json) { covering('could not attach to this session', 'http ' + r.status, true); say('Could not attach to session "' + sessionName + '" (' + r.status + ').', 'Sessions', () => { location.href = '/grubbery/explorer'; }); return; }
+      cover.remove();
+      const st = r.json;
+      passive = false; attached = true; ver = st.ver || 0; mirrored = null;
+      if (st.spec && typeof st.spec === 'object') ps.restore(st.spec);
+      else if (typeof st.layout === 'string' && st.layout) {
+        ps.open('/', 'here');
+        try { const spec = await fetch(psUrl(st.layout), { cache: 'no-store' }).then((x) => x.ok ? x.json() : Promise.reject(x.status)); ps.replaceWithLayout(ps.cursor.id, spec, st.layout); } catch (e) { toast('layout did not load: ' + e, true); }
+      } else ps.open('/', 'here');
+      settled();
+      applyOps(st.ops);
+      writeBack();
+    };
+    ps.addEventListener('gmux-change', () => writeBack());
+    live([{ road: sessionRoad, body: true }], (ev) => {
+      if (ev.kind === 'del') { attached = false; say('Session "' + sessionName + '" was deleted.', 'Sessions', () => { location.href = '/grubbery/explorer'; }); return; }
+      const st = ev.body; if (!st || typeof st !== 'object') return;
+      if (st.client && st.client.id && st.client.id !== clientId) {
+        // another tab drives: this one mirrors what it writes, read-only
+        goPassive(st);
+        if (!st.spec || typeof st.spec !== 'object') return;
+        // only the selection moved → hop; anything else → rebuild from the spec
+        const sansCursor = (sp) => { const c = Object.assign({}, sp); delete c.cursor; return JSON.stringify(c); };
+        const key = sansCursor(st.spec);
+        if (key !== mirrored) { mirrored = key; ps.restore(st.spec); settled(); }
+        else if (typeof st.spec.cursor === 'string' && st.spec.cursor !== ps.cursorAddr()) ps.cursorToAddr(st.spec.cursor);
+        return;
+      }
+      if (!passive && attached) applyOps(st.ops);
+    }, null);
+    window.addEventListener('pagehide', () => { if (attached && !passive) { try { navigator.sendBeacon(SESSION_API, new Blob([JSON.stringify({ name: sessionName, detach: clientId })], { type: 'application/json' })); } catch (_) {} } });
+    return { attach: attach, writeBack: writeBack };
+  }
+  // ---- mobile: the palace through a phone-sized aperture ----
+  // The same palace and the same session, walked instead of surveyed. A phone
+  // cannot tile a workspace, so it shows ONE NODE of the tree at a time: a
+  // leaf renders its content full screen, a container renders its subtree
+  // stacked evenly down the phone. You swipe between the two sides of a
+  // division (the left/top side is a left swipe, the right/bottom side a
+  // right one), descend into what you are on, and climb back out.
+  //
+  // A tile drops a rung of fidelity as it gets smaller: content, then a name,
+  // then the owning app's icon over its colour, then the colour alone. Below
+  // the top rung a tile is a target, not a thing you use, so a tap descends
+  // into it rather than reaching the content under your finger.
+  //
+  // It is a full client, not a viewer. Two choices a phone has no use for are
+  // simply made for it: a division's orientation (everything stacks) and its
+  // ratio (always even). Flipping the two sides still matters, since it
+  // decides which way you swipe to reach them.
+  //
+  // The model is a HEADLESS gmux: it owns the tree, the splits, the history
+  // and serialize/restore exactly as the desktop does, and never draws. Only
+  // the drawing and the gestures here are new, so there is one implementation
+  // of what a split is.
+  const MB_LIVE = 140, MB_NAME = 36, MB_ICON = 20;      // rungs, by tile height
+  const MB_BAR = 26;                                    // what a pane's own bar costs the body below it
+  let mbCss = false;
+  function mobileChrome() {
+    if (mbCss) return; mbCss = true;
+    const s = document.createElement('style');
+    s.textContent =
+      '.mb-body{flex:1;min-height:0;position:relative;overflow:hidden;touch-action:pan-y;background:#eaeef2}' +
+      // a division is a BOX its children sit inside, tinted a step darker with
+      // depth, so three levels read as three levels and not as four stripes
+      '.mb-split{position:relative;display:flex;flex-direction:column;gap:5px;height:100%;min-height:0;padding:5px;border-radius:11px;box-sizing:border-box}' +
+      '.mb-split>*{flex:1;min-height:0}' +
+      '.mb-leaf{position:relative;display:flex;flex-direction:column;overflow:hidden;height:100%;background:#fff;border-radius:8px;border:1px solid #cdd5dd;box-sizing:border-box}' +
+      // a pane that only holds other panes has no card of its own: its bar sits
+      // straight on top of what it holds
+      '.mb-leaf.mb-group{background:transparent;border:0;border-radius:0}' +
+      '.mb-leaf.mb-group > .mb-head{border-radius:6px 6px 0 0}' +
+      '.mb-leaf.mb-group > .mb-split{flex:1;min-height:0}' +
+      // what a pane IS, said in colour: the owning app's tile colour, carried
+      // on a strip when the content is live and over the whole tile when not
+      '.mb-head{position:relative;flex:0 0 auto;display:flex;align-items:stretch;gap:0;padding:0 7px;color:#fff;font:600 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow-x:auto;scrollbar-width:none}' +
+      '.mb-head::-webkit-scrollbar{display:none}' +
+      '.mb-head .mb-g,.mb-head .mb-n{align-self:center;padding:4px 0}' +
+      '.mb-head .mb-g{margin-right:6px}' +
+      '.mb-tab{flex:0 0 auto;padding:6px 10px 4px;border-bottom:2px solid transparent;opacity:.6;white-space:nowrap;max-width:42vw;overflow:hidden;text-overflow:ellipsis;cursor:pointer}' +
+      '.mb-tab.on{opacity:1;border-bottom-color:currentColor}' +
+      '.mb-head .mb-g{font-size:12px;opacity:.9}' +
+      '.mb-head .mb-n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+      '.mb-content{flex:1;min-height:0;overflow:hidden;position:relative}' +
+      '.mb-content>*{height:100%;overflow:auto}' +
+      '.mb-tap{position:absolute;inset:0;z-index:5}' +
+      '.mb-tile{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;overflow:hidden;color:#fff;font:600 13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;text-align:center;padding:6px}' +
+      '.mb-tile .mb-sub{font:400 11px ui-monospace,Menlo,monospace;opacity:.85;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:94%}' +
+      '.mb-tile.mb-empty{background:#f6f8fa;color:#8c959f;border:1px dashed #cdd5dd;border-radius:7px;font-weight:400}' +
+      '.mb-glyph{font-size:20px;line-height:1}' +
+      '.mb-head .mb-tabn{margin-left:auto;flex:0 0 auto;font-weight:700;opacity:.9}' +
+      '.mb-head-empty{background:#e7ebf0;color:#57606a}' +
+      '.mb-work{box-shadow:0 0 0 2px #1a7f37}' +
+
+      '.mb-bars{flex:0 0 auto;border-top:1px solid #d0d7de;background:#f6f8fa;font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}' +
+      '.mb-row{position:relative;display:flex;align-items:center;gap:4px;padding:7px 9px}' +
+      '.mb-row.mb-pathrow{padding-top:0;gap:6px}' +
+      '.mb-bars button{font:inherit;font-size:15px;line-height:1;padding:8px 11px;border:1px solid #d0d7de;border-radius:8px;background:#fff;color:#1f2328}' +
+      '.mb-bars button:disabled{opacity:.3}' +
+      // which of a division's two sides you are on, and swipe is how you move
+      '.mb-dots{position:absolute;left:0;right:0;top:0;bottom:0;display:flex;align-items:center;justify-content:center;gap:8px;pointer-events:none}' +
+      '.mb-dots button{pointer-events:auto}' +
+      '.mb-gap{flex:1}' +
+      '.mb-dots button{width:9px;height:9px;padding:0;border:0;border-radius:50%;background:#cdd5dd}' +
+      '.mb-dots button.on{background:#57606a}' +
+      '.mb-kind{flex:0 0 auto;width:10px;height:10px;border-radius:3px;background:#cdd5dd}' +
+      '.mb-path{flex:1;min-width:0;font:12px ui-monospace,Menlo,monospace;padding:8px 9px;border:1px solid #d0d7de;border-radius:8px;background:#fff;color:#1f2328}' +
+      '.mb-bars button.danger{color:#cf222e}' +
+      '.mb-tabrow{display:flex;gap:6px;padding:8px 9px 0;overflow-x:auto;scrollbar-width:none}' +
+      '.mb-tabrow::-webkit-scrollbar{display:none}' +
+      '.mb-tabchip{flex:0 0 auto;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:6px 12px;border:1px solid #d0d7de;border-radius:999px;background:#fff;color:#57606a;max-width:46vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+      '.mb-tabchip.on{background:#1f2328;border-color:#1f2328;color:#fff}' +
+      '.mb-tabs{flex:0 0 auto;display:flex;align-items:center;gap:5px;padding:8px 10px;border:1px solid #d0d7de;border-radius:8px;background:#fff;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#1f2328}' +
+      // the tab grid: every tab of this pane, drawn by the same renderer at
+      // the size a card has, so each one looks like what it is
+      '.mb-sheet{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;background:#eaeef2}' +
+      '.mb-sheet-head{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:10px 12px;background:#f6f8fa;border-bottom:1px solid #d0d7de;font:600 13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}' +
+      '.mb-sheet-head .t{flex:1;color:#57606a;font-weight:400}' +
+      '.mb-sheet-head button{font:inherit;padding:7px 11px;border:1px solid #d0d7de;border-radius:8px;background:#fff;color:#1f2328}' +
+      '.mb-grid{flex:1;min-height:0;overflow:auto;display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px;align-content:start}' +
+      '.mb-card{position:relative;display:flex;flex-direction:column;border-radius:10px;overflow:hidden;background:#fff;border:1px solid #cdd5dd}' +
+      '.mb-card.on{box-shadow:0 0 0 2px #0969da}' +
+      '.mb-card .shot{height:150px;position:relative;overflow:hidden;pointer-events:none}' +
+      '.mb-card .cap{display:flex;align-items:center;gap:6px;padding:7px 8px;border-top:1px solid #eaeef2;font:600 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}' +
+      '.mb-card .cap .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+      '.mb-card .x{position:absolute;top:6px;right:6px;z-index:2;width:23px;height:23px;padding:0;border:0;border-radius:50%;background:rgba(31,35,40,.5);color:#fff;font-size:13px;line-height:1}' +
+      '.mb-confirm{display:flex;align-items:center;gap:8px;padding:9px 10px;background:#fff8c5;border-top:1px solid #d4a72c;font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}' +
+      '.mb-confirm .t{flex:1;color:#4d2d00}' +
+      '.mb-confirm button{font:inherit;font-weight:600;padding:7px 12px;border:1px solid #d0d7de;border-radius:8px;background:#fff;color:#1f2328}' +
+      '.mb-confirm button.danger{background:#cf222e;border-color:#b32128;color:#fff}' +
+      '.mb-newtab{display:flex;align-items:center;justify-content:center;min-height:130px;border:1px dashed #b9c2cc;border-radius:10px;background:#fff;color:#57606a;font:600 13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}';
+    document.head.appendChild(s);
+  }
+  function mobileWorkspace(root, sessionName) {
+    mobileChrome();
+    while (root.firstChild) root.removeChild(root.firstChild);
+    root.style.cssText = 'display:flex;flex-direction:column;height:100vh;background:#fff;position:relative';
+    document.title = sessionName + ' · gmux';
+    // the model, never shown
+    const model = document.createElement('gmux-host');
+    model.renderPath = () => document.createElement('div');
+    model.style.cssText = 'position:fixed;left:-10000px;top:0;width:900px;height:700px;visibility:hidden;pointer-events:none';
+    document.body.appendChild(model);
+
+    const body = document.createElement('div'); body.className = 'mb-body';
+    const bars = document.createElement('div'); bars.className = 'mb-bars';
+    const tabRow = document.createElement('div'); tabRow.className = 'mb-tabrow';
+    const bar = document.createElement('div'); bar.className = 'mb-row';
+    const pathRow = document.createElement('div'); pathRow.className = 'mb-row mb-pathrow';
+    bars.append(tabRow, bar, pathRow);
+    root.append(body, bars);
+
+    // what paneContent expects of a workspace
+    const host = document.createElement('div');
+    Object.assign(host, {
+      cursor: null, redrawBars() {}, refresh() { schedule(); }, focusContent() {},
+      pathOf() { return null; }, viewOf() { return null; }, back() {}, layoutSources() { return []; },
+      // a view that opens a moment is ROUTED by the layout, exactly as on the
+      // desktop: it lands in the pane the table names, not on top of the
+      // navigator that opened it. The aperture then follows it there.
+      open(p) { routeOpen(at, p); },
+      openFrom(addr, p, name) { routeOpen(addr, p, name); },
+      closeFrom(addr, p) { if (model.cursorToAddr(addr)) { model.closeFrom(model.cursor && model.cursor.id, p); redraw(); } },
+      // a dir an app opens as a layout becomes a real subtree in the model,
+      // the same as it would on a desktop; the aperture stays where it is
+      replaceWithLayout(addr, spec, src) { if (model.cursorToAddr(addr)) { model.replaceWithLayout(model.cursor.id, spec, src); redraw(); } },
+    });
+
+    // ---- the tree: ONE node per pane in the spec, addressed as gmux
+    // addresses it. A pane's active tab holds one entry, and that entry is
+    // what the pane IS: a division of two panes, a single pane held inside
+    // it, or a moment. Nothing is folded away, so every pane is a level you
+    // can stand on and every address gmux hands us names a node.
+    const emptyPane = () => ({ tabs: [{ entries: [], cursor: -1 }], activeTab: 0 });
+    const treeOf = (spec) => mkNode(spec || emptyPane(), '.', null, null);
+    function mkNode(ps, addr, parent, slot) {
+      const tabs = (ps && ps.tabs) || [];
+      const ti = (ps && ps.activeTab) || 0;
+      const tab = tabs[ti] || tabs[0] || { entries: [], cursor: -1 };
+      const e = (tab.cursor >= 0) ? tab.entries[tab.cursor] : null;
+      const n = { spec: ps, addr, parent, slot, tabs, tab, entry: e, kids: [] };
+      const down = (seg) => (addr === '.' ? '' : addr + '/') + ti + '/' + seg;
+      if (e && e.div) { n.kind = 'div'; n.div = e.div; n.kids = [mkNode(e.div.a || emptyPane(), down('a'), n, 'a'), mkNode(e.div.b || emptyPane(), down('b'), n, 'b')]; }
+      else if (e && e.pane) { n.kind = 'hold'; n.kids = [mkNode(e.pane, down('a'), n, 'a')]; }
+      else { n.kind = 'leaf'; n.path = e ? e.path : null; n.name = (e && e.name) || null; }
+      return n;
+    }
+    const find = (n, addr) => { if (n.addr === addr) return n; for (const k of n.kids) { const f = find(k, addr); if (f) return f; } return null; };
+    const holds = (n, addr) => !!find(n, addr);
+    const nearest = (addr) => {
+      const segs = addr === '.' ? [] : addr.split('/');
+      for (let i = segs.length; i >= 0; i -= 2) {
+        const n = find(tree, i === 0 ? '.' : segs.slice(0, i).join('/'));
+        if (n) return n;
+      }
+      return tree;
+    };
+    // the other side of the division this pane is in — this level's own pair,
+    // never an ancestor's: a level with no sibling has nowhere lateral to go
+    const sibling = (n, slot) => { const p = n.parent; if (!p || p.kind !== 'div') return null; const k = p.kids.find((x) => x.slot === slot); return (k && k !== n) ? k : null; };
+
+    // ---- app identity, for the low rungs ----
+    const tiles = new Map();
+    const BRANCH = { sys: ['#4c5667', '⚙'], code: ['#5b4bb5', '{}'], docs: ['#1f8a7d', '¶'], apps: ['#4a9de5', '▣'], root: ['#6e7781', '⌂'] };
+    const identOf = (path) => {
+      const ns = psNs(path || '/') || '/';
+      const m = /^\/apps\/([^/]+)/.exec(ns);
+      const branch = ns.split('/')[1] || 'root';
+      const key = m ? m[1] : branch;
+      let info = tiles.get(key);
+      if (info) return info;
+      const b = BRANCH[branch] || BRANCH.root;
+      info = { color: b[0], glyph: m ? '▣' : b[1] };
+      tiles.set(key, info);
+      if (m) fetch(PREFIX + '/apps/' + m[1] + '/tile.json?raw=1').then((r) => r.ok ? r.json() : null)
+        .then((j) => { if (j && j.color) { info.color = j.color; redraw(); } }).catch(() => {});
+      return info;
+    };
+
+    // ---- rendering ----
+    let at = (psArgs(location.search.replace('?', '?x&')).at) || '.';
+    let tree = treeOf(model.serialize());
+    // what opened a container: a division carries it on the div, a held pane on the entry
+    const srcOf = (n) => (n.entry ? (n.entry.div ? n.entry.div.src : (n.entry.pane ? n.entry.src : null)) : null) || null;
+    const countLeaves = (n) => n.kind === 'leaf' ? 1 : n.kids.reduce((a, k) => a + countLeaves(k), 0);
+    // a container is named the way gmux names one: what opened it, else 'layout'
+    const labelOf = (n) => n.kind === 'leaf' ? (n.name || (n.path ? psBase(n.path) : 'empty')) : tabLabel(n.tab);
+    // the user's name for a tab, else the name the content offered when it
+    // opened, else what it is — the same order gmux uses on the desktop
+    const tabLabel = (t) => {
+      if (!t) return 'empty';
+      if (t.label) return t.label;
+      const e = t.cursor >= 0 ? t.entries[t.cursor] : null;
+      if (!e) return 'empty';
+      if (e.name) return e.name;
+      if (e.div || e.pane) { const src = (e.div && e.div.src) || e.src; return src ? psBase(src) : 'layout'; }
+      return psBase(e.path) || 'empty';
+    };
+    const tabIcon = (t) => {
+      const e = t && t.cursor >= 0 ? t.entries[t.cursor] : null;
+      return e && (e.div || e.pane) ? '▣' : null;
+    };
+    // ---- one way to draw a pane, at every level ----
+    // BAR: its tabs when it holds more than one, else its name. The pane you
+    // are STANDING on skips the name — the bar at the bottom of the screen is
+    // its bar — but never skips its tabs. The bar is also the handle: tapping
+    // it steps into that pane, the way clicking a pane's bar selects it on
+    // the desktop.
+    function barEl(n, id, standing) {
+      const many = n.tabs.length > 1;
+      if (standing && !many) return null;
+      const strip = document.createElement('div'); strip.className = 'mb-head' + (id ? '' : ' mb-head-empty');
+      if (id) strip.style.background = id.color;
+      strip.addEventListener('pointerup', (e) => { e.stopPropagation(); });
+      strip.addEventListener('click', (e) => { e.stopPropagation(); goTo(n.addr); });
+      if (many) {
+        const active = (n.spec && n.spec.activeTab) || 0;
+        n.tabs.forEach((t, i) => {
+          const tabEl = document.createElement('div'); tabEl.className = 'mb-tab' + (i === active ? ' on' : '');
+          tabEl.textContent = tabLabel(t);
+          tabEl.addEventListener('pointerup', (e) => e.stopPropagation());
+          // a tab switch changes what this pane HOLDS, not where you stand:
+          // the aperture stays exactly where it is. It only moves if you were
+          // standing inside the subtree that just went away, and then only as
+          // far as this pane (draw falls back to the nearest level alive).
+          tabEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (!model.cursorToAddr(n.addr)) return;
+            model.selectTab(model.cursor && model.cursor.id, i);
+            redraw();
+          });
+          strip.appendChild(tabEl);
+        });
+      } else {
+        const glyph = id ? id.glyph : tabIcon(n.tab);
+        if (glyph) { const g = document.createElement('span'); g.className = 'mb-g'; g.textContent = glyph; strip.appendChild(g); }
+        const nm = document.createElement('span'); nm.className = 'mb-n'; nm.textContent = tabLabel(n.tab);
+        strip.appendChild(nm);
+      }
+      return strip;
+    }
+    // BODY: a division draws its two panes stacked evenly, a holder draws the
+    // pane it holds, a moment draws itself — live when there is room for it,
+    // its app's colour when there is not.
+    function levelEl(n, h, cursorAddr, depth, standing) {
+      const el = document.createElement('div');
+      el.className = 'mb-leaf' + (n.kind === 'leaf' ? '' : ' mb-group');
+      el.dataset.addr = n.addr;
+      if (n.addr === cursorAddr) el.classList.add('mb-work');
+      const id = n.kind === 'leaf' && n.path ? identOf(n.path) : null;
+      const bar = h >= MB_NAME ? barEl(n, id, standing) : null;
+      if (bar) el.appendChild(bar);
+      const inner = h - (bar ? MB_BAR : 0);
+      if (n.kind === 'div') {
+        const box = document.createElement('div'); box.className = 'mb-split';
+        box.style.background = 'rgba(31,35,40,' + Math.min(0.05 + depth * 0.045, 0.2) + ')';
+        const half = (inner - 15) / 2;                                 // padding 10 + gap 5
+        box.append(levelEl(n.kids[0], half, cursorAddr, depth + 1, false), levelEl(n.kids[1], half, cursorAddr, depth + 1, false));
+        el.appendChild(box);
+      } else if (n.kind === 'hold') {
+        const held = levelEl(n.kids[0], inner, cursorAddr, depth, false);
+        held.style.flex = '1'; held.style.minHeight = '0';
+        el.appendChild(held);
+      } else if (inner >= MB_LIVE && n.path) {
+        const box = document.createElement('div'); box.className = 'mb-content';
+        box.appendChild(contentFor(n));
+        el.appendChild(box);
+        wireTarget(el, n);
+      } else {
+        const t = document.createElement('div'); t.className = 'mb-tile' + (n.path ? '' : ' mb-empty');
+        if (id) t.style.background = id.color;
+        if (!bar) {                                                    // no bar, so the block carries the name
+          if (inner >= MB_ICON && id) t.appendChild(Object.assign(document.createElement('div'), { className: 'mb-glyph', textContent: id.glyph }));
+          if (inner >= MB_NAME) t.appendChild(Object.assign(document.createElement('div'), { textContent: n.path ? labelOf(n) : 'empty' }));
+        }
+        el.appendChild(t);
+        wireTarget(el, n);
+      }
+      return el;
+    }
+    // a tap on a moment goes to that moment; a drag is a swipe or a scroll
+    function wireTarget(el, n) {
+      let sx = 0, sy = 0;
+      el.addEventListener('pointerdown', (e) => { sx = e.clientX; sy = e.clientY; });
+      el.addEventListener('pointerup', (e) => {
+        if (Math.abs(e.clientX - sx) > 8 || Math.abs(e.clientY - sy) > 8) return;
+        e.preventDefault(); e.stopPropagation();
+        el.addEventListener('click', (c) => { c.preventDefault(); c.stopPropagation(); }, { capture: true, once: true });
+        goTo(n.addr);
+      });
+    }
+    // Mounted content is KEPT, and it is keyed by WHAT A PANE SHOWS, not by
+    // where the pane sits. Flipping two panes swaps their addresses, and an
+    // address key would remount both for no reason; two panes on the same
+    // moment are interchangeable anyway, so a pool per path is enough. A
+    // mount is dropped only when the workspace stops holding that moment.
+    const pool = new Map();                 // path -> [content elements]
+    const scrollOf = new Map();             // element -> where it was scrolled
+    let claimed = new Set();
+    const contentFor = (n) => {
+      const path = n.path || '';
+      let list = pool.get(path);
+      if (!list) { list = []; pool.set(path, list); }
+      let el = list.find((e) => !claimed.has(e));
+      if (!el) { el = paneContent(host, n.addr, n.path); list.push(el); }
+      claimed.add(el);
+      if (scrollOf.has(el)) { const y = scrollOf.get(el); requestAnimationFrame(() => { el.scrollTop = y; }); }
+      return el;
+    };
+    const destroyEl = (el) => {
+      try { if (el._live) el._live(); } catch (_) {}
+      try { if (el._gone) el._gone(); } catch (_) {}
+      try { if (el._link) el._link(); } catch (_) {}
+      try { if (el._fv && el._fv.destroy) el._fv.destroy(); } catch (_) {}
+    };
+    // how many panes show each moment, across EVERY tab of every pane: a tab
+    // you are not looking at is still a tab, and its content is still wanted
+    const pathCounts = (ps, acc) => {
+      const tabs = (ps && ps.tabs) || [];
+      tabs.forEach((t) => {
+        const e = t && t.cursor >= 0 ? t.entries[t.cursor] : null;
+        if (e && e.div) { pathCounts(e.div.a, acc); pathCounts(e.div.b, acc); }
+        else if (e && e.pane) pathCounts(e.pane, acc);
+        else { const k = (e && e.path) || ''; acc.set(k, (acc.get(k) || 0) + 1); }
+      });
+      return acc;
+    };
+    const prune = () => {
+      const need = pathCounts(model.serialize(), new Map());
+      for (const [path, list] of [...pool]) {
+        const want = need.get(path) || 0;
+        while (list.length > want) { const el = list.pop(); destroyEl(el); scrollOf.delete(el); }
+        if (!list.length) pool.delete(path);
+      }
+    };
+    let drawn = '', drawnBody = '', orphan = null;
+    function draw() {
+      const spec = model.serialize();
+      tree = treeOf(spec);
+      // An address names a tab index at every level, so switching an ancestor's
+      // tab takes yours out of the tree. Fall back to the nearest surviving
+      // ancestor, but REMEMBER where you were: switching that tab back puts
+      // you there again instead of leaving you at the top.
+      let node = find(tree, at);
+      if (!node) { if (!orphan) orphan = at; node = nearest(at); at = node.addr; }
+      else if (orphan) { const back = find(tree, orphan); if (back) { at = orphan; node = back; } orphan = null; }
+      const key = JSON.stringify(spec) + '|' + at;
+      if (key === drawn) return;
+      // selecting a pane changes only the cursor: move the mark and redo the
+      // bar, and leave the panes standing
+      const bodyKey = JSON.stringify(Object.assign({}, spec, { cursor: null })) + '|' + at;
+      if (bodyKey === drawnBody && body.firstChild) {
+        drawn = key;
+        const c = spec && spec.cursor;
+        body.querySelectorAll('.mb-leaf[data-addr]').forEach((el) => el.classList.toggle('mb-work', el.dataset.addr === c));
+        drawBar(node);
+        return;
+      }
+      drawn = key; drawnBody = bodyKey;
+      const cursorAddr = spec && spec.cursor;
+      for (const list of pool.values()) for (const el of list) if (el.isConnected) scrollOf.set(el, el.scrollTop);   // a rebuild moves them; keep their place
+      claimed = new Set();
+      body.textContent = '';
+      const h = body.clientHeight || window.innerHeight - 90;
+      body.appendChild(levelEl(node, h, cursorAddr, 0, true));        // standing here: the bar at the bottom is this pane's bar
+      prune();
+      drawBar(node);
+      const u = location.pathname + '?at=' + encodeURIComponent(at);
+      try { history.replaceState(null, '', u); } catch (_) {}
+    }
+    let pending = null;
+    const schedule = () => { if (pending) return; pending = setTimeout(() => { pending = null; draw(); }, 0); };
+    const redraw = () => { drawn = ''; drawnBody = ''; draw(); };
+
+    function drawBar(node) {
+      bar.textContent = ''; pathRow.textContent = ''; tabRow.textContent = '';
+      const ask = bars.querySelector('.mb-confirm'); if (ask) ask.remove();
+      tabRow.style.display = 'none';                                  // tabs belong to the pane's own strip, not down here
+      const b = (glyph, title, on, fn, cls) => { const x = document.createElement('button'); x.textContent = glyph; x.title = title; if (cls) x.className = cls; x.disabled = !on; if (on) x.addEventListener('click', fn); return x; };
+      const up = node.parent, tab = node.tab || { entries: [], cursor: -1 };
+      const canBack = tab.cursor > 0, canFwd = tab.cursor >= 0 && tab.cursor < tab.entries.length - 1;
+      bar.append(
+        b('⬆', 'climb out', !!up, () => goTo(up.addr)),
+        b('◀', 'back', canBack, () => withCursor(() => { model.back(model.cursor && model.cursor.id); redraw(); })),
+        b('▶', 'forward', canFwd, () => withCursor(() => { model.forward(model.cursor && model.cursor.id); redraw(); })),
+        b('↻', 'load this again', true, () => refreshAt(node)));
+      // the two sides of the division this pane sits in; swipe moves between
+      // them, and the dots say which one you are on
+      const dots = document.createElement('div'); dots.className = 'mb-dots';
+      if (up && up.kind === 'div') for (const k of up.kids) {
+        const d = document.createElement('button'); d.title = k.slot === 'a' ? 'the left or top pane' : 'the right or bottom pane';
+        if (k === node) d.classList.add('on'); else d.addEventListener('click', () => goTo(k.addr));
+        dots.appendChild(d);
+      } else {
+        // no sibling: ONE dot, and you are on it. The dots count what is at
+        // this level and mark where you are, so they never vanish and come
+        // back as you climb.
+        const d = document.createElement('button'); d.className = 'on'; d.title = 'this level holds one pane';   // not disabled: the bar fades a disabled button
+        dots.appendChild(d);
+      }
+      bar.appendChild(dots);
+      bar.appendChild(Object.assign(document.createElement('div'), { className: 'mb-gap' }));
+      // flip swaps the two panes you are LOOKING AT: the children of the
+      // container you are in, or, standing on a leaf, it and its sibling
+      const flipAt = node.kind === 'div' ? (node.kids[0] && node.kids[0].addr) : (up && up.kind === 'div' ? node.addr : null);
+      bar.append(
+        // the aperture STAYS on the pane that was split, which now holds the
+        // division: you watch it become two and then dive into one
+        b('⬓', 'split this pane in two', true, () => withCursor(() => { model.splitDown(); redraw(); })),
+        b('⇄', 'flip the two panes here', !!flipAt, () => {
+          const inner = node.kind === 'div';
+          if (model.cursorToAddr(flipAt) && model.flip()) { if (!inner) at = model.cursorAddr() || at; redraw(); }
+        }),
+        b('×', 'close this pane', true, () => askClose(node), 'danger'));
+      // the path this pane shows, editable; a container takes one too, and
+      // back brings the division it was holding straight back
+      // a container shows the path of the LAYOUT it is holding, exactly as the
+      // desktop navbar does: a layout is a moment, so @clanker stays @clanker
+      const shown = node.kind === 'leaf' ? node.path : srcOf(node);
+      const kind = document.createElement('span'); kind.className = 'mb-kind';
+      if (shown) kind.style.background = identOf(shown).color;
+      const inp = document.createElement('input'); inp.className = 'mb-path'; inp.type = 'text'; inp.spellcheck = false;
+      inp.value = shown ? psNs(shown) : '';
+      inp.placeholder = node.kind === 'leaf' ? 'path…' : 'layout';
+      inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') { const v = inp.value.trim(); if (v) navTo(v); inp.blur(); } });
+      const tabs = document.createElement('button'); tabs.className = 'mb-tabs';
+      tabs.title = node.tabs.length + ' tab' + (node.tabs.length === 1 ? '' : 's') + ' in this pane';
+      tabs.append(Object.assign(document.createElement('span'), { textContent: '⧉' }), document.createTextNode(String(node.tabs.length)));
+      tabs.addEventListener('click', () => openTabs(node));
+      pathRow.append(kind, inp, tabs);
+    }
+    // a pane showing nothing has nothing to lose: it closes on the tap, the
+    // way gmux closes an empty one without arming the ask
+    const isEmpty = (n) => n.kind === 'leaf' && !n.tabs.some((t) => t.cursor >= 0);
+    function closeNode(node) {
+      if (!model.cursorToAddr(node.addr)) return;
+      model.closeLeaf(model.cursor && model.cursor.id, true);
+      at = model.cursorAddr() || '.';
+      redraw();
+    }
+    // closing a pane with content is asked for first: gmux asks with Enter,
+    // which a phone has no way to send, so the ask lives here and the close
+    // is forced
+    function askClose(node) {
+      if (isEmpty(node)) { closeNode(node); return; }
+      const old = bars.querySelector('.mb-confirm'); if (old) old.remove();
+      const c = document.createElement('div'); c.className = 'mb-confirm';
+      const t = document.createElement('div'); t.className = 't';
+      t.textContent = node.kind === 'leaf' ? 'Close this pane?' : 'Close these ' + countLeaves(node) + ' panes?';
+      const no = document.createElement('button'); no.textContent = 'cancel';
+      no.addEventListener('click', () => c.remove());
+      const yes = document.createElement('button'); yes.className = 'danger'; yes.textContent = 'close';
+      yes.addEventListener('click', () => { c.remove(); closeNode(node); });
+      c.append(t, no, yes);
+      bars.insertBefore(c, bar);
+    }
+    // every tab of this pane as a card, each drawn by the same renderer at the
+    // card's size: a tab holding a split looks like a split, a leaf like its
+    // content's rung. Tapping one selects it, × closes it, + opens another.
+    function openTabs(node) {
+      const sheet = document.createElement('div'); sheet.className = 'mb-sheet';
+      const head = document.createElement('div'); head.className = 'mb-sheet-head';
+      const title = document.createElement('div'); title.className = 't';
+      title.textContent = node.tabs.length + ' tab' + (node.tabs.length === 1 ? '' : 's');
+      head.append(title);                                              // no done, no second +: tap a tab to go to it
+      const grid = document.createElement('div'); grid.className = 'mb-grid';
+      node.tabs.forEach((t, i) => {
+        const preview = mkNode(Object.assign({}, node.spec, { activeTab: i }), node.addr, node.parent, node.slot);
+        const card = document.createElement('div'); card.className = 'mb-card' + (i === (node.spec.activeTab || 0) ? ' on' : '');
+        const shot = document.createElement('div'); shot.className = 'shot';
+        shot.appendChild(levelEl(preview, 150, null, 0, false));
+        const cap = document.createElement('div'); cap.className = 'cap';
+        const dot = document.createElement('span'); dot.className = 'mb-kind';
+        if (preview.kind === 'leaf' && preview.path) dot.style.background = identOf(preview.path).color;
+        const label = document.createElement('span'); label.className = 't';
+        label.textContent = t.label || labelOf(preview);
+        cap.append(dot, label);
+        const x = document.createElement('button'); x.className = 'x'; x.textContent = '×'; x.title = 'close this tab';
+        x.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (!model.cursorToAddr(node.addr)) return;
+          model.closeTab(model.cursor && model.cursor.id, i);
+          sheet.remove(); redraw();
+          const again = find(tree, node.addr);                  // stay in the grid, one card fewer
+          if (again) openTabs(again);
+        });
+        card.append(x, shot, cap);
+        card.addEventListener('click', () => { if (model.cursorToAddr(node.addr)) { model.selectTab(model.cursor && model.cursor.id, i); sheet.remove(); redraw(); } });
+        grid.appendChild(card);
+      });
+      const more = document.createElement('div'); more.className = 'mb-newtab'; more.textContent = '+ new tab';
+      more.addEventListener('click', () => { if (model.cursorToAddr(node.addr)) { model.newTab(model.cursor && model.cursor.id, '/'); sheet.remove(); redraw(); } });
+      grid.appendChild(more);
+      sheet.append(head, grid);
+      sheet.addEventListener('click', (e) => { if (e.target === sheet || e.target === grid) sheet.remove(); });   // tap past the cards to back out
+      root.appendChild(sheet);                                       // over everything, and not wiped by a redraw of the body
+    }
+    // drop this pane's cached content (and anything under it) and build again
+    function refreshAt(node) {
+      const drop = (n) => { if (n.kind === 'leaf') { const l = pool.get(n.path || ''); if (l) { l.forEach((el) => { destroyEl(el); scrollOf.delete(el); }); pool.delete(n.path || ''); } } n.kids.forEach(drop); };
+      drop(node);
+      redraw();
+    }
+    const withCursor = (fn) => { if (model.cursorToAddr(at)) fn(); };
+    function goTo(addr) { orphan = null; at = addr; model.cursorToAddr(addr); redraw(); }
+    function routeOpen(addr, path, name) {
+      if (!model.cursorToAddr(addr)) return;
+      // spell the destination the way the pane that opened it is spelled, so
+      // walking down from @clanker stays under @clanker instead of turning
+      // into the place the name resolves to
+      const from = find(tree, addr);
+      const here = from && from.path ? psNs(from.path) : null;
+      const to = here ? psMoment(psRel(here, path)) : path;
+      model.openFrom(model.cursor && model.cursor.id, to, name);
+      // gmux SELECTS what it opened. A link in a sidebar lands in the pane the
+      // layout routes it to, and that pane is usually already on screen beside
+      // the sidebar, so the aperture stays put and the mark moves. Only when
+      // the destination is somewhere you cannot see from here do you follow it.
+      const dest = model.cursorAddr();
+      const seen = find(treeOf(model.serialize()), at);
+      if (dest && !(seen && holds(seen, dest))) at = dest;
+      redraw();
+    }
+    function navTo(path) { withCursor(() => { model.navigate(null, path); redraw(); }); }
+
+    // ---- gestures: a swipe is lateral, between the two sides of a division ----
+    let sx = 0, sy = 0, tracking = false;
+    body.addEventListener('pointerdown', (e) => { sx = e.clientX; sy = e.clientY; tracking = true; });
+    body.addEventListener('pointerup', (e) => {
+      if (!tracking) return; tracking = false;
+      const dx = e.clientX - sx, dy = e.clientY - sy;
+      if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy)) return;
+      const node = find(tree, at); if (!node) return;
+      const want = dx < 0 ? 'a' : 'b';                     // swipe left shows the left/top side
+      const s = sibling(node, want);
+      if (s) { e.preventDefault(); goTo(s.addr); }
+    });
+
+    model.addEventListener('gmux-change', schedule);
+    window.addEventListener('resize', redraw);
+    sessionClient(model, root, sessionName, redraw).attach();
+  }
   if (opts.panes) {
     // /grubbery/explorer: the SESSIONS page — the workspaces the ship holds,
     // open one (attaching this tab to it, taking it over from another), or
@@ -2453,12 +3100,13 @@ function setup(root, opts) {
     while (root.firstChild) root.removeChild(root.firstChild);
     root.style.cssText = 'display:block;height:100vh';
     document.body.classList.add('cols');
-    const SESSION_API = PREFIX.replace(/\/ball$/, '/explorer') + '/session';
-    const SESSIONS_DIR = '/apps/explorer.explorer/sessions/';
     const here = location.pathname.replace(/\/+$/, '');
     const sm = here.match(/^\/grubbery\/explorer\/s\/([a-z][a-z0-9-]*)$/);
     const sessionName = sm ? sm[1] : null;
     if (!sessionName && here === '/grubbery/explorer') { sessionsPage(root, SESSION_API, psWait, psWaitFail); return; }
+    // a phone (or ?m=1 to work on it from a desktop) walks the palace instead of tiling it
+    const MOBILE = /[?&]m=1/.test(location.search) || (!/[?&]m=0/.test(location.search) && window.matchMedia('(max-width: 720px)').matches);
+    if (sessionName && MOBILE) { mobileWorkspace(root, sessionName); return; }
     const persistKey = sessionName ? null : K + '-standalone';
     const ps = document.createElement('gmux-host');
     if (persistKey) ps.setAttribute('persist', persistKey);
@@ -2510,93 +3158,9 @@ function setup(root, opts) {
       return;
     }
     // ---- a session: this tab is its one client ----
-    // The session grub is the record. We attach (taking over any other tab),
-    // restore its spec, apply the ops waiting in it, and from then on: every
-    // change gmux announces is written back (debounced) with the ids of the
-    // ops applied; the grub is followed, and a change of it brings either
-    // ops to apply (an agent's, another sender's) or the news that another
-    // client attached — then this tab goes passive until it takes over again.
-    const clientId = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
-    const sessionRoad = SESSIONS_DIR + sessionName + '.json';
-    const api = (body) => fetch(SESSION_API, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(Object.assign({ name: sessionName }, body)) })
-      .then(async (r) => ({ status: r.status, json: await r.json().catch(() => null) }));
-    let attached = false, passive = false, ver = 0, mirrored = null;
-    const appliedIds = new Set(); let toReport = [];
-    const banner = document.createElement('div');
-    banner.style.cssText = 'position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:50;background:#fff8c5;color:#4d2d00;border:1px solid #d4a72c;border-radius:8px;padding:8px 14px;font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.12);display:none;gap:12px;align-items:center';
-    root.appendChild(banner);
-    const say = (text, action, run) => { banner.textContent = ''; banner.style.display = 'flex'; banner.appendChild(document.createTextNode(text)); if (action) { const b = document.createElement('button'); b.textContent = action; b.style.cssText = 'font:inherit;font-weight:600;padding:3px 10px;border-radius:6px;border:1px solid #b08800;background:#fff;cursor:pointer'; b.addEventListener('click', run); banner.appendChild(b); } const x = document.createElement('button'); x.textContent = '×'; x.title = 'dismiss'; x.style.cssText = 'font:inherit;border:0;background:none;cursor:pointer;color:inherit'; x.addEventListener('click', () => { banner.style.display = 'none'; }); banner.appendChild(x); };
-    const doOp = (op) => {
-      const t = op && op.type;
-      if (t === 'open' && typeof op.path === 'string') { if (op.where === 'here') ps.navigate(null, op.path); else ps.open(op.path, 'beside'); }
-      else if (t === 'close' && typeof op.path === 'string') { const want = psNs(op.path); for (const p of ps.querySelectorAll('.ps-pane[data-pane-id]')) { const id = p.dataset.paneId, cur = ps.pathOf(id); if (cur && psNs(cur) === want) { ps.closeLeaf(id); break; } } }
-      else if (t === 'layout' && op.spec && typeof op.spec === 'object') { ps.restore(op.spec); ps.layoutSources().forEach(({ id, src }) => psFollowLayout(ps, id, src)); }
-      else if (t === 'split') { if (op.dir === 'down') ps.splitDown(); else ps.splitRight(); }
-      else if (t === 'collapse') ps.collapse();
-    };
-    const applyOps = (ops) => {
-      if (!Array.isArray(ops)) return;
-      for (const op of ops) { if (!op || typeof op.id !== 'number' || appliedIds.has(op.id)) continue; appliedIds.add(op.id); toReport.push(op.id); try { doOp(op); } catch (e) { toast('session op failed: ' + (e && e.message || e), true); } }
-      if (toReport.length) writeBack();
-    };
-    let wbTimer = null, wbChain = Promise.resolve();
-    const writeBack = () => { if (!attached || passive) return; clearTimeout(wbTimer); wbTimer = setTimeout(() => { wbChain = wbChain.then(async () => {
-      if (!attached || passive) return;
-      const applied = toReport; toReport = [];
-      const r = await api({ client: clientId, spec: ps.serialize(), applied });
-      if (r.status === 409) { goPassive(r.json); return; }
-      if (r.status !== 200 || !r.json) { toast('session: write failed (' + r.status + ')', true); toReport = applied.concat(toReport); return; }
-      ver = r.json.ver || ver;
-    }).catch(() => {}); }, 250); };
-    const goPassive = (st) => {
-      if (passive) return;
-      passive = true;
-      const who = st && st.client && st.client.since ? new Date(st.client.since).toLocaleTimeString() : '';
-      say('This session is now open in another tab' + (who ? ' (since ' + who + ')' : '') + '. This tab is passive.', 'Take over', attach);
-    };
-    // while attaching, the workspace sits under the same waiting block a pane
-    // shows while it fetches; a failed attach leaves it there, stopped
-    const cover = document.createElement('div');
-    const covering = (text, sub, fail) => { (fail ? psWaitFail : psWait)(cover, text, sub); cover.style.cssText = 'position:absolute;inset:0;z-index:40'; if (!cover.parentNode) root.appendChild(cover); };
-    root.style.position = 'relative';
-    const attach = async () => {
-      banner.style.display = 'none';
-      covering('attaching', sessionName);
-      const r = await api({ attach: clientId });
-      if (r.status !== 200 || !r.json) { covering('could not attach to this session', 'http ' + r.status, true); say('Could not attach to session "' + sessionName + '" (' + r.status + ').', 'Sessions', () => { location.href = '/grubbery/explorer'; }); return; }
-      cover.remove();
-      const st = r.json;
-      passive = false; attached = true; ver = st.ver || 0; mirrored = null;
-      if (st.spec && typeof st.spec === 'object') ps.restore(st.spec);
-      else if (typeof st.layout === 'string' && st.layout) {
-        ps.open('/', 'here');
-        try { const spec = await fetch(psUrl(st.layout), { cache: 'no-store' }).then((x) => x.ok ? x.json() : Promise.reject(x.status)); ps.replaceWithLayout(ps.cursor.id, spec, st.layout); } catch (e) { toast('layout did not load: ' + e, true); }
-      } else ps.open('/', 'here');
-      ps.layoutSources().forEach(({ id, src }) => psFollowLayout(ps, id, src));
-      applyOps(st.ops);
-      writeBack();
-    };
-    ps.addEventListener('gmux-change', () => writeBack());
-    live([{ road: sessionRoad, body: true }], (ev) => {
-      if (ev.kind === 'del') { attached = false; say('Session "' + sessionName + '" was deleted.', 'Sessions', () => { location.href = '/grubbery/explorer'; }); return; }
-      const st = ev.body; if (!st || typeof st !== 'object') return;
-      if (st.client && st.client.id && st.client.id !== clientId) {
-        // another tab drives: this one mirrors what it writes, read-only
-        goPassive(st);
-        if (!st.spec || typeof st.spec !== 'object') return;
-        // only the selection moved → hop; anything else → rebuild from the spec
-        const sansCursor = (sp) => { const c = Object.assign({}, sp); delete c.cursor; return JSON.stringify(c); };
-        const key = sansCursor(st.spec);
-        if (key !== mirrored) { mirrored = key; ps.restore(st.spec); ps.layoutSources().forEach(({ id, src }) => psFollowLayout(ps, id, src)); }
-        else if (typeof st.spec.cursor === 'string' && st.spec.cursor !== ps.cursorAddr()) ps.cursorToAddr(st.spec.cursor);
-        return;
-      }
-      if (!passive && attached) applyOps(st.ops);
-    }, null);
-    window.addEventListener('pagehide', () => { if (attached && !passive) { try { navigator.sendBeacon(SESSION_API, new Blob([JSON.stringify({ name: sessionName, detach: clientId })], { type: 'application/json' })); } catch (_) {} } });
     document.title = sessionName + ' · gmux';
     psSnaps(ps);
-    attach();
+    sessionClient(ps, root, sessionName, () => ps.layoutSources().forEach(({ id, src }) => psFollowLayout(ps, id, src))).attach();
     return;
   }
   load();
