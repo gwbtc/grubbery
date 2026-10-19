@@ -45,7 +45,7 @@
 //     zoomToggle/zoomOut/zoomReset · focusPane · climb/descend/sibling · setBar · toggleBars
 //   data: serialize() · restore(spec) · instantiate(spec)
 //
-//   KEYS (after prefix): % / | split right · " / - split down · c collapse · e expand ·
+//   KEYS (after prefix): % / | split right · " / - split down · c collapse · e expand · f flip ·
 //     z/Z zoom in/out · C set/clear zoom context · x close · b lock bars · o cycle · m mark · ␣ swap ·
 //     [ ] climb/descend · Tab sibling · Esc reset · h highlight · 1-9 jump ·
 //     t new tab · w close tab · T toggle bar · : focus navbar · < > prev/next tab · , . back/forward ·
@@ -211,6 +211,8 @@ class Gmux extends HTMLElement {
     const pid = () => (this.#pillPane || this.cursor || {}).id || this.#activeId;
     this.#barToggle.append(
       act('▾', 'materialize the full topbar', () => this.setBar(pid(), true)),
+      act('⇄', 'flip the two panes of this division', () => this.flip(pid())),
+      act('⟲', 'turn this division between side-by-side and stacked', () => this.rotate(pid())),
       act('⤓', 'collapse pane', () => this.collapse(pid())),
       act('⬉', 'select parent container', () => this.selectParent(pid())),
       act('⛶', 'zoom to this pane', () => this.zoomPane(pid())),
@@ -314,6 +316,8 @@ class Gmux extends HTMLElement {
     const hide = btn('▴', 'hide bar', () => this.setBar(id, false)); hide.classList.add('ps-bar-menu');   // stays in tabs-only too
     row1.append(menu, hide, tabs, add, viewBtn,
       btn('◨', 'split right', () => this.splitRight(id)), btn('⬓', 'split down', () => this.splitDown(id)),
+      btn('⇄', 'flip the two panes of this division', () => this.flip(id)),
+      btn('⟲', 'turn this division between side-by-side and stacked', () => this.rotate(id)),
       btn('⤓', 'collapse pane', () => this.collapse(id)),
       btn('⬉', 'select parent container', () => this.selectParent(id)),
       btn('⛶', 'zoom to this pane', () => this.zoomPane(id)), btn('↑', 'zoom to parent', () => this.zoomParent(id)), btn('⤢', 'zoom all the way out', () => this.zoomReset()),
@@ -677,8 +681,18 @@ class Gmux extends HTMLElement {
     if (!changed) return;
     if (!p.tabs.length) p.tabs.push({ entries: [], cursor: -1 });
     if (p.activeTab >= p.tabs.length) p.activeTab = p.tabs.length - 1;
+    if (this.#reconsolidate(p)) return;
     this.#renderPane(p); this.#reconcileCursor(); this.#afterStructure(); this.#persist();
     this.#refocus();
+  }
+  // a pane that has nothing left to show is not a pane: it dissolves, and its
+  // sibling takes the space back, exactly as closing it by hand would. Only
+  // the root may stand empty — that is the cleared workspace.
+  #reconsolidate(pane) {
+    if (!pane || !pane.parent) return false;
+    if (pane.tabs.some((t) => t.cursor >= 0)) return false;
+    this.close(pane, true);
+    return true;
   }
   // push a division entry built from a layout spec. History stays — back/forward
   // steps in and out of it. `spec` is a serialized division (see serialize()).
@@ -838,6 +852,7 @@ class Gmux extends HTMLElement {
     this.#eachEntryPane(tab, cp => this.#forgetPane(cp));
     if (!p.tabs.length) p.tabs.push({ entries: [], cursor: -1 });
     if (p.activeTab >= p.tabs.length) p.activeTab = p.tabs.length - 1;
+    if (this.#reconsolidate(p)) return;
     this.#renderPane(p); this.#reconcileCursor(); this.#afterStructure(); this.#persist();
     this.#refocus();
   }
@@ -859,6 +874,42 @@ class Gmux extends HTMLElement {
 
   splitRight(id) { return this.#split(id ?? this.#activeId, 'horizontal'); }
   splitDown(id) { return this.#split(id ?? this.#activeId, 'vertical'); }
+
+  // flip: the two sides of this division trade CONTENTS. The frame does not
+  // move with them — same axis, same ratio, same folded slot — so flipping
+  // twice is the identity and nothing resizes under you.
+  flip(id) {
+    const p = this.#panes.get(id ?? this.#activeId), par = p && p.parent;
+    if (!par || !par.div) return false;
+    const d = par.div, owner = d.owner, scroll = this.#snapshotScroll();
+    const was = this.#addrWithin(owner, this.cursor);   // the SLOT the selection is in
+    const a = d.a, b = d.b;
+    d.a = b; d.b = a;
+    d.a.parent = { div: d, slot: 'a' }; d.b.parent = { div: d, slot: 'b' };
+    if (d.last) d.last = d.last === 'a' ? 'b' : 'a';   // follows the pane it names
+    this.#placePane(d.a, d.sv, 'start'); this.#placePane(d.b, d.sv, 'end');
+    this.#applyDivLayout(d); this.#afterStructure(); this.#restoreScroll(scroll);
+    // the selection stays at the same place in the frame, so it now names
+    // whatever moved in: a container where a leaf stood, or the other way
+    if (was != null) {
+      let segs = was.split('/').filter((x) => x), t = null;
+      while (!(t = this.#descend(owner, segs.length ? segs.join('/') : '.')) && segs.length) segs = segs.slice(0, -2);
+      this.cursorTo(t || owner);
+    }
+    this.#render(); this.#persist();
+    return true;
+  }
+  // rotate: the division this pane sits in turns between side-by-side and
+  // stacked. Nothing moves between slots, only the axis they divide.
+  rotate(id) {
+    const p = this.#panes.get(id ?? this.#activeId), par = p && p.parent;
+    if (!par || !par.div) return false;
+    const d = par.div, scroll = this.#snapshotScroll();
+    d.dir = d.dir === 'horizontal' ? 'vertical' : 'horizontal';
+    this.#applyDivLayout(d); this.#afterStructure(); this.#restoreScroll(scroll);
+    this.#render(); this.#persist();
+    return true;
+  }
 
   #split(id, orientation) {
     const pane = this.#panes.get(id);
@@ -927,14 +978,16 @@ class Gmux extends HTMLElement {
   // close a pane. If it lives in a division, its sibling is promoted into the
   // owner pane's active tab (history returns to the parent). If it's the owner's
   // whole content, close removes the whole pane from ITS parent division.
-  close(pane) {
+  // `force` skips the ask: for a caller that has already confirmed in its own
+  // way (a touch client has no Enter to offer).
+  close(pane, force) {
     pane = pane ?? this.cursor;
     if (!pane) return;
     // a pane with content is closed only on Enter: the ask arms it, Enter
     // closes, Esc or any other key cancels. A second × is not a confirm, so a
     // double-click cannot close it. An empty pane closes outright.
     const hasContent = pane.tabs.some(t => t.cursor >= 0);
-    if (hasContent && !this.#closing) {
+    if (hasContent && !this.#closing && !force) {
       this.#pendingClose = pane; this.cursorTo(pane); this.focus();
       this.#flashHint('close this pane? Enter to confirm · Esc to cancel');
       return;
@@ -984,7 +1037,7 @@ class Gmux extends HTMLElement {
     this.#emit('ps-close', {}); this.#persist();
     this.#refocus();
   }
-  closeLeaf(id) { const p = this.#panes.get(id); if (p) this.close(p); }
+  closeLeaf(id, force) { const p = this.#panes.get(id); if (p) this.close(p, force); }
   // the keyboard was in a pane that is gone: DOM focus fell to the body,
   // where the host's key listener cannot hear it. Land it in the active
   // pane's content, else on the host itself
@@ -1237,23 +1290,20 @@ class Gmux extends HTMLElement {
 
   focusNext() { const ids = this.leafIds; if (ids.length < 2) return; const i = ids.indexOf(this.#activeId); this.focusPane(ids[(i + 1) % ids.length]); }
   focusIndex(i) { const ids = this.leafIds; if (i >= 0 && i < ids.length) this.focusPane(ids[i]); }
+  // move by the TREE, not by pixels: climb to the first division that splits
+  // along this direction and has a side that way, cross to it, then take the
+  // first leaf under it (slot a, first tab, all the way down). Same walk every
+  // time, from wherever the pane happens to sit on screen.
   focusMove(dir) {
     const cur = this.cursor;
     if (!cur) return;
-    const a = center(cur.dom);
-    let best = null, bestD = Infinity;
-    this.#eachVisibleLeaf(this.#root, (l) => {
-      if (l === cur) return;
-      const b = center(l.dom), dx = b.x - a.x, dy = b.y - a.y;
-      const ok = dir === 'left' ? dx < -1 && Math.abs(dy) <= Math.abs(dx)
-        : dir === 'right' ? dx > 1 && Math.abs(dy) <= Math.abs(dx)
-          : dir === 'up' ? dy < -1 && Math.abs(dx) <= Math.abs(dy)
-            : dy > 1 && Math.abs(dx) <= Math.abs(dy);
-      if (!ok) return;
-      const d = dx * dx + dy * dy;
-      if (d < bestD) { bestD = d; best = l; }
-    });
-    if (best) this.focusPane(best.id);
+    const axis = (dir === 'left' || dir === 'right') ? 'horizontal' : 'vertical';
+    const want = (dir === 'left' || dir === 'up') ? 'a' : 'b';
+    let node = cur, par = node.parent;
+    while (par && !(par.div && par.div.dir === axis && par.slot !== want)) { node = this.#ownerOf(node); par = node ? node.parent : null; }
+    if (!par) return;                                  // nothing that way: stay put
+    const leaf = firstVisibleLeaf(par.div[want], this);
+    if (leaf && !this.#hidden(leaf)) this.focusPane(leaf.id);
   }
 
   // ---- zoom: a pane alone inside a frame; zooms stack outer to inner ----
@@ -1579,7 +1629,7 @@ class Gmux extends HTMLElement {
     if (!this.#awaiting) {
       if (this.#isPrefix(e)) {
         this.#awaiting = true;
-        this.#flashHint('gmux · % split · " stack · c/e collapse/expand · z/Z zoom · C context · x close · t/w tab · T bar · : path · i content · <> tab · ,. back/fwd · R refresh · m mark · ␣ swap · [ ] climb/descend · Tab sibling · h highlight · b bars · 1-9 jump · ←↑↓→ move · ⇧←↑↓→ resize');
+        this.#flashHint('gmux · % split · " stack · c/e collapse/expand · z/Z zoom · C context · f flip · x close · t/w tab · T bar · : path · i content · <> tab · ,. back/fwd · R refresh · m mark · ␣ swap · [ ] climb/descend · Tab sibling · h highlight · b bars · 1-9 jump · ←↑↓→ move · ⇧←↑↓→ resize');
         clearTimeout(this.#awaitTimer);
         this.#awaitTimer = setTimeout(() => { this.#awaiting = false; this.#flashHint(''); }, 2500);
         e.preventDefault(); e.stopPropagation();
@@ -1599,6 +1649,7 @@ class Gmux extends HTMLElement {
     else if (k === 'Z') this.zoomOut();
     else if (k === 'C') { const on = this.contextToggle(); this.#flashHint(on ? 'context: z on a pane inside it fills it · C here again clears' : 'context cleared'); }
     else if (k === 'b') { const on = this.toggleBars(); this.#flashHint('pane bars: ' + (on ? 'toggleable on hover' : 'locked')); }
+    else if (k === 'f') this.flip();                   // swap the two sides of this division
     else if (k === 'c') this.collapse();
     else if (k === 'e' || k === 'E') this.expand();
     else if (k === 'h') { const lv = this.cycleHighlight(); this.#flashHint('highlight: ' + ['none', 'active only', 'full'][lv]); }
@@ -1639,7 +1690,6 @@ class Gmux extends HTMLElement {
 }
 
 function isEditable(el) { if (!el) return false; const t = el.tagName; return t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT' || !!el.isContentEditable; }
-function center(el) { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }
 // the first leaf under a pane: through a division's `a` side and through a
 // pane moment's nested pane, down to a pane whose moment is a path
 function firstVisibleLeaf(pane, ps) {
