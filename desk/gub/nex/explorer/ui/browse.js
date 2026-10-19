@@ -2752,14 +2752,18 @@ function setup(root, opts) {
       return e && (e.div || e.pane) ? '▣' : null;
     };
     // ---- one way to draw a pane, at every level ----
-    // BAR: its tabs when it holds more than one, else its name. The pane you
-    // are STANDING on skips the name — the bar at the bottom of the screen is
-    // its bar — but never skips its tabs. The bar is also the handle: tapping
-    // it steps into that pane, the way clicking a pane's bar selects it on
-    // the desktop.
+    // BAR: its tabs when it holds more than one, else its name. The bar is
+    // also the handle: tapping it steps into that pane, the way clicking a
+    // pane's bar selects it on the desktop.
     function barEl(n, id, standing) {
       const many = n.tabs.length > 1;
-      if (standing && !many) return null;
+      // A pane that is one of a division's two sides ALWAYS wears its bar,
+      // standing on it or not: climbing onto it takes you from one dot to two,
+      // and that has to show on the screen and not only in the dots. Only a
+      // pane with no sibling at all can go bare, and only when it has no tabs
+      // to show — the bar at the bottom of the screen names that one.
+      const half = !!(n.parent && n.parent.kind === 'div');
+      if (standing && !many && !half) return null;
       const strip = document.createElement('div'); strip.className = 'mb-head' + (id ? '' : ' mb-head-empty');
       if (id) strip.style.background = id.color;
       strip.addEventListener('pointerup', (e) => { e.stopPropagation(); });
