@@ -3100,7 +3100,18 @@ function setup(root, opts) {
     });
 
     model.addEventListener('gmux-change', schedule);
-    window.addEventListener('resize', redraw);
+    // Android fires `resize` when the soft keyboard opens, because the viewport
+    // height shrinks. A redraw rebuilds the bars from scratch, which destroys
+    // the very input you just focused — the keyboard appears and instantly
+    // closes again. Only a WIDTH change is a relayout we care about (rotation,
+    // a resized window); a height-only change is the keyboard, so leave it be.
+    let lastW = window.innerWidth;
+    window.addEventListener('resize', () => {
+      const w = window.innerWidth;
+      if (w === lastW) return;
+      lastW = w;
+      redraw();
+    });
     sessionClient(model, root, sessionName, redraw).attach();
   }
   if (opts.panes) {
