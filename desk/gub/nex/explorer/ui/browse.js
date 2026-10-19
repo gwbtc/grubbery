@@ -2745,6 +2745,7 @@ function setup(root, opts) {
     // an opaque one to read. Seeded from the session's cursor on the first
     // draw, and owned by goTo() from then on.
     let at = '.', seeded = false;
+    let drag = null;                 // an in-flight swipe: the two levels on a track
     let tree = treeOf(model.serialize());
     // what opened a container: a division carries it on the div, a held pane on the entry
     const srcOf = (n) => (n.entry ? (n.entry.div ? n.entry.div.src : (n.entry.pane ? n.entry.src : null)) : null) || null;
@@ -2905,6 +2906,7 @@ function setup(root, opts) {
     };
     let drawn = '', drawnBody = '', orphan = null;
     function draw() {
+      if (drag) return;                             // a swipe owns the body until it settles
       const spec = model.serialize();
       tree = treeOf(spec);
       // resume where the session says we were, and make that the baseline entry
@@ -3118,41 +3120,108 @@ function setup(root, opts) {
     // So claim it as soon as it reads horizontal: preventDefault() in
     // touchmove stops the browser starting a scroll, and takes Chrome's
     // horizontal overscroll back/forward navigation out of the running too.
-    const swipeTo = (dx, dy) => {
-      if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy)) return;
-      const node = find(tree, at); if (!node) return;
-      const want = dx < 0 ? 'a' : 'b';                     // swipe left shows the left/top side
-      const s = sibling(node, want);
-      if (s) goTo(s.addr);
+    // The gesture is PHYSICAL: the content follows your finger. Dragging left
+    // pulls the right/bottom side in from the right; dragging right pulls the
+    // left/top side in. Both levels ride a track that tracks the finger, so you
+    // are grabbing the screen and pulling the other one through — released past
+    // a quarter width it carries on and commits, short of that it springs back.
+    const SWIPE_MIN = 10;                                  // px before we claim the gesture
+    // Gestures belong to content that asks for them, the same way menus do. A
+    // rendering declares the axes it pans with data-pan ("x", "y", "xy") on
+    // itself or any ancestor inside the body, and the swipe will not claim an
+    // axis the content owns — a map takes both, and you change panes with the
+    // dots instead. This has to be a DECLARATION rather than an event: the
+    // claim happens before the browser commits the gesture, so there is no
+    // waiting to see whether the content handled it.
+    const ownsAxis = (t, axis) => {
+      for (let n = t; n && n !== body; n = n.parentElement) {
+        const v = n.dataset && n.dataset.pan;
+        if (v) return v === 'xy' || v.indexOf(axis) >= 0;
+      }
+      return false;
+    };
+    const destFor = (dx) => {
+      const node = find(tree, at); if (!node) return null;
+      return sibling(node, dx < 0 ? 'b' : 'a');            // left → the side to your right
+    };
+    const beginDrag = (dx) => {
+      const node = find(tree, at); if (!node) return null;
+      const dest = destFor(dx); if (!dest) return null;
+      const w = body.clientWidth; if (!w) return null;
+      const h = body.clientHeight || window.innerHeight - 90;
+      const cursorAddr = (model.serialize() || {}).cursor;
+      const cell = (el) => { const c = document.createElement('div'); c.style.cssText = 'flex:0 0 ' + w + 'px;width:' + w + 'px;height:100%;position:relative'; c.appendChild(el); return c; };
+      const cur = cell(levelEl(node, h, cursorAddr, 0, true));
+      const nxt = cell(levelEl(dest, h, cursorAddr, 0, true));
+      const destIsRight = dx < 0;
+      const track = document.createElement('div');
+      track.style.cssText = 'position:absolute;top:0;left:0;height:100%;display:flex;width:' + (2 * w) + 'px;will-change:transform';
+      track.append(destIsRight ? cur : nxt, destIsRight ? nxt : cur);
+      const base = destIsRight ? 0 : -w;                   // keep the pane you are on in view
+      track.style.transform = 'translateX(' + base + 'px)';
+      body.textContent = '';
+      body.appendChild(track);
+      return { dest, track, w, base, destIsRight };
+    };
+    const dragMove = (dx) => {
+      if (!drag) return;
+      const lim = drag.destIsRight ? Math.min(0, dx) : Math.max(0, dx);   // no rubber-banding past the edge
+      drag.track.style.transform = 'translateX(' + (drag.base + lim) + 'px)';
+    };
+    const dragEnd = (dx) => {
+      const d = drag; if (!d) return;
+      const past = Math.abs(dx) > d.w * 0.25;
+      const to = past ? (d.destIsRight ? d.base - d.w : d.base + d.w) : d.base;
+      let done = false;
+      const finish = () => {
+        if (done) return; done = true;
+        drag = null;
+        if (past) goTo(d.dest.addr); else redraw();        // either way the body is rebuilt from state
+      };
+      d.track.addEventListener('transitionend', finish, { once: true });
+      setTimeout(finish, 320);                             // transitionend can be skipped if nothing moves
+      d.track.style.transition = 'transform .22s cubic-bezier(.22,.61,.36,1)';
+      requestAnimationFrame(() => { d.track.style.transform = 'translateX(' + to + 'px)'; });
     };
     let sx = 0, sy = 0, swiping = false, touching = false, tracking = false;
     body.addEventListener('touchstart', (e) => {
-      if (e.touches.length !== 1) { touching = false; return; }   // a pinch is not a swipe
+      if (drag || e.touches.length !== 1) { touching = false; return; }   // a pinch is not a swipe
+      if (ownsAxis(e.target, 'x')) { touching = false; return; }          // the content pans horizontally; leave it alone
       const t = e.touches[0]; sx = t.clientX; sy = t.clientY; swiping = false; touching = true;
     }, { passive: true });
     body.addEventListener('touchmove', (e) => {
       if (!touching || e.touches.length !== 1) return;
       const t = e.touches[0], dx = t.clientX - sx, dy = t.clientY - sy;
-      if (!swiping && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) swiping = true;
-      if (swiping) e.preventDefault();                     // the gesture is ours: no scroll, no back-swipe
+      if (!swiping && Math.abs(dx) > SWIPE_MIN && Math.abs(dx) > Math.abs(dy)) {
+        swiping = true;
+        drag = beginDrag(dx);                              // no sibling that way → nothing to drag
+        if (!drag) touching = false;
+      }
+      if (swiping) { e.preventDefault(); dragMove(dx); }   // the gesture is ours: no scroll, no back-swipe
     }, { passive: false });
     body.addEventListener('touchend', (e) => {
       if (!touching) return;
       touching = false;
       if (!swiping) return;
       swiping = false;
-      const t = e.changedTouches && e.changedTouches[0]; if (!t) return;
-      swipeTo(t.clientX - sx, t.clientY - sy);
+      const t = e.changedTouches && e.changedTouches[0];
+      dragEnd(t ? t.clientX - sx : 0);
     });
-    body.addEventListener('touchcancel', () => { touching = false; swiping = false; });
-    // mouse / trackpad: nothing competes for the gesture, so end-of-drag is fine
-    body.addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch') return; sx = e.clientX; sy = e.clientY; tracking = true; });
+    body.addEventListener('touchcancel', () => { touching = false; swiping = false; if (drag) dragEnd(0); });
+    // mouse / trackpad: same physics, nothing competing for the gesture
+    body.addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch' || drag || ownsAxis(e.target, 'x')) return; sx = e.clientX; sy = e.clientY; tracking = true; });
+    body.addEventListener('pointermove', (e) => {
+      if (e.pointerType === 'touch' || !tracking) return;
+      const dx = e.clientX - sx, dy = e.clientY - sy;
+      if (!drag && Math.abs(dx) > SWIPE_MIN && Math.abs(dx) > Math.abs(dy)) { drag = beginDrag(dx); if (!drag) tracking = false; }
+      if (drag) dragMove(dx);
+    });
     body.addEventListener('pointerup', (e) => {
       if (e.pointerType === 'touch' || !tracking) return;
       tracking = false;
-      swipeTo(e.clientX - sx, e.clientY - sy);
+      if (drag) dragEnd(e.clientX - sx);
     });
-    body.addEventListener('pointercancel', () => { tracking = false; });
+    body.addEventListener('pointercancel', () => { tracking = false; if (drag) dragEnd(0); });
 
     model.addEventListener('gmux-change', schedule);
     // Android fires `resize` when the soft keyboard opens, because the viewport

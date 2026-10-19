@@ -172,14 +172,16 @@
           ?~  to-4  ?>(?=(%5 -.old) old)
           ~>  %slog.[0 leaf+"grubbery: migrating state {<-.old>} -> %5"]
           (state-4-to-5:migrations u.to-4)
-        =/  six=state-6:migrations  (state-5-to-6:migrations as-5)
+        =/  six=state-6:migrations
+          ~>  %slog.[0 leaf+"grubbery: migrating state %5 -> %6"]
+          (state-5-to-6:migrations as-5)
         =/  fsr=[pool:nexus silo:nexus]  (fsr-pool:hc pool.six silo.six)
         six(pool -.fsr, silo +.fsr)
-      ~>  %slog.[0 leaf+"grubbery: migrating state {<-.old>} -> %7"]
+      ~>  %slog.[0 leaf+"grubbery: migrating state %6 -> %7"]
       (state-6-to-7:migrations as-6)
-    ~>  %slog.[0 leaf+"grubbery: migrating state {<-.old>} -> %8"]
+    ~>  %slog.[0 leaf+"grubbery: migrating state %7 -> %8"]
     (state-7-to-8:migrations as-7)
-  ~>  %slog.[0 leaf+"grubbery: migrating state {<-.old>} -> %9"]
+  ~>  %slog.[0 leaf+"grubbery: migrating state %8 -> %9"]
   =.  state  (state-8-to-9:migrations as-8)
   =^  start-cards  state
     abet:cold-start:hc

@@ -98,7 +98,7 @@
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
   :~  ['pattern' [%string 'Text string to search for']]
-      ['path' [%string 'Directory path pattern to filter files (e.g. "/config/*")']]
+      ['path' [%string 'Path pattern to filter files; matches a file\'s own path or the directory holding it, so "/config/*" means /config and below (e.g. "/config/*")']]
       ['name' [%string 'Filename pattern to filter (e.g. "*config*")']]
       ['blot' [%string 'Blot pattern to filter (e.g. "hoon", "txt")']]
   ==
@@ -167,7 +167,17 @@
     ^-  (unit [@ta sang:tarball])
     ?:  (is-boom:tarball sang)  ~
     =/  blot-name=tape  (trip name.p.sang)
-    ?.  ?&  ?~(pat-path %.y (glob-match:tools (trip u.pat-path) here-label))
+    ::  `path` is matched against this file's own full path as well as the
+    ::  directory holding it, so "/foo/*" means foo AND BELOW — the files
+    ::  sitting directly in /foo included. Matching only the directory made
+    ::  "/foo/*" silently skip them (it wants a segment after foo), which
+    ::  reads as "grep cannot see this file" and is the opposite of what the
+    ::  prefix is for.
+    =/  file-label=tape  (dir-label (welp here ~[n]))
+    ?.  ?&  ?~  pat-path  %.y
+            ?|  (glob-match:tools (trip u.pat-path) here-label)
+                (glob-match:tools (trip u.pat-path) file-label)
+            ==
             ?~(pat-name %.y (glob-match:tools (trip u.pat-name) (trip n)))
             ?~(pat-mark %.y (glob-match:tools (trip u.pat-mark) blot-name))
         ==

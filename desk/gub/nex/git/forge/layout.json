@@ -1,4 +1,3 @@
 {"div":{"dir":"horizontal","ratio":0.2,
- "open":{"a":{"to":"b","mode":"tab"}},
- "a":{"tabs":[{"label":"repos","entries":[{"path":"./repos"}],"cursor":0}]},
- "b":{"bar":true,"nav":false,"tabs":[{"entries":[],"cursor":-1}]}}}
+ "a":{"open":{"to":"#repo","mode":"tab"},"tabs":[{"label":"repos","entries":[{"path":"./repos"}],"cursor":0}]},
+ "b":{"id":"repo","bar":true,"nav":false,"tabs":[{"entries":[],"cursor":-1}]}}}

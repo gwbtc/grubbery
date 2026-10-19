@@ -295,8 +295,9 @@ class Gmux extends HTMLElement {
     // quick-action bar; it lingers (grace timer) and the bar itself holds it
     // open while you interact (wired where the element is built).
     dom.addEventListener('mousemove', (e) => this.#onTopHover(e, id));
-    const pane = { kind: 'pane', id, dom, body, bar, tabs: [{ entries: [], cursor: -1 }], activeTab: 0, parent: null, showBar: false, nav: true, open: null, view: null };
+    const pane = { kind: 'pane', id, dom, body, bar, tabs: [{ entries: [], cursor: -1 }], activeTab: 0, parent: null, showBar: false, nav: true, open: null, view: null, ref: null };
     this.#panes.set(id, pane);
+    this.#refIndex = null;                        // membership changed: the id index rebuilds on next lookup
     this.#renderPane(pane);
     return pane;
   }
@@ -624,7 +625,50 @@ class Gmux extends HTMLElement {
       if (par.div) { yield par.div; n = par.div.owner; } else n = par.host;
     }
   }
+  // ---- ids: an AUTHOR's name for a pane, resolved by widening outward ----
+  // Ids are written by hand in a layout ("viewer", "sidebar"); nothing is
+  // generated, and most panes have none. They are NOT required to be unique:
+  // `#viewer` means "the nearest viewer to me", so a layout opened twice just
+  // works, each sidebar finding the viewer in its own copy. Resolution walks
+  // out from the asking pane — itself, its division, that division's owner, …
+  // — and the first holder that contains a match decides; inside one holder,
+  // the shallowest address wins, then 'a' before 'b'. Because a layout
+  // instance IS a subtree, widening never reaches a stranger's pane while
+  // your own is in reach: scope falls out of ancestry, with nothing declared.
+  #refIndex = null;
+  #reindexRefs() {
+    const m = new Map();
+    for (const p of this.#panes.values()) {
+      if (!p.ref) continue;
+      const l = m.get(p.ref); if (l) l.push(p); else m.set(p.ref, [p]);
+    }
+    this.#refIndex = m;
+  }
+  #findRef(from, ref) {
+    if (!this.#refIndex) this.#reindexRefs();
+    const cands = this.#refIndex.get(ref);
+    if (!cands || !cands.length || !from) return null;
+    if (from.ref === ref) return from;                     // self first
+    for (const h of this.#holdersOf(from)) {
+      const inside = [];
+      for (const c of cands) { const a = this.#addrWithin(h, c); if (a != null) inside.push([a, c]); }
+      if (!inside.length) continue;
+      inside.sort((x, y) => (x[0].split('/').length - y[0].split('/').length) || (x[0] < y[0] ? -1 : 1));
+      return inside[0][1];
+    }
+    return null;
+  }
   #routeFrom(pane) {
+    // SOURCE-declared: the pane asking says where its moments go — from here to
+    // there, stated by here. `{to:'#name', mode}`. A holder table (the older
+    // form, keyed by the origin's address) still answers below, so existing
+    // layouts keep routing while they are converted.
+    if (pane.open && typeof pane.open.to === 'string') {
+      const to = pane.open.to.trim();
+      const t = to.startsWith('#') ? this.#findRef(pane, to.slice(1)) : null;
+      if (t && t !== pane) return { target: t, mode: pane.open.mode === 'tab' ? 'tab' : 'replace' };
+      return { target: pane, mode: 'replace' };
+    }
     for (const h of this.#holdersOf(pane)) {
       if (!h.open) continue;
       const a = this.#addrWithin(h, pane); if (a == null) continue;
@@ -1061,7 +1105,7 @@ class Gmux extends HTMLElement {
     const b = document.activeElement;
     if (!b || b === document.body || !this.contains(b)) this.focus({ preventScroll: true });
   }
-  #forgetPane(pane) { if (!pane) return; pane.tabs.forEach(t => this.#dropStash(pane, t)); try { if (this.onDestroy) this.onDestroy(pane.id, pane.body); } catch (_) {} this.#panes.delete(pane.id); pane.dom.remove(); }
+  #forgetPane(pane) { if (!pane) return; pane.tabs.forEach(t => this.#dropStash(pane, t)); try { if (this.onDestroy) this.onDestroy(pane.id, pane.body); } catch (_) {} this.#panes.delete(pane.id); this.#refIndex = null; pane.dom.remove(); }
   // after moving an entry into a new owner, fix the division's owner backref.
   #reparentDiv(entry, owner) { if (!entry) return; if (entry.div) entry.div.owner = owner; else if (entry.pane) entry.pane.parent = { host: owner, slot: 'a' }; }
 
@@ -1078,7 +1122,7 @@ class Gmux extends HTMLElement {
     if (div.fold) { sv.setAttribute('primary', primaryEnd ? 'end' : 'start'); sv.setAttribute('collapsed', ''); }
     else { sv.setAttribute('primary', 'start'); sv.removeAttribute('collapsed'); }
   }
-  #afterStructure() { if (this.#zoomStack.length) this.#applyZoom(); else this.#reconnectDivs(); this.#reposition(); }
+  #afterStructure() { this.#refIndex = null; if (this.#zoomStack.length) this.#applyZoom(); else this.#reconnectDivs(); this.#reposition(); }
   // walk the visible tree, (re)binding each division's owner + child parents, so
   // backrefs stay correct after history/tab moves, and lay out split-views.
   #reconnectDivs() {
@@ -1492,7 +1536,7 @@ class Gmux extends HTMLElement {
   #serPane(pane) {
     if (!pane) return null;
     const z = this.#zoomStack.find(z => z.frame === pane);
-    return { tabs: pane.tabs.map(t => ({ entries: t.entries.map(e => this.#serEntry(e)), cursor: t.cursor, label: t.label || undefined })), activeTab: pane.activeTab, bar: pane.showBar || undefined, nav: pane.nav === false ? false : undefined, open: pane.open || undefined, view: pane.view || undefined, ctx: this.#contexts.has(pane) || undefined, zoom: z ? (this.#addrWithin(pane, z.pane) || undefined) : undefined };
+    return { id: pane.ref || undefined, tabs: pane.tabs.map(t => ({ entries: t.entries.map(e => this.#serEntry(e)), cursor: t.cursor, label: t.label || undefined })), activeTab: pane.activeTab, bar: pane.showBar || undefined, nav: pane.nav === false ? false : undefined, open: pane.open || undefined, view: pane.view || undefined, ctx: this.#contexts.has(pane) || undefined, zoom: z ? (this.#addrWithin(pane, z.pane) || undefined) : undefined };
   }
   #serEntry(e) {
     const name = e.name || undefined;
@@ -1502,7 +1546,7 @@ class Gmux extends HTMLElement {
   }
   restore(spec) {
     if (this.#root) { this.#eachPaneDeep(this.#root, p => this.#forgetPane(p), true); for (const h of this.#hoists) h.entry.pane.dom.remove(); this.#root.dom?.remove(); }
-    this.#panes.clear(); this.#zoomStack = []; this.#hoists = []; this.#activeId = null; this.#mark = null; this.#contexts.clear();
+    this.#panes.clear(); this.#refIndex = null; this.#zoomStack = []; this.#hoists = []; this.#activeId = null; this.#mark = null; this.#contexts.clear();
     this.#root = spec ? this.#deserPane(spec, null) : this.#makePane();
     this.#placePane(this.#root, this, null);
     this.#afterStructure();
@@ -1545,7 +1589,9 @@ class Gmux extends HTMLElement {
       label: (typeof t.label === 'string' && t.label) || null,
     }));
     pane.activeTab = typeof spec.activeTab === 'number' ? spec.activeTab : 0;
-    pane.open = (spec.open && typeof spec.open === 'object') ? spec.open : null;   // this pane as a layout root: its routing table
+    pane.open = (spec.open && typeof spec.open === 'object') ? spec.open : null;
+    pane.ref = (typeof spec.id === 'string' && spec.id) ? spec.id : null;        // the AUTHOR's id, written in a layout (pane.id is the internal handle)
+    if (pane.ref) this.#refIndex = null;
     if (spec.ctx) this.#contexts.add(pane);
     if (typeof spec.zoom === 'string') pane._zoomAddr = spec.zoom;                // rebuilt in restore once the tree stands
     pane.view = spec.view || null;
