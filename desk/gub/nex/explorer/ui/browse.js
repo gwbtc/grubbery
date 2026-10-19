@@ -2920,7 +2920,11 @@ function setup(root, opts) {
       body.appendChild(levelEl(node, h, cursorAddr, 0, true));        // standing here: the bar at the bottom is this pane's bar
       prune();
       drawBar(node);
-      const u = location.pathname + '?at=' + encodeURIComponent(at);
+      // keep a forced client (?m=1 / ?m=0) across the rewrite: this rebuilds the
+      // query from scratch, so dropping it would strand a phone client on the
+      // next reload, back on whatever detection decides.
+      const mf = /[?&]m=([01])/.exec(location.search);
+      const u = location.pathname + '?at=' + encodeURIComponent(at) + (mf ? '&m=' + mf[1] : '');
       try { history.replaceState(null, '', u); } catch (_) {}
     }
     let pending = null;
