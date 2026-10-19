@@ -99,6 +99,7 @@ function setup(root, opts) {
     return u;
   };
   let here = fromUrl(opts.url || ROOT);
+  let pageNav = true;              // the finder owns url routing until a client takes the page
   let dirPath = rel(here);
   // the page's title follows the explorer only when the explorer is the page
   const setTitle = () => { if (PAGE) document.title = SCOPE ? (SCOPE_NAME + (dirPath === '/' ? '' : ' ' + dirPath)) : dirPath; };
@@ -118,7 +119,11 @@ function setup(root, opts) {
     e.preventDefault();
     nav(new URL(a.href).pathname);
   });
-  if (PAGE) window.addEventListener('popstate', () => nav(fromUrl(location.pathname), false));
+  // The phone client takes the whole page and keeps its OWN position in
+  // history, so the finder's url routing must stand down — otherwise its
+  // popstate runs first and re-navigates the finder (title, crumbs, a listing
+  // load) underneath the client that is actually on screen.
+  if (PAGE) window.addEventListener('popstate', () => { if (!pageNav) return; nav(fromUrl(location.pathname), false); });
   let data = null;
   const ft = $('ft');
 
@@ -2571,7 +2576,7 @@ function setup(root, opts) {
     if (mbCss) return; mbCss = true;
     const s = document.createElement('style');
     s.textContent =
-      '.mb-body{flex:1;min-height:0;position:relative;overflow:hidden;touch-action:pan-y;background:#eaeef2}' +
+      '.mb-body{flex:1;min-height:0;position:relative;overflow:hidden;touch-action:pan-y;overscroll-behavior-x:none;background:#eaeef2}' +
       // a division is a BOX its children sit inside, tinted a step darker with
       // depth, so three levels read as three levels and not as four stripes
       '.mb-split{position:relative;display:flex;flex-direction:column;gap:5px;height:100%;min-height:0;padding:5px;border-radius:11px;box-sizing:border-box}' +
@@ -2643,6 +2648,7 @@ function setup(root, opts) {
     document.head.appendChild(s);
   }
   function mobileWorkspace(root, sessionName) {
+    pageNav = false;               // this client owns the page and its history
     mobileChrome();
     while (root.firstChild) root.removeChild(root.firstChild);
     // dvh, not vh: on mobile Chrome 100vh is the viewport with the URL bar
@@ -2901,7 +2907,9 @@ function setup(root, opts) {
     function draw() {
       const spec = model.serialize();
       tree = treeOf(spec);
-      if (!seeded) { seeded = true; at = (spec && spec.cursor) || '.'; }   // resume where the session says we were
+      // resume where the session says we were, and make that the baseline entry
+      // so the first back has somewhere to land instead of leaving the session
+      if (!seeded) { seeded = true; at = (spec && spec.cursor) || '.'; try { history.replaceState({ mbAt: at }, ''); } catch (_) {} }
       // An address names a tab index at every level, so switching an ancestor's
       // tab takes yours out of the tree. Fall back to the nearest surviving
       // ancestor, but REMEMBER where you were: switching that tab back puts
@@ -3065,7 +3073,23 @@ function setup(root, opts) {
       redraw();
     }
     const withCursor = (fn) => { if (model.cursorToAddr(at)) fn(); };
-    function goTo(addr) { orphan = null; at = addr; model.cursorToAddr(addr); redraw(); }
+    // Walking in pushes a history entry, so the back gesture climbs back out
+    // instead of abandoning the session — and the Android edge-swipe, which no
+    // page can intercept, becomes the right gesture rather than a hazard. The
+    // position rides in history.state, NOT in the URL: the session's own state
+    // stays the system of record and the link stays clean.
+    function goTo(addr) {
+      orphan = null; at = addr; model.cursorToAddr(addr);
+      try { history.pushState({ mbAt: addr }, ''); } catch (_) {}
+      redraw();
+    }
+    window.addEventListener('popstate', (e) => {
+      const a = e.state && e.state.mbAt;
+      orphan = null;
+      at = a || (model.cursorAddr() || '.');
+      model.cursorToAddr(at);
+      redraw();
+    });
     function routeOpen(addr, path, name) {
       if (!model.cursorToAddr(addr)) return;
       // spell the destination the way the pane that opened it is spelled, so
@@ -3087,17 +3111,48 @@ function setup(root, opts) {
     function navTo(path) { withCursor(() => { model.navigate(null, path); redraw(); }); }
 
     // ---- gestures: a swipe is lateral, between the two sides of a division ----
-    let sx = 0, sy = 0, tracking = false;
-    body.addEventListener('pointerdown', (e) => { sx = e.clientX; sy = e.clientY; tracking = true; });
-    body.addEventListener('pointerup', (e) => {
-      if (!tracking) return; tracking = false;
-      const dx = e.clientX - sx, dy = e.clientY - sy;
+    // Judging the gesture at its END is too late on a phone: `touch-action:
+    // pan-y` lets the browser claim it for a vertical scroll the moment the
+    // finger drifts, and it then fires pointercancel — the swipe is simply
+    // lost, which is why it only ever worked on content too short to scroll.
+    // So claim it as soon as it reads horizontal: preventDefault() in
+    // touchmove stops the browser starting a scroll, and takes Chrome's
+    // horizontal overscroll back/forward navigation out of the running too.
+    const swipeTo = (dx, dy) => {
       if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy)) return;
       const node = find(tree, at); if (!node) return;
       const want = dx < 0 ? 'a' : 'b';                     // swipe left shows the left/top side
       const s = sibling(node, want);
-      if (s) { e.preventDefault(); goTo(s.addr); }
+      if (s) goTo(s.addr);
+    };
+    let sx = 0, sy = 0, swiping = false, touching = false, tracking = false;
+    body.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) { touching = false; return; }   // a pinch is not a swipe
+      const t = e.touches[0]; sx = t.clientX; sy = t.clientY; swiping = false; touching = true;
+    }, { passive: true });
+    body.addEventListener('touchmove', (e) => {
+      if (!touching || e.touches.length !== 1) return;
+      const t = e.touches[0], dx = t.clientX - sx, dy = t.clientY - sy;
+      if (!swiping && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) swiping = true;
+      if (swiping) e.preventDefault();                     // the gesture is ours: no scroll, no back-swipe
+    }, { passive: false });
+    body.addEventListener('touchend', (e) => {
+      if (!touching) return;
+      touching = false;
+      if (!swiping) return;
+      swiping = false;
+      const t = e.changedTouches && e.changedTouches[0]; if (!t) return;
+      swipeTo(t.clientX - sx, t.clientY - sy);
     });
+    body.addEventListener('touchcancel', () => { touching = false; swiping = false; });
+    // mouse / trackpad: nothing competes for the gesture, so end-of-drag is fine
+    body.addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch') return; sx = e.clientX; sy = e.clientY; tracking = true; });
+    body.addEventListener('pointerup', (e) => {
+      if (e.pointerType === 'touch' || !tracking) return;
+      tracking = false;
+      swipeTo(e.clientX - sx, e.clientY - sy);
+    });
+    body.addEventListener('pointercancel', () => { tracking = false; });
 
     model.addEventListener('gmux-change', schedule);
     // Android fires `resize` when the soft keyboard opens, because the viewport
