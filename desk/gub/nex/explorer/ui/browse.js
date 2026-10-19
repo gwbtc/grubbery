@@ -3119,9 +3119,34 @@ function setup(root, opts) {
     // width it does not have. A touchscreen laptop keeps its mouse, so it
     // keeps the tiled client. A narrow window still gets the phone client so
     // it can be worked on from a desktop, and ?m=1 / ?m=0 force either way.
+    // "Request desktop site" defeats BOTH of those: it reports a fine pointer
+    // AND a ~980px viewport, so a real phone reads as a desktop. What it does
+    // not fake is the hardware — maxTouchPoints is a device capability, and
+    // screen.width is the physical screen rather than the layout viewport. A
+    // touch device whose SCREEN is phone-sized is a phone whatever it claims,
+    // while a touchscreen laptop still has a big screen and keeps the tiling.
     const mq = (q) => { try { return window.matchMedia(q).matches; } catch (_) { return false; } };
     const finger = mq('(pointer: coarse)') && !mq('(any-pointer: fine)');
-    const MOBILE = /[?&]m=1/.test(location.search) || (!/[?&]m=0/.test(location.search) && (finger || mq('(max-width: 720px)')));
+    const touch = (navigator.maxTouchPoints || 0) > 0;
+    const smallScreen = ((window.screen && window.screen.width) || 9999) <= 900;
+    const MOBILE = /[?&]m=1/.test(location.search) || (!/[?&]m=0/.test(location.search) && (finger || mq('(max-width: 720px)') || (touch && smallScreen)));
+    // ?diag=1: what THIS device actually reports, so a phone that picks the
+    // wrong client can say why without anyone guessing at its media queries.
+    if (/[?&]diag=1/.test(location.search)) {
+      const pre = document.createElement('pre');
+      pre.style.cssText = 'margin:0;padding:16px;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;word-break:break-all';
+      pre.textContent = JSON.stringify({
+        decision: MOBILE ? 'PHONE client' : 'TILED client',
+        sessionName, finger, touch, smallScreen,
+        pointerCoarse: mq('(pointer: coarse)'), anyPointerFine: mq('(any-pointer: fine)'),
+        maxWidth720: mq('(max-width: 720px)'),
+        innerWidth: window.innerWidth, screenWidth: window.screen && window.screen.width,
+        devicePixelRatio: window.devicePixelRatio, maxTouchPoints: navigator.maxTouchPoints,
+        ua: navigator.userAgent,
+      }, null, 2);
+      root.appendChild(pre);
+      return;
+    }
     if (sessionName && MOBILE) { mobileWorkspace(root, sessionName); return; }
     const persistKey = sessionName ? null : K + '-standalone';
     const ps = document.createElement('gmux-host');
