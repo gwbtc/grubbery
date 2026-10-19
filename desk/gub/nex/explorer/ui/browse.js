@@ -2577,6 +2577,16 @@ function setup(root, opts) {
     const s = document.createElement('style');
     s.textContent =
       '.mb-body{flex:1;min-height:0;position:relative;overflow:hidden;touch-action:pan-y;overscroll-behavior-x:none;background:#eaeef2}' +
+      // the swipe strip: the lateral gesture lives HERE, not over the content.
+      // Across the body it fought everything at once — a scroller underneath,
+      // a map that pans itself, and Chrome's own horizontal overscroll, which
+      // navigates back and so (through popstate) moved the seat somewhere
+      // unrelated. A strip we own takes none of that: touch-action none, no
+      // content beneath it, nothing else that can claim it.
+      '.mb-swipe{flex:none;height:26px;display:flex;align-items:center;justify-content:center;touch-action:none;overscroll-behavior:contain;background:#f8f8f8;border-bottom:1px solid #e8e8e8;cursor:grab}' +
+      '.mb-swipe:active{cursor:grabbing}' +
+      '.mb-swipe .grip{width:38px;height:4px;border-radius:2px;background:#cdd3da;transition:opacity .15s}' +
+      '.mb-swipe.alone .grip{opacity:.3}' +
       // a division is a BOX its children sit inside, tinted a step darker with
       // depth, so three levels read as three levels and not as four stripes
       '.mb-split{position:relative;display:flex;flex-direction:column;gap:5px;height:100%;min-height:0;padding:5px;border-radius:11px;box-sizing:border-box}' +
@@ -2668,7 +2678,10 @@ function setup(root, opts) {
     const tabRow = document.createElement('div'); tabRow.className = 'mb-tabrow';
     const bar = document.createElement('div'); bar.className = 'mb-row';
     const pathRow = document.createElement('div'); pathRow.className = 'mb-row mb-pathrow';
-    bars.append(tabRow, bar, pathRow);
+    const swipe = document.createElement('div'); swipe.className = 'mb-swipe';
+    const grip = document.createElement('div'); grip.className = 'grip'; swipe.appendChild(grip);
+    swipe.title = 'drag sideways to move between the two panes at this level';
+    bars.append(swipe, tabRow, bar, pathRow);
     root.append(body, bars);
 
     // what paneContent expects of a workspace
@@ -2912,7 +2925,7 @@ function setup(root, opts) {
       tree = treeOf(spec);
       // resume where the session says we were, and make that the baseline entry
       // so the first back has somewhere to land instead of leaving the session
-      if (!seeded) { seeded = true; seat = (typeof model.seat === 'string' && model.seat) || '.'; try { history.replaceState({ seat: seat }, ''); } catch (_) {} }
+      if (!seeded) { seeded = true; seat = (typeof model.seat === 'string' && model.seat) || '.'; }
       // An address names a tab index at every level, so switching an ancestor's
       // tab takes yours out of the tree. Fall back to the nearest surviving
       // ancestor, but REMEMBER where you were: switching that tab back puts
@@ -2941,6 +2954,9 @@ function setup(root, opts) {
       body.appendChild(levelEl(node, h, cursorAddr, 0, true));        // standing here: the bar at the bottom is this pane's bar
       prune();
       drawBar(node);
+      // the grip dims when this level holds one pane: nothing to swipe to
+      swipe.classList.toggle('alone', !(node.parent && node.parent.kind === 'div'));
+      shapeNav();
       sitHere();
     }
     // the seat rides in the workspace, so a session resumes where you sat. Set
@@ -3093,14 +3109,26 @@ function setup(root, opts) {
     // stays the system of record and the link stays clean.
     function goTo(addr) {
       orphan = null; seat = addr;
-      try { history.pushState({ seat: addr }, ''); } catch (_) {}
-      redraw();
+      redraw();                                          // draw re-shapes the history for where we land
     }
-    window.addEventListener('popstate', (e) => {
-      const a = e.state && e.state.seat;
-      orphan = null;
-      seat = a || '.';
-      redraw();
+    // Back/forward are NEUTRALISED. On a phone they cannot be prevented — the
+    // edge-swipe is the system's and Chrome navigates on horizontal overscroll
+    // — and while they were real navigation a stray one yanked the seat to an
+    // older entry mid-gesture, which is the jumping that made the dots change
+    // under you. So one spare entry is kept behind us and any pop is answered
+    // by stepping back onto it: the gesture becomes inert instead of wrong.
+    // Moving between the pair is the swipe strip's job, which does it with
+    // direction and an animation. Climbing out is the ⬆ button.
+    let navFix = false;
+    const shapeNav = () => {
+      if (navFix) return;
+      try { if ((history.state || {}).nav !== 'here') history.pushState({ nav: 'here' }, ''); } catch (_) {}
+    };
+    window.addEventListener('popstate', () => {
+      if (navFix) { navFix = false; return; }
+      navFix = true;
+      try { history.pushState({ nav: 'here' }, ''); } catch (_) {}      // step back onto our own entry
+      navFix = false;
     });
     function routeOpen(addr, path, name) {
       if (!model.cursorToAddr(addr)) return;
@@ -3186,7 +3214,16 @@ function setup(root, opts) {
       const finish = () => {
         if (done) return; done = true;
         drag = null;
-        if (past) goTo(d.dest.addr); else redraw();        // either way the body is rebuilt from state
+        if (!past) { redraw(); return; }
+        // Ask what is beside me NOW, rather than trusting the address taken when
+        // the finger went down: an address names a tab index at every level, so
+        // a workspace that moved mid-swipe (a streaming log, a pane closing)
+        // leaves that address pointing elsewhere — and committing it drops the
+        // seat somewhere unrelated, which shows up as the level's dots changing
+        // under you.
+        const fresh = find(treeOf(model.serialize()), seat);
+        const to = fresh && sibling(fresh, d.destIsRight ? 'b' : 'a');
+        if (to) goTo(to.addr); else redraw();
       };
       d.track.addEventListener('transitionend', finish, { once: true });
       setTimeout(finish, 320);                             // transitionend can be skipped if nothing moves
@@ -3194,12 +3231,11 @@ function setup(root, opts) {
       requestAnimationFrame(() => { d.track.style.transform = 'translateX(' + to + 'px)'; });
     };
     let sx = 0, sy = 0, swiping = false, touching = false, tracking = false;
-    body.addEventListener('touchstart', (e) => {
+    swipe.addEventListener('touchstart', (e) => {
       if (drag || e.touches.length !== 1) { touching = false; return; }   // a pinch is not a swipe
-      if (ownsAxis(e.target, 'x')) { touching = false; return; }          // the content pans horizontally; leave it alone
       const t = e.touches[0]; sx = t.clientX; sy = t.clientY; swiping = false; touching = true;
     }, { passive: true });
-    body.addEventListener('touchmove', (e) => {
+    swipe.addEventListener('touchmove', (e) => {
       if (!touching || e.touches.length !== 1) return;
       const t = e.touches[0], dx = t.clientX - sx, dy = t.clientY - sy;
       if (!swiping && Math.abs(dx) > SWIPE_MIN && Math.abs(dx) > Math.abs(dy)) {
@@ -3209,7 +3245,7 @@ function setup(root, opts) {
       }
       if (swiping) { e.preventDefault(); dragMove(dx); }   // the gesture is ours: no scroll, no back-swipe
     }, { passive: false });
-    body.addEventListener('touchend', (e) => {
+    swipe.addEventListener('touchend', (e) => {
       if (!touching) return;
       touching = false;
       if (!swiping) return;
@@ -3217,21 +3253,21 @@ function setup(root, opts) {
       const t = e.changedTouches && e.changedTouches[0];
       dragEnd(t ? t.clientX - sx : 0);
     });
-    body.addEventListener('touchcancel', () => { touching = false; swiping = false; if (drag) dragEnd(0); });
+    swipe.addEventListener('touchcancel', () => { touching = false; swiping = false; if (drag) dragEnd(0); });
     // mouse / trackpad: same physics, nothing competing for the gesture
-    body.addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch' || drag || ownsAxis(e.target, 'x')) return; sx = e.clientX; sy = e.clientY; tracking = true; });
-    body.addEventListener('pointermove', (e) => {
+    swipe.addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch' || drag) return; sx = e.clientX; sy = e.clientY; tracking = true; });
+    swipe.addEventListener('pointermove', (e) => {
       if (e.pointerType === 'touch' || !tracking) return;
       const dx = e.clientX - sx, dy = e.clientY - sy;
       if (!drag && Math.abs(dx) > SWIPE_MIN && Math.abs(dx) > Math.abs(dy)) { drag = beginDrag(dx); if (!drag) tracking = false; }
       if (drag) dragMove(dx);
     });
-    body.addEventListener('pointerup', (e) => {
+    swipe.addEventListener('pointerup', (e) => {
       if (e.pointerType === 'touch' || !tracking) return;
       tracking = false;
       if (drag) dragEnd(e.clientX - sx);
     });
-    body.addEventListener('pointercancel', () => { tracking = false; if (drag) dragEnd(0); });
+    swipe.addEventListener('pointercancel', () => { tracking = false; if (drag) dragEnd(0); });
 
     model.addEventListener('gmux-change', schedule);
     // Android fires `resize` when the soft keyboard opens, because the viewport
