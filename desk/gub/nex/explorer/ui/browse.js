@@ -2733,7 +2733,12 @@ function setup(root, opts) {
     };
 
     // ---- rendering ----
-    let at = (psArgs(location.search.replace('?', '?x&')).at) || '.';
+    // where we are standing. The session's own state is the system of record
+    // for this — gmux serializes the cursor onto the workspace — so it is NOT
+    // mirrored into the URL: a copy there is a second truth with no owner, and
+    // an opaque one to read. Seeded from the session's cursor on the first
+    // draw, and owned by goTo() from then on.
+    let at = '.', seeded = false;
     let tree = treeOf(model.serialize());
     // what opened a container: a division carries it on the div, a held pane on the entry
     const srcOf = (n) => (n.entry ? (n.entry.div ? n.entry.div.src : (n.entry.pane ? n.entry.src : null)) : null) || null;
@@ -2896,6 +2901,7 @@ function setup(root, opts) {
     function draw() {
       const spec = model.serialize();
       tree = treeOf(spec);
+      if (!seeded) { seeded = true; at = (spec && spec.cursor) || '.'; }   // resume where the session says we were
       // An address names a tab index at every level, so switching an ancestor's
       // tab takes yours out of the tree. Fall back to the nearest surviving
       // ancestor, but REMEMBER where you were: switching that tab back puts
@@ -2924,12 +2930,6 @@ function setup(root, opts) {
       body.appendChild(levelEl(node, h, cursorAddr, 0, true));        // standing here: the bar at the bottom is this pane's bar
       prune();
       drawBar(node);
-      // keep a forced client (?m=1 / ?m=0) across the rewrite: this rebuilds the
-      // query from scratch, so dropping it would strand a phone client on the
-      // next reload, back on whatever detection decides.
-      const mf = /[?&]m=([01])/.exec(location.search);
-      const u = location.pathname + '?at=' + encodeURIComponent(at) + (mf ? '&m=' + mf[1] : '');
-      try { history.replaceState(null, '', u); } catch (_) {}
     }
     let pending = null;
     const schedule = () => { if (pending) return; pending = setTimeout(() => { pending = null; draw(); }, 0); };
