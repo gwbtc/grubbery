@@ -3108,8 +3108,16 @@ function setup(root, opts) {
     const sm = here.match(/^\/grubbery\/explorer\/s\/([a-z][a-z0-9-]*)$/);
     const sessionName = sm ? sm[1] : null;
     if (!sessionName && here === '/grubbery/explorer') { sessionsPage(root, SESSION_API, psWait, psWaitFail); return; }
-    // a phone (or ?m=1 to work on it from a desktop) walks the palace instead of tiling it
-    const MOBILE = /[?&]m=1/.test(location.search) || (!/[?&]m=0/.test(location.search) && window.matchMedia('(max-width: 720px)').matches);
+    // A phone walks the palace instead of tiling it. What makes it a phone is
+    // the POINTER, not the width: a finger cannot hit a pane bar or drag a
+    // divider at any size, a phone held sideways is wider than plenty of
+    // desktop windows, and one asked to "request desktop site" reports a
+    // width it does not have. A touchscreen laptop keeps its mouse, so it
+    // keeps the tiled client. A narrow window still gets the phone client so
+    // it can be worked on from a desktop, and ?m=1 / ?m=0 force either way.
+    const mq = (q) => { try { return window.matchMedia(q).matches; } catch (_) { return false; } };
+    const finger = mq('(pointer: coarse)') && !mq('(any-pointer: fine)');
+    const MOBILE = /[?&]m=1/.test(location.search) || (!/[?&]m=0/.test(location.search) && (finger || mq('(max-width: 720px)')));
     if (sessionName && MOBILE) { mobileWorkspace(root, sessionName); return; }
     const persistKey = sessionName ? null : K + '-standalone';
     const ps = document.createElement('gmux-host');
@@ -3180,10 +3188,27 @@ function sessionsPage(root, api, wait, waitFail) {
   css.textContent = '.ss-wrap{max-width:720px;margin:0 auto;padding:40px 24px 24px;height:100%;box-sizing:border-box;display:flex;flex-direction:column;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#1f2328}' +
     '.ss-wrap h1{font-size:20px;font-weight:600;margin:0 0 4px}.ss-sub{color:#57606a;margin:0 0 24px}' +
     '.ss-list{border:1px solid #d0d7de;border-radius:8px;overflow:auto;margin-bottom:28px;flex:0 1 auto;min-height:0}.ss-list.loading{border-color:transparent;min-height:96px}.ss-row,.ss-row:hover,.ss-row *{text-decoration:none}.ss-row{display:flex;align-items:center;gap:14px;padding:12px 16px;border-top:1px solid #d0d7de;color:inherit}.ss-row:first-child{border-top:0}.ss-row:hover{background:#f6f8fa}' +
-    '.ss-name{font:600 14px ui-monospace,Menlo,monospace;min-width:140px}.ss-meta{color:#57606a;flex:1}.ss-held{color:#9a6700}.ss-free{color:#1a7f37}.ss-del{border:0;background:none;color:#8c959f;cursor:pointer;font-size:16px;padding:0 4px}.ss-del:hover{color:#cf222e}' +
+    '.ss-name{font:600 14px ui-monospace,Menlo,monospace;min-width:140px;overflow-wrap:anywhere}.ss-meta{color:#57606a;flex:1;min-width:0}.ss-held{color:#9a6700}.ss-free{color:#1a7f37}.ss-del{border:0;background:none;color:#8c959f;cursor:pointer;font-size:16px;padding:0 4px}.ss-del:hover{color:#cf222e}' +
     '.ss-empty{padding:20px 16px;color:#57606a}' +
-    '.ss-new{border:1px solid #d0d7de;border-radius:8px;padding:16px;flex:0 0 auto}.ss-hint{color:#57606a;font-size:13px;margin:0 0 10px}.ss-hint code{font:12px ui-monospace,Menlo,monospace;background:#f6f8fa;padding:1px 5px;border-radius:4px}.ss-new h2{font-size:14px;font-weight:600;margin:0 0 12px}.ss-new label{display:flex;gap:10px;align-items:center;margin:10px 0 2px}.ss-new label span{min-width:90px;color:#57606a}.ss-new input[type=text]{flex:1;font:13px ui-monospace,Menlo,monospace;padding:6px 8px;border:1px solid #d0d7de;border-radius:6px}.ss-help{margin:0 0 6px 100px;color:#57606a;font-size:12px}' +
-    '.ss-new button{font:inherit;font-weight:600;padding:6px 14px;border-radius:6px;border:1px solid #1f883d;background:#2da44e;color:#fff;cursor:pointer;margin-top:12px}.ss-err{color:#cf222e;margin-top:8px}';
+    '.ss-new{border:1px solid #d0d7de;border-radius:8px;padding:16px;flex:0 0 auto}.ss-hint{color:#57606a;font-size:13px;margin:0 0 10px}.ss-hint code{font:12px ui-monospace,Menlo,monospace;background:#f6f8fa;padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}.ss-new h2{font-size:14px;font-weight:600;margin:0 0 12px}.ss-new label{display:flex;gap:10px;align-items:center;margin:10px 0 2px}.ss-new label span{min-width:90px;color:#57606a}.ss-new input[type=text]{flex:1;font:13px ui-monospace,Menlo,monospace;padding:6px 8px;border:1px solid #d0d7de;border-radius:6px}.ss-help{margin:0 0 6px 100px;color:#57606a;font-size:12px}' +
+    '.ss-new button{font:inherit;font-weight:600;padding:6px 14px;border-radius:6px;border:1px solid #1f883d;background:#2da44e;color:#fff;cursor:pointer;margin-top:12px}.ss-err{color:#cf222e;margin-top:8px}' +
+    // a phone: the page is the same page, with the room it actually has. The
+    // label column and the indent under it are desktop furniture, so a field
+    // becomes a label above its input, and everything a finger hits grows.
+    '@media (max-width:560px){' +
+      '.ss-wrap{padding:20px 14px 14px}' +
+      '.ss-sub{margin-bottom:18px}' +
+      '.ss-list{margin-bottom:20px}' +
+      '.ss-row{flex-wrap:wrap;gap:4px 10px;padding:14px}' +
+      '.ss-name{min-width:0;flex:1 1 100%}' +
+      '.ss-meta{flex:1 1 auto;font-size:13px}' +
+      '.ss-del{padding:4px 8px;font-size:18px}' +
+      '.ss-new label{flex-direction:column;align-items:stretch;gap:5px}' +
+      '.ss-new label span{min-width:0}' +
+      '.ss-new input[type=text]{width:100%;font-size:16px;padding:9px 10px}' +   // 16px: iOS zooms a smaller field on focus
+      '.ss-help{margin-left:0}' +
+      '.ss-new button{width:100%;padding:11px 14px;font-size:15px}' +
+    '}';
   document.head.appendChild(css);
   root.style.cssText = 'display:block;height:100vh;overflow:hidden;background:#fff';
   const wrap = document.createElement('div'); wrap.className = 'ss-wrap'; root.appendChild(wrap);
@@ -3192,6 +3217,9 @@ function sessionsPage(root, api, wait, waitFail) {
   const list = document.createElement('div'); list.className = 'ss-list'; wrap.appendChild(list);
   const when = (ms) => { if (!ms) return ''; const d = new Date(ms); const today = new Date(); return d.toDateString() === today.toDateString() ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : d.toLocaleDateString(); };
   let known = [];                                                  // the names in the list, for a default that is new
+  // ?m=1 / ?m=0 forces which client a session opens in; carry it through, so
+  // trying the phone client from a desktop survives opening a session
+  const force = /[?&]m=[01]/.test(location.search) ? ('?m=' + (/[?&]m=1/.test(location.search) ? '1' : '0')) : '';
   const load = async () => {
     list.textContent = ''; list.classList.add('loading');
     const w = document.createElement('div'); list.appendChild(w); wait(w, 'loading sessions'); w.style.cssText = 'height:96px';
@@ -3203,7 +3231,7 @@ function sessionsPage(root, api, wait, waitFail) {
     rows.sort((a, b) => (b.updated || 0) - (a.updated || 0));
     if (!rows.length) { const e = document.createElement('div'); e.className = 'ss-empty'; e.textContent = 'No sessions yet. Start one below.'; list.appendChild(e); return; }
     for (const s of rows) {
-      const a = document.createElement('a'); a.className = 'ss-row'; a.href = '/grubbery/explorer/s/' + encodeURIComponent(s.name);
+      const a = document.createElement('a'); a.className = 'ss-row'; a.href = '/grubbery/explorer/s/' + encodeURIComponent(s.name) + force;
       const n = document.createElement('div'); n.className = 'ss-name'; n.textContent = s.name;
       const m = document.createElement('div'); m.className = 'ss-meta';
       const held = s.client && s.client.id;
@@ -3236,7 +3264,7 @@ function sessionsPage(root, api, wait, waitFail) {
     try {
       const r = await fetch(api, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
       if (!r.ok) { let why = 'could not create (' + r.status + ')'; try { why = (await r.json()).error || why; } catch (_) {} throw new Error(why); }
-      location.href = '/grubbery/explorer/s/' + encodeURIComponent(n);
+      location.href = '/grubbery/explorer/s/' + encodeURIComponent(n) + force;
     } catch (e) { err.textContent = e && e.message || String(e); go.disabled = false; }
   };
   go.addEventListener('click', start);
