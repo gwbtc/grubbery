@@ -45,11 +45,11 @@
 //     zoomToggle/zoomOut/zoomReset · focusPane · climb/descend/sibling · setBar · toggleBars
 //   data: serialize() · restore(spec) · instantiate(spec)
 //
-//   KEYS (after prefix): % / | split right · " / - split down · c collapse · e expand · f flip ·
+//   KEYS (after prefix): % / | split right · " / - split down · c collapse · e expand · f flip · r rotate ·
 //     z/Z zoom in/out · C set/clear zoom context · x close · b lock bars · o cycle · m mark · ␣ swap ·
 //     [ ] climb/descend · Tab sibling · Esc reset · h highlight · 1-9 jump ·
 //     t new tab · w close tab · T toggle bar · : focus navbar · < > prev/next tab · , . back/forward ·
-//     arrows move · shift+arrows / r resize (sticky).
+//     arrows move · shift+arrows resize (sticky).
 //
 // Light DOM; the JS tree is the source of truth and the DOM mirrors it. A
 // division nests via a <split-view> living in the owner pane's body; each child
@@ -212,7 +212,7 @@ class Gmux extends HTMLElement {
     this.#barToggle.append(
       act('▾', 'materialize the full topbar', () => this.setBar(pid(), true)),
       act('⇄', 'flip the two panes of this division', () => this.flip(pid())),
-      act('⟲', 'turn this division between side-by-side and stacked', () => this.rotate(pid())),
+      act('⟳', 'turn this division a quarter turn clockwise', () => this.rotate(pid())),
       act('⤓', 'collapse pane', () => this.collapse(pid())),
       act('⬉', 'select parent container', () => this.selectParent(pid())),
       act('⛶', 'zoom to this pane', () => this.zoomPane(pid())),
@@ -317,7 +317,7 @@ class Gmux extends HTMLElement {
     row1.append(menu, hide, tabs, add, viewBtn,
       btn('◨', 'split right', () => this.splitRight(id)), btn('⬓', 'split down', () => this.splitDown(id)),
       btn('⇄', 'flip the two panes of this division', () => this.flip(id)),
-      btn('⟲', 'turn this division between side-by-side and stacked', () => this.rotate(id)),
+      btn('⟳', 'turn this division a quarter turn clockwise', () => this.rotate(id)),
       btn('⤓', 'collapse pane', () => this.collapse(id)),
       btn('⬉', 'select parent container', () => this.selectParent(id)),
       btn('⛶', 'zoom to this pane', () => this.zoomPane(id)), btn('↑', 'zoom to parent', () => this.zoomParent(id)), btn('⤢', 'zoom all the way out', () => this.zoomReset()),
@@ -899,13 +899,26 @@ class Gmux extends HTMLElement {
     this.#render(); this.#persist();
     return true;
   }
-  // rotate: the division this pane sits in turns between side-by-side and
-  // stacked. Nothing moves between slots, only the axis they divide.
+  // rotate: turn this division a quarter turn CLOCKWISE, panes and all. Side
+  // by side becomes stacked with the left pane on top; stacked becomes side
+  // by side with the top pane on the RIGHT, which is the step where the two
+  // trade slots and the ratio inverts so each keeps the share it had. Four of
+  // them put the division back exactly as it was, ratio and fold included.
   rotate(id) {
     const p = this.#panes.get(id ?? this.#activeId), par = p && p.parent;
     if (!par || !par.div) return false;
     const d = par.div, scroll = this.#snapshotScroll();
-    d.dir = d.dir === 'horizontal' ? 'vertical' : 'horizontal';
+    const over = d.dir === 'vertical';                 // the half of the turn that carries the top pane around to the right
+    d.dir = over ? 'horizontal' : 'vertical';
+    if (over) {
+      const a = d.a, b = d.b;
+      d.a = b; d.b = a;
+      d.a.parent = { div: d, slot: 'a' }; d.b.parent = { div: d, slot: 'b' };
+      d.ratio = 1 - d.ratio;                           // each pane keeps its share of the division
+      if (d.fold) d.fold = d.fold === 'a' ? 'b' : 'a'; // the folded one stays the folded one
+      if (d.last) d.last = d.last === 'a' ? 'b' : 'a';
+      this.#placePane(d.a, d.sv, 'start'); this.#placePane(d.b, d.sv, 'end');
+    }
     this.#applyDivLayout(d); this.#afterStructure(); this.#restoreScroll(scroll);
     this.#render(); this.#persist();
     return true;
@@ -1629,7 +1642,7 @@ class Gmux extends HTMLElement {
     if (!this.#awaiting) {
       if (this.#isPrefix(e)) {
         this.#awaiting = true;
-        this.#flashHint('gmux · % split · " stack · c/e collapse/expand · z/Z zoom · C context · f flip · x close · t/w tab · T bar · : path · i content · <> tab · ,. back/fwd · R refresh · m mark · ␣ swap · [ ] climb/descend · Tab sibling · h highlight · b bars · 1-9 jump · ←↑↓→ move · ⇧←↑↓→ resize');
+        this.#flashHint('gmux · % split · " stack · c/e collapse/expand · z/Z zoom · C context · f flip · r rotate · x close · t/w tab · T bar · : path · i content · <> tab · ,. back/fwd · R refresh · m mark · ␣ swap · [ ] climb/descend · Tab sibling · h highlight · b bars · 1-9 jump · ←↑↓→ move · ⇧←↑↓→ resize');
         clearTimeout(this.#awaitTimer);
         this.#awaitTimer = setTimeout(() => { this.#awaiting = false; this.#flashHint(''); }, 2500);
         e.preventDefault(); e.stopPropagation();
@@ -1668,7 +1681,7 @@ class Gmux extends HTMLElement {
     else if (k === 'Tab') this.sibling();
     else if (k === 'Escape') this.escape();
     else if (k >= '1' && k <= '9') this.focusIndex(+k - 1);
-    else if (k === 'r') this.#arm('resize');
+    else if (k === 'r') this.rotate();                 // a quarter turn clockwise; four of them are the identity
     else if (k === 'R') this.refresh(this.#activeId);   // refresh the moment in place
     else if (dir && e.shiftKey) { this.nudge(dir); this.#arm('resize'); }
     // a prefixed arrow moves ONCE and hands the keys to the pane it landed in,
