@@ -3176,7 +3176,7 @@ function setup(root, opts) {
       track.style.transform = 'translateX(' + base + 'px)';
       body.textContent = '';
       body.appendChild(track);
-      return { dest, track, w, base, destIsRight };
+      return { dest, track, w, base, destIsRight, t0: Date.now() };
     };
     const dragMove = (dx) => {
       if (!drag) return;
@@ -3185,7 +3185,13 @@ function setup(root, opts) {
     };
     const dragEnd = (dx) => {
       const d = drag; if (!d) return;
-      const past = Math.abs(dx) > d.w * 0.25;
+      // A flick counts as much as a haul. Distance alone wanted a quarter of
+      // the pane — about a hundred px across a strip a couple of fingers tall —
+      // so an ordinary quick swipe sprang back and you had to do it twice.
+      // Either travelling far enough OR moving fast enough carries it over.
+      const dt = Math.max(1, Date.now() - d.t0);
+      const speed = Math.abs(dx) / dt;                     // px per ms
+      const past = Math.abs(dx) > d.w * 0.12 || speed > 0.3;
       const to = past ? (d.destIsRight ? d.base - d.w : d.base + d.w) : d.base;
       let done = false;
       const finish = () => {
@@ -3204,7 +3210,7 @@ function setup(root, opts) {
       };
       d.track.addEventListener('transitionend', finish, { once: true });
       setTimeout(finish, 320);                             // transitionend can be skipped if nothing moves
-      d.track.style.transition = 'transform .22s cubic-bezier(.22,.61,.36,1)';
+      d.track.style.transition = 'transform ' + (speed > 0.6 ? '.13s' : '.2s') + ' cubic-bezier(.22,.61,.36,1)';
       requestAnimationFrame(() => { d.track.style.transform = 'translateX(' + to + 'px)'; });
     };
     let sx = 0, sy = 0, swiping = false, touching = false, tracking = false;
