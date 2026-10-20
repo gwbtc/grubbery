@@ -111,6 +111,22 @@
 ++  parse-command
   |=  txt=@t
   ^-  (unit git-command)
+  ::  TWO passes, and the order matters. `pose` commits to the first
+  ::  alternative that parses AT THAT POSITION, and `rush` then demands the
+  ::  whole string: so a lenient rule cannot be a later alternative of the
+  ::  strict one — the strict rule succeeds on the first word of a bare
+  ::  multi-word message, leaves the rest dangling, and the parse dies
+  ::  before any fallback is tried. Hence a whole second attempt, run only
+  ::  when the strict grammar declined the string outright.
+  ::
+  =/  strict=(unit git-command)  (parse-strict txt)
+  ?^  strict  strict
+  (parse-loose txt)
+::  +parse-strict: the real grammar. Quote a message and this is what reads it.
+::
+++  parse-strict
+  |=  txt=@t
+  ^-  (unit git-command)
   =/  tok      (cook crip (plus ;~(less ace prn)))   ::  a non-space token
   =/  txt-val  val-t:parse:cmd                        ::  'quoted' or bare text
   %+  rush  txt
@@ -155,6 +171,26 @@
         ;~(pfix ;~(plug hep (just 'd') (plus ace)) tok)
         (cook |=(b=@t [%branch b]) tok)
       ==
+    ==
+  ==
+::  +parse-loose: the second pass — a commit message that was never quoted.
+::
+::    `commit -m some words here` is not git (git makes you quote it), but it
+::    is what a human types, and the strict grammar answered it with
+::    `unrecognized command` and no hint about quotes. Here -m takes the rest
+::    of the line verbatim. Only reached when the strict pass returned ~, so
+::    repeated -m still means paragraphs and nothing already accepted moves.
+::
+++  parse-loose
+  |=  txt=@t
+  ^-  (unit git-command)
+  =/  rest  val-rest:parse:cmd
+  %+  rush  txt
+  %+  cook  |=(m=@t `git-command`[%commit m])
+  ;~  pfix  (jest 'commit')  (plus ace)
+    ;~  pose
+      ;~(pfix ;~(plug hep (just 'm') (plus ace)) rest)
+      ;~(pfix (jest '--message') ;~(pose ;~(pfix tis rest) ;~(pfix (plus ace) rest)))
     ==
   ==
 --

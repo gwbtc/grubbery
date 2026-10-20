@@ -50,6 +50,32 @@
       ::  unescaped cord
       (boss 256 (star ;~(less ace qit)))
     ==
+  ::  +trim-tail: drop trailing spaces and newlines from a tape.
+  ::
+  ++  trim-tail
+    |=  t=tape
+    ^-  tape
+    =/  r=tape  (flop t)
+    |-  ^-  tape
+    ?~  r  ~
+    ?:  |(=(' ' i.r) =(`@`10 i.r))  $(r t.r)
+    (flop r)
+  ::  +val-rest: EVERYTHING that is left, as one cord.
+  ::
+  ::    For a trailing text option whose value runs to the end of the line —
+  ::    a commit message, typically. +val-t stops a bare value at the first
+  ::    space, which is git's own rule (quote it, or it is one word), but an
+  ::    unquoted multi-word message then parsed as its first word and left
+  ::    the rest dangling, so the whole command came back `unrecognized`
+  ::    with no hint that quotes were what it wanted. A verb may offer this
+  ::    as a SECOND pass (see +parse-command) so the strict grammar — where
+  ::    repeated -m means paragraphs — still wins when it fits.
+  ::
+  ::    Trailing whitespace is dropped; inner spacing is kept as written.
+  ::
+  ++  val-rest
+    %+  cook  |=(t=tape (crip (trim-tail t)))
+    (plus ;~(pose prn (just `@`10)))
   ++  value
     |*  kind=opt-kind
     ?-  kind

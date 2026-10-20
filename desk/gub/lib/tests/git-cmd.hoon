@@ -41,8 +41,36 @@
 ++  test-checkout  |.((chk [~ %checkout 'main'] 'checkout main'))
 ++  test-branch  |.((chk [~ %branch 'dev'] 'branch dev'))
 ++  test-branch-del  |.((chk [~ %branch-delete 'dev'] 'branch -d dev'))
+::  commit — an UNQUOTED multi-word message (the second pass). Git makes you
+::  quote this; the strict grammar used to answer it with `unrecognized
+::  command`, which is how a real commit went missing: the lane reports
+::  accepted, not done, so nothing said the quotes were what it wanted.
+++  test-commit-bare-words
+  |.((chk [~ %commit 'hello world'] 'commit -m hello world'))
+++  test-commit-bare-punctuation
+  =/  msg=@t  'itinerary: the trips dir opens bare, like its neighbours'
+  |.((chk [~ %commit msg] (cat 3 'commit -m ' msg)))
+++  test-commit-bare-long
+  |.((chk [~ %commit 'two words'] 'commit --message two words'))
+++  test-commit-bare-long-eq
+  |.((chk [~ %commit 'two words'] 'commit --message=two words'))
+::  trailing whitespace is not part of the message
+++  test-commit-bare-trailing-space
+  |.((chk [~ %commit 'hello world'] 'commit -m hello world   '))
+::  the loose pass must not steal what the strict one already reads: repeated
+::  -m is still paragraphs, not one literal string
+++  test-commit-paragraphs-still-win
+  |.((chk [~ %commit (crip "a\0a\0ab")] 'commit -m "a" -m "b"'))
+++  test-commit-quoted-still-wins
+  |.((chk [~ %commit 'hello world'] 'commit -m "hello world"'))
+::  a quoted message whose text contains a quote still survives the escape
+++  test-commit-escaped-quote
+  |.((chk [~ %commit (crip "say \"hi\"")] (crip "commit -m \"say \\\"hi\\\"\"")))
 ::  garbage rejects
 ++  test-reject-empty  |.((chk ~ ''))
 ++  test-reject-bogus  |.((chk ~ 'frobnicate the widget'))
 ++  test-reject-partial  |.((chk ~ 'checkout'))
+::  the loose pass is COMMIT only: it must not rescue other verbs
+++  test-reject-bogus-verb-with-words  |.((chk ~ 'status please do it'))
+++  test-reject-commit-no-message  |.((chk ~ 'commit'))
 --
