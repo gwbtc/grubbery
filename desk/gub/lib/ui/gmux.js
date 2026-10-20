@@ -127,10 +127,11 @@ const CSS = `
   .ps-nav input::placeholder { color:#8b949e; }
   /* an @name prefix shown as a chip: the field's border moves to the wrapper so
      the chip and the rest of the path read as one box */
-  .ps-chip { display:none; flex:0 0 auto; max-width:55%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:12px ui-monospace,Menlo,monospace; line-height:1; padding:4px 6px; margin:0; border:0; border-radius:4px; background:#dde7f5; color:#0a4ea8; cursor:pointer; }
+  .ps-chip { display:none; flex:0 0 auto; white-space:nowrap; font:12px ui-monospace,Menlo,monospace; line-height:1; padding:4px 6px; margin:0; border:0; border-radius:4px; background:#dde7f5; color:#0a4ea8; cursor:pointer; }
   .ps-chip:hover { background:#cfdef3; }
   .ps-chip.ps-chip-abs { background:#e9edf1; color:#50575e; }
-  .ps-nav.ps-chipped { gap:4px; padding-left:4px; border:1px solid #e2e7ee; background:#fff; border-radius:6px; }
+  .ps-nav.ps-chipped { gap:4px; padding-left:4px; border:1px solid #e2e7ee; background:#fff; border-radius:6px; overflow-x:auto; scrollbar-width:none; }
+  .ps-nav.ps-chipped::-webkit-scrollbar { display:none; }
   .ps-nav.ps-chipped:focus-within { border-color:var(--ps-accent,#0969da); box-shadow:0 0 0 2px rgba(9,105,218,.15); }
   .ps-chipped > .ps-chip { display:block; }
   .ps-nav.ps-chipped input { border:0; border-radius:0; box-shadow:none; padding-left:2px; }
@@ -1822,13 +1823,19 @@ window.attachPathChip = function attachPathChip(input, opts) {
   // field someone may be typing in
   chip.addEventListener('mousedown', (e) => e.preventDefault());
   chip.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); abs = !abs; render(); });
-  const get = () => (cut ? (input.value ? cut.head + '/' + input.value : cut.head) : input.value);
+  // The chip contributes its head to a REST. Typing a whole @path over the
+  // rest means the chip is being replaced, not added to, so it stands aside
+  // rather than doubling its own name onto the front.
+  const get = () => {
+    if (!cut) return input.value;
+    return input.value.startsWith('@') ? input.value : cut.head + input.value;
+  };
   input.addEventListener('keydown', (e) => {
     if (e.key !== 'Backspace' || !cut) return;
     if (input.selectionStart !== 0 || input.selectionEnd !== 0) return;   // only at the very head, nothing selected
     e.preventDefault();
     const head = cut.head, rest = input.value;
-    off = true; abs = false; full = rest ? head + '/' + rest : head;
+    off = true; abs = false; full = head + rest;
     render();
     try { input.setSelectionRange(head.length, head.length); } catch (_) {}
   });

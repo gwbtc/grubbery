@@ -882,7 +882,7 @@ function setup(root, opts) {
     const ns = (path && path.startsWith(PREFIX)) ? path.slice(PREFIX.length) : path;
     const l = psLink(ns);
     if (!l) return null;
-    return { head: l.head, rest: l.rest + (query ? '?' + query : '') };
+    return { head: l.head, rest: (l.rest ? '/' + l.rest : '') + (query ? '?' + query : '') };
   };
   // the chip's other face. The claimant list may not be fetched yet, so this
   // resolves on demand and the chip fills in when the answer lands.
@@ -2647,7 +2647,9 @@ function setup(root, opts) {
       '.mb-kind{flex:0 0 auto;width:10px;height:10px;border-radius:3px;background:#cdd5dd}' +
       '.mb-path{flex:1;min-width:0;font:12px ui-monospace,Menlo,monospace;padding:8px 9px;border:1px solid #d0d7de;border-radius:8px;background:#fff;color:#1f2328}' +
       '.mb-field{flex:1;min-width:0;display:flex;align-items:center}' +
-      '.mb-field.ps-chipped{gap:5px;padding-left:5px;border:1px solid #d0d7de;border-radius:8px;background:#fff}' +
+      '.mb-field.ps-chipped{gap:5px;padding-left:5px;border:1px solid #d0d7de;border-radius:8px;background:#fff;overflow-x:auto;scrollbar-width:none}' +
+      '.mb-field.ps-chipped::-webkit-scrollbar{display:none}' +
+      '.mb-field.ps-chipped .mb-path{flex:1 0 auto;min-width:90px}' +
       '.mb-field.ps-chipped .mb-path{border:0;border-radius:0;padding-left:0}' +
       '.mb-field .ps-chip{font-size:12px;padding:6px 8px;border-radius:6px}' +
       '.mb-bars button.danger{color:#1f2328}' +
@@ -3108,24 +3110,58 @@ function setup(root, opts) {
       orphan = null; seat = addr;
       redraw();                                          // draw re-shapes the history for where we land
     }
-    // Back/forward are NEUTRALISED. On a phone they cannot be prevented — the
-    // edge-swipe is the system's and Chrome navigates on horizontal overscroll
-    // — and while they were real navigation a stray one yanked the seat to an
-    // older entry mid-gesture, which is the jumping that made the dots change
-    // under you. So one spare entry is kept behind us and any pop is answered
-    // by stepping back onto it: the gesture becomes inert instead of wrong.
-    // Moving between the pair is the swipe strip's job, which does it with
-    // direction and an animation. Climbing out is the ⬆ button.
-    let navFix = false;
+    // Back/forward BECOME THE SEATED TAB'S HISTORY. The edge swipe cannot be
+    // prevented on a phone — it is the system's gesture, and Chrome also
+    // navigates on horizontal overscroll — so rather than fight it we give it
+    // the meaning it already looks like it has: swipe back goes back through
+    // the moments of the tab you are sitting in, swipe forward goes forward.
+    // Leaving the app takes a back from a tab with nothing behind it, which
+    // is what back means everywhere else.
+    //
+    // The shape that makes it work is three entries of our own with the caret
+    // parked in the MIDDLE, so there is always one to fall onto in either
+    // direction. Landing on an outer one says which way the gesture went; we
+    // act on it and re-centre. Re-centring is itself a history move, so every
+    // pop it causes is swallowed by `navFix`.
+    let navFix = 0;                                        // pops still owed to our own re-centring
+    let navAt = null;                                      // the index we believe we are parked on
+    const NAV_MID = 1;
     const shapeNav = () => {
       if (navFix) return;
-      try { if ((history.state || {}).nav !== 'here') history.pushState({ nav: 'here' }, ''); } catch (_) {}
+      const st = history.state || {};
+      if (typeof st.nav === 'number') { navAt = st.nav; return; }
+      try {
+        // claim three of our own and sit in the middle. The entry before the
+        // first is the page we came from: two backs from centre, and the
+        // first of those is ours to intercept.
+        history.replaceState({ nav: 0 }, '');
+        history.pushState({ nav: 1 }, '');
+        history.pushState({ nav: 2 }, '');
+        navFix = 1; navAt = NAV_MID;
+        history.go(-1);
+      } catch (_) { navAt = null; }
     };
-    window.addEventListener('popstate', () => {
-      if (navFix) { navFix = false; return; }
-      navFix = true;
-      try { history.pushState({ nav: 'here' }, ''); } catch (_) {}      // step back onto our own entry
-      navFix = false;
+    const recentre = (from) => {
+      // step back to the middle from whichever side we landed on
+      const d = NAV_MID - from;
+      if (!d) return;
+      navFix = 1; navAt = NAV_MID;
+      try { history.go(d); } catch (_) { navFix = 0; }
+    };
+    window.addEventListener('popstate', (e) => {
+      if (navFix) { navFix--; return; }                    // our own re-centring landing
+      const st = (e && e.state) || history.state || {};
+      if (typeof st.nav !== 'number') { navAt = null; return; }   // not one of ours: let it be
+      const was = navAt == null ? NAV_MID : navAt;
+      navAt = st.nav;
+      if (st.nav === was) return;
+      // back is a smaller index, forward a larger one
+      withCursor(() => {
+        const id = model.cursor && model.cursor.id;
+        if (st.nav < was) model.back(id); else model.forward(id);
+        redraw();
+      });
+      recentre(st.nav);
     });
     function routeOpen(addr, path, name) {
       if (!model.cursorToAddr(addr)) return;
