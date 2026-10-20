@@ -3063,7 +3063,11 @@ function setup(root, opts) {
       // same chip as the desktop navbar, same rules: tap it to read where the
       // @name lands, backspace at the head to edit it as text
       const chip = window.attachPathChip ? window.attachPathChip(inp, { parse: psChipParse, alt: psChipAlt }) : null;
-      if (chip) chip.set(shown ? psNs(shown) : ''); else inp.value = shown ? psNs(shown) : '';
+      // the WHOLE moment, ?args and all. psNs keeps only the path, which was
+      // harmless while this field merely displayed one — but Enter commits
+      // what the field holds, so showing a stripped moment quietly threw the
+      // view argument away and the pane fell back to a plain listing.
+      if (chip) chip.set(shown || ''); else inp.value = shown || '';
       inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') { const v = (chip ? chip.get() : inp.value).trim(); if (v) navTo(v); inp.blur(); } });
       const tabs = document.createElement('button'); tabs.className = 'mb-tabs';
       tabs.title = node.tabs.length + ' tab' + (node.tabs.length === 1 ? '' : 's') + ' in this pane';
