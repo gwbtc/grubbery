@@ -1456,20 +1456,21 @@ function setup(root, opts) {
     const el = document.createElement('div');
     el.style.cssText = 'height:100%;overflow:auto';
     el._moment = path;                                                        // what this content shows (updateContent compares against it)
+    const raw = !!(ps.viewOf && ps.viewOf(paneId) === 'raw');                 // the mode this element is FOR, fixed now
     const ns = psNs(path);
-    if (!psLink(ns)) { paneContentAt(ps, paneId, el, path, ns, ns); return el; }
+    if (!psLink(ns)) { paneContentAt(ps, paneId, el, path, ns, ns, raw); return el; }
     // an @name moment: resolve the name first, then render at the place it
     // stands for. The name is followed for the life of this content
     psWait(el, 'resolving', ns);
     el._link = psWatchLink(ps, paneId, el, ns);
-    psResolve(ns).then((abs) => { if (!el._dead) { psClear(el); ps.redrawBars(); paneContentAt(ps, paneId, el, path, ns, abs); } })
+    psResolve(ns).then((abs) => { if (!el._dead) { psClear(el); ps.redrawBars(); paneContentAt(ps, paneId, el, path, ns, abs, raw); } })
       .catch((e) => psWaitFail(el, 'link: ' + (e && e.message ? e.message : e), ns));
     return el;
   }
   // render a moment whose place is known: ns is the moment's own path (what
   // links under it are spelled with, what the tab chips show), abs the place
   // fetched and followed; they differ only under an @name
-  function paneContentAt(ps, paneId, el, path, ns, abs) {
+  function paneContentAt(ps, paneId, el, path, ns, abs, raw) {
     const url = psUrl(abs);
     // route a link: the view says WHAT (a moment, maybe with an offered name);
     // the layout this pane sits in says WHERE (its routing table; in place by
@@ -1482,7 +1483,8 @@ function setup(root, opts) {
     };
     const unroute = (href) => ps.closeFrom(paneId, psMoment(psRel(ns, href)));   // the view says a moment is gone
     el._ctx = { ps, paneId, route };                                        // menus route through the pane's target via this
-    const raw = !!(ps.viewOf && ps.viewOf(paneId) === 'raw');              // toolbar toggle: skip all special rendering
+    // `raw` arrives from paneContent: the mode this element was BUILT for, so
+    // an @name that renders after its link resolves still renders that mode
     if (ACTION_VIEWS[psArgs(path).view]) { actionView(ps, paneId, el, path, abs); return; }   // a form over this path
     if (!raw && /\.layout$/.test(abs)) {                                   // this pane landed ON a layout → become it
       psWait(el, 'opening layout', ns);
@@ -3084,6 +3086,13 @@ function setup(root, opts) {
     // closing a pane with content is asked for first: gmux asks with Enter,
     // which a phone has no way to send, so the ask lives here and the close
     // is forced
+    // the name the MODEL currently holds for a tab. Anything drawn from a
+    // spec snapshot is only true until the next write.
+    const liveLabel = (node, i, fallback) => {
+      if (!model.cursorToAddr(node.addr)) return (fallback && fallback.label) || '';
+      const p = model.cursor, t = p && p.tabs && p.tabs[i];
+      return (t && t.label) || '';
+    };
     // a sheet of rows under a head that takes you back, which is the shape
     // the tab grid already uses. Everything the phone opens over the pane
     // looks and leaves the same way.
@@ -3202,7 +3211,12 @@ function setup(root, opts) {
           e.stopPropagation();
           const inp = document.createElement('input');
           inp.className = 'cap-edit'; inp.type = 'text'; inp.spellcheck = false;
-          inp.value = t.label || '';
+          // the MODEL holds the name, not `t`. The sheet is built once and
+          // survives the redraws that follow a rename, so the tab spec it
+          // captured goes stale the moment you save — reading it back would
+          // load the name you just replaced, and blurring would write it over
+          // the new one.
+          inp.value = liveLabel(node, i, t);
           inp.placeholder = labelOf(preview);                          // empty clears it: the tab describes its entry again
           let done = false;
           const finish = (keep) => {
@@ -3210,6 +3224,7 @@ function setup(root, opts) {
             const v = inp.value.trim();
             inp.replaceWith(label);
             if (!keep) return;
+            if (v === liveLabel(node, i, t)) { label.textContent = v || labelOf(preview); return; }   // nothing changed: nothing to write
             label.textContent = v || labelOf(preview);
             if (!model.cursorToAddr(node.addr)) return;
             model.setTabLabel(model.cursor && model.cursor.id, i, v);
