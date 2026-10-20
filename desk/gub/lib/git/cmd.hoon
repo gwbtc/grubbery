@@ -32,8 +32,19 @@
   ++  val-t
     ;~  pose
       ::  "double quoted" (git/shell convention); may span lines, so a
-      ::  commit message can carry a body
-      (ifix [doq doq] (boss 256 (star ;~(less doq ;~(pose prn (just `@`10))))))
+      ::  commit message can carry a body. \" and \\ are escapes: without
+      ::  them a message that quotes anything ended at its own first quote,
+      ::  the rest parsed as garbage, and the command came back
+      ::  "unrecognized" — which the caller never saw, since the lane
+      ::  reports accepted, not done. A push then said "nothing to push".
+      %+  ifix  [doq doq]
+      %+  boss  256
+      %-  star
+      ;~  pose
+        ;~(pfix bas doq)                        ::  \" is a quote
+        ;~(pfix bas bas)                        ::  \\ is a backslash
+        ;~(less doq ;~(pose prn (just `@`10)))
+      ==
       ::  'single quoted'
       (ifix [soq soq] (boss 256 (star qit)))
       ::  unescaped cord

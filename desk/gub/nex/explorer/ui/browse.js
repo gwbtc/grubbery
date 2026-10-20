@@ -2631,7 +2631,7 @@ function setup(root, opts) {
       '.mb-dots button.on{background:#57606a}' +
       '.mb-kind{flex:0 0 auto;width:10px;height:10px;border-radius:3px;background:#cdd5dd}' +
       '.mb-path{flex:1;min-width:0;font:12px ui-monospace,Menlo,monospace;padding:8px 9px;border:1px solid #d0d7de;border-radius:8px;background:#fff;color:#1f2328}' +
-      '.mb-bars button.danger{color:#cf222e}' +
+      '.mb-bars button.danger{color:#1f2328}' +
       '.mb-tabrow{display:flex;gap:6px;padding:8px 9px 0;overflow-x:auto;scrollbar-width:none}' +
       '.mb-tabrow::-webkit-scrollbar{display:none}' +
       '.mb-tabchip{flex:0 0 auto;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:6px 12px;border:1px solid #d0d7de;border-radius:999px;background:#fff;color:#57606a;max-width:46vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
@@ -2653,7 +2653,7 @@ function setup(root, opts) {
       '.mb-confirm{display:flex;align-items:center;gap:8px;padding:9px 10px;background:#fff8c5;border-top:1px solid #d4a72c;font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}' +
       '.mb-confirm .t{flex:1;color:#4d2d00}' +
       '.mb-confirm button{font:inherit;font-weight:600;padding:7px 12px;border:1px solid #d0d7de;border-radius:8px;background:#fff;color:#1f2328}' +
-      '.mb-confirm button.danger{background:#cf222e;border-color:#b32128;color:#fff}' +
+      '.mb-confirm button.danger{background:#1f2328;border-color:#1f2328;color:#fff}' +
       '.mb-newtab{display:flex;align-items:center;justify-content:center;min-height:130px;border:1px dashed #b9c2cc;border-radius:10px;background:#fff;color:#57606a;font:600 13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}';
     document.head.appendChild(s);
   }
@@ -2978,7 +2978,7 @@ function setup(root, opts) {
       const up = node.parent, tab = node.tab || { entries: [], cursor: -1 };
       const canBack = tab.cursor > 0, canFwd = tab.cursor >= 0 && tab.cursor < tab.entries.length - 1;
       bar.append(
-        b('⬆', 'climb out', !!up, () => goTo(up.addr)),
+        b('▲', 'climb out', !!up, () => goTo(up.addr)),
         b('◀', 'back', canBack, () => withCursor(() => { model.back(model.cursor && model.cursor.id); redraw(); })),
         b('▶', 'forward', canFwd, () => withCursor(() => { model.forward(model.cursor && model.cursor.id); redraw(); })),
         b('↻', 'load this again', true, () => refreshAt(node)));
@@ -3044,7 +3044,7 @@ function setup(root, opts) {
       const old = bars.querySelector('.mb-confirm'); if (old) old.remove();
       const c = document.createElement('div'); c.className = 'mb-confirm';
       const t = document.createElement('div'); t.className = 't';
-      t.textContent = node.kind === 'leaf' ? 'Close this pane?' : 'Close these ' + countLeaves(node) + ' panes?';
+      t.textContent = node.kind === 'leaf' ? 'Close this pane?' : 'Close this pane and all its descendants?';
       const no = document.createElement('button'); no.textContent = 'cancel';
       no.addEventListener('click', () => c.remove());
       const yes = document.createElement('button'); yes.className = 'danger'; yes.textContent = 'close';

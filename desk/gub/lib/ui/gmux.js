@@ -927,6 +927,12 @@ class Gmux extends HTMLElement {
     const was = this.#addrWithin(owner, this.cursor);   // the SLOT the selection is in
     const a = d.a, b = d.b;
     d.a = b; d.b = a;
+    // the ratio belongs to the pane, not to the slot: a sidebar flipped to the
+    // other side keeps ITS share rather than inheriting whatever the side it
+    // moved into happened to have. ratio is always the START pane's fraction,
+    // so swapping the panes inverts it.
+    d.ratio = 1 - d.ratio;
+    if (d.fold) d.fold = d.fold === 'a' ? 'b' : 'a';   // a folded side follows its pane
     d.a.parent = { div: d, slot: 'a' }; d.b.parent = { div: d, slot: 'b' };
     if (d.last) d.last = d.last === 'a' ? 'b' : 'a';   // follows the pane it names
     this.#placePane(d.a, d.sv, 'start'); this.#placePane(d.b, d.sv, 'end');
