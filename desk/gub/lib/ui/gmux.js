@@ -125,6 +125,16 @@ const CSS = `
   .ps-nav input { width:100%; box-sizing:border-box; border:1px solid #e2e7ee; background:#fff; border-radius:6px; padding:3px 8px; font:13px ui-monospace,Menlo,monospace; color:#1f2328; outline:none; }
   .ps-nav input:focus { border-color:var(--ps-accent,#0969da); box-shadow:0 0 0 2px rgba(9,105,218,.15); }
   .ps-nav input::placeholder { color:#8b949e; }
+  /* an @name prefix shown as a chip: the field's border moves to the wrapper so
+     the chip and the rest of the path read as one box */
+  .ps-chip { display:none; flex:0 0 auto; max-width:55%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:12px ui-monospace,Menlo,monospace; line-height:1; padding:4px 6px; margin:0; border:0; border-radius:4px; background:#dde7f5; color:#0a4ea8; cursor:pointer; }
+  .ps-chip:hover { background:#cfdef3; }
+  .ps-chip.ps-chip-abs { background:#e9edf1; color:#50575e; }
+  .ps-nav.ps-chipped { gap:4px; padding-left:4px; border:1px solid #e2e7ee; background:#fff; border-radius:6px; }
+  .ps-nav.ps-chipped:focus-within { border-color:var(--ps-accent,#0969da); box-shadow:0 0 0 2px rgba(9,105,218,.15); }
+  .ps-chipped > .ps-chip { display:block; }
+  .ps-nav.ps-chipped input { border:0; border-radius:0; box-shadow:none; padding-left:2px; }
+  .ps-nav.ps-chipped input:focus { border:0; box-shadow:none; }
   .ps-histmenu { position:absolute; z-index:30; display:none; flex-direction:column; min-width:160px; max-width:320px; max-height:50%; overflow-y:auto; background:#fff; border:1px solid #d0d7de; border-radius:8px; box-shadow:0 6px 20px rgba(0,0,0,.14); padding:4px; }
   .ps-histmenu.on { display:flex; }
   .ps-hm-row { all:unset; cursor:pointer; display:flex; align-items:center; gap:6px; padding:5px 9px; border-radius:6px; font:13px -apple-system,BlinkMacSystemFont,sans-serif; color:#24292f; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -169,6 +179,8 @@ class Gmux extends HTMLElement {
   onNavigate = null;
   tabInfo = null;      // optional (path) => { icon?:string, label?:string } for the tab chip
   pathHint = null;     // optional (path) => string: the navbar's tooltip for a moment (what a symbolic path resolved to)
+  pathChip = null;     // optional (path) => {head,rest}|null: split a leading @name off so the navbar shows it as a chip
+  pathChipAlt = null;  // optional (head) => string|Promise<string>: the place that @name resolves to, for the chip's other face
   updateContent = null; // optional (el, path, paneId) => bool: update the shown content to a new moment in place; false → rebuild
   reloadLayout = null;  // optional (paneId, src) => void: re-read a layout's source and reapplyLayout (a refresh on a layout pane)
   seat = null;                  // the phone client's SEAT: where it sits in the tree.
@@ -339,17 +351,22 @@ class Gmux extends HTMLElement {
     const input = document.createElement('input');
     input.type = 'text'; input.spellcheck = false; input.placeholder = 'path…';
     input.addEventListener('mousedown', (e) => e.stopPropagation());
+    // the chip reads and writes the field, so the handlers go through it
+    // rather than input.value: `get` rejoins the @name with the rest
+    let chip = null;
     input.addEventListener('keydown', (e) => {
       e.stopPropagation();
-      if (e.key === 'Enter') { const v = input.value.trim(); if (v) { this.focusPane(id); this.navigate(id, v); if (this.onNavigate) try { this.onNavigate(id, v); } catch (_) {} } }
-      else if (e.key === 'Escape') { input.value = this.#curPath(id) || ''; input.blur(); }
+      if (e.key === 'Enter') { const v = (chip ? chip.get() : input.value).trim(); if (v) { this.focusPane(id); this.navigate(id, v); if (this.onNavigate) try { this.onNavigate(id, v); } catch (_) {} } }
+      else if (e.key === 'Escape') { const p = this.#curPath(id) || ''; if (chip) chip.set(p); else input.value = p; input.blur(); }
     });
     nav.appendChild(input);
+    if (this.pathChip && window.attachPathChip)
+      chip = window.attachPathChip(input, { parse: (v) => this.pathChip(v), alt: (h) => this.pathChipAlt && this.pathChipAlt(h) });
     // where links from this pane land is the layout's routing table (its
     // `open` rules), edited in the layout file: nothing on the bar sets it
     row2.append(back, fwd, reload, nav);
     bar.append(row1, row2);
-    bar._back = back; bar._fwd = fwd; bar._tabs = tabs; bar._nav = input; bar._view = viewBtn;
+    bar._back = back; bar._fwd = fwd; bar._tabs = tabs; bar._nav = input; bar._view = viewBtn; bar._chip = chip;
     return bar;
   }
 
@@ -401,8 +418,9 @@ class Gmux extends HTMLElement {
     bar._back.disabled = !this.#canBack(pane);
     bar._fwd.disabled = !this.#canFwd(pane);
     const navVal = e ? ((e.div || e.pane) ? (this.#entrySrc(e) || '') : (e.path != null ? e.path : '')) : '';
-    if (bar._nav !== document.activeElement) bar._nav.value = navVal;
-    bar._nav.placeholder = (e && (e.div || e.pane)) ? (this.#entrySrc(e) || 'layout') : 'path…';
+    if (bar._nav !== document.activeElement) { if (bar._chip) bar._chip.set(navVal); else bar._nav.value = navVal; }
+    const ph = (e && (e.div || e.pane)) ? (this.#entrySrc(e) || 'layout') : 'path…';
+    bar._nav.placeholder = (bar._chip && bar._chip.chipped && !bar._nav.value) ? '' : ph;
     let hint = ''; if (this.pathHint && navVal) { try { hint = this.pathHint(navVal) || ''; } catch (_) {} }
     bar._nav.title = hint;
     // per-pane render-mode toggle — an ACTION button, so it shows the mode it
@@ -1762,5 +1780,61 @@ function firstVisibleLeaf(pane, ps) {
   if (e && e.pane) return firstVisibleLeaf(e.pane, ps);
   return pane;
 }
+
+// attachPathChip: show a path's leading @name as a CHIP instead of text.
+//
+// The chip is the resting state and plain text is the editing state. Clicking
+// the chip swaps what it READS between the name and the place it resolves to;
+// it never changes what the field commits, because `@clanker/x` is how the
+// moment is stored and written — the absolute form is a readout. Backspace
+// with the caret at the head dissolves the chip back into literal text, and
+// the field re-chips when it settles (blur, or a fresh value set on it).
+//
+// Re-chipping as you type would fight you — `@cl` would snap shut mid-word —
+// so nothing re-chips while the field has focus.
+//
+//   opts.parse(value)  -> {head, rest} | null   head is the literal '@name'
+//   opts.alt(head)     -> string | Promise<string> | null   where it resolves
+//
+// Returns { set(value), get(), el } — `get` is the full stored path, chip and
+// rest rejoined, so callers read it instead of input.value.
+window.attachPathChip = function attachPathChip(input, opts) {
+  const wrap = input.parentNode;
+  const chip = document.createElement('button');
+  chip.type = 'button'; chip.className = 'ps-chip'; chip.tabIndex = -1;
+  wrap.insertBefore(chip, input);
+  let full = '', abs = false, off = false, cut = null;   // cut: the parse the chip is showing
+  const render = () => {
+    cut = off ? null : (() => { try { return opts.parse(full); } catch (_) { return null; } })();
+    wrap.classList.toggle('ps-chipped', !!cut);
+    if (!cut) { input.value = full; return; }
+    input.value = cut.rest;
+    const show = (t) => { chip.textContent = t; chip.classList.toggle('ps-chip-abs', abs && t !== cut.head); };
+    if (!abs) { show(cut.head); chip.title = 'click to see where ' + cut.head + ' resolves to'; return; }
+    chip.title = 'click to go back to ' + cut.head;
+    let a = null; try { a = opts.alt ? opts.alt(cut.head) : null; } catch (_) {}
+    if (a && typeof a.then === 'function') {
+      const was = cut.head; show('resolving…');
+      a.then((t) => { if (cut && cut.head === was && abs) show(t || was); }, () => { if (cut && cut.head === was && abs) show(was); });
+    } else show(a || cut.head);
+  };
+  // the chip is a readout, so toggling it must not take the caret out of the
+  // field someone may be typing in
+  chip.addEventListener('mousedown', (e) => e.preventDefault());
+  chip.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); abs = !abs; render(); });
+  const get = () => (cut ? (input.value ? cut.head + '/' + input.value : cut.head) : input.value);
+  input.addEventListener('keydown', (e) => {
+    if (e.key !== 'Backspace' || !cut) return;
+    if (input.selectionStart !== 0 || input.selectionEnd !== 0) return;   // only at the very head, nothing selected
+    e.preventDefault();
+    const head = cut.head, rest = input.value;
+    off = true; abs = false; full = rest ? head + '/' + rest : head;
+    render();
+    try { input.setSelectionRange(head.length, head.length); } catch (_) {}
+  });
+  // settling re-chips: what you left behind is a stored path again
+  input.addEventListener('blur', () => { full = get(); off = false; render(); });
+  return { el: chip, get, get chipped() { return !!cut; }, set(v) { full = v == null ? '' : String(v); off = false; abs = false; render(); } };
+};
 
 customElements.define('gmux-host', Gmux);

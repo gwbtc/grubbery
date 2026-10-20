@@ -874,6 +874,22 @@ function setup(root, opts) {
     return p;
   };
   const psResolved = new Map();                                             // symbolic ns → resolved ns (for hints)
+  // the navbar chip: split a moment's leading @name off the rest so the field
+  // can show the name as a chip. ?args ride along on the rest, so rejoining
+  // head + '/' + rest gives back exactly what was there.
+  const psChipParse = (p) => {
+    const { path, query } = psSplit(p || '');
+    const ns = (path && path.startsWith(PREFIX)) ? path.slice(PREFIX.length) : path;
+    const l = psLink(ns);
+    if (!l) return null;
+    return { head: l.head, rest: l.rest + (query ? '?' + query : '') };
+  };
+  // the chip's other face. The claimant list may not be fetched yet, so this
+  // resolves on demand and the chip fills in when the answer lands.
+  const psChipAlt = (head) => {
+    const got = psResolved.get(head);
+    return got != null ? got : psResolve(head).catch(() => head);
+  };
   // the absolute path a symbolic ns stands for; rejects with a reason when
   // the name has no claimant (or not that many), or a file lane gets a suffix
   async function psResolve(ns) {
@@ -2630,6 +2646,10 @@ function setup(root, opts) {
       '.mb-dots button.on{background:#57606a}' +
       '.mb-kind{flex:0 0 auto;width:10px;height:10px;border-radius:3px;background:#cdd5dd}' +
       '.mb-path{flex:1;min-width:0;font:12px ui-monospace,Menlo,monospace;padding:8px 9px;border:1px solid #d0d7de;border-radius:8px;background:#fff;color:#1f2328}' +
+      '.mb-field{flex:1;min-width:0;display:flex;align-items:center}' +
+      '.mb-field.ps-chipped{gap:5px;padding-left:5px;border:1px solid #d0d7de;border-radius:8px;background:#fff}' +
+      '.mb-field.ps-chipped .mb-path{border:0;border-radius:0;padding-left:0}' +
+      '.mb-field .ps-chip{font-size:12px;padding:6px 8px;border-radius:6px}' +
       '.mb-bars button.danger{color:#1f2328}' +
       '.mb-tabrow{display:flex;gap:6px;padding:8px 9px 0;overflow-x:auto;scrollbar-width:none}' +
       '.mb-tabrow::-webkit-scrollbar{display:none}' +
@@ -2990,15 +3010,20 @@ function setup(root, opts) {
       // desktop navbar does: a layout is a moment, so @clanker stays @clanker
       const shown = node.kind === 'leaf' ? node.path : srcOf(node);
       const kind = document.createElement('span'); kind.className = 'mb-kind';
+      const field = document.createElement('span'); field.className = 'mb-field';
       const inp = document.createElement('input'); inp.className = 'mb-path'; inp.type = 'text'; inp.spellcheck = false;
-      inp.value = shown ? psNs(shown) : '';
       inp.placeholder = node.kind === 'leaf' ? 'path…' : 'layout';
-      inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') { const v = inp.value.trim(); if (v) navTo(v); inp.blur(); } });
+      field.appendChild(inp);
+      // same chip as the desktop navbar, same rules: tap it to read where the
+      // @name lands, backspace at the head to edit it as text
+      const chip = window.attachPathChip ? window.attachPathChip(inp, { parse: psChipParse, alt: psChipAlt }) : null;
+      if (chip) chip.set(shown ? psNs(shown) : ''); else inp.value = shown ? psNs(shown) : '';
+      inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') { const v = (chip ? chip.get() : inp.value).trim(); if (v) navTo(v); inp.blur(); } });
       const tabs = document.createElement('button'); tabs.className = 'mb-tabs';
       tabs.title = node.tabs.length + ' tab' + (node.tabs.length === 1 ? '' : 's') + ' in this pane';
       tabs.append(Object.assign(document.createElement('span'), { textContent: '⧉' }), document.createTextNode(String(node.tabs.length)));
       tabs.addEventListener('click', () => openTabs(node));
-      pathRow.append(kind, inp, tabs);
+      pathRow.append(kind, field, tabs);
     }
     // a pane showing nothing has nothing to lose: it closes on the tap, the
     // way gmux closes an empty one without arming the ask
@@ -3337,6 +3362,8 @@ function setup(root, opts) {
     ps.renderPath = (path, paneId) => paneContent(ps, paneId, path);
     ps.tabInfo = paneTabInfo;
     ps.pathHint = (p) => { const ns = psNs(p); return psLink(ns) ? (psResolved.get(ns) || 'resolving ' + ns) : ''; };   // an @name moment's tooltip: where it landed
+    ps.pathChip = psChipParse;
+    ps.pathChipAlt = psChipAlt;
     // the same path with new ?args: a viewer that takes args (onArgs on what
     // mount returned) is handed them and stays mounted, so a docs pane turns
     // the page without a remount, a wait block, or a refetch of its nav.
