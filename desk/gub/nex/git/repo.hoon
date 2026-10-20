@@ -165,23 +165,37 @@
 ++  op-stash
   =/  m  (fiber:fiber:nexus ,outcome:git-act)
   ^-  form:m
+  ::  nothing to put away, and nothing that said so: stashing a clean tree
+  ::  answered 'stashed' and pushed no entry, so the pop that followed had
+  ::  nothing to find and said 'stash popped' about it
+  ;<  clean=?  bind:m  working-tree-clean
+  ?:  clean  (pure:m [%error 'nothing to stash — the working tree is clean'])
+  ;<  before=@ud  bind:m  stash-depth
   ;<  req-rd=road:tarball  bind:m
     (ancestor-road:io [/git %repo] [%& /data %'stash-request.sig'])
   ;<  ~  bind:m  (write-repo-file req-rd [[/ %sig] ~])
   ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
   ;<  ~  bind:m  (reload:io data-rd)
-  (pure:m [%ok 'stashed'])
+  ;<  after=@ud  bind:m  stash-depth
+  ?:  (lte after before)
+    (pure:m [%error 'stash failed — the stack did not grow'])
+  (pure:m [%ok (crip "stashed — {(scow %ud after)} on the stack")])
 ::  +op-stash-pop: pop the most recent stash onto the working tree.
 ::
 ++  op-stash-pop
   =/  m  (fiber:fiber:nexus ,outcome:git-act)
   ^-  form:m
+  ;<  before=@ud  bind:m  stash-depth
+  ?:  =(0 before)  (pure:m [%error 'no stash to pop — the stack is empty'])
   ;<  req-rd=road:tarball  bind:m
     (ancestor-road:io [/git %repo] [%& /data %'stash-pop-request.sig'])
   ;<  ~  bind:m  (write-repo-file req-rd [[/ %sig] ~])
   ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
   ;<  ~  bind:m  (reload:io data-rd)
-  (pure:m [%ok 'stash popped'])
+  ;<  after=@ud  bind:m  stash-depth
+  ?:  (gte after before)
+    (pure:m [%error 'stash pop failed — the stack did not shrink'])
+  (pure:m [%ok (crip "popped — {(scow %ud after)} left on the stack")])
 ::  +op-stash-list: report the stash stack (from data/ui/stash.json, which
 ::  the data nexus builds from the reflog) as a one-line lane summary.
 ::
@@ -222,6 +236,17 @@
   ?+  cl  (pure:m %.n)
     [~ %b %.y]  (pure:m %.y)
   ==
+::  +stash-depth: how many entries the stash stack holds (data/ui/stash.json,
+::  which the data nexus builds from the reflog); 0 when unknown or empty.
+::
+++  stash-depth
+  =/  m  (fiber:fiber:nexus ,@ud)
+  ^-  form:m
+  ;<  road=road:tarball  bind:m
+    (ancestor-road:io [/git %repo] [%& /data/ui %'stash.json'])
+  ;<  =view:nexus  bind:m  (peek:io road `[/ %json])
+  =/  jon=json  (view-to-json view)
+  (pure:m ?:(?=(%a -.jon) (lent p.jon) 0))
 ::  +staged-count: how many paths the index holds that HEAD does not
 ::  (data/ui/status.json "staged"); 0 when unknown.
 ::
