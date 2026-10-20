@@ -222,6 +222,20 @@
   ?+  cl  (pure:m %.n)
     [~ %b %.y]  (pure:m %.y)
   ==
+::  +staged-count: how many paths the index holds that HEAD does not
+::  (data/ui/status.json "staged"); 0 when unknown.
+::
+++  staged-count
+  =/  m  (fiber:fiber:nexus ,@ud)
+  ^-  form:m
+  ;<  status-rd=road:tarball  bind:m
+    (ancestor-road:io [/git %repo] [%& /data/ui %'status.json'])
+  ;<  status-view=view:nexus  bind:m  (peek:io status-rd `[/ %json])
+  =/  status-json=json  (view-to-json status-view)
+  ?.  ?=(%o -.status-json)  (pure:m 0)
+  =/  st  (~(get by p.status-json) 'staged')
+  ?.  ?=([~ %a *] st)  (pure:m 0)
+  (pure:m (lent p.u.st))
 ::  +local-ahead: how many local commits the remote-tracking ref lacks
 ::  (data/ui/status.json "ahead"); 0 when unknown.
 ::
@@ -358,11 +372,24 @@
     (ancestor-road:io [/git %repo] [%& /data %'add-request.json'])
   ;<  ~  bind:m  (write-repo-file req-rd [[/ %json] req])
   ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
+  ::  what was staged BEFORE, so the report can be about what this add did
+  ::  rather than about what it was asked to do. Naming a path that matches
+  ::  nothing — `add .`, which is a literal path here and not git's "all" —
+  ::  used to answer "staged 1 path(s)" and stage nothing, and the commit
+  ::  after it then found no changes and said nothing at all.
+  ;<  before=@ud  bind:m  staged-count
   ;<  ~  bind:m  (reload:io data-rd)
-  =/  msg=@t
-    ?~  paths  'staged all changes'
-    (crip "staged {(scow %ud (lent paths))} path(s)")
-  (pure:m [%ok msg])
+  ;<  after=@ud  bind:m  staged-count
+  ?:  =(before after)
+    ?~  paths
+      (pure:m [%ok 'nothing to stage — the working tree matches the index'])
+    %-  pure:m
+    :-  %error
+    %-  crip
+    "staged nothing: no such path(s) in the working tree (plain `add` stages everything)"
+  %-  pure:m
+  :-  %ok
+  (crip "staged {(scow %ud (sub after before))} path(s)")
 ::  +op-commit: create a local commit from the staged tree.
 ::
 ++  op-commit
@@ -389,8 +416,20 @@
     (ancestor-road:io [/git %repo] [%& /data %'commit-request.json'])
   ;<  ~  bind:m  (write-repo-file req-rd [[/ %json] req])
   ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
+  ::  HEAD before and after. The data nexus builds the tree from the INDEX
+  ::  and, when it matches the parent's, drops the request and commits
+  ::  nothing — so reporting success off the back of writing the request
+  ::  reported a commit that was never made. Ask HEAD instead.
+  ;<  before=@t  bind:m  resolve-head
   ;<  ~  bind:m  (reload:io data-rd)
-  (pure:m [%ok (crip "committed: {(trip message)}")])
+  ;<  after=@t  bind:m  resolve-head
+  ?:  =(before after)
+    %-  pure:m
+    :-  %error
+    'nothing to commit — the staged tree matches HEAD (stage your changes first)'
+  %-  pure:m
+  :-  %ok
+  (crip "committed {(trip (end [3 7] after))}: {(trip message)}")
 ::  +op-pull: fetch from the remote and check out the tracked ref — the full
 ::  transport logic (formerly /actions/sync.sig), now inline in the lane:
 ::  discovery, resolve+pin the default ref, then an incremental fetch or a
