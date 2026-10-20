@@ -2753,7 +2753,6 @@ function setup(root, opts) {
       return n;
     }
     const find = (n, addr) => { if (n.addr === addr) return n; for (const k of n.kids) { const f = find(k, addr); if (f) return f; } return null; };
-    const holds = (n, addr) => !!find(n, addr);
     const nearest = (addr) => {
       const segs = addr === '.' ? [] : addr.split('/');
       for (let i = segs.length; i >= 0; i -= 2) {
@@ -2868,7 +2867,6 @@ function setup(root, opts) {
         const box = document.createElement('div'); box.className = 'mb-content';
         box.appendChild(contentFor(n));
         el.appendChild(box);
-        wireTarget(el, n);
       } else if (n.kind === 'div') {
         const box = document.createElement('div'); box.className = 'mb-split';
         box.style.background = 'rgba(31,35,40,' + Math.min(0.05 + depth * 0.045, 0.2) + ')';
@@ -2883,7 +2881,6 @@ function setup(root, opts) {
         const box = document.createElement('div'); box.className = 'mb-content';
         box.appendChild(contentFor(n));
         el.appendChild(box);
-        wireTarget(el, n);
       } else {
         const t = document.createElement('div'); t.className = 'mb-tile' + (n.path ? '' : ' mb-empty');
         if (!bar) {                                                    // no bar, so the block carries the name
@@ -3097,10 +3094,8 @@ function setup(root, opts) {
       back.addEventListener('click', () => sheet.remove());
       const title = document.createElement('div'); title.className = 't'; title.textContent = titleText;
       head.append(back, title);
-      head.addEventListener('click', (e) => { if (e.target === head || e.target === title) sheet.remove(); });
       const list = document.createElement('div'); list.className = 'mb-hist';
       sheet.append(head, list);
-      sheet.addEventListener('click', (e) => { if (e.target === sheet || e.target === list) sheet.remove(); });
       fill(list, () => sheet.remove());
       root.appendChild(sheet);
       return sheet;
@@ -3109,22 +3104,25 @@ function setup(root, opts) {
     // that already had a tap, which on a phone fights the browser's own
     // selection and context menu — so they get a button that is only theirs.
     function openMore(node, anchor) {
-      const old = root.querySelector('.mb-menu'); if (old) old.remove();
+      const old = root.querySelector('.mb-menu');
+      if (old) { old.__off && old.__off(); old.remove(); if (old.__for === anchor) return; }   // same button again: that was a close
       const menu = document.createElement('div'); menu.className = 'mb-menu';
       const row = (label, on, fn) => {
         const x = document.createElement('button'); x.textContent = label; x.disabled = !on;
-        if (on) x.addEventListener('click', (e) => { e.stopPropagation(); menu.remove(); fn(); });
+        if (on) x.addEventListener('click', (e) => { e.stopPropagation(); menu.__off && menu.__off(); menu.remove(); fn(); });
         menu.appendChild(x);
       };
       const tab = node.tab || { entries: [], cursor: -1 };
       row('history', tab.entries.length > 1, () => openHist(node));
       row('go to root', seat !== '.', () => goTo('.'));
+      menu.__for = anchor;
       root.appendChild(menu);
       // sit above the button it came from, pinned to the right edge like it
       const r = anchor.getBoundingClientRect(), rr = root.getBoundingClientRect();
       menu.style.right = Math.max(6, rr.right - r.right) + 'px';
       menu.style.bottom = (rr.bottom - r.top + 6) + 'px';
-      const away = (e) => { if (!menu.contains(e.target) && e.target !== anchor) { menu.remove(); document.removeEventListener('pointerdown', away, true); } };
+      const away = (e) => { if (!menu.contains(e.target) && e.target !== anchor) { menu.__off(); menu.remove(); } };
+      menu.__off = () => document.removeEventListener('pointerdown', away, true);
       setTimeout(() => document.addEventListener('pointerdown', away, true), 0);
     }
     // the whole line of this tab, newest first, with where you are marked.
@@ -3184,8 +3182,7 @@ function setup(root, opts) {
       title.textContent = node.tabs.length + ' tab' + (node.tabs.length === 1 ? '' : 's');
       const back = document.createElement('button'); back.textContent = '‹'; back.title = 'back to the pane';
       back.addEventListener('click', () => sheet.remove());
-      head.append(back, title);                                        // the head goes back; + to add is the last card
-      head.addEventListener('click', (e) => { if (e.target === head || e.target === title) sheet.remove(); });
+      head.append(back, title);                                        // leaves by the back button; + to add is the last card
       const grid = document.createElement('div'); grid.className = 'mb-grid';
       node.tabs.forEach((t, i) => {
         const preview = mkNode(Object.assign({}, node.spec, { activeTab: i }), node.addr, node.parent, node.slot);
@@ -3241,7 +3238,6 @@ function setup(root, opts) {
       more.addEventListener('click', () => { if (model.cursorToAddr(node.addr)) { model.newTab(model.cursor && model.cursor.id, '/'); sheet.remove(); redraw(); } });
       grid.appendChild(more);
       sheet.append(head, grid);
-      sheet.addEventListener('click', (e) => { if (e.target === sheet || e.target === grid) sheet.remove(); });   // tap past the cards to back out
       root.appendChild(sheet);                                       // over everything, and not wiped by a redraw of the body
     }
     // drop this pane's cached content (and anything under it) and build again
@@ -3331,13 +3327,8 @@ function setup(root, opts) {
       const here = from && from.path ? psNs(from.path) : null;
       const to = here ? psMoment(psRel(here, path)) : path;
       model.openFrom(model.cursor && model.cursor.id, to, name);
-      // gmux SELECTS what it opened. A link in a sidebar lands in the pane the
-      // layout routes it to, and that pane is usually already on screen beside
-      // the sidebar, so the aperture stays put and the mark moves. Only when
-      // the destination is somewhere you cannot see from here do you follow it.
       const dest = model.cursorAddr();
-      const seen = find(treeOf(model.serialize()), seat);
-      if (dest && !(seen && holds(seen, dest))) seat = dest;
+      if (dest) seat = dest;
       redraw();
     }
     function navTo(path) { withCursor(() => { model.navigate(null, path); redraw(); }); }
