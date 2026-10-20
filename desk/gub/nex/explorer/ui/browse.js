@@ -2599,12 +2599,14 @@ function setup(root, opts) {
       '.mb-leaf.mb-group > .mb-split{flex:1;min-height:0}' +
       // what a pane IS, said in colour: the owning app's tile colour, carried
       // on a strip when the content is live and over the whole tile when not
-      '.mb-head{position:relative;flex:0 0 auto;display:flex;align-items:stretch;gap:0;padding:0 7px;color:#fff;font:600 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow-x:auto;scrollbar-width:none}' +
+      // the pane head is part of the container, not a label stuck on content:
+      // the same ground, border and ink as the bar at the bottom of the screen
+      '.mb-head{position:relative;flex:0 0 auto;display:flex;align-items:stretch;gap:0;padding:0 7px;background:#f6f8fa;border-bottom:1px solid #d0d7de;color:#1f2328;font:600 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow-x:auto;scrollbar-width:none}' +
       '.mb-head::-webkit-scrollbar{display:none}' +
       '.mb-head .mb-g,.mb-head .mb-n{align-self:center;padding:4px 0}' +
       '.mb-head .mb-g{margin-right:6px}' +
-      '.mb-tab{flex:0 0 auto;padding:6px 10px 4px;border-bottom:2px solid transparent;opacity:.6;white-space:nowrap;max-width:42vw;overflow:hidden;text-overflow:ellipsis;cursor:pointer}' +
-      '.mb-tab.on{opacity:1;border-bottom-color:currentColor}' +
+      '.mb-tab{flex:0 0 auto;padding:6px 10px 4px;border-bottom:2px solid transparent;color:#57606a;white-space:nowrap;max-width:42vw;overflow:hidden;text-overflow:ellipsis;cursor:pointer}' +
+      '.mb-tab.on{color:#1f2328;border-bottom-color:#1f2328}' +
       '.mb-head .mb-g{font-size:12px;opacity:.9}' +
       '.mb-head .mb-n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
       '.mb-content{flex:1;min-height:0;overflow:hidden;position:relative}' +
@@ -2615,7 +2617,6 @@ function setup(root, opts) {
       '.mb-tile.mb-empty{background:#f6f8fa;color:#8c959f;border:1px dashed #cdd5dd;border-radius:7px;font-weight:400}' +
       '.mb-glyph{font-size:20px;line-height:1}' +
       '.mb-head .mb-tabn{margin-left:auto;flex:0 0 auto;font-weight:700;opacity:.9}' +
-      '.mb-head-empty{background:#e7ebf0;color:#57606a}' +
       '.mb-work{box-shadow:0 0 0 2px #1a7f37}' +
 
       '.mb-bars{flex:0 0 auto;border-top:1px solid #d0d7de;background:#f6f8fa;font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}' +
@@ -2733,24 +2734,6 @@ function setup(root, opts) {
     // never an ancestor's: a level with no sibling has nowhere lateral to go
     const sibling = (n, slot) => { const p = n.parent; if (!p || p.kind !== 'div') return null; const k = p.kids.find((x) => x.slot === slot); return (k && k !== n) ? k : null; };
 
-    // ---- app identity, for the low rungs ----
-    const tiles = new Map();
-    const BRANCH = { sys: ['#4c5667', '⚙'], code: ['#5b4bb5', '{}'], docs: ['#1f8a7d', '¶'], apps: ['#4a9de5', '▣'], root: ['#6e7781', '⌂'] };
-    const identOf = (path) => {
-      const ns = psNs(path || '/') || '/';
-      const m = /^\/apps\/([^/]+)/.exec(ns);
-      const branch = ns.split('/')[1] || 'root';
-      const key = m ? m[1] : branch;
-      let info = tiles.get(key);
-      if (info) return info;
-      const b = BRANCH[branch] || BRANCH.root;
-      info = { color: b[0], glyph: m ? '▣' : b[1] };
-      tiles.set(key, info);
-      if (m) fetch(PREFIX + '/apps/' + m[1] + '/tile.json?raw=1').then((r) => r.ok ? r.json() : null)
-        .then((j) => { if (j && j.color) { info.color = j.color; redraw(); } }).catch(() => {});
-      return info;
-    };
-
     // ---- rendering ----
     // THE SEAT: where this client sits in the tree. The phone shows one level,
     // so it needs no selector — nothing to disambiguate — and it must not write
@@ -2785,7 +2768,7 @@ function setup(root, opts) {
     // BAR: its tabs when it holds more than one, else its name. The bar is
     // also the handle: tapping it steps into that pane, the way clicking a
     // pane's bar selects it on the desktop.
-    function barEl(n, id, standing) {
+    function barEl(n, standing) {
       const many = n.tabs.length > 1;
       // A pane that is one of a division's two sides ALWAYS wears its bar,
       // standing on it or not: climbing onto it takes you from one dot to two,
@@ -2794,8 +2777,7 @@ function setup(root, opts) {
       // to show — the bar at the bottom of the screen names that one.
       const half = !!(n.parent && n.parent.kind === 'div');
       if (standing && !many && !half) return null;
-      const strip = document.createElement('div'); strip.className = 'mb-head' + (id ? '' : ' mb-head-empty');
-      if (id) strip.style.background = id.color;
+      const strip = document.createElement('div'); strip.className = 'mb-head';
       strip.addEventListener('pointerup', (e) => { e.stopPropagation(); });
       strip.addEventListener('click', (e) => { e.stopPropagation(); goTo(n.addr); });
       if (many) {
@@ -2817,7 +2799,7 @@ function setup(root, opts) {
           strip.appendChild(tabEl);
         });
       } else {
-        const glyph = id ? id.glyph : tabIcon(n.tab);
+        const glyph = tabIcon(n.tab);
         if (glyph) { const g = document.createElement('span'); g.className = 'mb-g'; g.textContent = glyph; strip.appendChild(g); }
         const nm = document.createElement('span'); nm.className = 'mb-n'; nm.textContent = tabLabel(n.tab);
         strip.appendChild(nm);
@@ -2832,8 +2814,7 @@ function setup(root, opts) {
       el.className = 'mb-leaf' + (n.kind === 'leaf' ? '' : ' mb-group');
       el.dataset.addr = n.addr;
       if (n.addr === cursorAddr) el.classList.add('mb-work');
-      const id = n.kind === 'leaf' && n.path ? identOf(n.path) : null;
-      const bar = h >= MB_NAME ? barEl(n, id, standing) : null;
+      const bar = h >= MB_NAME ? barEl(n, standing) : null;
       if (bar) el.appendChild(bar);
       const inner = h - (bar ? MB_BAR : 0);
       if (n.kind === 'div') {
@@ -2853,9 +2834,7 @@ function setup(root, opts) {
         wireTarget(el, n);
       } else {
         const t = document.createElement('div'); t.className = 'mb-tile' + (n.path ? '' : ' mb-empty');
-        if (id) t.style.background = id.color;
         if (!bar) {                                                    // no bar, so the block carries the name
-          if (inner >= MB_ICON && id) t.appendChild(Object.assign(document.createElement('div'), { className: 'mb-glyph', textContent: id.glyph }));
           if (inner >= MB_NAME) t.appendChild(Object.assign(document.createElement('div'), { textContent: n.path ? labelOf(n) : 'empty' }));
         }
         el.appendChild(t);
@@ -3016,7 +2995,6 @@ function setup(root, opts) {
       // desktop navbar does: a layout is a moment, so @clanker stays @clanker
       const shown = node.kind === 'leaf' ? node.path : srcOf(node);
       const kind = document.createElement('span'); kind.className = 'mb-kind';
-      if (shown) kind.style.background = identOf(shown).color;
       const inp = document.createElement('input'); inp.className = 'mb-path'; inp.type = 'text'; inp.spellcheck = false;
       inp.value = shown ? psNs(shown) : '';
       inp.placeholder = node.kind === 'leaf' ? 'path…' : 'layout';
@@ -3069,7 +3047,6 @@ function setup(root, opts) {
         shot.appendChild(levelEl(preview, 150, null, 0, false));
         const cap = document.createElement('div'); cap.className = 'cap';
         const dot = document.createElement('span'); dot.className = 'mb-kind';
-        if (preview.kind === 'leaf' && preview.path) dot.style.background = identOf(preview.path).color;
         const label = document.createElement('span'); label.className = 't';
         label.textContent = t.label || labelOf(preview);
         cap.append(dot, label);
