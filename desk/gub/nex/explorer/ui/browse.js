@@ -2664,6 +2664,9 @@ function setup(root, opts) {
       '.mb-sheet-head{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:10px 12px;background:#f6f8fa;border-bottom:1px solid #d0d7de;font:600 13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}' +
       '.mb-sheet-head .t{flex:1;color:#57606a;font-weight:400}' +
       '.mb-sheet-head button{font:inherit;padding:7px 11px;border:1px solid #d0d7de;border-radius:8px;background:#fff;color:#1f2328}' +
+      '.mb-hist{flex:1;min-height:0;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:6px}' +
+      '.mb-hist button{text-align:left;font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:12px 12px;border:1px solid #d0d7de;border-radius:8px;background:#fff;color:#1f2328;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+      '.mb-card .ren{position:absolute;top:4px;left:4px;z-index:2;font:inherit;padding:3px 7px;border:1px solid #d0d7de;border-radius:7px;background:#fff;color:#1f2328;line-height:1}' +
       '.mb-grid{flex:1;min-height:0;overflow:auto;display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px;align-content:start}' +
       '.mb-card{position:relative;display:flex;flex-direction:column;border-radius:10px;overflow:hidden;background:#fff;border:1px solid #cdd5dd}' +
       '.mb-card.on{box-shadow:0 0 0 2px #0969da}' +
@@ -2881,11 +2884,16 @@ function setup(root, opts) {
     // address key would remount both for no reason; two panes on the same
     // moment are interchangeable anyway, so a pool per path is enough. A
     // mount is dropped only when the workspace stops holding that moment.
-    const pool = new Map();                 // path -> [content elements]
+    const pool = new Map();                 // path + mode -> [content elements]
     const scrollOf = new Map();             // element -> where it was scrolled
     let claimed = new Set();
+    // the mode is part of the identity: a path shown raw and the same path
+    // shown rendered are two different renderings, both worth keeping
+    const poolKey = (n) => (n.path || '') + '\u0000' + ((n.spec && n.spec.view) || '');
+    // the first mode is the default and is stored as no view at all
+    const poolModes = () => (model.viewModes || []).map((v, i) => (i ? v.id : '')).concat((model.viewModes || []).length ? [] : ['']);
     const contentFor = (n) => {
-      const path = n.path || '';
+      const path = poolKey(n);
       let list = pool.get(path);
       if (!list) { list = []; pool.set(path, list); }
       let el = list.find((e) => !claimed.has(e));
@@ -2908,7 +2916,7 @@ function setup(root, opts) {
         const e = t && t.cursor >= 0 ? t.entries[t.cursor] : null;
         if (e && e.div) { pathCounts(e.div.a, acc); pathCounts(e.div.b, acc); }
         else if (e && e.pane) pathCounts(e.pane, acc);
-        else { const k = (e && e.path) || ''; acc.set(k, (acc.get(k) || 0) + 1); }
+        else { const k = (e && e.path) || ''; for (const m of poolModes()) acc.set(k + '\u0000' + m, (acc.get(k + '\u0000' + m) || 0) + 1); }
       });
       return acc;
     };
@@ -2992,17 +3000,19 @@ function setup(root, opts) {
       const up = node.parent, tab = node.tab || { entries: [], cursor: -1 };
       const canBack = tab.cursor > 0, canFwd = tab.cursor >= 0 && tab.cursor < tab.entries.length - 1;
       bar.append(
-        b('▲', 'climb out', !!up, () => goTo(up.addr)),
-        b('◀', 'back', canBack, () => withCursor(() => { model.back(model.cursor && model.cursor.id); redraw(); })),
-        b('▶', 'forward', canFwd, () => withCursor(() => { model.forward(model.cursor && model.cursor.id); redraw(); })),
-        b('↻', 'load this again', true, () => refreshAt(node)),
-        viewBtn(node),
-        b('✎\uFE0E', 'name this tab', node.kind === 'leaf' || !!node.tab, () => askName(node)));
+        hold(b('▲', 'climb out — hold to go all the way out', !!up, () => goTo(up.addr)),
+             () => { if (seat !== '.') goTo('.'); }),
+        hold(b('◀', 'back — hold for this tab\u2019s history', canBack, () => withCursor(() => { model.back(model.cursor && model.cursor.id); redraw(); })),
+             () => openHist(node, 'back')),
+        hold(b('▶', 'forward — hold for this tab\u2019s history', canFwd, () => withCursor(() => { model.forward(model.cursor && model.cursor.id); redraw(); })),
+             () => openHist(node, 'forward')),
+        b('↻', 'load this again', true, () => refreshAt(node)));
       bar.appendChild(Object.assign(document.createElement('div'), { className: 'mb-gap' }));
       // flip swaps the two panes you are LOOKING AT: the children of the
       // container you are in, or, standing on a leaf, it and its sibling
       const flipAt = node.kind === 'div' ? (node.kids[0] && node.kids[0].addr) : (up && up.kind === 'div' ? node.addr : null);
       bar.append(
+        viewBtn(node),
         // the aperture STAYS on the pane that was split, which now holds the
         // division: you watch it become two and then dive into one
         b('⬓', 'split this pane in two', true, () => withCursor(() => { model.splitDown(); redraw(); })),
@@ -3044,6 +3054,55 @@ function setup(root, opts) {
     // closing a pane with content is asked for first: gmux asks with Enter,
     // which a phone has no way to send, so the ask lives here and the close
     // is forced
+    // a long press is a SECOND action on a button that already has one: the
+    // tap still fires on release, the hold fires instead if you stayed down.
+    // Both pointers are wired because the phone client is also used with a
+    // mouse on a narrow window.
+    function hold(el, fn) {
+      let t = null, held = false;
+      const start = () => { held = false; t = setTimeout(() => { t = null; held = true; fn(); }, 400); };
+      const stop = () => { if (t) { clearTimeout(t); t = null; } };
+      el.addEventListener('touchstart', start, { passive: true });
+      el.addEventListener('touchend', (e) => { if (held) { e.preventDefault(); } stop(); });
+      el.addEventListener('touchcancel', stop);
+      el.addEventListener('mousedown', start);
+      el.addEventListener('mouseup', stop);
+      el.addEventListener('mouseleave', stop);
+      el.addEventListener('click', (e) => { if (held) { e.preventDefault(); e.stopPropagation(); held = false; } }, true);
+      return el;
+    }
+    // this tab's history as a list, nearest first, the way holding back or
+    // forward opens one on the desktop. Tapping a row goes straight there.
+    function openHist(node, dir) {
+      if (!model.cursorToAddr(node.addr)) return;
+      const id = model.cursor && model.cursor.id;
+      const tab = node.tab || { cursor: -1 };
+      const rows = model.historyList(id)
+        .filter((e) => dir === 'back' ? e.i < tab.cursor : e.i > tab.cursor);
+      if (!rows.length) return;
+      if (dir === 'back') rows.reverse();                            // nearest first, both ways
+      const sheet = document.createElement('div'); sheet.className = 'mb-sheet';
+      const head = document.createElement('div'); head.className = 'mb-sheet-head';
+      const back = document.createElement('button'); back.textContent = '‹'; back.title = 'back to the pane';
+      back.addEventListener('click', () => sheet.remove());
+      const title = document.createElement('div'); title.className = 't';
+      title.textContent = dir === 'back' ? 'back to…' : 'forward to…';
+      head.append(back, title);
+      head.addEventListener('click', (e) => { if (e.target === head || e.target === title) sheet.remove(); });
+      const list = document.createElement('div'); list.className = 'mb-hist';
+      rows.forEach((r) => {
+        const row = document.createElement('button');
+        row.textContent = r.label || '—';
+        row.addEventListener('click', () => {
+          sheet.remove();
+          withCursor(() => { model.goTo(model.cursor && model.cursor.id, r.i); redraw(); });
+        });
+        list.appendChild(row);
+      });
+      sheet.append(head, list);
+      sheet.addEventListener('click', (e) => { if (e.target === sheet || e.target === list) sheet.remove(); });
+      root.appendChild(sheet);
+    }
     // the rendering mode, as an ACTION: the glyph is the mode it switches TO,
     // so it reads the same as the desktop bar's. Without it there is no way to
     // reach the raw file or the plain listing from a phone at all.
@@ -3055,24 +3114,24 @@ function setup(root, opts) {
       const cur = spec.view || modes[0].id;
       const next = modes[(modes.findIndex((v) => v.id === cur) + 1) % modes.length];
       x.textContent = next.glyph; x.title = 'show it ' + (next.title || next.id);
-      x.addEventListener('click', () => withCursor(() => {
-        model.cycleView(model.cursor && model.cursor.id);
-        refreshAt(node);                                   // pooled by path: the old mode's element has to go
-      }));
+      x.addEventListener('click', () => withCursor(() => { model.cycleView(model.cursor && model.cursor.id); redraw(); }));
       return x;
     }
     // name this tab. The desktop edits the name in the tab chip itself; there
     // is no chip down here, so it takes the same strip the close question uses.
-    function askName(node) {
+    function askName(node, i) {
       const old = bars.querySelector('.mb-confirm'); if (old) old.remove();
-      const tab = node.tab || (node.tabs && node.tabs[node.spec && node.spec.activeTab || 0]);
+      const at = (i == null) ? ((node.spec && node.spec.activeTab) || 0) : i;
+      const tab = (node.tabs && node.tabs[at]) || node.tab;
       const c = document.createElement('div'); c.className = 'mb-confirm';
       const inp = document.createElement('input'); inp.className = 'mb-path'; inp.type = 'text'; inp.spellcheck = false;
       inp.value = (tab && tab.label) || '';
-      inp.placeholder = labelOf(node);                               // empty clears it: the tab describes its entry again
+      inp.placeholder = labelOf(mkNode(Object.assign({}, node.spec, { activeTab: at }), node.addr, node.parent, node.slot));   // empty clears it: the tab describes its entry again
       const save = () => {
         c.remove();
-        withCursor(() => { model.setTabLabel(model.cursor && model.cursor.id, null, inp.value.trim()); redraw(); });
+        if (!model.cursorToAddr(node.addr)) return;
+        model.setTabLabel(model.cursor && model.cursor.id, at, inp.value.trim());
+        redraw();
       };
       inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') save(); else if (e.key === 'Escape') c.remove(); });
       const no = document.createElement('button'); no.textContent = 'cancel';
@@ -3119,6 +3178,9 @@ function setup(root, opts) {
         const label = document.createElement('span'); label.className = 't';
         label.textContent = t.label || labelOf(preview);
         cap.append(dot, label);
+        const ren = document.createElement('button'); ren.className = 'ren'; ren.textContent = '✎\uFE0E'; ren.title = 'name this tab';
+        ren.addEventListener('click', (e) => { e.stopPropagation(); sheet.remove(); askName(node, i); });
+        card.appendChild(ren);
         const x = document.createElement('button'); x.className = 'x'; x.textContent = '×'; x.title = 'close this tab';
         x.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -3141,7 +3203,14 @@ function setup(root, opts) {
     }
     // drop this pane's cached content (and anything under it) and build again
     function refreshAt(node) {
-      const drop = (n) => { if (n.kind === 'leaf') { const l = pool.get(n.path || ''); if (l) { l.forEach((el) => { destroyEl(el); scrollOf.delete(el); }); pool.delete(n.path || ''); } } n.kids.forEach(drop); };
+      const drop = (n) => {
+        if (n.kind === 'leaf') for (const k of [...pool.keys()]) {
+          if (k.slice(0, k.indexOf('\u0000')) !== (n.path || '')) continue;
+          pool.get(k).forEach((el) => { destroyEl(el); scrollOf.delete(el); });
+          pool.delete(k);
+        }
+        n.kids.forEach(drop);
+      };
       drop(node);
       redraw();
     }
