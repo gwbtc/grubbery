@@ -2666,13 +2666,13 @@ function setup(root, opts) {
       '.mb-sheet-head button{font:inherit;padding:7px 11px;border:1px solid #d0d7de;border-radius:8px;background:#fff;color:#1f2328}' +
       '.mb-hist{flex:1;min-height:0;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:6px}' +
       '.mb-hist button{text-align:left;font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:12px 12px;border:1px solid #d0d7de;border-radius:8px;background:#fff;color:#1f2328;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
-      '.mb-card .ren{position:absolute;top:4px;left:4px;z-index:2;font:inherit;padding:3px 7px;border:1px solid #d0d7de;border-radius:7px;background:#fff;color:#1f2328;line-height:1}' +
+      '.mb-card .cap .ren{flex:0 0 auto;font:inherit;padding:3px 7px;border:1px solid #d0d7de;border-radius:7px;background:#fff;color:#1f2328;line-height:1}' +
       '.mb-grid{flex:1;min-height:0;overflow:auto;display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px;align-content:start}' +
       '.mb-card{position:relative;display:flex;flex-direction:column;border-radius:10px;overflow:hidden;background:#fff;border:1px solid #cdd5dd}' +
       '.mb-card.on{box-shadow:0 0 0 2px #0969da}' +
       '.mb-card .shot{height:150px;position:relative;overflow:hidden;pointer-events:none}' +
       '.mb-card .cap{display:flex;align-items:center;gap:6px;padding:7px 8px;border-top:1px solid #eaeef2;font:600 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}' +
-      '.mb-card .cap .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+      '.mb-card .cap .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
       '.mb-card .x{position:absolute;top:6px;right:6px;z-index:2;width:23px;height:23px;padding:0;border:0;border-radius:50%;background:rgba(31,35,40,.5);color:#fff;font-size:13px;line-height:1}' +
       '.mb-confirm{display:flex;align-items:center;gap:8px;padding:9px 10px;background:#fff8c5;border-top:1px solid #d4a72c;font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}' +
       '.mb-confirm .t{flex:1;color:#4d2d00}' +
@@ -2835,12 +2835,15 @@ function setup(root, opts) {
     // BODY: a division draws its two panes stacked evenly, a holder draws the
     // pane it holds, a moment draws itself — live when there is room for it,
     // its app's colour when there is not.
-    function levelEl(n, h, cursorAddr, depth, standing) {
+    function levelEl(n, h, cursorAddr, depth, standing, noBar) {
       const el = document.createElement('div');
       el.className = 'mb-leaf' + (n.kind === 'leaf' ? '' : ' mb-group');
       el.dataset.addr = n.addr;
       if (n.addr === cursorAddr) el.classList.add('mb-work');
-      const bar = h >= MB_NAME ? barEl(n, standing) : null;
+      // A tab card already names the tab in its caption, so the pane's own
+      // strip on top of the preview says it twice. Only the TOP level drops
+      // it: the nested strips are what make the preview show structure.
+      const bar = (!noBar && h >= MB_NAME) ? barEl(n, standing) : null;
       if (bar) el.appendChild(bar);
       const inner = h - (bar ? MB_BAR : 0);
       if (n.kind === 'div') {
@@ -3172,15 +3175,16 @@ function setup(root, opts) {
         const preview = mkNode(Object.assign({}, node.spec, { activeTab: i }), node.addr, node.parent, node.slot);
         const card = document.createElement('div'); card.className = 'mb-card' + (i === (node.spec.activeTab || 0) ? ' on' : '');
         const shot = document.createElement('div'); shot.className = 'shot';
-        shot.appendChild(levelEl(preview, 150, null, 0, false));
+        shot.appendChild(levelEl(preview, 150, null, 0, false, true));
         const cap = document.createElement('div'); cap.className = 'cap';
         const dot = document.createElement('span'); dot.className = 'mb-kind';
         const label = document.createElement('span'); label.className = 't';
         label.textContent = t.label || labelOf(preview);
-        cap.append(dot, label);
+        // naming sits WITH the name, in the caption, rather than floating over
+        // the preview where it covers the thing it is describing
         const ren = document.createElement('button'); ren.className = 'ren'; ren.textContent = '✎\uFE0E'; ren.title = 'name this tab';
         ren.addEventListener('click', (e) => { e.stopPropagation(); sheet.remove(); askName(node, i); });
-        card.appendChild(ren);
+        cap.append(dot, label, ren);
         const x = document.createElement('button'); x.className = 'x'; x.textContent = '×'; x.title = 'close this tab';
         x.addEventListener('click', (e) => {
           e.stopPropagation();
