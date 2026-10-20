@@ -666,18 +666,13 @@ class Gmux extends HTMLElement {
     // there, stated by here. `{to:'#name', mode}`. A holder table (the older
     // form, keyed by the origin's address) still answers below, so existing
     // layouts keep routing while they are converted.
+    // A pane may name ITSELF (a content pane whose id it also targets), which
+    // is how "open these in tabs of me" is said — so a self-target keeps the
+    // declared mode rather than degrading to replace.
     if (pane.open && typeof pane.open.to === 'string') {
       const to = pane.open.to.trim();
       const t = to.startsWith('#') ? this.#findRef(pane, to.slice(1)) : null;
-      if (t && t !== pane) return { target: t, mode: pane.open.mode === 'tab' ? 'tab' : 'replace' };
-      return { target: pane, mode: 'replace' };
-    }
-    for (const h of this.#holdersOf(pane)) {
-      if (!h.open) continue;
-      const a = this.#addrWithin(h, pane); if (a == null) continue;
-      const rule = h.open[a]; if (!rule) continue;
-      const t = this.#descend(h, rule.to);
-      if (t) return { target: t, mode: rule.mode === 'tab' ? 'tab' : 'replace' };
+      if (t) return { target: t, mode: pane.open.mode === 'tab' ? 'tab' : 'replace' };
     }
     return { target: pane, mode: 'replace' };
   }
@@ -1543,7 +1538,7 @@ class Gmux extends HTMLElement {
   }
   #serEntry(e) {
     const name = e.name || undefined;
-    if (e.div) return { name, div: { dir: e.div.dir, ratio: e.div.ratio, fold: e.div.fold || undefined, src: e.div.src || undefined, open: e.div.open || undefined, a: this.#serPane(e.div.a), b: this.#serPane(e.div.b) } };
+    if (e.div) return { name, div: { dir: e.div.dir, ratio: e.div.ratio, fold: e.div.fold || undefined, src: e.div.src || undefined, a: this.#serPane(e.div.a), b: this.#serPane(e.div.b) } };
     if (e.pane) return { name, pane: Object.assign(this.#serPane(e.pane), { src: e.src || undefined }) };
     return name ? { path: e.path, name } : { path: e.path };
   }
@@ -1569,7 +1564,7 @@ class Gmux extends HTMLElement {
     const s = spec.div;
     const sv = document.createElement('split-view');
     sv.setAttribute('orientation', s.dir || 'horizontal'); sv.setAttribute('min', '40');
-    const div = { dir: s.dir || 'horizontal', ratio: typeof s.ratio === 'number' ? s.ratio : 0.5, fold: s.fold || null, src: s.src || null, open: (s.open && typeof s.open === 'object') ? s.open : null, a: null, b: null, sv, owner: hostPane || null };
+    const div = { dir: s.dir || 'horizontal', ratio: typeof s.ratio === 'number' ? s.ratio : 0.5, fold: s.fold || null, src: s.src || null, a: null, b: null, sv, owner: hostPane || null };
     sv.__psdiv = div;
     // a side is a pane. A side written as a bare {div} (the natural way to
     // nest splits by hand) is taken as a bar-less pane holding that division
