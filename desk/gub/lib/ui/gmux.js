@@ -843,6 +843,7 @@ class Gmux extends HTMLElement {
   // bar's toggle cycles through `viewModes`; the default mode is stored as null.
   viewOf(id) { const p = this.#panes.get(id ?? this.#activeId); return p ? p.view : null; }
   setView(id, v) { const p = this.#panes.get(id ?? this.#activeId); if (!p) return; p.view = v || null; this.#renderPane(p); this.#persist(); }
+  cycleView(id) { return this.#cycleView(id); }
   #cycleView(id) {
     if (!this.viewModes || !this.viewModes.length) return;
     const p = this.#panes.get(id); if (!p) return;
@@ -943,7 +944,7 @@ class Gmux extends HTMLElement {
     const p = this.#panes.get(id ?? this.#activeId), par = p && p.parent;
     if (!par || !par.div) return false;
     const d = par.div, owner = d.owner, scroll = this.#snapshotScroll();
-    const was = this.#addrWithin(owner, this.cursor);   // the SLOT the selection is in
+    const held = this.#addrWithin(owner, this.cursor) != null ? this.cursor : null;   // the PANE the selection is on, which is about to move
     const a = d.a, b = d.b;
     d.a = b; d.b = a;
     // the ratio belongs to the pane, not to the slot: a sidebar flipped to the
@@ -956,13 +957,10 @@ class Gmux extends HTMLElement {
     if (d.last) d.last = d.last === 'a' ? 'b' : 'a';   // follows the pane it names
     this.#placePane(d.a, d.sv, 'start'); this.#placePane(d.b, d.sv, 'end');
     this.#applyDivLayout(d); this.#afterStructure(); this.#restoreScroll(scroll);
-    // the selection stays at the same place in the frame, so it now names
-    // whatever moved in: a container where a leaf stood, or the other way
-    if (was != null) {
-      let segs = was.split('/').filter((x) => x), t = null;
-      while (!(t = this.#descend(owner, segs.length ? segs.join('/') : '.')) && segs.length) segs = segs.slice(0, -2);
-      this.cursorTo(t || owner);
-    }
+    // the selection follows the PANE, not the slot: flipping moves what you
+    // selected to the other side and you stay on it, so a flip reads as
+    // carrying the thing rather than letting go of it
+    if (held) this.cursorTo(held);
     this.#render(); this.#persist();
     return true;
   }

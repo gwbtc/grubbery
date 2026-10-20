@@ -2691,6 +2691,7 @@ function setup(root, opts) {
     // the model, never shown
     const model = document.createElement('gmux-host');
     model.renderPath = () => document.createElement('div');
+    model.viewModes = [{ id: 'rendered', glyph: '▣', title: 'rendered' }, { id: 'raw', glyph: '◰', title: 'raw' }];
     model.style.cssText = 'position:fixed;left:-10000px;top:0;width:900px;height:700px;visibility:hidden;pointer-events:none';
     document.body.appendChild(model);
 
@@ -2709,7 +2710,9 @@ function setup(root, opts) {
     const host = document.createElement('div');
     Object.assign(host, {
       cursor: null, redrawBars() {}, refresh() { schedule(); }, focusContent() {},
-      pathOf() { return null; }, viewOf() { return null; }, back() {}, layoutSources() { return []; },
+      pathOf() { return null; },
+      viewOf(addr) { const n = find(tree, addr); return (n && n.spec && n.spec.view) || null; },
+      back() {}, layoutSources() { return []; },
       // a view that opens a moment is ROUTED by the layout, exactly as on the
       // desktop: it lands in the pane the table names, not on top of the
       // navigator that opened it. The aperture then follows it there.
@@ -2992,7 +2995,9 @@ function setup(root, opts) {
         b('▲', 'climb out', !!up, () => goTo(up.addr)),
         b('◀', 'back', canBack, () => withCursor(() => { model.back(model.cursor && model.cursor.id); redraw(); })),
         b('▶', 'forward', canFwd, () => withCursor(() => { model.forward(model.cursor && model.cursor.id); redraw(); })),
-        b('↻', 'load this again', true, () => refreshAt(node)));
+        b('↻', 'load this again', true, () => refreshAt(node)),
+        viewBtn(node),
+        b('✎\uFE0E', 'name this tab', node.kind === 'leaf' || !!node.tab, () => askName(node)));
       bar.appendChild(Object.assign(document.createElement('div'), { className: 'mb-gap' }));
       // flip swaps the two panes you are LOOKING AT: the children of the
       // container you are in, or, standing on a leaf, it and its sibling
@@ -3039,6 +3044,45 @@ function setup(root, opts) {
     // closing a pane with content is asked for first: gmux asks with Enter,
     // which a phone has no way to send, so the ask lives here and the close
     // is forced
+    // the rendering mode, as an ACTION: the glyph is the mode it switches TO,
+    // so it reads the same as the desktop bar's. Without it there is no way to
+    // reach the raw file or the plain listing from a phone at all.
+    function viewBtn(node) {
+      const modes = model.viewModes || [];
+      const x = document.createElement('button');
+      if (modes.length < 2) { x.disabled = true; x.textContent = '▣'; return x; }
+      const spec = node.spec || {};
+      const cur = spec.view || modes[0].id;
+      const next = modes[(modes.findIndex((v) => v.id === cur) + 1) % modes.length];
+      x.textContent = next.glyph; x.title = 'show it ' + (next.title || next.id);
+      x.addEventListener('click', () => withCursor(() => {
+        model.cycleView(model.cursor && model.cursor.id);
+        refreshAt(node);                                   // pooled by path: the old mode's element has to go
+      }));
+      return x;
+    }
+    // name this tab. The desktop edits the name in the tab chip itself; there
+    // is no chip down here, so it takes the same strip the close question uses.
+    function askName(node) {
+      const old = bars.querySelector('.mb-confirm'); if (old) old.remove();
+      const tab = node.tab || (node.tabs && node.tabs[node.spec && node.spec.activeTab || 0]);
+      const c = document.createElement('div'); c.className = 'mb-confirm';
+      const inp = document.createElement('input'); inp.className = 'mb-path'; inp.type = 'text'; inp.spellcheck = false;
+      inp.value = (tab && tab.label) || '';
+      inp.placeholder = labelOf(node);                               // empty clears it: the tab describes its entry again
+      const save = () => {
+        c.remove();
+        withCursor(() => { model.setTabLabel(model.cursor && model.cursor.id, null, inp.value.trim()); redraw(); });
+      };
+      inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') save(); else if (e.key === 'Escape') c.remove(); });
+      const no = document.createElement('button'); no.textContent = 'cancel';
+      no.addEventListener('click', () => c.remove());
+      const yes = document.createElement('button'); yes.textContent = 'name';
+      yes.addEventListener('click', save);
+      c.append(inp, no, yes);
+      bars.insertBefore(c, bar);
+      inp.focus(); inp.select();
+    }
     function askClose(node) {
       if (isEmpty(node)) { closeNode(node); return; }
       const old = bars.querySelector('.mb-confirm'); if (old) old.remove();
@@ -3060,7 +3104,10 @@ function setup(root, opts) {
       const head = document.createElement('div'); head.className = 'mb-sheet-head';
       const title = document.createElement('div'); title.className = 't';
       title.textContent = node.tabs.length + ' tab' + (node.tabs.length === 1 ? '' : 's');
-      head.append(title);                                              // no done, no second +: tap a tab to go to it
+      const back = document.createElement('button'); back.textContent = '‹'; back.title = 'back to the pane';
+      back.addEventListener('click', () => sheet.remove());
+      head.append(back, title);                                        // the head goes back; + to add is the last card
+      head.addEventListener('click', (e) => { if (e.target === head || e.target === title) sheet.remove(); });
       const grid = document.createElement('div'); grid.className = 'mb-grid';
       node.tabs.forEach((t, i) => {
         const preview = mkNode(Object.assign({}, node.spec, { activeTab: i }), node.addr, node.parent, node.slot);
