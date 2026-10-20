@@ -2665,7 +2665,11 @@ function setup(root, opts) {
       '.mb-sheet-head .t{flex:1;color:#57606a;font-weight:400}' +
       '.mb-sheet-head button{font:inherit;padding:7px 11px;border:1px solid #d0d7de;border-radius:8px;background:#fff;color:#1f2328}' +
       '.mb-hist{flex:1;min-height:0;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:6px}' +
+      '.mb-more{flex:0 0 auto;font:inherit;font-size:15px;line-height:1;padding:8px 10px;border:1px solid #d0d7de;border-radius:8px;background:#fff;color:#1f2328}' +
+      '.mb-hist button.on{border-color:#57606a;background:#f6f8fa;font-weight:600}' +
+      '.mb-hist button:disabled{opacity:.35}' +
       '.mb-hist button{text-align:left;font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:12px 12px;border:1px solid #d0d7de;border-radius:8px;background:#fff;color:#1f2328;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+      '.mb-card .cap .cap-edit{flex:1;min-width:0;font:inherit;padding:2px 6px;border:1px solid #0969da;border-radius:6px;background:#fff;color:#1f2328;outline:none}' +
       '.mb-card .cap .ren{flex:0 0 auto;font:inherit;padding:3px 7px;border:1px solid #d0d7de;border-radius:7px;background:#fff;color:#1f2328;line-height:1}' +
       '.mb-grid{flex:1;min-height:0;overflow:auto;display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px;align-content:start}' +
       '.mb-card{position:relative;display:flex;flex-direction:column;border-radius:10px;overflow:hidden;background:#fff;border:1px solid #cdd5dd}' +
@@ -2846,7 +2850,12 @@ function setup(root, opts) {
       const bar = (!noBar && h >= MB_NAME) ? barEl(n, standing) : null;
       if (bar) el.appendChild(bar);
       const inner = h - (bar ? MB_BAR : 0);
-      if (n.kind === 'div') {
+      if (showsSrc(n) && inner >= MB_LIVE) {
+        const box = document.createElement('div'); box.className = 'mb-content';
+        box.appendChild(contentFor(n));
+        el.appendChild(box);
+        wireTarget(el, n);
+      } else if (n.kind === 'div') {
         const box = document.createElement('div'); box.className = 'mb-split';
         box.style.background = 'rgba(31,35,40,' + Math.min(0.05 + depth * 0.045, 0.2) + ')';
         const half = (inner - 15) / 2;                                 // padding 10 + gap 5
@@ -2892,7 +2901,9 @@ function setup(root, opts) {
     let claimed = new Set();
     // the mode is part of the identity: a path shown raw and the same path
     // shown rendered are two different renderings, both worth keeping
-    const poolKey = (n) => (n.path || '') + '\u0000' + ((n.spec && n.spec.view) || '');
+    const showsSrc = (n) => !!(n.spec && n.spec.view && (n.kind === 'div' || n.kind === 'hold') && srcOf(n));
+    const contentPathOf = (n) => showsSrc(n) ? srcOf(n) : (n.kind === 'leaf' ? n.path : null);
+    const poolKey = (n) => (contentPathOf(n) || '') + '\u0000' + ((n.spec && n.spec.view) || '');
     // the first mode is the default and is stored as no view at all
     const poolModes = () => (model.viewModes || []).map((v, i) => (i ? v.id : '')).concat((model.viewModes || []).length ? [] : ['']);
     const contentFor = (n) => {
@@ -2900,7 +2911,7 @@ function setup(root, opts) {
       let list = pool.get(path);
       if (!list) { list = []; pool.set(path, list); }
       let el = list.find((e) => !claimed.has(e));
-      if (!el) { el = paneContent(host, n.addr, n.path); list.push(el); }
+      if (!el) { el = paneContent(host, n.addr, contentPathOf(n)); list.push(el); }
       claimed.add(el);
       if (scrollOf.has(el)) { const y = scrollOf.get(el); requestAnimationFrame(() => { el.scrollTop = y; }); }
       return el;
@@ -2917,9 +2928,15 @@ function setup(root, opts) {
       const tabs = (ps && ps.tabs) || [];
       tabs.forEach((t) => {
         const e = t && t.cursor >= 0 ? t.entries[t.cursor] : null;
+        const add = (k) => { for (const m of poolModes()) acc.set((k || '') + '\u0000' + m, (acc.get((k || '') + '\u0000' + m) || 0) + 1); };
+        const src = e ? (e.div ? e.div.src : e.pane ? e.src : null) : null;
+        // A pane showing its source keeps the structure underneath ALIVE, the
+        // way the desktop does: count the source AND the subtree, so flipping
+        // back returns what was already built instead of fetching it again.
+        if (e && (e.div || e.pane) && src) add(src);                   // both faces stay built, whichever is on show
         if (e && e.div) { pathCounts(e.div.a, acc); pathCounts(e.div.b, acc); }
         else if (e && e.pane) pathCounts(e.pane, acc);
-        else { const k = (e && e.path) || ''; for (const m of poolModes()) acc.set(k + '\u0000' + m, (acc.get(k + '\u0000' + m) || 0) + 1); }
+        else add(e && e.path);
       });
       return acc;
     };
@@ -3003,12 +3020,9 @@ function setup(root, opts) {
       const up = node.parent, tab = node.tab || { entries: [], cursor: -1 };
       const canBack = tab.cursor > 0, canFwd = tab.cursor >= 0 && tab.cursor < tab.entries.length - 1;
       bar.append(
-        hold(b('▲', 'climb out — hold to go all the way out', !!up, () => goTo(up.addr)),
-             () => { if (seat !== '.') goTo('.'); }),
-        hold(b('◀', 'back — hold for this tab\u2019s history', canBack, () => withCursor(() => { model.back(model.cursor && model.cursor.id); redraw(); })),
-             () => openHist(node, 'back')),
-        hold(b('▶', 'forward — hold for this tab\u2019s history', canFwd, () => withCursor(() => { model.forward(model.cursor && model.cursor.id); redraw(); })),
-             () => openHist(node, 'forward')),
+        b('▲', 'climb out', !!up, () => goTo(up.addr)),
+        b('◀', 'back', canBack, () => withCursor(() => { model.back(model.cursor && model.cursor.id); redraw(); })),
+        b('▶', 'forward', canFwd, () => withCursor(() => { model.forward(model.cursor && model.cursor.id); redraw(); })),
         b('↻', 'load this again', true, () => refreshAt(node)));
       bar.appendChild(Object.assign(document.createElement('div'), { className: 'mb-gap' }));
       // flip swaps the two panes you are LOOKING AT: the children of the
@@ -3043,7 +3057,10 @@ function setup(root, opts) {
       tabs.title = node.tabs.length + ' tab' + (node.tabs.length === 1 ? '' : 's') + ' in this pane';
       tabs.append(Object.assign(document.createElement('span'), { textContent: '⧉' }), document.createTextNode(String(node.tabs.length)));
       tabs.addEventListener('click', () => openTabs(node));
-      pathRow.append(kind, field, tabs);
+      const more = document.createElement('button'); more.className = 'mb-more'; more.textContent = '⋮';
+      more.title = 'more';
+      more.addEventListener('click', () => openMore(node));
+      pathRow.append(kind, field, tabs, more);
     }
     // a pane showing nothing has nothing to lose: it closes on the tap, the
     // way gmux closes an empty one without arming the ask
@@ -3057,54 +3074,59 @@ function setup(root, opts) {
     // closing a pane with content is asked for first: gmux asks with Enter,
     // which a phone has no way to send, so the ask lives here and the close
     // is forced
-    // a long press is a SECOND action on a button that already has one: the
-    // tap still fires on release, the hold fires instead if you stayed down.
-    // Both pointers are wired because the phone client is also used with a
-    // mouse on a narrow window.
-    function hold(el, fn) {
-      let t = null, held = false;
-      const start = () => { held = false; t = setTimeout(() => { t = null; held = true; fn(); }, 400); };
-      const stop = () => { if (t) { clearTimeout(t); t = null; } };
-      el.addEventListener('touchstart', start, { passive: true });
-      el.addEventListener('touchend', (e) => { if (held) { e.preventDefault(); } stop(); });
-      el.addEventListener('touchcancel', stop);
-      el.addEventListener('mousedown', start);
-      el.addEventListener('mouseup', stop);
-      el.addEventListener('mouseleave', stop);
-      el.addEventListener('click', (e) => { if (held) { e.preventDefault(); e.stopPropagation(); held = false; } }, true);
-      return el;
-    }
-    // this tab's history as a list, nearest first, the way holding back or
-    // forward opens one on the desktop. Tapping a row goes straight there.
-    function openHist(node, dir) {
-      if (!model.cursorToAddr(node.addr)) return;
-      const id = model.cursor && model.cursor.id;
-      const tab = node.tab || { cursor: -1 };
-      const rows = model.historyList(id)
-        .filter((e) => dir === 'back' ? e.i < tab.cursor : e.i > tab.cursor);
-      if (!rows.length) return;
-      if (dir === 'back') rows.reverse();                            // nearest first, both ways
+    // a sheet of rows under a head that takes you back, which is the shape
+    // the tab grid already uses. Everything the phone opens over the pane
+    // looks and leaves the same way.
+    function openSheet(titleText, fill) {
       const sheet = document.createElement('div'); sheet.className = 'mb-sheet';
       const head = document.createElement('div'); head.className = 'mb-sheet-head';
       const back = document.createElement('button'); back.textContent = '‹'; back.title = 'back to the pane';
       back.addEventListener('click', () => sheet.remove());
-      const title = document.createElement('div'); title.className = 't';
-      title.textContent = dir === 'back' ? 'back to…' : 'forward to…';
+      const title = document.createElement('div'); title.className = 't'; title.textContent = titleText;
       head.append(back, title);
       head.addEventListener('click', (e) => { if (e.target === head || e.target === title) sheet.remove(); });
       const list = document.createElement('div'); list.className = 'mb-hist';
-      rows.forEach((r) => {
-        const row = document.createElement('button');
-        row.textContent = r.label || '—';
-        row.addEventListener('click', () => {
-          sheet.remove();
-          withCursor(() => { model.goTo(model.cursor && model.cursor.id, r.i); redraw(); });
-        });
-        list.appendChild(row);
-      });
       sheet.append(head, list);
       sheet.addEventListener('click', (e) => { if (e.target === sheet || e.target === list) sheet.remove(); });
+      fill(list, () => sheet.remove());
       root.appendChild(sheet);
+      return sheet;
+    }
+    // the rarer things a pane can do. They were a long press on the buttons
+    // that already had a tap, which on a phone fights the browser's own
+    // selection and context menu — so they get a button that is only theirs.
+    function openMore(node) {
+      openSheet('more', (list, close) => {
+        const row = (label, on, fn) => {
+          const x = document.createElement('button'); x.textContent = label; x.disabled = !on;
+          if (on) x.addEventListener('click', () => { close(); fn(); });
+          list.appendChild(x);
+        };
+        const tab = node.tab || { entries: [], cursor: -1 };
+        row('this tab\u2019s history', tab.entries.length > 1, () => openHist(node));
+        row('go to the root', seat !== '.', () => goTo('.'));
+        row('rename this tab', !!node.tab, () => openTabs(node));
+      });
+    }
+    // the whole line of this tab, newest first, with where you are marked.
+    // Tapping a row goes straight there.
+    function openHist(node) {
+      if (!model.cursorToAddr(node.addr)) return;
+      const id = model.cursor && model.cursor.id;
+      const rows = model.historyList(id).slice().reverse();
+      if (!rows.length) return;
+      openSheet('history', (list, close) => {
+        rows.forEach((r) => {
+          const x = document.createElement('button');
+          x.textContent = r.label || '—';
+          if (r.current) { x.classList.add('on'); x.textContent = r.label || '—'; }
+          x.addEventListener('click', () => {
+            close();
+            withCursor(() => { model.goTo(model.cursor && model.cursor.id, r.i); redraw(); });
+          });
+          list.appendChild(x);
+        });
+      });
     }
     // the rendering mode, as an ACTION: the glyph is the mode it switches TO,
     // so it reads the same as the desktop bar's. Without it there is no way to
@@ -3119,31 +3141,6 @@ function setup(root, opts) {
       x.textContent = next.glyph; x.title = 'show it ' + (next.title || next.id);
       x.addEventListener('click', () => withCursor(() => { model.cycleView(model.cursor && model.cursor.id); redraw(); }));
       return x;
-    }
-    // name this tab. The desktop edits the name in the tab chip itself; there
-    // is no chip down here, so it takes the same strip the close question uses.
-    function askName(node, i) {
-      const old = bars.querySelector('.mb-confirm'); if (old) old.remove();
-      const at = (i == null) ? ((node.spec && node.spec.activeTab) || 0) : i;
-      const tab = (node.tabs && node.tabs[at]) || node.tab;
-      const c = document.createElement('div'); c.className = 'mb-confirm';
-      const inp = document.createElement('input'); inp.className = 'mb-path'; inp.type = 'text'; inp.spellcheck = false;
-      inp.value = (tab && tab.label) || '';
-      inp.placeholder = labelOf(mkNode(Object.assign({}, node.spec, { activeTab: at }), node.addr, node.parent, node.slot));   // empty clears it: the tab describes its entry again
-      const save = () => {
-        c.remove();
-        if (!model.cursorToAddr(node.addr)) return;
-        model.setTabLabel(model.cursor && model.cursor.id, at, inp.value.trim());
-        redraw();
-      };
-      inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') save(); else if (e.key === 'Escape') c.remove(); });
-      const no = document.createElement('button'); no.textContent = 'cancel';
-      no.addEventListener('click', () => c.remove());
-      const yes = document.createElement('button'); yes.textContent = 'name';
-      yes.addEventListener('click', save);
-      c.append(inp, no, yes);
-      bars.insertBefore(c, bar);
-      inp.focus(); inp.select();
     }
     function askClose(node) {
       if (isEmpty(node)) { closeNode(node); return; }
@@ -3183,7 +3180,30 @@ function setup(root, opts) {
         // naming sits WITH the name, in the caption, rather than floating over
         // the preview where it covers the thing it is describing
         const ren = document.createElement('button'); ren.className = 'ren'; ren.textContent = '✎\uFE0E'; ren.title = 'name this tab';
-        ren.addEventListener('click', (e) => { e.stopPropagation(); sheet.remove(); askName(node, i); });
+        // edited IN the caption, where the name already is. Leaving the grid to
+        // name a card you are looking at loses the thing you are naming.
+        ren.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const inp = document.createElement('input');
+          inp.className = 'cap-edit'; inp.type = 'text'; inp.spellcheck = false;
+          inp.value = t.label || '';
+          inp.placeholder = labelOf(preview);                          // empty clears it: the tab describes its entry again
+          let done = false;
+          const finish = (keep) => {
+            if (done) return; done = true;
+            const v = inp.value.trim();
+            inp.replaceWith(label);
+            if (!keep) return;
+            label.textContent = v || labelOf(preview);
+            if (!model.cursorToAddr(node.addr)) return;
+            model.setTabLabel(model.cursor && model.cursor.id, i, v);
+            redraw();                                                  // the sheet sits over the body and survives it
+          };
+          inp.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') { ev.preventDefault(); finish(true); } else if (ev.key === 'Escape') { ev.preventDefault(); finish(false); } });
+          inp.addEventListener('blur', () => finish(true));
+          inp.addEventListener('click', (ev) => ev.stopPropagation());
+          label.replaceWith(inp); inp.focus(); inp.select();
+        });
         cap.append(dot, label, ren);
         const x = document.createElement('button'); x.className = 'x'; x.textContent = '×'; x.title = 'close this tab';
         x.addEventListener('click', (e) => {
