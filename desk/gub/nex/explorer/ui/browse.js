@@ -2585,8 +2585,7 @@ function setup(root, opts) {
       // content beneath it, nothing else that can claim it.
       '.mb-swipe{flex:none;height:26px;display:flex;align-items:center;justify-content:center;touch-action:none;overscroll-behavior:contain;background:#f8f8f8;border-bottom:1px solid #e8e8e8;cursor:grab}' +
       '.mb-swipe:active{cursor:grabbing}' +
-      '.mb-swipe .grip{width:38px;height:4px;border-radius:2px;background:#cdd3da;transition:opacity .15s}' +
-      '.mb-swipe.alone .grip{opacity:.3}' +
+      '.mb-swipe .mb-dots{position:static;height:auto;gap:10px}' +
       // a division is a BOX its children sit inside, tinted a step darker with
       // depth, so three levels read as three levels and not as four stripes
       '.mb-split{position:relative;display:flex;flex-direction:column;gap:5px;height:100%;min-height:0;padding:5px;border-radius:11px;box-sizing:border-box}' +
@@ -2625,10 +2624,9 @@ function setup(root, opts) {
       '.mb-bars button{font:inherit;font-size:15px;line-height:1;padding:8px 11px;border:1px solid #d0d7de;border-radius:8px;background:#fff;color:#1f2328}' +
       '.mb-bars button:disabled{opacity:.3}' +
       // which of a division's two sides you are on, and swipe is how you move
-      '.mb-dots{position:absolute;left:0;right:0;top:0;bottom:0;display:flex;align-items:center;justify-content:center;gap:8px;pointer-events:none}' +
-      '.mb-dots button{pointer-events:auto}' +
+      '.mb-dots{display:flex;align-items:center;justify-content:center;gap:8px;pointer-events:none}' +
       '.mb-gap{flex:1}' +
-      '.mb-dots button{width:9px;height:9px;padding:0;border:0;border-radius:50%;background:#cdd5dd}' +
+      '.mb-dots button{width:9px;height:9px;padding:0;border:0;border-radius:50%;background:#cdd5dd;pointer-events:none}' +
       '.mb-dots button.on{background:#57606a}' +
       '.mb-kind{flex:0 0 auto;width:10px;height:10px;border-radius:3px;background:#cdd5dd}' +
       '.mb-path{flex:1;min-width:0;font:12px ui-monospace,Menlo,monospace;padding:8px 9px;border:1px solid #d0d7de;border-radius:8px;background:#fff;color:#1f2328}' +
@@ -2680,8 +2678,8 @@ function setup(root, opts) {
     const bar = document.createElement('div'); bar.className = 'mb-row';
     const pathRow = document.createElement('div'); pathRow.className = 'mb-row mb-pathrow';
     const swipe = document.createElement('div'); swipe.className = 'mb-swipe';
-    const grip = document.createElement('div'); grip.className = 'grip'; swipe.appendChild(grip);
-    swipe.title = 'drag sideways to move between the two panes at this level';
+    const dots = document.createElement('div'); dots.className = 'mb-dots'; swipe.appendChild(dots);
+    swipe.title = 'the panes at this level — tap one, or drag sideways';
     bars.append(swipe, tabRow, bar, pathRow);
     root.append(body, bars);
 
@@ -2933,8 +2931,20 @@ function setup(root, opts) {
       body.appendChild(levelEl(node, h, cursorAddr, 0, true));        // standing here: the bar at the bottom is this pane's bar
       prune();
       drawBar(node);
-      // the grip dims when this level holds one pane: nothing to swipe to
-      swipe.classList.toggle('alone', !(node.parent && node.parent.kind === 'div'));
+      // The dots live on the strip, not in the bar: the thing that says which
+      // of the pair you are on is the thing you drag to change it. One dot
+      // means this level holds one pane, which is the whole of "nothing to
+      // swipe to" — no separate dimmed state needed.
+      dots.textContent = '';
+      const up2 = node.parent;
+      const kids = (up2 && up2.kind === 'div') ? up2.kids : [node];
+      for (const k of kids) {
+        const d = document.createElement('button');
+        d.title = kids.length === 1 ? 'this level holds one pane'
+                : k.slot === 'a' ? 'the left or top pane' : 'the right or bottom pane';
+        if (k === node) d.classList.add('on'); else d._addr = k.addr;
+        dots.appendChild(d);
+      }
       shapeNav();
       sitHere();
     }
@@ -2961,21 +2971,6 @@ function setup(root, opts) {
         b('◀', 'back', canBack, () => withCursor(() => { model.back(model.cursor && model.cursor.id); redraw(); })),
         b('▶', 'forward', canFwd, () => withCursor(() => { model.forward(model.cursor && model.cursor.id); redraw(); })),
         b('↻', 'load this again', true, () => refreshAt(node)));
-      // the two sides of the division this pane sits in; swipe moves between
-      // them, and the dots say which one you are on
-      const dots = document.createElement('div'); dots.className = 'mb-dots';
-      if (up && up.kind === 'div') for (const k of up.kids) {
-        const d = document.createElement('button'); d.title = k.slot === 'a' ? 'the left or top pane' : 'the right or bottom pane';
-        if (k === node) d.classList.add('on'); else d.addEventListener('click', () => goTo(k.addr));
-        dots.appendChild(d);
-      } else {
-        // no sibling: ONE dot, and you are on it. The dots count what is at
-        // this level and mark where you are, so they never vanish and come
-        // back as you climb.
-        const d = document.createElement('button'); d.className = 'on'; d.title = 'this level holds one pane';   // not disabled: the bar fades a disabled button
-        dots.appendChild(d);
-      }
-      bar.appendChild(dots);
       bar.appendChild(Object.assign(document.createElement('div'), { className: 'mb-gap' }));
       // flip swaps the two panes you are LOOKING AT: the children of the
       // container you are in, or, standing on a leaf, it and its sibling
@@ -3213,6 +3208,23 @@ function setup(root, opts) {
       d.track.style.transition = 'transform ' + (speed > 0.6 ? '.13s' : '.2s') + ' cubic-bezier(.22,.61,.36,1)';
       requestAnimationFrame(() => { d.track.style.transform = 'translateX(' + to + 'px)'; });
     };
+    // Tap and drag share the strip. Under SWIPE_MIN the gesture never became
+    // a drag, so it was a tap: go to whichever dot the finger was nearest.
+    const tapDot = (x) => {
+      let best = null, bestD = Infinity;
+      for (const d of dots.children) {
+        const r = d.getBoundingClientRect(), gap = Math.abs(x - (r.left + r.width / 2));
+        if (gap < bestD) { bestD = gap; best = d; }
+      }
+      if (best && best._addr) goTo(best._addr);
+    };
+    // A drag ends with a ghost click on mobile; swallow exactly one so the
+    // commit does not also read as a tap on a dot.
+    const eatClick = () => {
+      const stop = (e) => { e.stopPropagation(); e.preventDefault(); };
+      swipe.addEventListener('click', stop, { capture: true, once: true });
+      setTimeout(() => swipe.removeEventListener('click', stop, { capture: true }), 400);
+    };
     let sx = 0, sy = 0, swiping = false, touching = false, tracking = false;
     swipe.addEventListener('touchstart', (e) => {
       if (drag || e.touches.length !== 1) { touching = false; return; }   // a pinch is not a swipe
@@ -3231,9 +3243,10 @@ function setup(root, opts) {
     swipe.addEventListener('touchend', (e) => {
       if (!touching) return;
       touching = false;
-      if (!swiping) return;
-      swiping = false;
       const t = e.changedTouches && e.changedTouches[0];
+      if (!swiping) { tapDot(t ? t.clientX : sx); return; }
+      swiping = false;
+      e.preventDefault(); eatClick();                      // the drag was the gesture, not a tap
       dragEnd(t ? t.clientX - sx : 0);
     });
     swipe.addEventListener('touchcancel', () => { touching = false; swiping = false; if (drag) dragEnd(0); });
@@ -3248,7 +3261,8 @@ function setup(root, opts) {
     swipe.addEventListener('pointerup', (e) => {
       if (e.pointerType === 'touch' || !tracking) return;
       tracking = false;
-      if (drag) dragEnd(e.clientX - sx);
+      if (!drag) { tapDot(e.clientX); return; }
+      dragEnd(e.clientX - sx);
     });
     swipe.addEventListener('pointercancel', () => { tracking = false; if (drag) dragEnd(0); });
 
