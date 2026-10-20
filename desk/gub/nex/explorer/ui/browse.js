@@ -2620,10 +2620,10 @@ function setup(root, opts) {
       '.mb-head::-webkit-scrollbar{display:none}' +
       '.mb-head .mb-g,.mb-head .mb-n{align-self:center;padding:4px 0}' +
       '.mb-head .mb-g{margin-right:6px}' +
-      '.mb-tab{flex:0 0 auto;padding:6px 10px 4px;border-bottom:2px solid transparent;color:#57606a;white-space:nowrap;max-width:42vw;overflow:hidden;text-overflow:ellipsis;cursor:pointer}' +
+      '.mb-tab{font-family:ui-monospace,Menlo,monospace;flex:0 0 auto;padding:6px 10px 4px;border-bottom:2px solid transparent;color:#57606a;white-space:nowrap;max-width:42vw;overflow:hidden;text-overflow:ellipsis;cursor:pointer}' +
       '.mb-tab.on{color:#1f2328;border-bottom-color:#1f2328}' +
       '.mb-head .mb-g{font-size:12px;opacity:.9}' +
-      '.mb-head .mb-n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+      '.mb-head .mb-n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:ui-monospace,Menlo,monospace}' +
       '.mb-content{flex:1;min-height:0;overflow:hidden;position:relative}' +
       '.mb-content>*{height:100%;overflow:auto}' +
       '.mb-tap{position:absolute;inset:0;z-index:5}' +
@@ -2632,7 +2632,6 @@ function setup(root, opts) {
       '.mb-tile.mb-empty{background:#f6f8fa;color:#8c959f;border:1px dashed #cdd5dd;border-radius:7px;font-weight:400}' +
       '.mb-glyph{font-size:20px;line-height:1}' +
       '.mb-head .mb-tabn{margin-left:auto;flex:0 0 auto;font-weight:700;opacity:.9}' +
-      '.mb-work{box-shadow:0 0 0 2px #1a7f37}' +
 
       '.mb-bars{flex:0 0 auto;border-top:1px solid #d0d7de;background:#f6f8fa;font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}' +
       '.mb-row{position:relative;display:flex;align-items:center;gap:4px;padding:7px 9px}' +
@@ -2665,18 +2664,21 @@ function setup(root, opts) {
       '.mb-sheet-head .t{flex:1;color:#57606a;font-weight:400}' +
       '.mb-sheet-head button{font:inherit;padding:7px 11px;border:1px solid #d0d7de;border-radius:8px;background:#fff;color:#1f2328}' +
       '.mb-hist{flex:1;min-height:0;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:6px}' +
+      '.mb-menu{position:absolute;z-index:40;display:flex;flex-direction:column;min-width:170px;padding:5px;background:#fff;border:1px solid #d0d7de;border-radius:10px;box-shadow:0 8px 26px rgba(0,0,0,.18)}' +
+      '.mb-menu button{text-align:left;font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:11px 12px;border:0;border-radius:7px;background:none;color:#1f2328;white-space:nowrap}' +
+      '.mb-menu button:disabled{opacity:.35}' +
       '.mb-more{flex:0 0 auto;font:inherit;font-size:15px;line-height:1;padding:8px 10px;border:1px solid #d0d7de;border-radius:8px;background:#fff;color:#1f2328}' +
       '.mb-hist button.on{border-color:#57606a;background:#f6f8fa;font-weight:600}' +
       '.mb-hist button:disabled{opacity:.35}' +
       '.mb-hist button{text-align:left;font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:12px 12px;border:1px solid #d0d7de;border-radius:8px;background:#fff;color:#1f2328;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
       '.mb-card .cap .cap-edit{flex:1;min-width:0;font:inherit;padding:2px 6px;border:1px solid #0969da;border-radius:6px;background:#fff;color:#1f2328;outline:none}' +
-      '.mb-card .cap .ren{flex:0 0 auto;font:inherit;padding:3px 7px;border:1px solid #d0d7de;border-radius:7px;background:#fff;color:#1f2328;line-height:1}' +
       '.mb-grid{flex:1;min-height:0;overflow:auto;display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px;align-content:start}' +
       '.mb-card{position:relative;display:flex;flex-direction:column;border-radius:10px;overflow:hidden;background:#fff;border:1px solid #cdd5dd}' +
       '.mb-card.on{box-shadow:0 0 0 2px #0969da}' +
       '.mb-card .shot{height:150px;position:relative;overflow:hidden;pointer-events:none}' +
       '.mb-card .cap{display:flex;align-items:center;gap:6px;padding:7px 8px;border-top:1px solid #eaeef2;font:600 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}' +
-      '.mb-card .cap .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+      '.mb-n.named,.mb-tab.named,.mb-card .cap .t.named{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}' +
+      '.mb-card .cap .t{cursor:text;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
       '.mb-card .x{position:absolute;top:6px;right:6px;z-index:2;width:23px;height:23px;padding:0;border:0;border-radius:50%;background:rgba(31,35,40,.5);color:#fff;font-size:13px;line-height:1}' +
       '.mb-confirm{display:flex;align-items:center;gap:8px;padding:9px 10px;background:#fff8c5;border-top:1px solid #d4a72c;font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}' +
       '.mb-confirm .t{flex:1;color:#4d2d00}' +
@@ -2794,6 +2796,14 @@ function setup(root, opts) {
       const e = t && t.cursor >= 0 ? t.entries[t.cursor] : null;
       return e && (e.div || e.pane) ? '▣' : null;
     };
+    // the user's word for it, or the name a click or layout offered — either
+    // way a NAME, as against a tab that is just describing what it holds
+    const tabNamed = (t) => {
+      if (!t) return false;
+      if (t.label) return true;
+      const e = t.cursor >= 0 ? t.entries[t.cursor] : null;
+      return !!(e && e.name);
+    };
     // ---- one way to draw a pane, at every level ----
     // BAR: its tabs when it holds more than one, else its name. The bar is
     // also the handle: tapping it steps into that pane, the way clicking a
@@ -2813,7 +2823,7 @@ function setup(root, opts) {
       if (many) {
         const active = (n.spec && n.spec.activeTab) || 0;
         n.tabs.forEach((t, i) => {
-          const tabEl = document.createElement('div'); tabEl.className = 'mb-tab' + (i === active ? ' on' : '');
+          const tabEl = document.createElement('div'); tabEl.className = 'mb-tab' + (i === active ? ' on' : '') + (tabNamed(t) ? ' named' : '');
           tabEl.textContent = tabLabel(t);
           tabEl.addEventListener('pointerup', (e) => e.stopPropagation());
           // a tab switch changes what this pane HOLDS, not where you stand:
@@ -2822,6 +2832,7 @@ function setup(root, opts) {
           // far as this pane (draw falls back to the nearest level alive).
           tabEl.addEventListener('click', (e) => {
             e.stopPropagation();
+            if (i === active) { goTo(n.addr); return; }                // already on it: the only thing left to do is go in
             if (!model.cursorToAddr(n.addr)) return;
             model.selectTab(model.cursor && model.cursor.id, i);
             redraw();
@@ -2829,9 +2840,10 @@ function setup(root, opts) {
           strip.appendChild(tabEl);
         });
       } else {
-        const glyph = tabIcon(n.tab);
+        const named = tabNamed(n.tab);
+        const glyph = named ? null : tabIcon(n.tab);                   // a name needs no glyph: it is already a word
         if (glyph) { const g = document.createElement('span'); g.className = 'mb-g'; g.textContent = glyph; strip.appendChild(g); }
-        const nm = document.createElement('span'); nm.className = 'mb-n'; nm.textContent = tabLabel(n.tab);
+        const nm = document.createElement('span'); nm.className = 'mb-n' + (named ? ' named' : ''); nm.textContent = tabLabel(n.tab);
         strip.appendChild(nm);
       }
       return strip;
@@ -2843,7 +2855,9 @@ function setup(root, opts) {
       const el = document.createElement('div');
       el.className = 'mb-leaf' + (n.kind === 'leaf' ? '' : ' mb-group');
       el.dataset.addr = n.addr;
-      if (n.addr === cursorAddr) el.classList.add('mb-work');
+      // no cursor ring: the phone sits (the seat), it does not select. The
+      // workspace's cursor belongs to the desktop and marking it here points
+      // at a pane for a reason the phone has no way to act on.
       // A tab card already names the tab in its caption, so the pane's own
       // strip on top of the preview says it twice. Only the TOP level drops
       // it: the nested strips are what make the preview show structure.
@@ -2971,7 +2985,6 @@ function setup(root, opts) {
       if (bodyKey === drawnBody && body.firstChild) {
         drawn = key;
         const c = spec && spec.cursor;
-        body.querySelectorAll('.mb-leaf[data-addr]').forEach((el) => el.classList.toggle('mb-work', el.dataset.addr === c));
         drawBar(node);
         return;
       }
@@ -3059,7 +3072,7 @@ function setup(root, opts) {
       tabs.addEventListener('click', () => openTabs(node));
       const more = document.createElement('button'); more.className = 'mb-more'; more.textContent = '⋮';
       more.title = 'more';
-      more.addEventListener('click', () => openMore(node));
+      more.addEventListener('click', (e) => { e.stopPropagation(); openMore(node, more); });
       pathRow.append(kind, field, tabs, more);
     }
     // a pane showing nothing has nothing to lose: it closes on the tap, the
@@ -3095,18 +3108,24 @@ function setup(root, opts) {
     // the rarer things a pane can do. They were a long press on the buttons
     // that already had a tap, which on a phone fights the browser's own
     // selection and context menu — so they get a button that is only theirs.
-    function openMore(node) {
-      openSheet('more', (list, close) => {
-        const row = (label, on, fn) => {
-          const x = document.createElement('button'); x.textContent = label; x.disabled = !on;
-          if (on) x.addEventListener('click', () => { close(); fn(); });
-          list.appendChild(x);
-        };
-        const tab = node.tab || { entries: [], cursor: -1 };
-        row('this tab\u2019s history', tab.entries.length > 1, () => openHist(node));
-        row('go to the root', seat !== '.', () => goTo('.'));
-        row('rename this tab', !!node.tab, () => openTabs(node));
-      });
+    function openMore(node, anchor) {
+      const old = root.querySelector('.mb-menu'); if (old) old.remove();
+      const menu = document.createElement('div'); menu.className = 'mb-menu';
+      const row = (label, on, fn) => {
+        const x = document.createElement('button'); x.textContent = label; x.disabled = !on;
+        if (on) x.addEventListener('click', (e) => { e.stopPropagation(); menu.remove(); fn(); });
+        menu.appendChild(x);
+      };
+      const tab = node.tab || { entries: [], cursor: -1 };
+      row('history', tab.entries.length > 1, () => openHist(node));
+      row('go to root', seat !== '.', () => goTo('.'));
+      root.appendChild(menu);
+      // sit above the button it came from, pinned to the right edge like it
+      const r = anchor.getBoundingClientRect(), rr = root.getBoundingClientRect();
+      menu.style.right = Math.max(6, rr.right - r.right) + 'px';
+      menu.style.bottom = (rr.bottom - r.top + 6) + 'px';
+      const away = (e) => { if (!menu.contains(e.target) && e.target !== anchor) { menu.remove(); document.removeEventListener('pointerdown', away, true); } };
+      setTimeout(() => document.addEventListener('pointerdown', away, true), 0);
     }
     // the whole line of this tab, newest first, with where you are marked.
     // Tapping a row goes straight there.
@@ -3175,14 +3194,14 @@ function setup(root, opts) {
         shot.appendChild(levelEl(preview, 150, null, 0, false, true));
         const cap = document.createElement('div'); cap.className = 'cap';
         const dot = document.createElement('span'); dot.className = 'mb-kind';
-        const label = document.createElement('span'); label.className = 't';
+        const label = document.createElement('span'); label.className = 't' + (tabNamed(t) ? ' named' : '');
         label.textContent = t.label || labelOf(preview);
         // naming sits WITH the name, in the caption, rather than floating over
         // the preview where it covers the thing it is describing
-        const ren = document.createElement('button'); ren.className = 'ren'; ren.textContent = '✎\uFE0E'; ren.title = 'name this tab';
-        // edited IN the caption, where the name already is. Leaving the grid to
-        // name a card you are looking at loses the thing you are naming.
-        ren.addEventListener('click', (e) => {
+        // The NAME is the handle: tapping it edits it in place. A button
+        // beside it would only be a second way to reach the same word.
+        label.title = 'tap to name this tab';
+        label.addEventListener('click', (e) => {
           e.stopPropagation();
           const inp = document.createElement('input');
           inp.className = 'cap-edit'; inp.type = 'text'; inp.spellcheck = false;
@@ -3204,7 +3223,7 @@ function setup(root, opts) {
           inp.addEventListener('click', (ev) => ev.stopPropagation());
           label.replaceWith(inp); inp.focus(); inp.select();
         });
-        cap.append(dot, label, ren);
+        cap.append(dot, label);
         const x = document.createElement('button'); x.className = 'x'; x.textContent = '×'; x.title = 'close this tab';
         x.addEventListener('click', (e) => {
           e.stopPropagation();
