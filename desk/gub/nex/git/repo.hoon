@@ -65,20 +65,22 @@
         =/  jon=json  (fall (mole |.(!<(json q.poke-sage))) *json)
         =/  raw=@t  (fall (jget jon 'command') '')
         =/  parsed=(unit git-command:git-act)  (parse-command:git-act raw)
-        ;<  st=action-state:git-act  bind:m  (get-state-as:io ,action-state:git-act)
+        ;<  st-vase=vase  bind:m  get-state:io
+        =/  st=action-state:git-act  (read-action-state:git-act q.st-vase)
         ?~  parsed
           ::  unparseable — log it and wait for the next command
           ;<  now=@da  bind:m  get-time:io
-          =/  bad=done:git-act  [next-id.st [%invalid raw] raw [%error 'unrecognized command'] now]
+          =/  bad=done:git-act  [next-id.st raw [%error 'unrecognized command'] now]
           ;<  ~  bind:m  (replace:io st(log [bad log.st], next-id +(next-id.st)))
           $
         ::  mark the job active, run it, log the outcome
-        =/  =job:git-act  [next-id.st u.parsed raw %start ~]
+        =/  =job:git-act  [next-id.st raw %start ~]
         ;<  ~  bind:m  (replace:io st(active `job, next-id +(next-id.st)))
         ;<  =outcome:git-act  bind:m  (run-command u.parsed)
         ;<  end=@da  bind:m  get-time:io
-        ;<  st2=action-state:git-act  bind:m  (get-state-as:io ,action-state:git-act)
-        =/  entry=done:git-act  [id.job u.parsed raw outcome end]
+        ;<  st2-vase=vase  bind:m  get-state:io
+        =/  st2=action-state:git-act  (read-action-state:git-act q.st2-vase)
+        =/  entry=done:git-act  [id.job raw outcome end]
         ;<  ~  bind:m  (replace:io st2(active ~, log [entry log.st2]))
         $
           ::  /poll.json: the sync daemon. Boot-pull once, then poke the queue's
@@ -374,13 +376,14 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ?~  prod  (pure:m ~)
-  ;<  st=action-state:git-act  bind:m  (get-state-as:io ,action-state:git-act)
+  ;<  st-vase=vase  bind:m  get-state:io
+  =/  st=action-state:git-act  (read-action-state:git-act q.st-vase)
   ;<  ~  bind:m
     ?~  active.st  (pure:m ~)
     ;<  now=@da  bind:m  get-time:io
     =/  job  u.active.st
     =/  msg=@t  (crip "crashed: {(trip (render-tang:build u.prod))}")
-    =/  entry=done:git-act  [id.job git-command.job raw.job [%error msg] now]
+    =/  entry=done:git-act  [id.job raw.job [%error msg] now]
     (replace:io st(active ~, log [entry log.st]))
   (rise-wait:io prod "%git/repo run: failed")
 ::  +op-add: stage changes. Empty paths = add all; else selective. Writes

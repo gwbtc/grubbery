@@ -27,13 +27,17 @@
       [%stash-list ~]
       [%invalid raw=@t]                    ::  didn't parse — for the log only
   ==
-::  +job: a queued or running command. `raw` is the string as typed (for the
-::  log and UI). `step`/`data` carry a running command's intermediate state
-::  so a slow, multi-step op (fetch, push) survives a restart.
+::  +job: a queued or running command. `raw` is the string as typed and is
+::  the ONLY record of what it is: the parsed +git-command is a function
+::  argument, handed to the dispatcher and discarded, never stored. State
+::  that holds a parsed command is coupled to the grammar, so every change
+::  to +git-command invalidated every repo's stored queue and log.
+::  `step`/`data` carry intermediate state so a slow multi-step op (fetch,
+::  push) survives a restart; the command itself is re-parsed from `raw`
+::  when it runs, which also means a grammar fix rescues queued commands.
 ::
 +$  job
   $:  id=@ud
-      =git-command
       raw=@t
       step=@tas
       data=json
@@ -41,7 +45,9 @@
 ::  +outcome: how a finished command ended.
 ::
 +$  outcome  $%([%ok msg=@t] [%error msg=@t])
-+$  done  [id=@ud =git-command raw=@t =outcome at=@da]
+::  +done: a finished command. History, and untyped for the same reason.
+::
++$  done  [id=@ud raw=@t =outcome at=@da]
 ::  +action-state: the whole lane. queue is submission-ordered; log is
 ::  newest-first; next-id hands out monotonic job ids.
 ::
@@ -51,6 +57,22 @@
       log=(list done)
       next-id=@ud
   ==
+::  +read-action-state: the ONE place a stored action grub is decoded.
+::
+::    Four callers each coerced the noun themselves -- the mark's grab,
+::    three +get-state-as in nex/git/repo, and an !< in nex/git/forge --
+::    so tolerance added to any one of them was no tolerance at all, and
+::    a hard mold in the fiber path crash-looped and banged the grub.
+::
+::    A queue and a log of past commands are both disposable: if the
+::    stored noun does not match the current type, start empty. History
+::    is not worth banging the forge over. Nothing else in the repo is
+::    reconstructed from this grub.
+::
+++  read-action-state
+  |=  n=*
+  ^-  action-state
+  (fall ((soft action-state) n) *action-state)
 ::
 ::  ── json (for the UI / MCP to read the lane's state) ──
 ::
@@ -77,7 +99,6 @@
   ^-  json
   %-  pairs:enjs:format
   :~  ['id' (numb:enjs:format id.j)]
-      ['command' (command-to-json git-command.j)]
       ['raw' s+raw.j]
       ['step' s+step.j]
       ['data' data.j]
@@ -87,7 +108,6 @@
   ^-  json
   %-  pairs:enjs:format
   :~  ['id' (numb:enjs:format id.d)]
-      ['command' (command-to-json git-command.d)]
       ['raw' s+raw.d]
       ['ok' b+?=(%ok -.outcome.d)]
       ['message' s+msg.outcome.d]

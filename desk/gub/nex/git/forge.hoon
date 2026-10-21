@@ -733,9 +733,12 @@
     (peek:io (nex-road:io rail [%& /repos/[kid] %'run.git-action']) ~)
   =/  queue=json
     ?.  ?=([%file *] lv)  ~
-    =/  s=(unit action-state:git-act)
-      (mole |.(!<(action-state:git-act (need-vase:tarball sang.lv))))
-    ?~(s ~ (state-to-json:git-act u.s))
+    ::  through +read-action-state like every other reader, so a stored
+    ::  noun of the wrong shape reads as empty rather than blanking the
+    ::  whole repo row (the old +mole swallowed it to ~ indistinguishably)
+    =/  v=(unit vase)  (mole |.((need-vase:tarball sang.lv)))
+    ?~  v  ~
+    (state-to-json:git-act (read-action-state:git-act q.u.v))
   %-  pure:m
   %-  pairs:enjs:format
   :~  ['status' (fall status ~)]
