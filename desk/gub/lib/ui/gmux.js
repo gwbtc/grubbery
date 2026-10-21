@@ -47,7 +47,7 @@
 //
 //   KEYS (after prefix): % / | split right · " / - split down · c collapse · e expand · f flip · r rotate ·
 //     z seat toggle (fill the window with this pane) · x close · b lock bars · o cycle · m mark · ␣ swap ·
-//     n nest · N / p promote (nest's inverse: this pane's tabs rise into the one above) ·
+//     n nest · m mark · M give this pane's tabs to the marked pane and go ·
 //     [ ] climb/descend · Tab sibling · Esc reset · h highlight · 1-9 jump ·
 //     t new tab · w close tab · T toggle bar · : focus navbar · < > prev/next tab · , . back/forward ·
 //     arrows move · shift+arrows resize (sticky).
@@ -227,7 +227,7 @@ class Gmux extends HTMLElement {
       act('⇄', 'flip the two panes of this division', () => this.flip(pid())),
       act('⟳', 'turn this division a quarter turn clockwise', () => this.rotate(pid())),
       act('⤓', 'collapse pane', () => this.collapse(pid())),
-      act('⤒', 'promote: lift this pane\u2019s tabs into the one above', () => this.promote(pid())),
+      act('⤒', 'give these tabs to the marked pane (m marks one)', () => this.moveTabs(pid())),
       act('⬉', 'select parent container', () => this.selectParent(pid())),
       act('⛶', 'seat this pane: fill the whole window', () => this.seatPane(pid())),
       act('↑', 'up a level', () => this.seatUp(pid())),
@@ -335,7 +335,7 @@ class Gmux extends HTMLElement {
       btn('⇄', 'flip the two panes of this division', () => this.flip(id)),
       btn('⟳', 'turn this division a quarter turn clockwise', () => this.rotate(id)),
       btn('⤓', 'collapse pane', () => this.collapse(id)),
-      btn('⤒', 'promote: lift this pane\u2019s tabs into the one above', () => this.promote(id)),
+      btn('⤒', 'give these tabs to the marked pane (m marks one)', () => this.moveTabs(id)),
       btn('⬉', 'select parent container', () => this.selectParent(id)),
       btn('⛶', 'seat this pane: fill the whole window', () => this.seatPane(id)), btn('↑', 'up a level', () => this.seatUp(id)), btn('⤢', 'go to root', () => this.seatRoot()),
       btn('×', 'close pane', () => this.closeLeaf(id)));
@@ -660,6 +660,13 @@ class Gmux extends HTMLElement {
   // activeTab says RIGHT NOW, never a tab frozen in by index. That's what
   // makes an address keep meaning what it meant even if something upstream
   // switched tabs in between.
+  // every hop from pane up to holder gets its own segment — a division slot
+  // ('a'/'b') or, for a nested-pane entry (one pane sitting directly inside
+  // another, no slot to choose), '*'. '*' has to be a real segment, not
+  // skipped: a pane reached by nested-pane hops alone, with zero divisions
+  // crossed, would otherwise collapse to the SAME address as holder itself
+  // ('' either way) — two different panes, one address, picking the wrong
+  // one on the way back in.
   #addrWithin(holder, pane) {
     if (holder === pane) return '.';
     const segs = [];
@@ -671,7 +678,7 @@ class Gmux extends HTMLElement {
         segs.unshift(par.slot); node = par.div.owner;
         if (par.div === holder) return segs.join('/');
       } else {
-        node = par.host;                                // a nested-pane entry — not a real choice, no segment
+        segs.unshift('*'); node = par.host;
       }
       if (!node) return null;
       if (node === holder) return segs.join('/');
@@ -682,27 +689,14 @@ class Gmux extends HTMLElement {
     addr = String(addr || '').trim();
     const parts = (addr === '.' || addr === '') ? [] : addr.split('/').filter((s) => s.length && s !== '.');
     let at = holder;                                   // a pane, or a division
-    // before a real choice (a/b) can be applied, skip through anything that
-    // isn't one: a nested-pane entry (one pane sitting directly inside
-    // another, no slot chosen) — repeatedly, since several can stack. A pane
-    // whose current entry is a DIVISION is a stopping point, not something to
-    // settle through: once all segments are consumed the addressed pane is
-    // the exact target, even if it itself divides further — that's a valid
-    // whole-subtree target, not something to auto-drill past.
-    const settleToDivision = () => {
-      while (at && at.kind === 'pane') {
-        const t = at.tabs[at.activeTab]; if (!t) return;        // empty/fresh — at itself is the resolved target
-        const e = t.entries[t.cursor]; if (!e) return;
-        if (e.div) { at = e.div; return; }
-        if (e.pane) { at = e.pane; continue; }
-        return;
-      }
-    };
     for (const seg of parts) {
-      settleToDivision();
-      if (!at || at.kind === 'pane') return null;       // a real choice only ever happens at a division
+      if (!at || at.kind !== 'pane') return null;       // a real choice only ever happens stepping out of a pane
+      const t = at.tabs[at.activeTab]; if (!t) return null;
+      const e = t.entries[t.cursor]; if (!e) return null;
+      if (seg === '*') { if (!e.pane) return null; at = e.pane; continue; }
       if (seg !== 'a' && seg !== 'b') return null;
-      at = at[seg]; if (!at) return null;
+      if (!e.div) return null;
+      at = e.div[seg]; if (!at) return null;
     }
     return at && at.kind === 'pane' ? at : null;
   }
@@ -1193,14 +1187,27 @@ class Gmux extends HTMLElement {
     // AUTOPROMOTE. A holder with a single child is a level with no choice in
     // it: invisible on the desktop, but on the phone a level you can stand on
     // that offers one dot, one child and nothing to move between — a room you
-    // walk through on the way up. So the survivor's tabs go straight up and
-    // the emptied tab goes with them, which makes split-then-close the
-    // identity again. This is +promote exactly, so it IS +promote: ALL the
-    // tabs move, which is the whole point — absorbing only the active one is
-    // what lost them before.
-    this.#renderPane(owner);                           // places sib's own DOM: scroll rides along
-    this.promote(sib.id);
+    // walk through on the way up. So the survivor's tabs go straight up, the
+    // tab that held the division goes with them, and split-then-close is the
+    // identity again. ALL the tabs move, which is the point; absorbing only
+    // the active one is what lost them before.
+    //
+    //   This hands them over directly rather than going through a command that
+    //   also unhooks the survivor — doing that closed the survivor too, close
+    //   autopromoted ITS sibling, and the sibling came along for the ride.
+    //
+    const held = owner.tabs.indexOf(ownerTab);
+    this.#giveTabsTo(sib, owner);
+    if (held >= 0) {
+      owner.tabs.splice(held, 1);                       // it existed only to hold the division
+      if (owner.activeTab > held) owner.activeTab--;
+    }
+    if (!owner.tabs.length) owner.tabs.push({ entries: [], cursor: -1 });
+    if (owner.activeTab >= owner.tabs.length) owner.activeTab = owner.tabs.length - 1;
+    this.#forgetPane(sib);
+    this.#renderPane(owner);
     this.#restoreScroll(scroll);
+    this.cursorTo(firstVisibleLeaf(owner, this));
     this.#emit('ps-close', {}); this.#persist();
     this.#refocus();
   }
@@ -1222,48 +1229,81 @@ class Gmux extends HTMLElement {
   //   nothing to confirm. The tabs land beside the division they came out of,
   //   not on top of it.
   //
-  promote(id) {
-    const p = this.#panes.get(id ?? this.#activeId); if (!p) return false;
-    const par = p.parent;
-    if (!par) { this.#flashHint('nothing holds this pane: there is nowhere to promote it to'); return false; }
-    const scroll = this.#snapshotScroll();
-    const mine = p.tabs;
+  // +#giveTabsTo: hand every tab of `src` to `dst`, appended in their own
+  //   order, with the active one still active. Structural moments are
+  //   reparented at every point in every history, not just the one on screen —
+  //   a division sitting back in a tab's past still names the pane it came
+  //   from. Does NOT touch whatever contained src; the caller decides that.
+  //
+  #giveTabsTo(src, dst) {
+    const mine = src.tabs;
+    dst.tabs.push(...mine);
+    dst.activeTab = dst.tabs.length - mine.length + (src.activeTab || 0);
+    dst.tabs.forEach((t) => t.entries.forEach((e) => this.#reparentDiv(e, dst)));
+    src.tabs = [{ entries: [], cursor: -1 }];   // moved, not released: keep forgetPane off their stashes
+  }
+  // +#unhook: take `pane` out of whatever contains it, WITHOUT collapsing it.
+  //
+  //   A division is left holding the sibling alone — a monochild. A holding
+  //   tab is left empty. Emptying is not deleting, which is the same rule a
+  //   closed last tab follows: the container is the caller's to remove, and
+  //   an empty pane closes without asking.
+  //
+  #unhook(pane) {
+    const par = pane.parent;
+    if (!par) return false;
     if (par.div) {
-      const owner = par.div.owner;
-      const at = owner.activeTab;
-      // hand the tabs over BEFORE closing, so close has nothing to release and
-      // sees an empty pane (no confirm): it then leaves the division holding
-      // the sibling alone, and these slot in beside it.
-      p.tabs = [{ entries: [], cursor: -1 }];
-      this.close(p, true);
-      owner.tabs.push(...mine);                        // at the END, not wedged beside the division
-      owner.activeTab = owner.tabs.length - mine.length + (p.activeTab || 0);
-      owner.tabs.forEach((t) => t.entries.forEach((e) => this.#reparentDiv(e, owner)));
-      this.#renderPane(owner);
-      this.#afterStructure();
-      this.#restoreScroll(scroll);
-      this.cursorTo(owner);
-      this.#persist();
-      this.#refocus();
-      return true;
+      const div = par.div, owner = div.owner, sib = par.slot === 'a' ? div.b : div.a;
+      const tab = owner.tabs[owner.activeTab];
+      const was = tab.entries[tab.cursor];
+      const moment = { pane: sib };
+      if (div.src) moment.src = div.src;
+      if (was && was.name) moment.name = was.name;
+      div.sv.__psdiv = null;
+      tab.entries[tab.cursor] = moment;
+      sib.parent = { host: owner, slot: 'a' };
+      return owner;
     }
-    if (!par.host) { this.#flashHint('nothing holds this pane: there is nowhere to promote it to'); return false; }
+    if (!par.host) return false;
     const host = par.host;
-    const i = host.tabs.findIndex((t) => { const e = t.entries[t.cursor]; return !!e && e.pane === p; });
-    if (i < 0) { this.#flashHint('cannot find the moment holding this pane'); return false; }
-    host.tabs.splice(i, 1);                            // the tab existed only to hold this pane
-    host.tabs.push(...mine);                           // and these land at the END
-    host.activeTab = host.tabs.length - mine.length + p.activeTab;
-    // every structural moment that moved belongs to the host now, in every
-    // tab and at every point in its history — a division sitting back in a
-    // tab's past still named the pane it came from, which is about to go.
-    host.tabs.forEach((t) => t.entries.forEach((e) => this.#reparentDiv(e, host)));
-    p.tabs = [{ entries: [], cursor: -1 }];   // moved, not released: keep forgetPane off their stashes
-    this.#forgetPane(p);
-    this.#renderPane(host);
+    const t = host.tabs.find((x) => { const e = x.entries[x.cursor]; return !!e && e.pane === pane; });
+    if (!t) return false;
+    t.entries.splice(t.cursor, 1);                       // the moment that held it goes
+    if (!t.entries.length) t.cursor = -1;                // and the tab is simply empty
+    else if (t.cursor >= t.entries.length) t.cursor = t.entries.length - 1;
+    return host;
+  }
+  // +moveTabs: give this pane's tabs to the MARKED pane, and go.
+  //
+  //   Mark a destination with m, then move. The tabs append there; this pane
+  //   goes; and what contained it is left as it stands — a division holding
+  //   the sibling alone, or an empty tab. Nothing follows along and nothing
+  //   collapses, which is what "promote" got wrong: it closed itself, close
+  //   autopromoted the survivor, and the sibling came too.
+  //
+  moveTabs(id) {
+    const src = id ? this.#panes.get(id) : this.cursor;
+    const dst = this.#mark;
+    if (!src) return false;
+    if (!dst) { this.#flashHint('mark a destination first — m on the pane the tabs should go to'); return false; }
+    if (dst === src) { this.#flashHint('a pane cannot take its own tabs'); return false; }
+    // #within(anc, pane) asks whether PANE sits under ANC. The move to refuse
+    // is into a destination that lives inside the source — the source is about
+    // to go, taking the destination with it. A source inside the DESTINATION is
+    // the ordinary case (a child handing its tabs up to its host), so the test
+    // reads this way round and not the other.
+    if (this.#within(src, dst)) { this.#flashHint('that destination is inside this pane'); return false; }
+    if (!src.parent) { this.#flashHint('nothing contains this pane: close it instead'); return false; }
+    const scroll = this.#snapshotScroll();
+    this.#giveTabsTo(src, dst);
+    const left = this.#unhook(src);
+    this.#forgetPane(src);
+    if (left) this.#renderPane(left);
+    this.#renderPane(dst);
     this.#afterStructure();
     this.#restoreScroll(scroll);
-    this.cursorTo(firstVisibleLeaf(host, this));
+    this.clearMark();
+    this.cursorTo(dst);
     this.#persist();
     this.#refocus();
     return true;
@@ -1605,16 +1645,22 @@ class Gmux extends HTMLElement {
     if (!this.#root) return;
     let want = this.seat ? this.#descend(this.#root, this.seat) : null;
     if (want === this.#root) want = null;   // root already fills the window on its own
-    if (want === this.#seatHoist) return;
-    const scroll = this.#snapshotScroll();   // reparenting a pane zeroes its scrollers — keep them
-    if (this.#seatHoist) {
-      const p = this.#seatHoist, pp = p.parent;
-      if (pp) { if (pp.div) this.#placePane(p, pp.div.sv, pp.slot === 'a' ? 'start' : 'end'); else this.#placePane(p, pp.host.body, null); }
+    if (want !== this.#seatHoist) {
+      const scroll = this.#snapshotScroll();   // reparenting a pane zeroes its scrollers — keep them
+      if (this.#seatHoist) {
+        const p = this.#seatHoist, pp = p.parent;
+        if (pp) { if (pp.div) this.#placePane(p, pp.div.sv, pp.slot === 'a' ? 'start' : 'end'); else this.#placePane(p, pp.host.body, null); }
+      }
+      this.#root.dom.style.display = want ? 'none' : '';
+      if (want) this.#placePane(want, this, null);
+      this.#seatHoist = want;
+      this.#restoreScroll(scroll);
     }
-    this.#root.dom.style.display = want ? 'none' : '';
-    if (want) this.#placePane(want, this, null);
-    this.#seatHoist = want;
-    this.#restoreScroll(scroll);
+    // the cursor has to stay somewhere actually on screen: once seated,
+    // nothing outside the seat is visible to point at, so if it strayed
+    // there — whether from this call's own hoist swap or from something
+    // structural elsewhere — drag it onto the seat itself
+    if (want && !this.#within(want, this.cursor)) { this.#activeId = want.id; this.#render(); }
   }
   // snapshot/restore scroll offsets across a DOM reparent (scrollTop zeroes on move)
   #snapshotScroll() { const m = []; this.querySelectorAll('*').forEach((el) => { if (el.scrollTop || el.scrollLeft) m.push([el, el.scrollTop, el.scrollLeft]); }); return m; }
@@ -1856,7 +1902,7 @@ class Gmux extends HTMLElement {
     else if (k === '"' || k === '-') this.splitDown();
     else if (k === 'x') this.close();
     else if (k === 'n') { this.nest(); this.#flashHint('nested: this tab now holds a pane of its own'); }
-    else if (k === 'N' || k === 'p') { if (this.promote()) this.#flashHint('promoted: its tabs are the pane above\u2019s now'); }
+    else if (k === 'M') { if (this.moveTabs()) this.#flashHint('tabs moved — this pane is gone, what held it stayed'); }
     else if (k === 'z') this.seatToggle();
     else if (k === 'b') { const on = this.toggleBars(); this.#flashHint('pane bars: ' + (on ? 'toggleable on hover' : 'locked')); }
     else if (k === 'f') this.flip();                   // swap the two sides of this division
