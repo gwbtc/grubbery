@@ -2818,6 +2818,9 @@ function setup(root, opts) {
       '.mb-more{flex:0 0 auto;font:inherit;font-size:15px;line-height:1;padding:8px 10px;border:1px solid #d0d7de;border-radius:8px;background:#fff;color:#1f2328}' +
       '.mb-hist button.on{border-color:#57606a;background:#f6f8fa;font-weight:600}' +
       '.mb-hist button:disabled{opacity:.35}' +
+      '.mb-histrow{display:flex;gap:6px;align-items:stretch}' +
+      '.mb-histrow > button:first-child{flex:1;min-width:0}' +
+      '.mb-histrow .x{flex:0 0 auto;width:44px;font-size:17px;color:#57606a}' +
       '.mb-hist button{text-align:left;font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:12px 12px;border:1px solid #d0d7de;border-radius:8px;background:#fff;color:#1f2328;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
       '.mb-card .cap .cap-edit{flex:1;min-width:0;font:inherit;padding:2px 6px;border:1px solid #0969da;border-radius:6px;background:#fff;color:#1f2328;outline:none}' +
       '.mb-grid{flex:1;min-height:0;overflow:auto;display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px;align-content:start}' +
@@ -3293,16 +3296,35 @@ function setup(root, opts) {
       const rows = model.historyList(id).slice().reverse();
       if (!rows.length) return;
       openSheet('history', (list, close) => {
-        rows.forEach((r) => {
-          const x = document.createElement('button');
-          x.textContent = r.label || '—';
-          if (r.current) { x.classList.add('on'); x.textContent = r.label || '—'; }
-          x.addEventListener('click', () => {
-            close();
-            withCursor(() => { model.goTo(model.cursor && model.cursor.id, r.i); redraw(); });
+        const draw = (rows) => {
+          list.textContent = '';
+          rows.forEach((r) => {
+            const row = document.createElement('div'); row.className = 'mb-histrow';
+            const go = document.createElement('button');
+            go.textContent = r.label || '—';
+            if (r.current) go.classList.add('on');
+            go.addEventListener('click', () => {
+              close();
+              withCursor(() => { model.goTo(model.cursor && model.cursor.id, r.i); redraw(); });
+            });
+            // forget this step. No hover on a phone, so it is always visible
+            // and thumb-sized rather than appearing under a cursor.
+            const del = document.createElement('button');
+            del.className = 'x'; del.textContent = '×'; del.title = 'forget this step';
+            del.addEventListener('click', (e) => {
+              e.stopPropagation();
+              if (!model.cursorToAddr(node.addr)) return;
+              if (!model.dropEntry(model.cursor && model.cursor.id, r.i)) return;
+              redraw();
+              const left = model.historyList(model.cursor && model.cursor.id).slice().reverse();
+              if (!left.length) { close(); return; }
+              draw(left);                                  // the list, one step shorter
+            });
+            row.append(go, del);
+            list.appendChild(row);
           });
-          list.appendChild(x);
-        });
+        };
+        draw(rows);
       });
     }
     // the rendering mode, as an ACTION: the glyph is the mode it switches TO,

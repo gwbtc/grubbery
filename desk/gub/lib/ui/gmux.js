@@ -42,11 +42,11 @@
 //   content: open(path,'here'|'beside') · navigate(id,path) · openLayout(id,spec)
 //     back/forward(id) · newTab(id,path) · selectTab(id,i) · closeTab(id,i)
 //   structure: splitRight/splitDown · close · closeLeaf · swap · collapse · nudge
-//     zoomToggle/zoomOut/zoomReset · focusPane · climb/descend/sibling · setBar · toggleBars
+//     zoomToggle/zoomReset · focusPane · climb/descend/sibling · setBar · toggleBars
 //   data: serialize() · restore(spec) · instantiate(spec)
 //
 //   KEYS (after prefix): % / | split right · " / - split down · c collapse · e expand · f flip · r rotate ·
-//     z/Z zoom in/out · C set/clear zoom context · x close · b lock bars · o cycle · m mark · ␣ swap ·
+//     z zoom toggle · C set/clear zoom context · x close · b lock bars · o cycle · m mark · ␣ swap ·
 //     [ ] climb/descend · Tab sibling · Esc reset · h highlight · 1-9 jump ·
 //     t new tab · w close tab · T toggle bar · : focus navbar · < > prev/next tab · , . back/forward ·
 //     arrows move · shift+arrows resize (sticky).
@@ -70,13 +70,18 @@ const CSS = `
     content:""; position:absolute; inset:0; pointer-events:none;
     outline:1px solid transparent; outline-offset:-1px; transition:outline-color .1s;
   }
-  .ps-pane.ps-active::after { outline:2px solid var(--ps-accent,#0969da); outline-offset:-2px; }
   /* a zoomed frame: a pane whose body shows one descendant alone. Its wall is the
      ordinary pane border, thicker and a shade darker: structure, not selection.
      The folded siblings are that wall with their names set into it, on the side
-     they lived; a click on it zooms back out. */
-  .ps-pane.ps-zoom-frame > .ps-pane-body { padding:3px; }
-  .ps-pane.ps-zoom-ctx > .ps-pane-body { padding:3px; box-shadow: inset 0 0 0 3px var(--ps-wall,#cfd5db); }
+     they lived; a click on it zooms back out. The border has to live on the
+     ::after overlay, same as the active-selection outline just below it — a
+     box-shadow on .ps-pane-body gets painted UNDER a division's absolutely
+     positioned split-view (line above) and simply never shows for any zoomed
+     pane that itself holds a split, only for bare leaves.
+  */
+  .ps-pane.ps-zoom-frame > .ps-pane-body, .ps-pane.ps-zoom-ctx > .ps-pane-body { padding:3px; }
+  .ps-pane.ps-zoom-frame::after, .ps-pane.ps-zoom-ctx::after { outline:3px solid var(--ps-wall,#cfd5db); outline-offset:-3px; }
+  .ps-pane.ps-active::after { outline:2px solid var(--ps-accent,#0969da); outline-offset:-2px; }
   .ps-zoom-wall { position:absolute; z-index:3; background:var(--ps-wall,#cfd5db); color:#57606a; font:600 11px ui-monospace,Menlo,monospace; cursor:pointer; display:flex; gap:12px; align-items:center; overflow:hidden; white-space:nowrap; user-select:none; box-sizing:border-box; }
   .ps-zoom-wall:hover { background:#c2c9d0; color:#24292f; }
   .ps-zoom-wall.left { left:0; top:0; bottom:0; width:16px; padding:8px 0; writing-mode:vertical-rl; }
@@ -106,8 +111,12 @@ const CSS = `
   .ps-bar-btn { all:unset; cursor:pointer; padding:0 6px; height:22px; box-sizing:border-box; display:inline-flex; align-items:center; border-radius:4px; color:#57606a; font-size:14px; line-height:1; }
   .ps-bar-btn:hover { background:#eaeef2; color:#24292f; }
   .ps-bar-btn[disabled] { opacity:.3; cursor:default; }
-  .ps-bar-tabs { display:flex; align-items:center; gap:2px; flex:1 1 auto; min-width:0; overflow-x:auto; scrollbar-width:none; }
+  .ps-bar-tabs { display:flex; align-items:center; gap:2px; flex:0 1 auto; min-width:0; overflow-x:auto; scrollbar-width:none; }
   .ps-bar-tabs::-webkit-scrollbar { display:none; }
+  /* the gap between "+" and the structural buttons (split, zoom, close…) —
+     tabs stay fit-content so + sits right after the last one, Chrome-style,
+     and this spacer absorbs the rest of the row's width instead */
+  .ps-bar-spacer { flex:1 1 auto; min-width:4px; }
   .ps-tab { all:unset; cursor:pointer; display:inline-flex; align-items:center; gap:4px; padding:0 8px; height:22px; box-sizing:border-box; border-radius:6px 6px 0 0; font:600 13px ui-monospace,Menlo,monospace; color:#57606a; white-space:nowrap; border:1px solid transparent; }
   .ps-tab:hover { background:#eaeef2; }
   .ps-tab.on { background:#fff; color:#1f2328; border-color:#e2e7ee; }
@@ -139,6 +148,11 @@ const CSS = `
   .ps-histmenu { position:absolute; z-index:30; display:none; flex-direction:column; min-width:160px; max-width:320px; max-height:50%; overflow-y:auto; background:#fff; border:1px solid #d0d7de; border-radius:8px; box-shadow:0 6px 20px rgba(0,0,0,.14); padding:4px; }
   .ps-histmenu.on { display:flex; }
   .ps-hm-row { all:unset; cursor:pointer; display:flex; align-items:center; gap:6px; padding:5px 9px; border-radius:6px; font:13px -apple-system,BlinkMacSystemFont,sans-serif; color:#24292f; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  /* forget-this-step: present but quiet, so a history row still reads as one
+     thing to click; it only asserts itself under the cursor */
+  .ps-hm-x { margin-left:auto; padding:0 3px; border-radius:4px; color:#8b949e; opacity:0; }
+  .ps-hm-row:hover .ps-hm-x { opacity:1; }
+  .ps-hm-x:hover { background:#d7dde3; color:#cf222e; }
   .ps-hm-row:hover { background:#eaeef2; }
   .ps-hm-row.on { background:#ddf4ff; color:#0969da; font-weight:600; }
   .ps-hm-ic { opacity:.85; }
@@ -193,16 +207,20 @@ class Gmux extends HTMLElement {
   #panes = new Map();           // id -> pane
   #activeId = null;             // the selected/active pane id
   #selLevel = 2;
-  #zoomStack = [];              // zooms, outer to inner: { pane, frame }; the root is a frame like any other
+  // zoom lives on the TAB, not a global stack: pane.tabs[i].zoom is an address
+  // string (within that pane) naming the descendant this tab shows zoomed —
+  // a tab fully owns its own zoom, so switching away and back just works,
+  // and nothing anywhere needs reconciling against a list.
   #mark = null;                 // a marked pane (for swap)
   #contexts = new Set();        // standing zoom frames (C toggles a pane); z fills the nearest one above the cursor, else the window
   #pendingClose = null;         // a pane with content whose close awaits Enter
   #closing = false;             // set only while Enter runs the confirmed close
-  #hoists = [];                 // zooms applied to the DOM: { entry, hid, wall, pad }
+  #hoistInfo = new Map();       // frame pane -> the hoist currently applied to its DOM: { z:{pane,frame}, hid, wall, pad }
   #hoverToggle = true;
   #pillTimer = null;            // interval that counts the quickbar's sticky grace down
   #pillEnd = 0;                 // when the quickbar is due to retract (ms epoch)
   #padBody = null;             // the pane body currently padded down to make room for the quickbar
+  #padRestore = null;           // its own paddingTop/split-view top from before — a zoom frame already carries 16px from its wall, which undisplace must give back exactly, not blank to 0
   #pillPane = null;            // the pane the quickbar is showing for: always the selected one
   #repeat = null;
   #awaiting = false;
@@ -282,6 +300,7 @@ class Gmux extends HTMLElement {
     if (this.#root) return this.#activeId;
     const pane = this.#makePane();
     this.#root = pane;
+    this.#contexts.add(pane);              // a fresh workspace starts zoomable; C can turn it off like any pane
     this.#placePane(pane, this, null);
     this.focusPane(pane.id);
     return pane.id;
@@ -311,7 +330,7 @@ class Gmux extends HTMLElement {
     // quick-action bar; it lingers (grace timer) and the bar itself holds it
     // open while you interact (wired where the element is built).
     dom.addEventListener('mousemove', (e) => this.#onTopHover(e, id));
-    const pane = { kind: 'pane', id, dom, body, bar, tabs: [{ entries: [], cursor: -1 }], activeTab: 0, parent: null, showBar: false, nav: true, open: null, view: null, ref: null };
+    const pane = { kind: 'pane', id, dom, body, bar, tabs: [{ entries: [], cursor: -1, view: null }], activeTab: 0, parent: null, showBar: false, nav: true, open: null, ref: null };
     this.#panes.set(id, pane);
     this.#refIndex = null;                        // membership changed: the id index rebuilds on next lookup
     this.#renderPane(pane);
@@ -331,12 +350,14 @@ class Gmux extends HTMLElement {
     const viewBtn = btn('', 'rendering mode', () => this.#cycleView(id));
     const menu = btn('≡', 'full bar / tabs only', () => this.setNav(id)); menu.classList.add('ps-bar-menu');
     const hide = btn('▴', 'hide bar', () => this.setBar(id, false)); hide.classList.add('ps-bar-menu');   // stays in tabs-only too
-    row1.append(menu, hide, tabs, add, viewBtn,
+    const spacer = document.createElement('div'); spacer.className = 'ps-bar-spacer';
+    row1.append(menu, hide, tabs, add, spacer, viewBtn,
       btn('◨', 'split right', () => this.splitRight(id)), btn('⬓', 'split down', () => this.splitDown(id)),
       btn('⇄', 'flip the two panes of this division', () => this.flip(id)),
       btn('⟳', 'turn this division a quarter turn clockwise', () => this.rotate(id)),
       btn('⤓', 'collapse pane', () => this.collapse(id)),
       btn('⬉', 'select parent container', () => this.selectParent(id)),
+      btn('C', 'toggle this pane as a zoom context — z on a pane inside it then fills it', () => this.contextToggle(this.#panes.get(id))),
       btn('⛶', 'zoom to this pane', () => this.zoomPane(id)), btn('↑', 'zoom to parent', () => this.zoomParent(id)), btn('⤢', 'zoom all the way out', () => this.zoomReset()),
       btn('×', 'close pane', () => this.closeLeaf(id)));
     // row 2 — history + navbar
@@ -427,7 +448,7 @@ class Gmux extends HTMLElement {
     // per-pane render-mode toggle — an ACTION button, so it shows the mode it
     // will switch TO (not the current one).
     if (this.viewModes && this.viewModes.length) {
-      const cur = pane.view || this.viewModes[0].id;
+      const cur = this.#tabView(pane) || this.viewModes[0].id;
       const i = this.viewModes.findIndex(v => v.id === cur);
       const next = this.viewModes[(i + 1) % this.viewModes.length];
       bar._view.textContent = next.glyph; bar._view.title = 'switch to ' + (next.title || next.id); bar._view.style.display = '';
@@ -458,6 +479,40 @@ class Gmux extends HTMLElement {
     const p = this.#panes.get(id ?? this.#activeId); if (!p) return [];
     const tab = p.tabs[p.activeTab];
     return tab.entries.map((e, i) => { const m = this.#entryMeta(e); return { i, icon: m.icon, label: m.label, current: i === tab.cursor }; });
+  }
+  // +dropEntry: remove ONE entry from the active tab's history.
+  //
+  //   Modelled on closeMoment, which removes the current entry of every tab
+  //   showing a path: a structural entry's panes are forgotten rather than
+  //   orphaned, a tab left with nothing goes the way closeTab sends it, and
+  //   the stash is released only when the entry being removed is the one on
+  //   screen. The cursor names a MOMENT, not a slot, so it follows the entry
+  //   it was already on rather than staying at its index.
+  //
+  dropEntry(id, i) {
+    const p = this.#panes.get(id ?? this.#activeId); if (!p) return false;
+    const t = p.tabs[p.activeTab]; if (!t) return false;
+    if (i < 0 || i >= t.entries.length) return false;
+    const e = t.entries[i];
+    if (e && e.div) { this.#forgetPane(e.div.a); this.#forgetPane(e.div.b); }
+    else if (e && e.pane) this.#forgetPane(e.pane);
+    t.entries.splice(i, 1);
+    if (!t.entries.length) {
+      this.#dropStash(p, t);
+      const ti = p.tabs.indexOf(t);
+      p.tabs.splice(ti, 1);
+      if (p.activeTab >= ti && p.activeTab > 0) p.activeTab--;
+    } else {
+      if (i < t.cursor) t.cursor--;
+      else if (i === t.cursor) { t.cursor = Math.max(0, i - 1); if (t.el) this.#dropStash(p, t); }
+      if (t.cursor >= t.entries.length) t.cursor = t.entries.length - 1;
+    }
+    if (!p.tabs.length) p.tabs.push({ entries: [], cursor: -1 });
+    if (p.activeTab >= p.tabs.length) p.activeTab = p.tabs.length - 1;
+    if (this.#reconsolidate(p)) return true;
+    this.#renderPane(p); this.#reconcileCursor(); this.#afterStructure(); this.#persist();
+    this.#refocus();
+    return true;
   }
   goTo(id, i) {
     const p = this.#panes.get(id ?? this.#activeId); if (!p) return;
@@ -492,6 +547,21 @@ class Gmux extends HTMLElement {
       row.addEventListener('mousedown', (ev) => ev.stopPropagation());
       row.addEventListener('mouseup', (ev) => { ev.stopPropagation(); this.goTo(id, e.i); this.#closeHistMenu(); });
       row.addEventListener('click', (ev) => { ev.stopPropagation(); this.goTo(id, e.i); this.#closeHistMenu(); });
+      // forget this step. A span rather than a button because the row IS a
+      // button; it swallows all three events the row listens for, or the
+      // delete would navigate on its way out.
+      const x = document.createElement('span');
+      x.className = 'ps-hm-x'; x.textContent = '\u00d7'; x.title = 'forget this step';
+      const stop = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
+      x.addEventListener('mousedown', stop);
+      x.addEventListener('click', stop);
+      x.addEventListener('mouseup', (ev) => {
+        stop(ev);
+        if (!this.dropEntry(id, e.i)) return;
+        this.#closeHistMenu();
+        this.#openHistMenu(id, anchor, dir);        // same list, one step shorter
+      });
+      row.appendChild(x);
       menu.appendChild(row);
     });
     const cr = this.getBoundingClientRect(), r = anchor.getBoundingClientRect();
@@ -515,7 +585,23 @@ class Gmux extends HTMLElement {
   // re-instantiated from its path (we keep paths, never live views). A division
   // entry mounts its (persistent) split-view; its children render themselves.
   #renderPane(pane, rebuild = false) {
-    this.#dropZoomsFramedBy(pane);                                  // its body is about to be rebuilt: nothing stays hoisted in it
+    // zoom is applied right here, from this pane's own active tab's own
+    // data — not a separate pass reconciled against a global list. Whatever
+    // the tab wants is what gets shown; nothing else needs to know.
+    const tab = pane.tabs[pane.activeTab];
+    const want = (tab && tab.zoom) ? this.#descend(pane, tab.zoom) : null;
+    const cur = this.#hoistInfo.get(pane);
+    if (cur && cur.z.pane !== want) {
+      this.#unhoist(cur); this.#hoistInfo.delete(pane); pane.dom.classList.remove('ps-zoom-frame');
+    }
+    if (want) {
+      if (!this.#hoistInfo.has(pane)) {
+        this.#hoistInfo.set(pane, this.#hoist({ pane: want, frame: pane }));
+        pane.dom.classList.add('ps-zoom-frame');
+      }
+      this.#renderBar(pane);
+      return;
+    }
     const prev = pane.body.firstChild;
     const entry = this.#curEntry(pane);
     // a leaf moving to another moment: the host may update the content it
@@ -536,7 +622,7 @@ class Gmux extends HTMLElement {
       else { try { if (this.onDestroy) this.onDestroy(pane.id, pane.body); } catch (_) {} pane.body.textContent = ''; }
     }
     const src = this.#entrySrc(entry);
-    if (entry && (entry.div || entry.pane) && pane.view && src) {
+    if (entry && (entry.div || entry.pane) && this.#tabView(pane) && src) {
       // a non-default view (e.g. raw) on a layout: show its SOURCE via renderPath,
       // keeping the live structure intact underneath — flip back and it returns.
       const el = this.renderPath ? this.renderPath(src, pane.id) : document.createTextNode(src);
@@ -813,7 +899,7 @@ class Gmux extends HTMLElement {
       if (!live || live.tagName === 'SPLIT-VIEW' || live.classList.contains('ps-pane')) return;
       op.body.removeChild(live); np.body.textContent = ''; np.body.appendChild(live); np.cold = false;   // moved (a fresh pane's body holds the empty placeholder; the old pane's destroy finds nothing)
       np.showBar = op.showBar; np.dom.classList.toggle('ps-bar-on', np.showBar);
-      if (op.view) np.view = op.view;
+      const ov = this.#tabView(op); if (ov && np.tabs[np.activeTab]) np.tabs[np.activeTab].view = ov;
       this.#renderBar(np);                                         // a fresh pane's bar was drawn before it had tabs: draw it for real
     }));
     // the old tree goes (a moved leaf is empty by now; its viewer lives on)
@@ -841,13 +927,17 @@ class Gmux extends HTMLElement {
   }
   // per-pane render mode (opaque; host's renderPath interprets, e.g. 'raw'). The
   // bar's toggle cycles through `viewModes`; the default mode is stored as null.
-  viewOf(id) { const p = this.#panes.get(id ?? this.#activeId); return p ? p.view : null; }
-  setView(id, v) { const p = this.#panes.get(id ?? this.#activeId); if (!p) return; p.view = v || null; this.#renderPane(p); this.#persist(); }
+  // the render mode belongs to the TAB, not the pane: a pane holds many
+  // tabs and each is pointed at its own moment, so switching tabs must
+  // bring that tab's mode (and the bar's toggle) with it.
+  #tabView(pane) { const t = pane && pane.tabs[pane.activeTab]; return (t && t.view) || null; }
+  viewOf(id) { const p = this.#panes.get(id ?? this.#activeId); return this.#tabView(p); }
+  setView(id, v) { const p = this.#panes.get(id ?? this.#activeId); if (!p) return; const t = p.tabs[p.activeTab]; if (!t) return; t.view = v || null; this.#renderPane(p); this.#persist(); }
   cycleView(id) { return this.#cycleView(id); }
   #cycleView(id) {
     if (!this.viewModes || !this.viewModes.length) return;
     const p = this.#panes.get(id); if (!p) return;
-    const cur = p.view || this.viewModes[0].id;
+    const cur = this.#tabView(p) || this.viewModes[0].id;
     const i = this.viewModes.findIndex(v => v.id === cur);
     const next = this.viewModes[(i + 1) % this.viewModes.length].id;
     this.setView(id, next === this.viewModes[0].id ? null : next);
@@ -1227,11 +1317,32 @@ class Gmux extends HTMLElement {
     }
     if (changed) { this.#afterStructure(); this.#persist(); }
   }
-  climb() { const o = this.#ownerOf(this.cursor); if (o) this.cursorTo(o); }
+  // a hoisted pane's own .parent still points at its REAL owner in the full
+  // tree — correct for descendants inside it (hoisting only moves the
+  // zoomed pane's own dom, not its children's logical parents), but wrong
+  // at the top of the zoom itself: that real owner is now hidden behind the
+  // zoom. Climbing from exactly that pane should land on the frame instead
+  // — the thing actually standing in for "outward" while zoomed.
+  #climbTarget(pane) {
+    const z = this.#zoomStack.find((z) => z.pane === pane);
+    return z ? z.frame : this.#ownerOf(pane);
+  }
+  climb() { const o = this.#climbTarget(this.cursor); if (o) this.cursorTo(o); }
   // select the parent container (the division that owns this pane) and show the
   // purple container box around it.
-  selectParent(id) { const p = id != null ? this.#panes.get(id) : this.cursor; const o = this.#ownerOf(p); if (!o) return; if (this.#selLevel < 2) this.#selLevel = 2; this.cursorTo(o); }
-  descend() { const e = this.#curEntry(this.cursor); if (e && e.pane) this.cursorTo(e.pane); else if (e && e.div) this.cursorTo(e.div.last === 'b' ? e.div.b : e.div.a); }
+  selectParent(id) { const p = id != null ? this.#panes.get(id) : this.cursor; const o = this.#climbTarget(p); if (!o) return; if (this.#selLevel < 2) this.#selLevel = 2; this.cursorTo(o); }
+  // the mirror of #climbTarget: a frame currently hosting a hoisted zoom has
+  // its OWN real structure hidden behind it, so descending from the frame
+  // itself should land on the zoomed pane actually showing, not on that
+  // hidden structure underneath.
+  descend() {
+    const cur = this.cursor;
+    const z = this.#zoomStack.find((z) => z.frame === cur);
+    if (z) { this.cursorTo(z.pane); return; }
+    const e = this.#curEntry(cur);
+    if (e && e.pane) this.cursorTo(e.pane);
+    else if (e && e.div) this.cursorTo(e.div.last === 'b' ? e.div.b : e.div.a);
+  }
   sibling() { const c = this.cursor; if (c && c.parent && c.parent.div) { const d = c.parent.div; this.cursorTo(c.parent.slot === 'a' ? d.b : d.a); } }
   escape() { if (this.#zoomStack.length) this.zoomReset(); else this.#render(); }
 
@@ -1283,7 +1394,17 @@ class Gmux extends HTMLElement {
   #onTopHover(e, id) {
     if (!this.#hoverToggle) return;
     const p = this.#panes.get(id); if (!p || p.showBar || this.#hidden(p)) return;
-    if (id !== this.#activeId) return;
+    // top-hover ownership belongs to exactly one pane at a time. A zoom's
+    // frame owns it unconditionally (it's the outer edge the user actually
+    // sees, even though it's never "active" while something is hoisted into
+    // it); a pane that's currently hoisted INTO someone else's frame defers
+    // entirely, rather than also answering for the same physical region —
+    // otherwise the two fight over #pillPane on every mousemove tick,
+    // each undoing the other's displacement. Everyone else: the plain old
+    // "only the active pane" rule.
+    const isFrame = this.#zoomStack.some((z) => z.frame === p);
+    const isHoisted = this.#zoomStack.some((z) => z.pane === p);
+    if (!isFrame && (id !== this.#activeId || isHoisted)) return;
     const r = p.dom.getBoundingClientRect();
     if (e.clientY - r.top <= 24) this.#showPill(p);                // near the top → drop it + refresh grace
   }
@@ -1309,17 +1430,22 @@ class Gmux extends HTMLElement {
   #displace(c) {
     this.#undisplace();
     const h = (this.#barToggle.offsetHeight || 30) + 6;
-    c.body.style.paddingTop = h + 'px';
     const sv = c.body.querySelector(':scope > split-view');
+    // a zoom frame's body already carries inline padding (its wall's 16px,
+    // set in #hoist) — remember what was actually there so undisplace can
+    // give it back exactly, instead of blanking it to 0 and leaving the
+    // wall's own spacing permanently broken on the side we touched
+    this.#padRestore = { paddingTop: c.body.style.paddingTop, sv, svTop: sv ? sv.style.top : null };
+    c.body.style.paddingTop = h + 'px';
     if (sv) sv.style.top = h + 'px';
     this.#padBody = c.body;
   }
   #undisplace() {
     if (!this.#padBody) return;
-    this.#padBody.style.paddingTop = '';
-    const sv = this.#padBody.querySelector(':scope > split-view');
-    if (sv) sv.style.top = '';
-    this.#padBody = null;
+    const r = this.#padRestore;
+    this.#padBody.style.paddingTop = r ? r.paddingTop : '';
+    if (r && r.sv) r.sv.style.top = r.svTop;
+    this.#padBody = null; this.#padRestore = null;
   }
   #hidePill() { if (this.#barToggle) this.#barToggle.classList.remove('on'); this.#undisplace(); this.#holdPill(); this.#pillPane = null; }
   #holdPill() { if (this.#pillTimer) { clearInterval(this.#pillTimer); this.#pillTimer = null; } const el = this.#barToggle && this.#barToggle._count; if (el) el.textContent = ''; }
@@ -1386,14 +1512,21 @@ class Gmux extends HTMLElement {
 
   // ---- zoom: a pane alone inside a frame; zooms stack outer to inner ----
 
+  // the nearest context strictly above a pane — every zoom action fills
+  // exactly this, never something hardcoded further out. No context
+  // anywhere above it (root included, if it's been turned off) means no
+  // frame exists, so there is nothing to zoom — a context can't be skipped.
+  #nearestContext(pane) {
+    for (let n = this.#ownerOf(pane); n; n = this.#ownerOf(n)) if (this.#contexts.has(n)) return n;
+    return null;
+  }
   // z: the cursor fills its frame: the context when one is set and the
   // cursor is inside it, else the window. The same zoom again pops it.
   zoomToggle(pane) {
     pane = pane ?? this.cursor;
     if (!pane || !pane.parent) return;                              // the root already fills the window
-    // the nearest context strictly above the cursor; the root is always one
-    let frame = this.#root;
-    for (let n = this.#ownerOf(pane); n; n = this.#ownerOf(n)) if (this.#contexts.has(n) || n === this.#root) { frame = n; break; }
+    const frame = this.#nearestContext(pane);
+    if (!frame) return;
     const z = { pane, frame };
     const top = this.#zoomStack[this.#zoomStack.length - 1];
     if (top && top.pane === z.pane && top.frame === z.frame) { this.#zoomStack.pop(); this.#afterZoom(z.pane); return; }
@@ -1404,36 +1537,63 @@ class Gmux extends HTMLElement {
     this.#zoomStack.push(z);
     this.#afterZoom(z.pane);
   }
-  // C: toggles the cursor as a standing zoom context. Any number of panes
-  // may be contexts; z fills the nearest one above the cursor.
-  contextToggle() {
-    const c = this.cursor; if (!c) return false;
-    if (c === this.#root) return true;                              // the root is always a context
-    const on = !this.#contexts.has(c);
-    if (on) this.#contexts.add(c); else this.#contexts.delete(c);
-    this.#renderContext(); this.#persist();
+  // C: toggles a pane (the cursor, unless one is given — the toolbar button
+  // passes its own pane explicitly) as a standing zoom context. Any number
+  // of panes may be contexts; z fills the nearest one above the cursor.
+  contextToggle(pane) {
+    const c = pane ?? this.cursor; if (!c) return false;
+    const on = !this.#contexts.has(c);                               // the root is a context like any other — turn it off and z has nowhere to land
+    if (on) {
+      this.#contexts.add(c);
+      this.#renderContext(); this.#persist();
+      this.#flashHint('context: z on a pane inside it fills it · C here again clears');
+      return on;
+    }
+    this.#contexts.delete(c);
+    // the frame this context offered inner zooms is gone — any zoom filling
+    // to it no longer has the boundary that justified it, so it goes too
+    const before = this.#zoomStack.length;
+    this.#zoomStack = this.#zoomStack.filter((z) => z.frame !== c);
+    this.#renderContext();
+    if (this.#zoomStack.length !== before) {
+      const top = this.#zoomStack[this.#zoomStack.length - 1];
+      this.#afterZoom(top ? top.pane : this.cursor);                 // persists
+    } else {
+      this.#persist();
+    }
+    this.#flashHint('context cleared');
     return on;
   }
-  clearContext() { this.#contexts.clear(); this.#renderContext(); }
+  clearContext() {
+    this.#contexts.clear();
+    // no context left anywhere means no frame survives for any standing zoom
+    const had = this.#zoomStack.length;
+    this.#zoomStack = [];
+    this.#renderContext();
+    if (had) this.#afterZoom(this.cursor);                           // persists
+  }
   #renderContext() {
-    for (const p of this.#panes.values()) p.dom.classList.toggle('ps-zoom-ctx', p !== this.#root && this.#contexts.has(p) && !this.#hidden(p));
+    for (const p of this.#panes.values()) p.dom.classList.toggle('ps-zoom-ctx', this.#contexts.has(p) && !this.#hidden(p));
   }
   // Z: pop the innermost zoom; the cursor stays on what WAS zoomed, not its frame
-  zoomOut() { if (this.#zoomStack.length) { const z = this.#zoomStack.pop(); this.#afterZoom(z.pane); } }
   zoomReset() { if (this.#zoomStack.length) { this.#zoomStack = []; this.#afterZoom(this.cursor); } }
-  // make a specific pane fill the window (toolbar "full screen this").
+  // make a specific pane fill its nearest context (toolbar "full screen this")
   zoomPane(id) {
     const p = this.#panes.get(id ?? this.#activeId);
     if (!p || !p.parent) { this.zoomReset(); return; }   // root already fills
-    this.#zoomStack = [{ pane: p, frame: this.#root }]; this.#afterZoom(p);
+    const frame = this.#nearestContext(p);
+    if (!frame) return;                                   // no context above it: nothing to fill
+    this.#zoomStack = [{ pane: p, frame }]; this.#afterZoom(p);
   }
-  // step the window zoom out to the parent of what's currently zoomed (or of this pane).
+  // step the zoom out to the parent of what's currently zoomed (or of this pane).
   zoomParent(id) {
     const top = this.#zoomStack[this.#zoomStack.length - 1];
     const from = (top && top.pane) || this.#panes.get(id ?? this.#activeId);
     const owner = from && this.#ownerOf(from);
-    if (owner && owner.parent) { this.#zoomStack = [{ pane: owner, frame: this.#root }]; this.#afterZoom(owner); }
-    else this.zoomReset();                                 // parent is the root → show everything
+    if (!owner || !owner.parent) { this.zoomReset(); return; }   // parent is the root → show everything
+    const frame = this.#nearestContext(owner);
+    if (!frame) return;                                           // no context above it: nothing to fill
+    this.#zoomStack = [{ pane: owner, frame }]; this.#afterZoom(owner);
   }
   #afterZoom(focusPane) { this.#applyZoom(); if (focusPane) this.cursorTo(focusPane); this.#emit('ps-zoom', { depth: this.#zoomStack.length }); this.#persist(); }
   // a frame about to rebuild its body cannot keep a pane hoisted in it
@@ -1551,13 +1711,16 @@ class Gmux extends HTMLElement {
 
   // the workspace, with the selected pane as an address from the root: a
   // session's mirror follows the selection too (see browse.js sessions)
-  serialize() { const s = this.#serPane(this.#root); if (s) { const c = this.#addrWithin(this.#root, this.cursor); if (c) s.cursor = c; if (this.seat) s.seat = this.seat; } return s; }
+  // the root's ctx flag is written explicitly (true or false), never omitted
+  // like other panes' — there's no implicit default to fall back to after a
+  // reload, so "turned off" has to actually round-trip as false, not absent.
+  serialize() { const s = this.#serPane(this.#root); if (s) { s.ctx = this.#contexts.has(this.#root); const c = this.#addrWithin(this.#root, this.cursor); if (c) s.cursor = c; if (this.seat) s.seat = this.seat; } return s; }
   cursorAddr() { return this.#root ? this.#addrWithin(this.#root, this.cursor) : null; }
   cursorToAddr(addr) { if (!this.#root || typeof addr !== 'string') return false; const t = this.#descend(this.#root, addr); if (!t) return false; this.cursorTo(t); return true; }
   #serPane(pane) {
     if (!pane) return null;
     const z = this.#zoomStack.find(z => z.frame === pane);
-    return { id: pane.ref || undefined, tabs: pane.tabs.map(t => ({ entries: t.entries.map(e => this.#serEntry(e)), cursor: t.cursor, label: t.label || undefined })), activeTab: pane.activeTab, bar: pane.showBar || undefined, nav: pane.nav === false ? false : undefined, open: pane.open || undefined, view: pane.view || undefined, ctx: this.#contexts.has(pane) || undefined, zoom: z ? (this.#addrWithin(pane, z.pane) || undefined) : undefined };
+    return { id: pane.ref || undefined, tabs: pane.tabs.map(t => ({ entries: t.entries.map(e => this.#serEntry(e)), cursor: t.cursor, label: t.label || undefined, view: t.view || undefined })), activeTab: pane.activeTab, bar: pane.showBar || undefined, nav: pane.nav === false ? false : undefined, open: pane.open || undefined, ctx: this.#contexts.has(pane) || undefined, zoom: z ? (this.#addrWithin(pane, z.pane) || undefined) : undefined };
   }
   #serEntry(e) {
     const name = e.name || undefined;
@@ -1570,6 +1733,7 @@ class Gmux extends HTMLElement {
     this.#panes.clear(); this.#refIndex = null; this.#zoomStack = []; this.#hoists = []; this.#activeId = null; this.#mark = null; this.#contexts.clear();
     this.seat = (spec && typeof spec.seat === 'string' && spec.seat) || null;   // carried through, for whoever sits
     this.#root = spec ? this.#deserPane(spec, null) : this.#makePane();
+    if (!spec) this.#contexts.add(this.#root);   // same default as seed(): fresh root starts as a context
     this.#placePane(this.#root, this, null);
     this.#afterStructure();
     // zooms are structure too: each frame that saved one gets it back, outer first
@@ -1609,14 +1773,20 @@ class Gmux extends HTMLElement {
       }),
       cursor: typeof t.cursor === 'number' ? t.cursor : (t.entries && t.entries.length ? 0 : -1),
       label: (typeof t.label === 'string' && t.label) || null,
+      view: (typeof t.view === 'string' && t.view) || null,
     }));
     pane.activeTab = typeof spec.activeTab === 'number' ? spec.activeTab : 0;
     pane.open = (spec.open && typeof spec.open === 'object') ? spec.open : null;
     pane.ref = (typeof spec.id === 'string' && spec.id) ? spec.id : null;        // the AUTHOR's id, written in a layout (pane.id is the internal handle)
     if (pane.ref) this.#refIndex = null;
-    if (spec.ctx) this.#contexts.add(pane);
+    // root (parent === null) defaults to being a context when the field is
+    // simply absent (a session saved before root's ctx was explicit) — every
+    // other pane keeps the plain "present and truthy" reading
+    if (parent === null ? spec.ctx !== false : spec.ctx) this.#contexts.add(pane);
     if (typeof spec.zoom === 'string') pane._zoomAddr = spec.zoom;                // rebuilt in restore once the tree stands
-    pane.view = spec.view || null;
+    // an older workspace stored one view on the pane: give it to the tab
+    // that was active, rather than dropping it
+    if (spec.view && pane.tabs[pane.activeTab]) pane.tabs[pane.activeTab].view = spec.view;
     if (spec.nav === false) { pane.nav = false; pane.dom.classList.add('ps-nav-off'); }
     // bind division owners for every entry (not just the active one)
     pane.tabs.forEach(t => t.entries.forEach(e => { if (e.div) e.div.owner = pane; }));
@@ -1661,7 +1831,7 @@ class Gmux extends HTMLElement {
   // inner split in raw view keeps dividing; raw there has nothing to swap in.
   // the source a structural moment came from: a division's src, a pane moment's
   #entrySrc(e) { return e ? (e.div ? e.div.src : e.pane ? e.src : null) : null; }
-  #showsSrc(pane) { const e = this.#curEntry(pane); return !!(pane.view && e && (e.div || e.pane) && this.#entrySrc(e)); }
+  #showsSrc(pane) { const e = this.#curEntry(pane); return !!(this.#tabView(pane) && e && (e.div || e.pane) && this.#entrySrc(e)); }
   // a pane "divides" (is a container, not a leaf) when its moment is a division
   // or a pane moment, and it is not showing that moment's source
   #divides(pane) { const e = this.#curEntry(pane); return !!(e && (e.div || e.pane)) && !this.#showsSrc(pane); }
@@ -1710,7 +1880,7 @@ class Gmux extends HTMLElement {
     if (!this.#awaiting) {
       if (this.#isPrefix(e)) {
         this.#awaiting = true;
-        this.#flashHint('gmux · % split · " stack · c/e collapse/expand · z/Z zoom · C context · f flip · r rotate · x close · t/w tab · T bar · : path · i content · <> tab · ,. back/fwd · R refresh · m mark · ␣ swap · [ ] climb/descend · Tab sibling · h highlight · b bars · 1-9 jump · ←↑↓→ move · ⇧←↑↓→ resize');
+        this.#flashHint('gmux · % split · " stack · c/e collapse/expand · z zoom · C context · f flip · r rotate · x close · t/w tab · T bar · : path · i content · <> tab · ,. back/fwd · R refresh · m mark · ␣ swap · [ ] climb/descend · Tab sibling · h highlight · b bars · 1-9 jump · ←↑↓→ move · ⇧←↑↓→ resize');
         clearTimeout(this.#awaitTimer);
         this.#awaitTimer = setTimeout(() => { this.#awaiting = false; this.#flashHint(''); }, 2500);
         e.preventDefault(); e.stopPropagation();
@@ -1727,8 +1897,7 @@ class Gmux extends HTMLElement {
     else if (k === 'x') this.close();
     else if (k === 'n') { this.nest(); this.#flashHint('nested: this tab now holds a pane of its own'); }
     else if (k === 'z') this.zoomToggle();
-    else if (k === 'Z') this.zoomOut();
-    else if (k === 'C') { const on = this.contextToggle(); this.#flashHint(on ? 'context: z on a pane inside it fills it · C here again clears' : 'context cleared'); }
+    else if (k === 'C') this.contextToggle();
     else if (k === 'b') { const on = this.toggleBars(); this.#flashHint('pane bars: ' + (on ? 'toggleable on hover' : 'locked')); }
     else if (k === 'f') this.flip();                   // swap the two sides of this division
     else if (k === 'c') this.collapse();
