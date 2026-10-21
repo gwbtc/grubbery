@@ -1243,7 +1243,7 @@ function setup(root, opts) {
   //   scroller here (file-table does not scroll itself, and the phone restores
   //   el.scrollTop), so moving the scroll into a wrapper would break both.
   //
-  function psChipRow(el, d, ns, url, route) {
+  function psChipRow(el, d, ns, url, route, raw) {
     const row = document.createElement('div');
     row.className = 'ps-chips';
     const neck = d.nexus && d.nexus.display;
@@ -1260,6 +1260,7 @@ function setup(root, opts) {
       }
       row.appendChild(chip('nexus', v));
     }
+    row.appendChild(chip('mode', raw ? 'raw' : 'rendered', raw));
     row.appendChild(chip('items', String((d.children || []).length)));
     const open = d.root || !d.weir;
     const sb = chip('sandbox', open ? 'unrestricted' : 'restricted', open);
@@ -1317,10 +1318,10 @@ function setup(root, opts) {
     return row;
   }
   // the sticky head of a directory rendering: where you are, then what it is
-  function psDirHead(el, d, ns, abs, url, route) {
+  function psDirHead(el, d, ns, abs, url, route, raw) {
     const head = document.createElement('div');
     head.className = 'ps-dirhead';
-    head.append(psCrumbRow(abs, route), psChipRow(el, d, ns, url, route));
+    head.append(psCrumbRow(abs, route), psChipRow(el, d, ns, url, route, raw));
     return head;
   }
   function listingMenu(e, el, dirUrl) {
@@ -1692,7 +1693,7 @@ function setup(root, opts) {
       }
       t.addEventListener('ft-navigate', (e) => { const { item, href, mods } = e.detail; route(href, item ? item.kind : 'dir', mods); });
       el._menu = (e) => listingMenu(e, el, url);                            // right-click: the row's item, or this dir
-      const head = psDirHead(el, d, ns, abs, url, route);
+      const head = psDirHead(el, d, ns, abs, url, route, raw);
       el.appendChild(head);
       el.appendChild(t);
       // the listing's own column header is sticky too, so tell it how much
