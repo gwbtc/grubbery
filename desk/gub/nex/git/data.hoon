@@ -10,6 +10,21 @@
 ::  request files: the parent nexus writes one and reloads us. This on-load
 ::  is the single place git state is ever changed.
 ::
+::  That is how this nexus gets ATOMICITY AT THE DIRECTORY LEVEL without a
+::  poke. A poke carries one argument to one process; a request grub sits
+::  in the namespace beside everything it must be judged against — the
+::  tree, the index, HEAD — and on-load sees all of it as one ball in one
+::  event. Nothing can change between reading the request and reading the
+::  state it is decided on, because they are the same read. Checkout joins
+::  commit and stash on this protocol for exactly that reason: whether a
+::  move of HEAD would overwrite uncommitted work is decided from the
+::  bytes in hand, never from a cached view that may lag the tree.
+::
+::  The watcher (watch.sig, below) is the other half, and it is NOT atomic:
+::  a write to tree/ lands, news reaches the watcher, it reloads, the views
+::  rebuild — several hops, and a read can fall between them. That is fine
+::  for the views, which are a display. Nothing destructive reads them.
+::
 ::  Git-format boundary: interop with real git happens at the WIRE — the
 ::  packs, refs, and object formats that cross to/from GitHub are all real
 ::  git. The on-disk /data layout, by contrast, is internal: nothing outside
