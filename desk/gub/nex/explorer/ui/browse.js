@@ -1225,6 +1225,41 @@ function setup(root, opts) {
   function go(el, href, kind) { const r = el._ctx && el._ctx.route; if (r) r(href, kind, null); }
   // the menu for a listing-like rendering (table, grid, tree): the row's item
   // under the cursor, or the rendering's own dir on whitespace
+  // +psChipRow: the old explorer's top bar, as a strip on the listing it
+  // describes — the nexus this dir runs, how many items it holds, and whether
+  // it is sandboxed, with the sandbox chip opening the weir where links open
+  // (a rendering of the path, not a modal, which is how gmux does actions).
+  //
+  //   STICKY rather than a sibling above a scrolling table: the PANE is the
+  //   scroller here (file-table does not scroll itself, and the phone restores
+  //   el.scrollTop), so moving the scroll into a wrapper would break both.
+  //
+  function psChipRow(d, ns, route) {
+    const row = document.createElement('div');
+    row.className = 'ps-chips';
+    const neck = d.nexus && d.nexus.display;
+    if (neck && neck !== '-') {
+      let v = neck;
+      if (d.nexus.url) { const a = document.createElement('a'); a.href = d.nexus.url; a.textContent = neck; v = a; }
+      row.appendChild(chip('nexus', v));
+    }
+    row.appendChild(chip('items', String((d.children || []).length)));
+    const open = d.root || !d.weir;
+    const sb = chip('sandbox', open ? 'unrestricted' : 'restricted', open);
+    const here = ns.replace(/\/$/, '') || '/';
+    const PROTECTED = ['/apps', '/apps/explorer.explorer'];
+    if (PROTECTED.includes(here)) {
+      sb.classList.add('locked');
+      sb.querySelector('.v').append(' \ud83d\udd12');
+      sb.title = 'load-bearing: restricting this directory would make grubbery painfully difficult to interface with from the outside — the server refuses it';
+    } else if (!d.root) {
+      sb.classList.add('click');
+      sb.title = 'manage this sandbox';
+      sb.addEventListener('click', () => route(here + '?view=weir', 'dir', null));
+    }
+    row.appendChild(sb);
+    return row;
+  }
   function listingMenu(e, el, dirUrl) {
     const hit = e.composedPath().find((x) => x && x.__item);
     const item = hit ? hit.__item : null;
@@ -1593,6 +1628,7 @@ function setup(root, opts) {
       }
       t.addEventListener('ft-navigate', (e) => { const { item, href, mods } = e.detail; route(href, item ? item.kind : 'dir', mods); });
       el._menu = (e) => listingMenu(e, el, url);                            // right-click: the row's item, or this dir
+      el.appendChild(psChipRow(d, ns, route));
       el.appendChild(t);
       d.children.forEach((c) => { c.__dir = url; });
       t.items = d.children;
@@ -3769,14 +3805,15 @@ namespace-explorer > #bar > #crumbs a:hover { color: #24292f; background: #eaeef
 namespace-explorer > #bar > #crumbs .here { color: #24292f; padding: 2px 4px; }
 namespace-explorer .grow { flex: 1; }
 namespace-explorer #chips { display: inline-flex; align-items: center; gap: 7px; }
-namespace-explorer .chip { display: inline-flex; align-items: center; gap: 5px; background: #eef1f4; border: 1px solid #e2e7ee; border-radius: 6px; padding: 2px 8px; white-space: nowrap; }
-namespace-explorer .chip.click { cursor: pointer; }
-namespace-explorer .chip.click:hover { border-color: #d0d7de; background: #e2e7ee; }
-namespace-explorer .chip.locked { cursor: not-allowed; }
-namespace-explorer .chip .k { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: #8b949e; }
-namespace-explorer .chip .v { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: #24292f; }
-namespace-explorer .chip .v a { font: inherit; }
-namespace-explorer .chip.warn .v { color: #bc4c00; font-weight: 600; }
+.ps-chips { position: sticky; top: 0; z-index: 2; display: flex; gap: 6px; align-items: center; padding: 6px 8px; background: #f6f8fa; border-bottom: 1px solid #e2e7ee; }
+.ps-chips .chip, namespace-explorer .chip { display: inline-flex; align-items: center; gap: 5px; background: #eef1f4; border: 1px solid #e2e7ee; border-radius: 6px; padding: 2px 8px; white-space: nowrap; }
+.ps-chips .chip.click, namespace-explorer .chip.click { cursor: pointer; }
+.ps-chips .chip.click:hover, namespace-explorer .chip.click:hover { border-color: #d0d7de; background: #e2e7ee; }
+.ps-chips .chip.locked, namespace-explorer .chip.locked { cursor: not-allowed; }
+.ps-chips .chip .k, namespace-explorer .chip .k { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: #8b949e; }
+.ps-chips .chip .v, namespace-explorer .chip .v { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: #24292f; }
+.ps-chips .chip .v a, namespace-explorer .chip .v a { font: inherit; }
+.ps-chips .chip.warn .v, namespace-explorer .chip.warn .v { color: #bc4c00; font-weight: 600; }
 namespace-explorer > #bar button:not(.mi), namespace-explorer .btn { all: unset; cursor: pointer; padding: 4px 12px; border-radius: 7px; font-size: 12px; color: #24292f; border: 1px solid #d0d7de; background: #fff; }
 namespace-explorer > #bar button:not(.mi):hover, namespace-explorer .btn:hover { background: #f6f8fa; }
 
