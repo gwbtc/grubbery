@@ -6404,7 +6404,9 @@
       Each permission is a set of path prefixes. A request is allowed if its destination matches any prefix in the relevant set. An empty set means that category is blocked.
       '''
     (save-file man-rail [[/ %mime] default-man])
-  this
+  ::  Enforce the group's own grant at its own directory: an unenrolled
+  ::  asker is judged standing here, so the walk needs a weir to read.
+  (set-weir pub-dir `compute-public-weir)
 ::  Ensure /sys/ames/ships/~ship/ exists with ship.sig and computed weir.
 ::  Our ship gets no weir (full access). Foreign ships get weir from usergroups.
 ::
@@ -6550,6 +6552,116 @@
     =/  existing=(set path)  (fall (~(get by acc) i.ships) ~)
     $(ships t.ships, acc (~(put by acc) i.ships (~(put in existing) name)))
   $(groups t.groups)
+::  +peer-grouped: has this ship been enrolled in a usergroup?
+::
+::    Membership is the tell for whether a foreign ship gets an identity
+::    in our namespace. Eyre mints a guest session's @p itself, from +og
+::    over eny (eyre.hoon +start-session), so a walk-in's name is random
+::    and unguessable — it can never be a group we wrote. A ship we
+::    deliberately enrolled can. /public is not membership: belonging to
+::    it is the default and grants only the public weir, which is what an
+::    unenrolled ship already gets without a directory.
+::
+++  peer-grouped
+  |=  =ship
+  ^-  ?
+  =/  src=(map @p (set path))  (build-peer-src read-peer-who)
+  =/  groups=(set path)  (fall (~(get by src) ship) ~)
+  !=(~ (~(del in groups) /public))
+::  +compute-public-weir: the weir every unenrolled asker answers to
+::
+++  compute-public-weir
+  ^-  weir:nexus
+  (fall (~(get by read-peer-how) /public) *weir:nexus)
+::  +public-grp-rail: the position an unenrolled asker is judged from
+::
+::    An unenrolled asker has the authority of the public group and no
+::    other, so it is judged standing in the public group's own
+::    directory. No synthetic ship: /sys/ames/ships holds ships, and a
+::    usergroup is not one.
+::
+::    how.weir is the group's stored grant and doubles as the position's
+::    name, so this introduces no file. The enforced copy is the weir
+::    +set-weir puts on the group directory — the same config-file /
+::    set-weir pair every peer directory already uses, so a weir walk
+::    from here composes upward through /sys/ames/usergroups and
+::    /sys/ames exactly as one from a ship directory does.
+::
+++  public-grp-dir   `path`(grp-storage-path /public)
+++  public-grp-rail  `rail:tarball`[public-grp-dir %'how.weir']
+::  +asker-rail: the position an HTTP request's authority comes from
+::
+::    The HTTP counterpart of the first two lines of +take-remote-load,
+::    which resolves an ames peer to the rail its darts originate from.
+::    Everything downstream is then identical: +process-dart runs
+::    +allowed itself (grubbery.hoon, +dart-to-dest derives the jump from
+::    the load), so an op needs no permission argument — only a correct
+::    caller.
+::
+::    Our own ship gets its own directory, which carries no weir. An
+::    enrolled ship gets its directory, created on demand. Everyone else
+::    — every eyre guest identity included — is judged from the public
+::    group, so a drive-by page visit mints no directory, no ship.sig, no
+::    process and no man-page copy, and writes nothing to the event log.
+::
+++  asker-rail
+  |=  src=@p
+  ^-  [rail:tarball _this]
+  ?:  =(src our.bowl)
+    [(ship-sig-rail src) this]
+  ?.  (peer-grouped src)
+    [public-grp-rail this]
+  =.  this  (ensure-peer-ship src)
+  [(ship-sig-rail src) this]
+::  +asker-allowed: pre-check an HTTP op so a veto becomes a 403
+::
+::    +process-dart enforces the weir regardless, but its veto path is
+::    shaped for ames: it crashes for darts originating under
+::    /sys/ames/ships so gall nacks the sender, and enqueues a %veto
+::    intake otherwise. Neither is an HTTP response, so a request is
+::    checked before dispatch and answered 403. The dart's own check
+::    still stands behind this one.
+::
+++  asker-allowed
+  |=  [caller=rail:tarball =jump:nexus dest=lane:tarball]
+  ^-  ?
+  !?=([~ %|] (allowed-quiet jump caller `dest))
+::  +ball-op-jump: which jump does this endpoint perform?
+::
+::    The URL surface is unchanged — every existing caller keeps working
+::    — but each endpoint now declares which of the three jumps it is, so
+::    authority is decided in one place instead of fourteen. The
+::    groupings are +dart-to-dest's, not new ones: %cull, %sand and %load
+::    all file under %make there, and %keep / %drop under %peek.
+::
+::    ~ means "not a namespace op" — nothing to gate, and nothing that
+::    reads or writes a grub.
+::
+++  ball-op-jump
+  |=  [method=@tas endpoint=@tas]
+  ^-  (unit jump:nexus)
+  ?+    [method endpoint]  ~
+      [%'GET' ?(%file %kids %tree %tar %dir %sand %weir %keep)]   `%peek
+      [%'POST' %poke]                                             `%poke
+      [%'PUT' ?(%file %dir %weir)]                                `%make
+      [%'POST' ?(%over %upload)]                                  `%make
+      [%'DELETE' ?(%file %dir %weir)]                             `%make
+  ==
+::  +ball-op-dest: which lane does this endpoint address?
+::
+::    A weir is set on a directory and the listing endpoints describe
+::    one, so those address a fold; the rest name a grub. Mirrors how
+::    each +serve- arm already interprets its api-path, so nothing
+::    about addressing changes — it is only stated once, here, instead
+::    of being implicit in fourteen handlers.
+::
+++  ball-op-dest
+  |=  [endpoint=@tas api-path=path]
+  ^-  (unit lane:tarball)
+  ?:  ?=(?(%kids %tree %tar %dir %sand %weir) endpoint)
+    `[%| api-path]
+  ?~  api-path  ~
+  `[%& [(snip `path`api-path) (rear api-path)]]
 ::  Union two weirs
 ::
 ++  union-weirs
@@ -6659,6 +6771,40 @@
     (handle-push-http eyre-id src.bowl req t.t.site args)
     ::
       [%grubbery %api *]
+    ::  AUTHORITY: the kernel gates exactly what the kernel itself does.
+    ::  These built-in endpoints are its own operations, so they are
+    ::  gated here, once, before the sync/fiber split below — and it
+    ::  cannot be left to the fiber half, because a request grub lives at
+    ::  /sys/eyre/requests/[id] and its darts originate there under
+    ::  eyre's authority, never the asker's.
+    ::
+    ::  A request forwarded to a grub's own binding is deliberately NOT
+    ::  gated here (see +forward-http): that grub's darts come from its
+    ::  own rail, so its own weir already confines it whoever asks, and
+    ::  it receives src.bowl to apply whatever finer policy it wants.
+    ::  That is the advanced path, and it is meant to be rare.
+    ::
+    ::  +asker-rail is the HTTP counterpart of +take-remote-load's first
+    ::  two lines. Our own ship's rail carries no weir, so all of this is
+    ::  a no-op for local requests.
+    ::
+    =^  gated=?  this
+      =/  site-rest=path  t.t.site
+      ?~  site-rest  [& this]
+      =/  endpoint=@tas  i.site-rest
+      =/  jump=(unit jump:nexus)
+        (ball-op-jump method.request.req endpoint)
+      ::  not a namespace op: no grub is read or written, nothing to gate
+      ?~  jump  [& this]
+      =/  dest=(unit lane:tarball)  (ball-op-dest endpoint t.site-rest)
+      ?~  dest  [& this]
+      =^  caller=rail:tarball  this  (asker-rail src.bowl)
+      [(asker-allowed caller u.jump u.dest) this]
+    ?.  gated
+      %-  emit-cards
+      %-  give-simple-payload:app:server
+      :-  eyre-id
+      [[403 ~] `(as-octs:mimes:html 'Forbidden')]
     ::  ARCHITECTURAL RULE: a request enters the namespace (materializes
     ::  as a grub in /sys/eyre/requests, spawning a fiber) ONLY if it
     ::  needs a general-purpose ASYNCHRONOUS script to handle it — one
@@ -8412,6 +8558,9 @@
 ::
 ++  recompute-all-weirs
   ^+  this
+  ::  The public group's own directory carries its grant too (unenrolled
+  ::  askers are judged there), and the loop below only walks ship dirs.
+  =.  this  (set-weir public-grp-dir `compute-public-weir)
   =/  ships-ball=ball:tarball  (peek-ball-now /sys/ames/ships)
   =/  kids=(list [@ta ball:tarball])  ~(tap by dir.ships-ball)
   |-

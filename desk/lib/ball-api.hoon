@@ -27,8 +27,10 @@
   =/  api-path=path  t.rest
   ?+    [method.request.req endpoint]
       (send-error eyre-id 405 'Method Not Allowed')
-  ::  GET /file/... — peek file, convert to mime
-      [%'GET' %file]   (serve-file-peek eyre-id api-path args)
+  ::  GET /file/... is served inline by +serve-api-read-sync, which gates
+  ::  runnable content-types behind +serve-sandbox. There is deliberately
+  ::  no fiber-side twin: a second serve arm is a second place for that
+  ::  gate to be forgotten, and this one had already forgotten it.
   ::  GET /kids/... — immediate children (files + subdirs)
       [%'GET' %kids]   (serve-kids eyre-id api-path)
   ::  GET /tree/... — recursive tree with marks
@@ -131,31 +133,6 @@
   ?.  ?=([%ball *] root-view)
     (pure:m ~)
   (pure:m `ball.root-view)
-::  +serve-file-peek: GET /file — peek grub, convert to mime
-::
-++  serve-file-peek
-  |=  [eyre-id=@ta api-path=path args=(list [key=@t value=@t])]
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  ?~  api-path
-    (send-error eyre-id 400 'File path required')
-  ;<  root=(unit ball:tarball)  bind:m  peek-root
-  ?~  root
-    (send-error eyre-id 500 'Peek failed')
-  =/  parent=path  (snip `path`api-path)
-  =/  name=@ta  (rear api-path)
-  =/  parent-ball=ball:tarball  (~(dip ba:tarball u.root) parent)
-  =/  content-data=(unit [=sang:tarball gain=? bang=(unit tang)])
-    ?~  fil.parent-ball  ~
-    (~(get by contents.u.fil.parent-ball) name)
-  ?~  content-data
-    (send-error eyre-id 404 'Not found')
-  =/  =sage:tarball  (need-sage:tarball sang.u.content-data)
-  =/  blot-param=(unit @t)  (get-key:kv:html-utils 'blot' args)
-  ;<  converted=(unit sage:tarball)  bind:m  (maybe-convert eyre-id sage blot-param)
-  ?~  converted  (pure:m ~)
-  ;<  =mime  bind:m  (sage-to-mime:io u.converted)
-  (send-mime eyre-id mime)
 ::  +serve-kids: GET /kids — immediate children (files + subdirs)
 ::
 ++  serve-kids
