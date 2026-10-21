@@ -379,10 +379,17 @@ function setup(root, opts) {
       toast('no ' + kind + ' link', true);
     }).catch((e) => toast(kind + ' load failed: ' + e, true));
   }
+  // the sidebar follows its root in fold mode, so a file made or removed
+  // anywhere under it re-fetches the subtree and redraws (open dirs stay
+  // open through persistKey). Before this the finder was rendered only on
+  // navigation and never on a change: the one tree on the page that could
+  // not go live. Re-pointed only when the root moves, since this render is
+  // also the refetch the follow fires.
+  let finderLive = null, finderLiveRoot = null;
   async function renderFinderTree() {
     const root = here;
     try {
-      const r = await fetch(root + '?tree=1');
+      const r = await fetch(root + '?tree=1', { cache: 'no-store' });
       if (!r.ok) throw new Error(r.status);
       treeDoc = await r.json();
     } catch (e) { toast('tree failed: ' + e, true); return; }
@@ -393,6 +400,12 @@ function setup(root, opts) {
     finderTree.render(getChildren(here));
     finderTree.markActive(activeTabPath);
     updateTreeToggleLabel();
+    if (finderLiveRoot !== here) {
+      if (finderLive) finderLive();
+      finderLiveRoot = here;
+      const ns = here.startsWith(PREFIX) ? (here.slice(PREFIX.length) || '/') : here;
+      finderLive = live([{ road: ns === '/' ? '/' : ns.replace(/\/$/, '') + '/', fold: true }], null, renderFinderTree);
+    }
   }
   function updateTreeToggleLabel() {
     finderTreeToggle.textContent = finderTree.anyOpen ? 'collapse all' : 'expand all';
