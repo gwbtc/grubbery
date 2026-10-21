@@ -1234,7 +1234,7 @@ function setup(root, opts) {
   //   scroller here (file-table does not scroll itself, and the phone restores
   //   el.scrollTop), so moving the scroll into a wrapper would break both.
   //
-  function psChipRow(d, ns, route) {
+  function psChipRow(el, d, ns, url, route) {
     const row = document.createElement('div');
     row.className = 'ps-chips';
     const neck = d.nexus && d.nexus.display;
@@ -1258,6 +1258,17 @@ function setup(root, opts) {
       sb.addEventListener('click', () => route(here + '?view=weir', 'dir', null));
     }
     row.appendChild(sb);
+    // Manage: new folder/nexus/file/symlink, upload, download, reload nexus —
+    // the legacy bar's button. They are all in the right-click menu, which is
+    // unreachable on a phone, so the row carries the same menu as a button.
+    const more = document.createElement('button');
+    more.className = 'ps-chip-more'; more.textContent = '\u22ef'; more.title = 'manage this directory';
+    more.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const r = more.getBoundingClientRect();
+      showMenu(dirMenu(el, url, !!(d.nexus && d.nexus.display && d.nexus.display !== '-')), r.left, r.bottom + 4);
+    });
+    row.appendChild(more);
     return row;
   }
   function listingMenu(e, el, dirUrl) {
@@ -1628,7 +1639,7 @@ function setup(root, opts) {
       }
       t.addEventListener('ft-navigate', (e) => { const { item, href, mods } = e.detail; route(href, item ? item.kind : 'dir', mods); });
       el._menu = (e) => listingMenu(e, el, url);                            // right-click: the row's item, or this dir
-      el.appendChild(psChipRow(d, ns, route));
+      el.appendChild(psChipRow(el, d, ns, url, route));
       el.appendChild(t);
       d.children.forEach((c) => { c.__dir = url; });
       t.items = d.children;
@@ -3805,7 +3816,10 @@ namespace-explorer > #bar > #crumbs a:hover { color: #24292f; background: #eaeef
 namespace-explorer > #bar > #crumbs .here { color: #24292f; padding: 2px 4px; }
 namespace-explorer .grow { flex: 1; }
 namespace-explorer #chips { display: inline-flex; align-items: center; gap: 7px; }
-.ps-chips { position: sticky; top: 0; z-index: 2; display: flex; gap: 6px; align-items: center; padding: 6px 8px; background: #f6f8fa; border-bottom: 1px solid #e2e7ee; }
+.ps-chips { position: sticky; top: 0; left: 0; z-index: 2; display: flex; gap: 6px; align-items: center; padding: 6px 8px; background: #f6f8fa; border-bottom: 1px solid #e2e7ee; }
+.ps-chips .chip.click, .ps-chips .ps-chip-more { min-height: 26px; }
+.ps-chips .ps-chip-more { margin-left: auto; font: 15px/1 ui-monospace, Menlo, monospace; padding: 2px 10px; border: 1px solid #e2e7ee; border-radius: 6px; background: #eef1f4; color: #24292f; cursor: pointer; }
+.ps-chips .ps-chip-more:hover { border-color: #d0d7de; background: #e2e7ee; }
 .ps-chips .chip, namespace-explorer .chip { display: inline-flex; align-items: center; gap: 5px; background: #eef1f4; border: 1px solid #e2e7ee; border-radius: 6px; padding: 2px 8px; white-space: nowrap; }
 .ps-chips .chip.click, namespace-explorer .chip.click { cursor: pointer; }
 .ps-chips .chip.click:hover, namespace-explorer .chip.click:hover { border-color: #d0d7de; background: #e2e7ee; }
