@@ -2895,22 +2895,26 @@ function setup(root, opts) {
     // can stand on and every address gmux hands us names a node.
     const emptyPane = () => ({ tabs: [{ entries: [], cursor: -1 }], activeTab: 0 });
     const treeOf = (spec) => mkNode(spec || emptyPane(), '.', null, null);
+    // addresses here have to match gmux's own exactly — a/b for a division
+    // slot, * for a nested-pane hold (no slot to choose), never a tab index:
+    // gmux's #descend always follows whatever tab is live right now, so an
+    // address that pinned one in would just go stale the next time it changed.
     function mkNode(ps, addr, parent, slot) {
       const tabs = (ps && ps.tabs) || [];
       const ti = (ps && ps.activeTab) || 0;
       const tab = tabs[ti] || tabs[0] || { entries: [], cursor: -1 };
       const e = (tab.cursor >= 0) ? tab.entries[tab.cursor] : null;
       const n = { spec: ps, addr, parent, slot, tabs, tab, entry: e, kids: [] };
-      const down = (seg) => (addr === '.' ? '' : addr + '/') + ti + '/' + seg;
+      const down = (seg) => (addr === '.' ? '' : addr + '/') + seg;
       if (e && e.div) { n.kind = 'div'; n.div = e.div; n.kids = [mkNode(e.div.a || emptyPane(), down('a'), n, 'a'), mkNode(e.div.b || emptyPane(), down('b'), n, 'b')]; }
-      else if (e && e.pane) { n.kind = 'hold'; n.kids = [mkNode(e.pane, down('a'), n, 'a')]; }
+      else if (e && e.pane) { n.kind = 'hold'; n.kids = [mkNode(e.pane, down('*'), n, 'a')]; }
       else { n.kind = 'leaf'; n.path = e ? e.path : null; n.name = (e && e.name) || null; }
       return n;
     }
     const find = (n, addr) => { if (n.addr === addr) return n; for (const k of n.kids) { const f = find(k, addr); if (f) return f; } return null; };
     const nearest = (addr) => {
       const segs = addr === '.' ? [] : addr.split('/');
-      for (let i = segs.length; i >= 0; i -= 2) {
+      for (let i = segs.length; i >= 0; i -= 1) {
         const n = find(tree, i === 0 ? '.' : segs.slice(0, i).join('/'));
         if (n) return n;
       }

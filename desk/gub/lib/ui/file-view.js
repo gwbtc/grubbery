@@ -61,17 +61,16 @@
     '.fv #text-view,.fv #mime-view{flex:1;min-height:0;min-width:0;overflow:auto}' +
     '.fv #view-pane{flex:1;min-height:0;min-width:0;overflow:auto;display:flex;flex-direction:column}' +
     '.fv .edwrap,.fv #src-display{height:100%;min-width:0;overflow:auto}' +
-    // the Wrap toggle drives the editor AND the highlighted display identically
-    '.fv.wrap #ed,.fv.wrap #text-view pre,.fv.wrap #text-view code{white-space:pre-wrap!important;overflow-wrap:anywhere}' +
-    '.fv:not(.wrap) #ed,.fv:not(.wrap) #text-view pre,.fv:not(.wrap) #text-view code{white-space:pre!important}' +
-    // nowrap: scroll horizontally inside the pane, never the window
-    '.fv:not(.wrap) #ed{overflow-x:auto}' +
+    // the Wrap toggle drives the highlighted display; the editor drives its
+    // own CodeMirror lineWrapping option (set alongside this, see setupWrap)
+    '.fv.wrap #text-view pre,.fv.wrap #text-view code{white-space:pre-wrap!important;overflow-wrap:anywhere}' +
+    '.fv:not(.wrap) #text-view pre,.fv:not(.wrap) #text-view code{white-space:pre!important}' +
     '.fv pre{margin:0;padding:18px;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;overflow:auto;box-sizing:border-box;min-height:100%}' +
     '.fv pre.dim{color:#8b949e}' +
     '.fv pre.boom{color:#cf222e;background:#fff8f8}' +
     '.fv code{font:inherit}' +
-    '.fv #ed{width:100%;height:100%;box-sizing:border-box;background:#fff;color:#1f2328;border:none;outline:none;resize:none;padding:18px;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}' +
-    '.fv #ed[readonly]{background:#fbfcfd;color:#3b434b}' +
+    '.fv #ed{width:100%;height:100%;box-sizing:border-box}' +
+    '.fv #ed .CodeMirror{height:100%;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}' +
     '.fv #missing{padding:40px 32px;color:#57606a}' +
     '.fv #missing h1{font-size:18px;margin:0 0 8px;color:#1f2328}' +
     '.fv #missing a{color:#0969da;text-decoration:none}' +
@@ -126,6 +125,7 @@
       '<button id="save" disabled>Save</button>' +
       '<button id="live">Live</button>' +
       '<button id="wrap">Wrap</button>' +
+      '<button id="vimbtn" title="vim keybindings in the editor">Vim</button>' +
       '<span id="status"></span>' +
     '</div>' +
     '<div id="mime-row" style="display:none">' +
@@ -136,7 +136,7 @@
     '<div id="text-view">' +
       '<div class="edwrap" id="edwrap" style="display:none">' +
         '<div id="src-display"></div>' +
-        '<textarea id="ed" spellcheck="false" style="display:none"></textarea>' +
+        '<div id="ed" style="display:none"></div>' +
       '</div>' +
       '<pre id="src" style="display:none"></pre>' +
       '<div id="missing" style="display:none">' +
@@ -223,6 +223,10 @@
     }
 
     var ed = $('ed'), edwrap = $('edwrap'), display = $('src-display'), src = $('src');
+    // the text actually on disk / last saved; the VimEditor instance (mounted
+    // lazily on first Edit click, see setupEditor) is the live source of truth
+    // for unsaved edits once it exists
+    var edText = '', ve = null;
     var textView = $('text-view'), mimeView = $('mime-view'), buildView = $('build-view'), viewPane = $('view-pane');
     var tabText = $('tab-text'), tabMime = $('tab-mime'), tabBuild = $('tab-build'), tabView = $('tab-view');
     // the keyboard lands on the root when the pane is chosen by keyboard
@@ -250,7 +254,7 @@
     // opts.viewer = { label, mount(root, opts) -> { destroy() } }: a pane the
     // host adds for this file's mark, shown first; mounted on first show
     var viewer = opts.viewer || null, viewerHandle = null;
-    var editBtn = $('edit'), saveBtn = $('save'), liveBtn = $('live'), wrapBtn = $('wrap');
+    var editBtn = $('edit'), saveBtn = $('save'), liveBtn = $('live'), wrapBtn = $('wrap'), vimBtn = $('vimbtn');
     var status = $('status'), tools = $('tools'), mimeInput = $('mime-input');
 
     // the one error overlay (per instance), appended to <body> so it centers
@@ -352,7 +356,7 @@
       }
       if (buildStatus) tabBuild.style.display = '';
       if (editable) {
-        ed.value = present(await readRaw());
+        edText = present(await readRaw());
         edwrap.style.display = '';
       } else if (info.jammed) {
         src.textContent = info.text || ''; src.style.display = '';
@@ -405,9 +409,10 @@
       var applyWrap = function () {
         root.classList.toggle('wrap', wrap);
         wrapBtn.classList.toggle('on', wrap);
-        // a textarea wraps by its `wrap` attribute, not CSS white-space —
-        // drive it so the editor matches the highlighted display exactly.
-        ed.setAttribute('wrap', wrap ? 'soft' : 'off');
+        // CodeMirror wraps via its own lineWrapping option, not CSS
+        // white-space — drive it so the editor matches the highlighted
+        // display exactly. Read at mount time too (see ensureEditor).
+        if (ve) ve.setLineWrapping(wrap);
       };
       wrapBtn.addEventListener('click', function () {
         wrap = !wrap;
@@ -419,7 +424,7 @@
 
     async function renderSource() {
       if (!editable) return;
-      var text = ed.value;
+      var text = ve ? ve.getValue() : edText;
       display.textContent = '';
       var p = document.createElement('pre'); p.textContent = text; display.appendChild(p);
       if (SHIKI_LANG[ext]) {
@@ -430,38 +435,75 @@
       }
     }
 
+    // vim keybindings default on, except on a touch/narrow device where a
+    // physical Escape and chorded motions aren't really available — unless
+    // the person has explicitly toggled it before, which always wins.
+    function vimPref() {
+      try {
+        var v = localStorage.getItem('explorer-vim');
+        if (v != null) return v === '1';
+      } catch (_) {}
+      try { return !(window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 760); }
+      catch (_) { return true; }
+    }
+
     function setupEditor() {
       if (!editable) {
         editBtn.setAttribute('disabled', ''); saveBtn.setAttribute('disabled', ''); liveBtn.setAttribute('disabled', '');
+        vimBtn.setAttribute('disabled', '');
         return;
       }
-      var editing = false;
+      var editing = false, clean = edText, live = false, liveTimer = null, miteChanged = false;
+      var vimOn = vimPref();
+      vimBtn.classList.toggle('on', vimOn);
+      vimBtn.addEventListener('click', function () {
+        vimOn = !vimOn;
+        vimBtn.classList.toggle('on', vimOn);
+        try { localStorage.setItem('explorer-vim', vimOn ? '1' : '0'); } catch (_) {}
+        if (ve) ve.setVim(vimOn);
+      });
+      // VimEditor mounts on first Edit click, not at boot — a file that's
+      // only ever read never pays to load CodeMirror.
+      function ensureEditor() {
+        if (ve) return ve;
+        ve = VimEditor.mount(ed, {
+          value: clean,
+          mime: mite,
+          vim: vimOn,
+          lineWrapping: root.classList.contains('wrap'),
+          onChange: function () { syncSaveBtn(); if (live) scheduleLive(); }
+        });
+        return ve;
+      }
       editBtn.addEventListener('click', function () {
         editing = !editing;
         editBtn.classList.toggle('on', editing);
         ed.style.display = editing ? '' : 'none';
         display.style.display = editing ? 'none' : '';
         mimeInput.readOnly = !editing;
-        if (editing) { show('text'); ed.focus(); } else renderSource();
+        if (editing) {
+          show('text');
+          ensureEditor().ready.then(function () { ve.refresh(); ve.focus(); });
+        } else renderSource();
       });
-      var clean = ed.value, live = false, liveTimer = null, miteChanged = false;
       liveBtn.addEventListener('click', function () {
         live = !live; liveBtn.classList.toggle('on', live); syncSaveBtn();
-        if (live && ed.value !== clean) scheduleLive();
+        if (live && ve && ve.getValue() !== clean) scheduleLive();
       });
       function syncSaveBtn() {
-        if (live || (ed.value === clean && !miteChanged)) saveBtn.setAttribute('disabled', '');
+        var cur = ve ? ve.getValue() : clean;
+        if (live || (cur === clean && !miteChanged)) saveBtn.setAttribute('disabled', '');
         else saveBtn.removeAttribute('disabled');
       }
       function scheduleLive() {
         clearTimeout(liveTimer);
-        liveTimer = setTimeout(function () { if (ed.value !== clean) save(); }, 800);
+        liveTimer = setTimeout(function () { if (ve.getValue() !== clean) save(); }, 800);
       }
-      ed.addEventListener('input', function () { syncSaveBtn(); if (live) scheduleLive(); });
       mimeInput.addEventListener('input', function () { miteChanged = mimeInput.value.trim() !== mite; syncSaveBtn(); });
       async function save() {
+        if (!ve) return;
         status.textContent = 'saving…'; status.className = '';
-        var sent = ed.value;
+        var sent = ve.getValue();
         try {
           var res = await fetch(here, {
             method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' },
@@ -470,11 +512,11 @@
           var body = await res.text();
           if (res.ok) {
             var stored = present(await readRaw());
-            clean = stored;
-            if (ed.value === sent && stored !== sent) {
-              var s = ed.selectionStart, epos = ed.selectionEnd;
-              ed.value = stored;
-              ed.setSelectionRange(Math.min(s, stored.length), Math.min(epos, stored.length));
+            clean = stored; edText = stored;
+            if (ve.getValue() === sent && stored !== sent) {
+              var cur = ve.getCursor();
+              ve.setValue(stored);
+              if (cur) ve.setCursor(cur);
               if (!editing) renderSource();
             }
             mite = mimeInput.value.trim(); miteChanged = false; syncSaveBtn();
@@ -482,29 +524,22 @@
             mimeRendered = false; mimeView.textContent = '';
             setTimeout(function () { if (status.textContent === 'saved ✓') status.textContent = ''; }, 2500);
           } else {
-            ed.value = clean; syncSaveBtn(); status.textContent = '';
+            ve.setValue(clean); syncSaveBtn(); status.textContent = '';
             showErr('save failed', body || ('save failed (' + res.status + ')'));
           }
         } catch (e) {
-          ed.value = clean; syncSaveBtn(); status.textContent = ''; showErr('save failed', 'save failed: ' + e);
+          ve.setValue(clean); syncSaveBtn(); status.textContent = ''; showErr('save failed', 'save failed: ' + e);
         }
       }
       saveBtn.addEventListener('click', function () { if (!saveBtn.hasAttribute('disabled')) save(); });
       root.addEventListener('keydown', function (e) {
-        if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); if (ed.value !== clean) save(); }
-      });
-      ed.addEventListener('keydown', function (e) {
-        if (e.key !== 'Tab') return;
-        e.preventDefault();
-        var s = ed.selectionStart, epos = ed.selectionEnd;
-        ed.setRangeText('  ', s, epos, 'end');
-        ed.dispatchEvent(new Event('input'));
+        if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); if (ve && ve.getValue() !== clean) save(); }
       });
     }
 
     async function renderMime() {
       var rawUrl = here + '?raw=1';
-      var text = editable ? ed.value : (src.textContent || '');
+      var text = editable ? (ve ? ve.getValue() : edText) : (src.textContent || '');
       mimeView.textContent = '';
       var k = effectiveKind();
       // kernel serve-sandbox (detected at boot): a runnable grub whose
@@ -630,6 +665,7 @@
       setUrl: function (u) { mount(root, Object.assign({}, opts, { url: u })); },
       destroy: function () {
         if (viewerHandle && viewerHandle.destroy) { try { viewerHandle.destroy(); } catch (_) {} }
+        if (ve) { try { ve.destroy(); } catch (_) {} }
         errOverlay.remove(); root.innerHTML = '';
       }
     };

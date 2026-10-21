@@ -6,9 +6,10 @@
 /&  man   ../man/explorer/readme.md
 /&  icon  explorer/icon.svg
 /&  gram     explorer/hoon-grammar.json
-/&  view-js  explorer/view.js
 /&  fp-js    /lib/ui/file-preview.js
 /&  fv-js    /lib/ui/file-view.js
+/&  ve-js    /lib/ui/vim-editor.js
+/&  ve-cfg   /lib/ui/vim-editor-config.json
 /&  md-js    /lib/ui/modal-dialog.js
 /&  dm2-js   /lib/ui/drop-menu.js
 /&  ft-js    /lib/ui/file-table.js
@@ -31,8 +32,24 @@
 /&  marked-js  explorer/marked.min.js
 ::  snaps: the page renders a pane to a PNG on request (see /snaps below)
 /&  h2c-js     explorer/html2canvas.min.js
+::  graph bundle: cytoscape + its dagre layout adapter + dagre itself,
+::  welded into one served file (graph.js). Layout and rendering are
+::  prior art here: ranking, crossing minimisation and edge routing are
+::  not things to hand-roll once a graph stops being a straight line.
+/&  cy-js      /lib/graph/cytoscape.min.js
+/&  cy-dagre   /lib/graph/cytoscape-dagre.js
+/&  dagre-js   /lib/graph/dagre.min.js
 /&  cm-js      /lib/cm/codemirror.min.js
 /&  cm-css     /lib/cm/codemirror.min.css
+::  the dialog addon: vim's own "/" search and ":" ex-command prompts call
+::  cm.openDialog when it exists, falling back to a blocking window.prompt()
+::  when it doesn't — this addon is what makes openDialog exist.
+/&  cm-dialog-js   /lib/cm/dialog.js
+/&  cm-dialog-css  /lib/cm/dialog.css
+::  the searchcursor addon: vim's "/" and "?" search commands call
+::  cm.getSearchCursor to actually find matches — without it the search
+::  resolves and runs but silently finds nothing.
+/&  cm-search-js   /lib/cm/searchcursor.js
 /&  cm-vim     /lib/cm/vim.min.js
 /&  cm-m-js    /lib/cm/javascript.min.js
 /&  cm-m-css   /lib/cm/css.min.js
@@ -56,11 +73,22 @@
       ::  editor bundle: codemirror + vim keymap + modes welded into one
       ::  served file (same pattern as web-test's components.js)
       =/  cm-wrap  |=(=mime `@`(rap 3 ~[10 q.q.mime 10]))
+      ::  dagre must come first: the cytoscape adapter looks for it
+      =/  graph-bundle=mime
+        :-  /application/javascript
+        %-  as-octs:mimes:html
+        %+  rap  3
+        :~  (cm-wrap dagre-js)
+            (cm-wrap cy-js)
+            (cm-wrap cy-dagre)
+        ==
       =/  cm-bundle=mime
         :-  /application/javascript
         %-  as-octs:mimes:html
         %+  rap  3
         :~  (cm-wrap cm-js)
+            (cm-wrap cm-dialog-js)
+            (cm-wrap cm-search-js)
             (cm-wrap cm-vim)
             (cm-wrap cm-m-js)
             (cm-wrap cm-m-css)
@@ -68,6 +96,16 @@
             (cm-wrap cm-m-md)
             (cm-wrap cm-m-html)
             (cm-wrap cm-m-hoon)
+        ==
+      ::  cm.css: codemirror's base styling + the dialog addon's (the "/"
+      ::  search and ":" ex-command bars it draws at the bottom of the
+      ::  editor) — same weld-into-one-file reasoning as cm-bundle above.
+      =/  cm-css-bundle=mime
+        :-  /text/css
+        %-  as-octs:mimes:html
+        %+  rap  3
+        :~  (cm-wrap cm-css)
+            (cm-wrap cm-dialog-css)
         ==
       ::  kit bundle: the shared ui components + file viewer welded into ONE
       ::  file, so the browse page makes a single request for all of them —
@@ -94,6 +132,7 @@
             (wrap marked-js)
             (wrap fp-js)
             (wrap fv-js)
+            (wrap ve-js)
         ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
@@ -115,9 +154,10 @@
           [%over %& [/ %'html2canvas.min.js'] [[/ %mime] h2c-js]]
           [%over %& [/ %'README.md'] [[/ %mime] man]]
           [%over %& [/ %'hoon-grammar.json'] [[/ %mime] gram]]
-          [%over %& [/ %'view.js'] [[/ %mime] view-js]]
           [%over %& [/ %'file-preview.js'] [[/ %mime] fp-js]]
           [%over %& [/ %'file-view.js'] [[/ %mime] fv-js]]
+          [%over %& [/ %'vim-editor.js'] [[/ %mime] ve-js]]
+          [%over %& [/ %'vim-editor.json'] [[/ %mime] ve-cfg]]
           [%over %& [/ %'modal-dialog.js'] [[/ %mime] md-js]]
           [%over %& [/ %'drop-menu.js'] [[/ %mime] dm2-js]]
           [%over %& [/ %'file-table.js'] [[/ %mime] ft-js]]
@@ -135,8 +175,9 @@
           [%over %& [/ %'nav-keys.js'] [[/ %mime] nk-js]]
           [%over %& [/ %'panes.html'] [[/ %mime] panes-html]]
           [%over %& [/ %'marked.min.js'] [[/ %mime] marked-js]]
+          [%over %& [/ %'graph.js'] [[/ %mime] graph-bundle]]
           [%over %& [/ %'cm.js'] [[/ %mime] cm-bundle]]
-          [%over %& [/ %'cm.css'] [[/ %mime] cm-css]]
+          [%over %& [/ %'cm.css'] [[/ %mime] cm-css-bundle]]
       ==
     ::
     ++  on-file
