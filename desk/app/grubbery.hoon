@@ -4943,8 +4943,28 @@
   =/  marc-ckey=@uv   ?~(resolved 0v0 ckey.u.resolved)
   =/  marc-ns=path     ?~(resolved / namespace.u.resolved)
   =/  raw=*  q.bask
-  ::  Capture the leaf being replaced before si-record tombs it
+  ::  the leaf at the current top, for the vale cache below
   =/  prev-leaf=(unit leaf:nexus)  (hist-leaf sok file-cass)
+  ::  A version is filled once. A caller naming a cass that already holds
+  ::  a leaf may only re-record the SAME thing — content, blot, marc, ns
+  ::  and gain, the five si:record dedupes on — in which case nothing is
+  ::  written. Anything else would put new bytes under an old number: a
+  ::  read at that version would answer differently depending on when it
+  ::  was asked, and +notify, which diffs versions, would never hear of
+  ::  it. That is how every reload's rewrites went silent (sync-bole
+  ::  pinned the cass). Crash here, at the caller, rather than land it.
+  ?:  ?&  ?=(^ cas)
+          =(u.cas file-cass)
+          ?=(^ prev-leaf)
+          ?|  !=((~(hash si:nexus silo) raw) lobe.u.prev-leaf)
+              !=(p.bask blot.mark.u.prev-leaf)
+              !=(marc-ckey ckey.mark.u.prev-leaf)
+              !=(marc-ns ns.mark.u.prev-leaf)
+              !=(gain gain.u.prev-leaf)
+          ==
+      ==
+    ~|  "record: {(spud path.here)}/{(trip name.here)} already holds a different leaf at {<u.cas>}; a version is filled once"
+    !!
   =/  [=nobe:nexus new-silo=silo:nexus new-sok=hist:nexus]
     (~(record si:nexus silo) raw p.bask marc-ckey marc-ns gain new-cass file-cass sok)
   =.  silo  new-silo
@@ -5068,9 +5088,15 @@
     =/  name=@ta  i.to-record
     =.  this  ?^((get-born [here name]) this (init-born [here name]))
     =/  entry  (~(got by new-files) name)
-    =/  sok=hist:nexus  (need (get-born [here name]))
-    =.  this
-      (record [here name] bask.entry gain.entry `(need (top:hist:nexus sok)))
+    ::  cas=~: a file whose bytes changed gets the NEXT cass, so born
+    ::  moves and keeps on it are told. Pinning the existing cass here
+    ::  re-recorded a reload's rewrites in place — new bytes, same
+    ::  version — and +notify, which diffs versions, saw nothing: a
+    ::  nexus could rebuild a derived view and no follower of it ever
+    ::  heard. No churn either way: si:record hashes the noun and skips
+    ::  a file whose content, blot, marc and gain are unchanged, so the
+    ::  cass advances only when something actually differs.
+    =.  this  (record [here name] bask.entry gain.entry ~)
     $(to-record t.to-record)
   ::  Delete files in born but not in ball
   =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
