@@ -985,6 +985,20 @@ function setup(root, opts) {
     psDead.add(key);
     ps.redrawBars();
   }
+  // +psAlive: this path just answered, so it is not dead any more.
+  //
+  //   psDead is process-wide and the ONLY thing that ever cleared a key was
+  //   psWatchFile's `new` event — a watch that a 404 never installed. So a
+  //   moment that missed once stayed red and struck through for the life of
+  //   the page: after the thing was made, after a manual refresh, after
+  //   navigating back to it. Marking dead had no inverse.
+  //
+  function psAlive(ps, ns) {
+    const key = ns.replace(/\/$/, '');
+    if (!psDead.has(key)) return;
+    psDead.delete(key);
+    ps.redrawBars();
+  }
   // ns is the moment's path (symbolic under an @name: the dead key the tab
   // chips look up); abs is the place actually kept
   function psWatchFile(ps, paneId, el, ns, abs) {
@@ -1215,19 +1229,32 @@ function setup(root, opts) {
     const hit = e.composedPath().find((x) => x && x.__item);
     const item = hit ? hit.__item : null;
     if (item) return itemMenu(el, item);
-    return dirMenu(el, dirUrl);
+    return dirMenu(el, dirUrl, !!el._dirNexus);
   }
-  function dirMenu(el, dirUrl) {
+  // reloading a nexus re-runs its on-load, so the pane is refetched after
+  function reloadNexus(el, dirUrl) {
+    return {
+      label: 'Reload nexus',
+      run: async () => {
+        if (!await psPost(dirUrl, { action: 'reload-nexus' })) return;
+        const c = el._ctx;
+        if (c && c.ps && c.paneId) try { c.ps.refresh(c.paneId); } catch (_) {}
+      },
+    };
+  }
+  function dirMenu(el, dirUrl, hasNexus) {
     if (dirUrl === PREFIX + SESSIONS.replace(/\/$/, '')) return [       // the dill sessions: terminals
       { label: 'Terminal', run: () => go(el, dirUrl + '?view=term', 'dir') },
       { label: 'New terminal…', run: () => go(el, dirUrl + '?view=term-new', 'dir') },
     ];
-    return [
+    const items = [
       { label: 'New…', run: () => go(el, dirUrl + '?view=new', 'dir') },
       { label: 'Weir…', run: () => go(el, dirUrl + '?view=weir', 'dir') },
       { label: 'Upload…', run: () => go(el, dirUrl + '?view=upload', 'dir') },
       { label: 'Download', run: () => { location.href = dirUrl + '?download=tar'; } },
     ];
+    if (hasNexus) items.push(reloadNexus(el, dirUrl));
+    return items;
   }
   // the browser's file picker, no dialog of ours: files or a whole directory
   function pickFiles(dir, cb) {
@@ -1239,7 +1266,7 @@ function setup(root, opts) {
   function itemMenu(el, item) {
     const dir = item.__dir, isDir = item.kind === 'dir' || item.isDir, base = dir.replace(/\/$/, '') + '/' + item.name;
     const items = [];
-    if (isDir) items.push(...dirMenu(el, base));
+    if (isDir) items.push(...dirMenu(el, base, !!(item.neck && item.neck !== '-')));
     else items.push({ label: 'Download', run: () => { const l = document.createElement('a'); l.href = base + '?raw=1'; l.download = item.name; l.click(); } });
     // move/copy go to the pane's TARGET: the dir the target pane shows is the
     // destination. That is what a target is for. No target → ask for a path.
@@ -1506,8 +1533,13 @@ function setup(root, opts) {
     fetch(url + '?list=1').then((r) => r.ok ? r.json() : Promise.reject(r.status)).then(async (d) => {
       if (!d || !Array.isArray(d.children)) throw 'f';
       psClear(el);
+      psAlive(ps, ns);                                                     // it answered: clear any stale dead mark
       psKind.set(ns, 'dir'); ps.redrawBars();                              // this path lists → it's a dir
       el._dirUrl = url;                                                    // whitespace right-click: this dir's actions
+      // does this dir RUN a nexus? The old explorer showed Reload nexus only
+      // when it did (data.nexus.display !== '-'); gmux dropped the item
+      // entirely, so a nexus could only be reloaded from the legacy page.
+      el._dirNexus = !!(d.nexus && d.nexus.display && d.nexus.display !== '-');
       // ?view= says how this dir is looked at: tree (the stock tree viewer),
       // grid, or rows. Absent, a viewer the app declares for the dir wins,
       // else rows. raw ignores all of it: the plain listing.
@@ -1579,8 +1611,14 @@ function setup(root, opts) {
       el._fv = { destroy() { clearTimeout(timer); }, onUpdate() { if (timer) return; timer = setTimeout(() => { timer = null; refreshRows(); }, 500); } };
       paneLive(ps, paneId, el, [{ road: abs === '/' ? '/' : abs.replace(/\/$/, '') + '/', fold: true }]);
     }).catch(async (why) => {
-      if (why === 404) { psMarkDead(ps, el, ns); return; }                 // no such path: dead where it sits (a deleted thing in history)
+      // a 404 keeps watching: the path may yet be made, and `new` revives it
+      if (why === 404) {
+        psMarkDead(ps, el, ns);
+        el._gone = psWatchFile(ps, paneId, el, ns, abs);                   // not there YET: `new` brings it back by itself
+        return;
+      }
       psClear(el);
+      psAlive(ps, ns);                                                     // it answered: clear any stale dead mark
       psKind.set(ns, 'file'); ps.redrawBars();                            // not a listing → it's a file
       el._gone = psWatchFile(ps, paneId, el, ns, abs);                      // its own file, one keep: del → dead, new → back
       // rendered = JUST the declared viewer's rendering (no FileView chrome);
