@@ -716,23 +716,27 @@ class Gmux extends HTMLElement {
     addr = String(addr || '').trim();
     const parts = (addr === '.' || addr === '') ? [] : addr.split('/').filter((s) => s.length && s !== '.');
     let at = holder;                                   // a pane, or a division
-    // auto-follow anything that isn't a real choice: a pane's own active tab's
-    // current entry, straight through a nested-pane entry too — repeatedly,
-    // since one pane can sit directly inside another
-    const settle = () => {
+    // before a real choice (a/b) can be applied, skip through anything that
+    // isn't one: a nested-pane entry (one pane sitting directly inside
+    // another, no slot chosen) — repeatedly, since several can stack. A pane
+    // whose current entry is a DIVISION is a stopping point, not something to
+    // settle through: once all segments are consumed the addressed pane is
+    // the exact target, even if it itself divides further — that's a valid
+    // whole-subtree target, not something to auto-drill past.
+    const settleToDivision = () => {
       while (at && at.kind === 'pane') {
         const t = at.tabs[at.activeTab]; if (!t) return;        // empty/fresh — at itself is the resolved target
         const e = t.entries[t.cursor]; if (!e) return;
-        const next = e.div || e.pane || null; if (!next) return;
-        at = next;
+        if (e.div) { at = e.div; return; }
+        if (e.pane) { at = e.pane; continue; }
+        return;
       }
     };
-    settle();
     for (const seg of parts) {
+      settleToDivision();
       if (!at || at.kind === 'pane') return null;       // a real choice only ever happens at a division
       if (seg !== 'a' && seg !== 'b') return null;
       at = at[seg]; if (!at) return null;
-      settle();
     }
     return at && at.kind === 'pane' ? at : null;
   }
@@ -1245,19 +1249,42 @@ class Gmux extends HTMLElement {
   //   it, in order, and the active one stays active. Afterwards the held pane
   //   is gone and the owner shows what it was showing.
   //
-  //   Only a held pane (a pane moment's child) can be promoted. A side of a
-  //   division cannot: promoting one of two would mean discarding the other,
-  //   which is a close, not a promote.
+  //   From one SIDE of a division it means the same thing: this pane's tabs
+  //   go up and this pane goes. The sibling stays — the division is left
+  //   holding it alone, a monochild — so nothing is destroyed and there is
+  //   nothing to confirm. The tabs land beside the division they came out of,
+  //   not on top of it.
   //
   promote(id) {
     const p = this.#panes.get(id ?? this.#activeId); if (!p) return false;
     const par = p.parent;
-    if (!par || !par.host) return false;
+    if (!par) { this.#flashHint('nothing holds this pane: there is nowhere to promote it to'); return false; }
+    const scroll = this.#snapshotScroll();
+    const mine = p.tabs;
+    if (par.div) {
+      const owner = par.div.owner;
+      const at = owner.activeTab;
+      // hand the tabs over BEFORE closing, so close has nothing to release and
+      // sees an empty pane (no confirm): it then leaves the division holding
+      // the sibling alone, and these slot in beside it.
+      p.tabs = [{ entries: [], cursor: -1 }];
+      this.close(p, true);
+      owner.tabs.splice(at + 1, 0, ...mine);
+      owner.activeTab = at + 1 + (p.activeTab || 0);
+      owner.tabs.forEach((t) => t.entries.forEach((e) => this.#reparentDiv(e, owner)));
+      this.#renderPane(owner);
+      this.#afterStructure();
+      this.#restoreScroll(scroll);
+      this.cursorTo(owner);
+      this.#persist();
+      this.#refocus();
+      return true;
+    }
+    if (!par.host) { this.#flashHint('nothing holds this pane: there is nowhere to promote it to'); return false; }
     const host = par.host;
     const i = host.tabs.findIndex((t) => { const e = t.entries[t.cursor]; return !!e && e.pane === p; });
-    if (i < 0) return false;
-    const scroll = this.#snapshotScroll();
-    host.tabs.splice(i, 1, ...p.tabs);
+    if (i < 0) { this.#flashHint('cannot find the moment holding this pane'); return false; }
+    host.tabs.splice(i, 1, ...mine);
     host.activeTab = i + p.activeTab;
     // every structural moment that moved belongs to the host now, in every
     // tab and at every point in its history — a division sitting back in a
