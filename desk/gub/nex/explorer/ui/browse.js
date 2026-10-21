@@ -1650,7 +1650,10 @@ function setup(root, opts) {
         // mounted whether or not el is in the document: an inactive tab's
         // content is stashed off-document and shown later, and falling
         // through here would render it as rows instead
-        if (tv) { el._fv = tv.mount(el, { url, args: { root: abs }, onNavigate: onNav, open: vopen, close: vclose }); el._menu = (e) => listingMenu(e, el, url); psLanded(ps, paneId, el); return; }
+        // follows its root dir in fold mode like the rows view does, so a
+        // file made or removed under it redraws the tree; without this the
+        // tree pane was the one pane subscribed to nothing
+        if (tv) { el._fv = tv.mount(el, { url, args: { root: abs }, onNavigate: onNav, open: vopen, close: vclose }); el._menu = (e) => listingMenu(e, el, url); paneLive(ps, paneId, el, [{ road: abs === '/' ? '/' : abs.replace(/\/$/, '') + '/', fold: true }]); psLanded(ps, paneId, el); return; }
       }
       // the app is asked for the bare dir and for any view name of its own;
       // the host's own views (rows, grid, tree) never reach it

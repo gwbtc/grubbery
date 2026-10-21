@@ -4,7 +4,9 @@
 // it through the standard viewer system. Zero changes to gmux/explorer.
 //
 // Contract (window.Viewers[name], same as FileView):
-//   mount(host, { url, args, onNavigate }) -> { destroy }
+//   mount(host, { url, args, onNavigate }) -> { destroy, onUpdate }
+// onUpdate  — the host says the root moved: the subtree is re-fetched and
+//             redrawn in place (open dirs stay open).
 // args.root  — the NAMESPACE path to show the tree of (default '/').
 // onNavigate — called with a namespace path when a row is opened; the host
 //              routes it (in gmux: by the layout's routing table).
@@ -37,19 +39,31 @@
     wrap.append(strip, body);
     host.appendChild(wrap);
 
+    // the tree document, re-fetched whenever the host says the root moved
+    // (onUpdate): a file made or removed under it redraws in place, and
+    // <tree-view> keeps which dirs were open through persistKey
+    let doc = null;
+    const rootSegs = root.split('/').filter(Boolean);
+    const nodeAt = (p) => { let n = doc; for (const s of p.split('/').filter(Boolean).slice(rootSegs.length)) n = n && n.dirs && n.dirs[s]; return n; };
+    const kids = (p) => {
+      const n = nodeAt(p); if (!n) return [];
+      const dirs = Object.keys(n.dirs || {}).map((name) => { const sub = n.dirs[name]; return { name, isDir: true, kind: 'dir', hasWeir: !!(sub && sub.weir), neck: (sub && sub.neck) || null }; });
+      const files = (n.files || []).map((f) => ({ name: f.name, isDir: false, kind: 'file', blot: f.blot || null }));
+      return dirs.concat(files);
+    };
+    const fetchDoc = () => fetch(urlOf(root) + '?tree=1', { cache: 'no-store' }).then((r) => r.ok ? r.json() : Promise.reject('t'));
+    // a refresh re-reads the whole subtree and re-renders; coalesced so a
+    // burst of writes (a checkout) costs one fetch
+    let timer = null;
+    const refresh = () => fetchDoc().then((d) => { if (!tv || !wrap.isConnected) return; doc = d; tv.render(kids(root)); }).catch(() => {});
+    const later = () => { if (timer) return; timer = setTimeout(() => { timer = null; refresh(); }, 500); };
+
     // TODO(perf): one ?tree=1 is the WHOLE subtree. On a clanker dir that
     // descends into tools/runs/ (up to fifty run grubs) for a tab that
     // rarely opens them. Either the explorer's ?tree=1 takes a depth, or
     // this fetches children on expand (tree-view's getChildren can be async).
-    fetch(urlOf(root) + '?tree=1').then((r) => r.ok ? r.json() : Promise.reject('t')).then((doc) => {
-      const rootSegs = root.split('/').filter(Boolean);
-      const nodeAt = (p) => { let n = doc; for (const s of p.split('/').filter(Boolean).slice(rootSegs.length)) n = n && n.dirs && n.dirs[s]; return n; };
-      const kids = (p) => {
-        const n = nodeAt(p); if (!n) return [];
-        const dirs = Object.keys(n.dirs || {}).map((name) => { const sub = n.dirs[name]; return { name, isDir: true, kind: 'dir', hasWeir: !!(sub && sub.weir), neck: (sub && sub.neck) || null }; });
-        const files = (n.files || []).map((f) => ({ name: f.name, isDir: false, kind: 'file', blot: f.blot || null }));
-        return dirs.concat(files);
-      };
+    fetchDoc().then((d) => {
+      doc = d;
       tv = document.createElement('tree-view');
       tv.style.cssText = 'display:block';
       tv.root = root;
@@ -76,7 +90,7 @@
       badgeBtn.addEventListener('click', () => { badgesOn = !badgesOn; badgeBtn.textContent = badgesOn ? 'hide badges' : 'show badges'; tv.render(kids(root)); syncFold(); });
     }).catch(() => { body.textContent = 'tree unavailable: ' + root; });
 
-    return { destroy() { try { wrap.remove(); } catch (_) {} } };
+    return { destroy() { clearTimeout(timer); try { wrap.remove(); } catch (_) {} }, onUpdate: later };
   }
 
   window.Viewers = window.Viewers || {};

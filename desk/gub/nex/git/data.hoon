@@ -411,8 +411,8 @@
       ::  alone — so this cannot drive itself in a circle.
       ?:  ?=([~ %'watch.sig'] rail)
         ;<  ~  bind:m  (rise-wait:io prod "%git/data watch: failed")
-        ;<  ~  bind:m  (keep:io /tree [%| 0 %| /tree] ~)
-        |-
+        ;<  *  bind:m  (keep:io /tree [%| 0 %| /tree] ~)
+        |-  ^-  form:m
         ;<  *  bind:m  (take-news:io /tree)
         ;<  ~  bind:m  (reload:io [%| 0 %| /])
         $
