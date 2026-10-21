@@ -72,6 +72,7 @@
         border-radius: 6px; cursor: pointer;
       }
       .row:hover { background: var(--tv-hover-bg, #f6f8fa); }
+      .row.cur { background: var(--tv-cur-bg, #eef3fb); }
       .caret {
         flex: none;
         width: var(--tv-caret-size, 20px); height: var(--tv-caret-size, 20px);
@@ -113,12 +114,19 @@
   class TreeView extends HTMLElement {
     #root; #getChildren; #onOpenFile; #onOpenDir; #decorateRow; #persistKey; #upRow;
     #treeOpen = {}; #activePath = null; #childCache = new Map();
-    #container;
+    #container; #keys = false; #cur = null;
 
     constructor() {
       super();
       this.attachShadow({ mode: 'open' }).appendChild(TPL.content.cloneNode(true));
       this.#container = this.shadowRoot.getElementById('root');
+    }
+
+    // gmux focuses the host (it found data-focus there); the keys live on
+    // the shadow container, so send focus where the listeners are.
+    focus(o) {
+      if (this.#container) this.#container.focus(o);
+      else HTMLElement.prototype.focus.call(this, o);
     }
 
     set root(v) { this.#root = v; }
@@ -223,6 +231,13 @@
           row.appendChild(label);
           row.addEventListener('click', () => expand(this.#treeOpen[childPath] !== true));
         }
+        // keyboard hooks (lib/ui/nav-keys): a dir row carries how to fold
+        // itself and whether it is folded, so the key handler never has to
+        // know about carets or #treeOpen. dataset.path lets ← find a parent.
+        row.dataset.path = childPath;
+        row.__item = item;
+        row.__fold = expand;
+        row.__folded = () => this.#treeOpen[childPath] !== true;
         if (this.#decorateRow) this.#decorateRow(row, item, childPath, true);
         parent.appendChild(row);
         parent.appendChild(kids);
@@ -240,6 +255,7 @@
         link.textContent = item.name;
         link.addEventListener('click', (e) => { e.preventDefault(); this.#onOpenFile(item, filePath); });
         row.appendChild(link);
+        row.__item = item;
         if (this.#decorateRow) this.#decorateRow(row, item, filePath, false);
         parent.appendChild(row);
       });
@@ -265,6 +281,60 @@
         this.#container.appendChild(up);
       }
       this.#renderLevel(this.#container, rootItems, this.#root);
+      this.#attachKeys();
+    }
+
+    // +attachKeys: ↑ ↓ move the highlight, Enter folds/unfolds. That is
+    // the whole vocabulary — deliberately not lib/ui/nav-keys, whose
+    // type-ahead, ←/→ folding, Home/End and ⇧Enter are more than a tree
+    // row needs and whose highlight styling is not this component's.
+    //
+    // The keys live on the shadow container (its own listeners, its own
+    // focus); the HOST carries data-focus so gmux can find it, since
+    // +focusContent queries the pane content and querySelector does not
+    // cross a shadow boundary. focus() below forwards inward.
+    #attachKeys() {
+      if (this.#keys) return;
+      this.#keys = true;
+      this.setAttribute('data-focus', '');
+      const c = this.#container;
+      if (!c.hasAttribute('tabindex')) c.tabIndex = 0;
+      c.addEventListener('keydown', (e) => {
+        if (e.metaKey || e.ctrlKey || e.altKey) return;
+        const rows = this.#visibleRows();
+        if (!rows.length) return;
+        const i = rows.indexOf(this.#cur);
+        if (e.key === 'ArrowDown') this.#point(rows[i < 0 ? 0 : Math.min(rows.length - 1, i + 1)]);
+        else if (e.key === 'ArrowUp') this.#point(rows[i < 0 ? 0 : Math.max(0, i - 1)]);
+        else if (e.key === 'Enter') {
+          const r = this.#cur || rows[0];
+          this.#point(r);
+          if (r.__fold) r.__fold(r.__folded());
+          else { const n = r.querySelector('.name'); if (n) n.click(); }
+        } else return;
+        e.preventDefault();
+        e.stopPropagation();
+      });
+      c.addEventListener('focus', () => { if (!this.#cur) { const rs = this.#visibleRows(); if (rs.length) this.#point(rs[0]); } });
+      c.addEventListener('click', (e) => {
+        const r = e.target && e.target.closest ? e.target.closest('.row') : null;
+        if (r) this.#point(r);
+      });
+    }
+    // rows the cursor may land on: everything except the children of a
+    // folded directory. Deliberately a FOLD test, not a layout one —
+    // offsetParent is null for every element inside a shadow root, and
+    // getClientRects is empty whenever the host happens to be unsized,
+    // which would leave the tree keyboard-dead for a layout reason that
+    // has nothing to do with what is collapsed.
+    #visibleRows() {
+      return Array.from(this.#container.querySelectorAll('.row'))
+        .filter((r) => !r.closest('.kids[hidden]'));
+    }
+    #point(r) {
+      if (this.#cur) this.#cur.classList.remove('cur');
+      this.#cur = r || null;
+      if (this.#cur) { this.#cur.classList.add('cur'); this.#cur.scrollIntoView({ block: 'nearest' }); }
     }
 
     markActive(path) {
