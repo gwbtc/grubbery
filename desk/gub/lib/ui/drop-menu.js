@@ -53,8 +53,11 @@ TPL.innerHTML = `
     :host([open]) #panel { display: flex; }
     /* flip: opens upward when the panel would run off the viewport bottom */
     :host([flip]) #panel { top: auto; bottom: calc(100% + 4px); }
-    :host(:not([align="end"])) #panel { left: 0; }
-    :host([align="end"]) #panel { right: 0; }
+    /* the panel never exceeds the viewport: a long label wraps rather than
+       pushing the menu off the side of a phone */
+    #panel { max-width: calc(100vw - 16px); box-sizing: border-box; }
+    :host(:not([align="end"])) #panel { left: 0; transform: translateX(var(--dm-shift, 0)); }
+    :host([align="end"]) #panel { right: 0; transform: translateX(var(--dm-shift, 0)); }
     /* style slotted menu items into a consistent list */
     ::slotted(:not([slot="trigger"])) {
       appearance: none;
@@ -156,6 +159,17 @@ class DropMenu extends HTMLElement {
     const t = this.getBoundingClientRect();
     const below = innerHeight - t.bottom;
     if (p.bottom > innerHeight - 8 && t.top > below) this.setAttribute('flip', '');
+    // and the same courtesy sideways. The panel is placed from the host's
+    // edge, so a host near the right of the screen put it off the side —
+    // the vertical flip was here from the start and this was not, which on a
+    // narrow screen meant a menu you could only see half of. Nudge it back by
+    // however far it overhangs, measured after the flip so both agree.
+    this.style.removeProperty('--dm-shift');
+    const q = panel.getBoundingClientRect();
+    const over = q.right - (innerWidth - 8);
+    const under = 8 - q.left;
+    const shift = over > 0 ? -over : (under > 0 ? under : 0);
+    if (shift) this.style.setProperty('--dm-shift', shift + 'px');
   }
   close() { this.removeAttribute('open'); }
   toggle() { this.hasAttribute('open') ? this.close() : this.open(); }

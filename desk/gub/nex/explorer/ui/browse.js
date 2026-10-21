@@ -1249,7 +1249,15 @@ function setup(root, opts) {
     const neck = d.nexus && d.nexus.display;
     if (neck && neck !== '-') {
       let v = neck;
-      if (d.nexus.url) { const a = document.createElement('a'); a.href = d.nexus.url; a.textContent = neck; v = a; }
+      if (d.nexus.url) {
+        // the nexus's own source, opened IN the workspace. A bare href here
+        // left gmux entirely — the one link on the bar that abandoned the
+        // session it was describing.
+        const a = document.createElement('a');
+        a.href = d.nexus.url; a.textContent = neck;
+        a.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); route(d.nexus.url, 'file', null); });
+        v = a;
+      }
       row.appendChild(chip('nexus', v));
     }
     row.appendChild(chip('items', String((d.children || []).length)));
@@ -1279,6 +1287,41 @@ function setup(root, opts) {
     });
     row.appendChild(more);
     return row;
+  }
+  // +psCrumbRow: where this listing sits, ABSOLUTELY. Built from the resolved
+  // place, never the moment: under an @name the moment reads @itinerary/x,
+  // which is the right thing for the path field (where the chip says the name
+  // and you can tap it for the place) but the wrong thing here — the crumb's
+  // whole job is to say concretely where you are standing. Clicking one goes
+  // to that absolute path, so what it shows and what it does agree.
+  //
+  //   Never wraps: it scrolls sideways, like the file view's.
+  //
+  function psCrumbRow(abs, route) {
+    const row = document.createElement('div');
+    row.className = 'ps-crumbs';
+    const segs = abs.replace(/\/+$/, '').split('/').filter(Boolean);
+    const link = (text, to) => {
+      const a = document.createElement('a');
+      a.href = to; a.textContent = text;
+      a.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); route(to, 'dir', null); });
+      return a;
+    };
+    row.appendChild(segs.length ? link('/', '/') : Object.assign(document.createElement('span'), { className: 'cur', textContent: '/' }));
+    let acc = '';
+    segs.forEach((seg, i) => {
+      acc += '/' + seg;
+      if (i === segs.length - 1) row.appendChild(Object.assign(document.createElement('span'), { className: 'cur', textContent: seg }));
+      else row.appendChild(link(seg + '/', acc));
+    });
+    return row;
+  }
+  // the sticky head of a directory rendering: where you are, then what it is
+  function psDirHead(el, d, ns, abs, url, route) {
+    const head = document.createElement('div');
+    head.className = 'ps-dirhead';
+    head.append(psCrumbRow(abs, route), psChipRow(el, d, ns, url, route));
+    return head;
   }
   function listingMenu(e, el, dirUrl) {
     const hit = e.composedPath().find((x) => x && x.__item);
@@ -1558,7 +1601,8 @@ function setup(root, opts) {
     // the layout this pane sits in says WHERE (its routing table; in place by
     // default). ⌘-click is the user's own override: a new pane beside.
     const route = (href, kind, mods, name) => {
-      const h = psMoment(psRel(ns, href));                                  // relative to this moment, as spelled
+      const bare = (typeof href === 'string' && href.startsWith(PREFIX)) ? (href.slice(PREFIX.length) || '/') : href;
+      const h = psMoment(psRel(ns, bare));                                  // relative to this moment, as spelled
       if (kind) psKind.set(psNs(h), kind === 'dir' ? 'dir' : 'file');      // glyph the target before nav
       if (mods && (mods.meta || mods.ctrl)) { ps.open(h, 'beside'); return; }   // ⌘-click → new pane
       ps.openFrom(paneId, h, name);
@@ -1648,8 +1692,16 @@ function setup(root, opts) {
       }
       t.addEventListener('ft-navigate', (e) => { const { item, href, mods } = e.detail; route(href, item ? item.kind : 'dir', mods); });
       el._menu = (e) => listingMenu(e, el, url);                            // right-click: the row's item, or this dir
-      el.appendChild(psChipRow(el, d, ns, url, route));
+      const head = psDirHead(el, d, ns, abs, url, route);
+      el.appendChild(head);
       el.appendChild(t);
+      // the listing's own column header is sticky too, so tell it how much
+      // chrome stands above it — otherwise the two stick to the same line and
+      // the columns ride over the crumbs
+      const seatHeader = () => { const h = head.offsetHeight; if (h) t.style.setProperty('--ft-header-top', h + 'px'); };
+      seatHeader();
+      requestAnimationFrame(seatHeader);                                  // again once it has actually laid out
+      if (window.ResizeObserver) { const ro = new ResizeObserver(seatHeader); ro.observe(head); el._headRO = ro; }
       d.children.forEach((c) => { c.__dir = url; });
       t.items = d.children;
       psLanded(ps, paneId, el);                                            // the keyboard lands on the table if this pane is the one chosen
@@ -3027,6 +3079,7 @@ function setup(root, opts) {
       try { if (el._live) el._live(); } catch (_) {}
       try { if (el._gone) el._gone(); } catch (_) {}
       try { if (el._link) el._link(); } catch (_) {}
+      try { if (el._headRO) el._headRO.disconnect(); } catch (_) {}
       try { if (el._fv && el._fv.destroy) el._fv.destroy(); } catch (_) {}
     };
     // how many panes show each moment, across EVERY tab of every pane: a tab
@@ -3678,7 +3731,7 @@ function setup(root, opts) {
       return true;
     };
     ps.viewModes = [{ id: 'rendered', glyph: '▣', title: 'rendered' }, { id: 'raw', glyph: '◰', title: 'raw file / plain listing' }];
-    ps.onDestroy = (id, body) => { const c = body.firstChild; try { if (c && c._live) c._live(); } catch (_) {} try { if (c && c._gone) c._gone(); } catch (_) {} try { if (c && c._link) c._link(); } catch (_) {} try { if (c && c._fv) c._fv.destroy(); } catch (_) {} };
+    ps.onDestroy = (id, body) => { const c = body.firstChild; try { if (c && c._live) c._live(); } catch (_) {} try { if (c && c._gone) c._gone(); } catch (_) {} try { if (c && c._link) c._link(); } catch (_) {} try { if (c && c._headRO) c._headRO.disconnect(); } catch (_) {} try { if (c && c._fv) c._fv.destroy(); } catch (_) {} };
     root.appendChild(ps);
     // right-click: the rendering under the cursor answers (a viewer's
     // contextMenu, a built-in's _menu); nothing to say → the browser's own
@@ -3826,7 +3879,13 @@ namespace-explorer > #bar > #crumbs a:hover { color: #24292f; background: #eaeef
 namespace-explorer > #bar > #crumbs .here { color: #24292f; padding: 2px 4px; }
 namespace-explorer .grow { flex: 1; }
 namespace-explorer #chips { display: inline-flex; align-items: center; gap: 7px; }
-.ps-chips { position: sticky; top: 0; left: 0; z-index: 2; display: flex; gap: 6px; align-items: center; padding: 6px 8px; background: #f6f8fa; border-bottom: 1px solid #e2e7ee; }
+.ps-dirhead { position: sticky; top: 0; left: 0; z-index: 5; background: #f6f8fa; border-bottom: 1px solid #e2e7ee; }
+.ps-chips { display: flex; gap: 6px; align-items: center; padding: 6px 8px; }
+.ps-crumbs { padding: 6px 8px 0; overflow-x: auto; overflow-y: hidden; white-space: nowrap; font: 600 12px ui-monospace, SFMono-Regular, Menlo, monospace; scrollbar-width: none; }
+.ps-crumbs::-webkit-scrollbar { display: none; }
+.ps-crumbs a { color: #57606a; padding: 2px 4px; border-radius: 5px; text-decoration: none; }
+.ps-crumbs a:hover { color: #24292f; background: #eaeef2; }
+.ps-crumbs .cur { color: #24292f; padding: 2px 4px; }
 .ps-chips .chip.click, .ps-chips .ps-chip-more { min-height: 26px; }
 .ps-chips .ps-chip-more { margin-left: auto; font: 15px/1 ui-monospace, Menlo, monospace; padding: 2px 10px; border: 1px solid #e2e7ee; border-radius: 6px; background: #eef1f4; color: #24292f; cursor: pointer; }
 .ps-chips .ps-chip-more:hover { border-color: #d0d7de; background: #e2e7ee; }
