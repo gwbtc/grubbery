@@ -150,6 +150,7 @@
   ?-  -.cmd
     %stash          op-stash
     %stash-pop      op-stash-pop
+    %stash-drop     op-stash-drop
     %checkout       (op-checkout branch.cmd)
     %branch         (op-branch branch.cmd)
     %branch-delete  (op-branch-delete branch.cmd)
@@ -198,6 +199,26 @@
   ?:  (gte after before)
     (pure:m [%error 'stash pop failed — the stack did not shrink'])
   (pure:m [%ok (crip "popped — {(scow %ud after)} left on the stack")])
+::  +op-stash-drop: discard the most recent stash without restoring it.
+::
+::    The working tree and index are untouched -- that is the whole
+::    difference from a pop. Reports the real delta off stash-depth, so a
+::    drop that did not shrink the stack says so instead of claiming it.
+::
+++  op-stash-drop
+  =/  m  (fiber:fiber:nexus ,outcome:git-act)
+  ^-  form:m
+  ;<  before=@ud  bind:m  stash-depth
+  ?:  =(0 before)  (pure:m [%error 'no stash to drop -- the stack is empty'])
+  ;<  req-rd=road:tarball  bind:m
+    (ancestor-road:io [/git %repo] [%& /data %'stash-drop-request.sig'])
+  ;<  ~  bind:m  (write-repo-file req-rd [[/ %sig] ~])
+  ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
+  ;<  ~  bind:m  (reload:io data-rd)
+  ;<  after=@ud  bind:m  stash-depth
+  ?:  (gte after before)
+    (pure:m [%error 'stash drop failed -- the stack did not shrink'])
+  (pure:m [%ok (crip "dropped -- {(scow %ud after)} left on the stack")])
 ::  +op-stash-list: report the stash stack (from data/ui/stash.json, which
 ::  the data nexus builds from the reflog) as a one-line queue summary.
 ::

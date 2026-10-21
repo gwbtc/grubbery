@@ -24,6 +24,7 @@
       [%branch-delete =branch]
       [%stash ~]
       [%stash-pop ~]
+      [%stash-drop ~]              ::  discard the top stash, tree untouched
       [%stash-list ~]
       [%invalid raw=@t]                    ::  didn't parse — for the log only
   ==
@@ -91,6 +92,7 @@
     %branch-delete  ~[(pair 'verb' s+'branch-delete') (pair 'branch' s+branch.c)]
     %stash          ~[(pair 'verb' s+'stash')]
     %stash-pop      ~[(pair 'verb' s+'stash-pop')]
+    %stash-drop     ~[(pair 'verb' s+'stash-drop')]
     %stash-list     ~[(pair 'verb' s+'stash-list')]
     %invalid        ~[(pair 'verb' s+'invalid') (pair 'raw' s+raw.c)]
   ==
@@ -168,6 +170,7 @@
     ::  stash — compound forms first so "stash" doesn't shadow them
     (cold [%stash-pop ~] ;~(plug (jest 'stash') (plus ace) (jest 'pop')))
     (cold [%stash-list ~] ;~(plug (jest 'stash') (plus ace) (jest 'list')))
+    (cold [%stash-drop ~] ;~(plug (jest 'stash') (plus ace) (jest 'drop')))
     (cold [%stash ~] (jest 'stash'))
     (cold [%pull ~] (jest 'pull'))
     ::  commit -m "msg" [-m "more" ...] | --message "msg". Git's

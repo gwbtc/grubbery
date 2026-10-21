@@ -106,4 +106,10 @@
   |.((chk [~ %invalid 'push -- a.hoon'] 'push -- a.hoon'))
 ++  test-reject-pathspec-on-add
   |.((chk [~ %invalid 'add x.hoon -- y.hoon'] 'add x.hoon -- y.hoon'))
+::  stash drop: discard the top stash. Like `stash pop` and `stash list` it
+::  must be posed BEFORE bare `stash`, or pose matches the prefix and the
+::  trailing word is left dangling for rush to reject.
+++  test-stash-drop  |.((chk [~ %stash-drop ~] 'stash drop'))
+++  test-stash-drop-not-shadowed  |.((chk [~ %stash-drop ~] 'stash  drop'))
+++  test-stash-still-bare  |.((chk [~ %stash ~] 'stash'))
 --

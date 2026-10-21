@@ -185,6 +185,41 @@
         ~?  dbg  ["%git/data: stashed at" (scag 7 stash-hex)]
         ball
       ::
+      ::  === stash drop request handling ===
+      ::  discard the top stash: pop the reflog and move refs/stash back to
+      ::  the previous entry (deleting it when the stack empties). The
+      ::  working tree and index are deliberately untouched -- that is the
+      ::  whole difference from a pop. The ui views are rebuilt because the
+      ::  stack changed, so data/ui/stash.json cannot be left claiming an
+      ::  entry that is gone.
+      ::
+      =/  drop-req=(unit sang:tarball)
+        (~(get ba:tarball ball) [/ %'stash-drop-request.sig'])
+      ?^  drop-req
+        ~?  dbg  "%git/data: stash drop request"
+        =/  had=(unit hash:git-repo)  (read-ref-file ball /refs 'stash')
+        ?~  had
+          ~&  >>>  "%git/data: no stash to drop"
+          =.  ball  (~(del ba:tarball ball) / %'stash-drop-request.sig')
+          ball
+        =/  dropped=[prev=(unit hash:git-repo) =ball:tarball]
+          (pop-stash-reflog ball)
+        =.  ball  ball.dropped
+        =.  ball
+          ?~  prev.dropped
+            (~(del ba:tarball ball) /refs %'stash')
+          =/  prev-hex=tape  (print-hash-sha-1:git-transport u.prev.dropped)
+          =/  prev-octs=octs  (as-octt:bytestream prev-hex)
+          %+  ~(put ba:tarball ball)  [/refs %'stash']
+          [[/ %mime] %& !>([/text/plain prev-octs])]
+        =.  ball  (~(del ba:tarball ball) / %'stash-drop-request.sig')
+        =/  head-com=(unit commit:git-repo)  (get-commit:sto commit-hash)
+        =/  head-tree=hash:git-repo  ?~(head-com 0x0 tree.u.head-com)
+        =.  ball
+          %-  write-ui-outputs
+          [ball repo commit-hash parsed-head (read-index ball) head-tree]
+        ball
+      ::
       ::  === stash pop request handling ===
       ::  read refs/stash commit, apply its tree to index, drop stash
       ::
