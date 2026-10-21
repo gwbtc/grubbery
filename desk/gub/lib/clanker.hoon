@@ -35,6 +35,7 @@
 ::  the API.
 ::
 /<  nex-tools  /lib/tools.hoon
+/<  rcp-lib    /lib/recipe.hoon
 |%
 +$  config
   $:  tag=@tas             ::  log prefix, e.g. %itinerary-agent
@@ -63,6 +64,10 @@
         [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
         [%fall %| /chats empty-dir:loader]
         [%fall %| /archive empty-dir:loader]
+        ::  recipes/ holds the thought processes on offer; runs/ holds
+        ::  one run's position and spend, keyed by chat like chats/ is
+        [%fall %| /recipes empty-dir:loader]
+        [%fall %| /runs empty-dir:loader]
         prompt-row
         [%fall %& [/ %'config.json'] [[/ %json] config-seed.cfg]]
         [%over %| /tools (seed-tools:nex-tools bundle)]
@@ -93,6 +98,122 @@
     |=  [=rail:tarball chat=@t]
     ^-  road:tarball
     (nex-road:io rail [%& /chats (crip "{(trip chat)}.json")])
+  ::  +run-road, +recipe-road: where a run's position and a recipe live
+  ::
+  ++  run-road
+    |=  [=rail:tarball chat=@t]
+    ^-  road:tarball
+    (nex-road:io rail [%& /runs (crip "{(trip chat)}.json")])
+  ::
+  ++  recipe-road
+    |=  [=rail:tarball name=@t]
+    ^-  road:tarball
+    (nex-road:io rail [%& /recipes (crip "{(trip name)}.json")])
+  ::  +load-recipe: the named recipe, or ~ when unnamed or unparseable
+  ::
+  ++  load-recipe
+    |=  [=rail:tarball name=(unit @t)]
+    =/  m  (fiber:fiber:nexus ,(unit recipe:rcp-lib))
+    ^-  form:m
+    ?~  name  (pure:m ~)
+    ;<  v=view:nexus  bind:m  (peek:io (recipe-road rail u.name) `[/ %json])
+    ?.  ?=([%file *] v)  (pure:m ~)
+    =/  j=json  (fall (mole |.(!<(json (need-vase:tarball sang.v)))) *json)
+    (pure:m (parse:rcp-lib u.name j))
+  ::  +read-run: the run held for this chat, if any
+  ::
+  ++  read-run
+    |=  [=rail:tarball chat=@t]
+    =/  m  (fiber:fiber:nexus ,(unit state:rcp-lib))
+    ^-  form:m
+    ;<  v=view:nexus  bind:m  (peek:io (run-road rail chat) `[/ %json])
+    ?.  ?=([%file *] v)  (pure:m ~)
+    =/  j=json  (fall (mole |.(!<(json (need-vase:tarball sang.v)))) *json)
+    (pure:m (state-from-json:rcp-lib j))
+  ::  +write-run: persist a run's position. The tip itself is never
+  ::  stored — only where the run is and what it has spent.
+  ::
+  ++  write-run
+    |=  [road=road:tarball existed=? fin=(unit state:rcp-lib)]
+    =/  m  (fiber:fiber:nexus ,~)
+    ^-  form:m
+    ?~  fin  (pure:m ~)
+    =/  j=json  (state-to-json:rcp-lib u.fin)
+    ?:  existed  (over:io road [[/ %json] j])
+    ;<  err=(unit tang)  bind:m  (make-soft:io road |+[[[/ %json] j] ~])
+    ~?  >>>  ?=(^ err)  [tag.cfg %run-write-failed]
+    (pure:m ~)
+  ::  +step-tool: offered only while a run is live and still movable.
+  ::
+  ++  step-tool
+    ^-  json
+    %-  mk-tool
+    :^    'step'
+        %-  crip
+        ;:  weld
+          "Adopt the next intention in the recipe you are following. "
+          "Name the target exactly as the tip lists it; 'stay' re-chooses "
+          "the current step. 'abort' leaves the recipe and is always "
+          "available."
+        ==
+      :~  ['target' 'the step to adopt, or stay, or done, or abort']
+          ['note' 'optional one line for the run log']
+      ==
+    ~['target']
+  ::  +take-steps: apply the model's step calls. A refused move comes
+  ::  back as the tool result rather than as a crash, so the agent reads
+  ::  why and names something else.
+  ::
+  ++  take-steps
+    |=  $:  rcf=(unit recipe:rcp-lib)
+            rst=(unit state:rcp-lib)
+            tus=(list json)
+        ==
+    ^-  [(list json) (unit state:rcp-lib)]
+    =|  out=(list json)
+    |-
+    ?~  tus  [(flop out) rst]
+    ?.  ?=([%o *] i.tus)  $(tus t.tus)
+    =/  tid=@t  (jstr i.tus 'id')
+    =/  input=json  (fall (~(get by p.i.tus) 'input') [%o ~])
+    =/  target=@t  (jstr input 'target')
+    =/  outcome=[msg=@t nxt=(unit state:rcp-lib)]
+      ?~  rcf  ['no recipe is engaged' rst]
+      ?~  rst  ['no recipe is engaged' rst]
+      ?:  =('abort' target)  ['left the recipe' ~]
+      =/  e=(each state:rcp-lib @t)  (move:rcp-lib u.rcf u.rst target)
+      ?:  ?=(%| -.e)  [p.e rst]
+      [(crip "now in {(trip step.p.e)}") `p.e]
+    =/  res=json
+      %-  pairs:enjs:format
+      :~  ['type' s+'tool_result']
+          ['tool_use_id' s+tid]
+          ['content' s+msg.outcome]
+      ==
+    $(tus t.tus, rst nxt.outcome, out [res out])
+  ::  +append-tip: ride the tip on the END of the last message, as a
+  ::  trailing text block. It is never persisted: run-loop's msgs is a
+  ::  local, and the chat is written from history instead.
+  ::
+  ++  append-tip
+    |=  [msgs=(list json) tip=@t]
+    ^-  (list json)
+    ?:  =(~ msgs)  msgs
+    =/  blk=json  (pairs:enjs:format ~[['type' s+'text'] ['text' s+tip]])
+    =/  las=json  (rear msgs)
+    ?.  ?=([%o *] las)  (snoc msgs blk)
+    =/  con=(unit json)  (~(get by p.las) 'content')
+    =/  arr=(list json)
+      ?~  con  ~
+      ?:  ?=([%a *] u.con)  p.u.con
+      ?:  ?=([%s *] u.con)
+        ~[(pairs:enjs:format ~[['type' s+'text'] ['text' u.con]])]
+      ~
+    %+  snoc  (snip msgs)
+    %-  pairs:enjs:format
+    :~  ['role' s+(jstr las 'role')]
+        ['content' [%a (snoc arr blk)]]
+    ==
   ::  +chat-turn: one conversation turn. Load history, append the user
   ::  message, run the loop, append the assistant reply, persist.
   ::
@@ -139,8 +260,22 @@
       (fall (mole |.(!<(json (need-vase:tarball sang.cv)))) config-seed.cfg)
     =/  model=@t  =/(mo=@t (jstr conf 'model') ?:(=('' mo) 'claude-sonnet-4-6' mo))
     =/  max-toks=@ud  (jnum conf 'max_tokens' (jnum config-seed.cfg 'max_tokens' 1.024))
-    ;<  [reply=@t trace=(list json) parts=(list json)]  bind:m
-      (run-loop rail clean sys model max-toks)
+    ::  a recipe is engaged by the poke naming one; otherwise the run
+    ::  held for this chat carries on. Naming one starts it over.
+    ;<  held=(unit state:rcp-lib)  bind:m  (read-run rail chat)
+    =/  want=@t  (jstr jon 'recipe')
+    =/  lvl=@t  =/(l=@t (jstr jon 'level') ?:(=('' l) 'normal' l))
+    =/  pick=(unit @t)
+      ?.  =('' want)  `want
+      ?~(held ~ `name.u.held)
+    ;<  rcf=(unit recipe:rcp-lib)  bind:m  (load-recipe rail pick)
+    =/  rst=(unit state:rcp-lib)
+      ?~  rcf  ~
+      ?:  =('' want)  held
+      `(enter:rcp-lib u.rcf lvl)
+    ;<  [reply=@t trace=(list json) parts=(list json) fin=(unit state:rcp-lib)]  bind:m
+      (run-loop rail clean sys model max-toks rcf rst)
+    ;<  ~  bind:m  (write-run (run-road rail chat) ?=(^ held) fin)
     =/  asst=json
       %-  pairs:enjs:format
       :~  ['role' s+'assistant']
@@ -167,6 +302,13 @@
     |=  [=rail:tarball chat=@t]
     =/  m  (fiber:fiber:nexus ,~)
     ^-  form:m
+    ::  clearing a chat abandons its recipe. An emptied run grub parses
+    ::  back as no run, so a cleared chat never resumes mid-recipe.
+    =/  rroad=road:tarball  (run-road rail chat)
+    ;<  rv=view:nexus  bind:m  (peek:io rroad `[/ %json])
+    ;<  ~  bind:m
+      ?.  ?=([%file *] rv)  (pure:m ~)
+      (over:io rroad [[/ %json] [%o ~]])
     =/  road=road:tarball  (chat-road rail chat)
     ;<  cur=view:nexus  bind:m  (peek:io road `[/ %json])
     =/  conv=json
@@ -184,22 +326,62 @@
   ::  and loop; else return the final text plus trace and ordered parts.
   ::
   ++  run-loop
-    |=  [=rail:tarball msgs=(list json) sys=@t model=@t max-toks=@ud]
-    =/  m  (fiber:fiber:nexus ,[reply=@t trace=(list json) parts=(list json)])
+    |=  $:  =rail:tarball
+            msgs=(list json)
+            sys=@t
+            model=@t
+            max-toks=@ud
+            rcf=(unit recipe:rcp-lib)
+            rst=(unit state:rcp-lib)
+        ==
+    =/  m
+      %-  fiber:fiber:nexus
+      ,[reply=@t trace=(list json) parts=(list json) fin=(unit state:rcp-lib)]
     ^-  form:m
     =|  trace=(list json)
     =|  parts=(list json)
     |-  ^-  form:m
+    ::  one iteration is one message, so the tip is rendered from the
+    ::  state AFTER spending it: what the agent reads is what it has
+    ::  left. The tip rides on `sent`, a local, and is never persisted.
+    =/  spun=(unit state:rcp-lib)
+      ?~  rcf  ~
+      ?~  rst  ~
+      `(tick:rcp-lib u.rst)
+    =.  rst  ?~(spun rst spun)
+    =/  over=?
+      ?~  rcf  |
+      ?~  rst  |
+      |((done:rcp-lib u.rst) (stuck:rcp-lib u.rcf u.rst))
+    =/  tip-text=@t
+      ?~  rcf  ''
+      ?~  rst  ''
+      ?.  over  (tip:rcp-lib u.rcf u.rst)
+      %-  crip
+      ;:  weld
+        "<recipe-state>\0a"
+        ?:  (done:rcp-lib u.rst)
+          "The recipe is finished. Hand back its result.\0a"
+        "The budget is spent. Report what was settled and what stopped it.\0a"
+        "Do not call step again.\0a</recipe-state>\0a"
+      ==
+    =/  sent=(list json)
+      ?:(=('' tip-text) msgs (append-tip msgs tip-text))
+    ::  step is on offer only while a run is live and still movable
+    =/  kit=json
+      ?:  |(=('' tip-text) over)  tools.cfg
+      ?.  ?=([%a *] tools.cfg)  tools.cfg
+      [%a (snoc p.tools.cfg step-tool)]
     =/  body=json
       %-  pairs:enjs:format
       :~  ['model' s+model]
           ['max_tokens' (numb:enjs:format max-toks)]
           ['system' s+sys]
-          ['tools' tools.cfg]
-          ['messages' [%a msgs]]
+          ['tools' kit]
+          ['messages' [%a sent]]
       ==
     ;<  answered=(unit json)  bind:m  (call-anthropic body)
-    ?~  answered  (pure:m ['[interrupted]' (flop trace) parts])
+    ?~  answered  (pure:m ['[interrupted]' (flop trace) parts rst])
     =/  resp=json  u.answered
     =/  content-arr=(list json)
       ?.  ?=([%o *] resp)  ~
@@ -245,10 +427,36 @@
       |=  b=json
       ?&(?=([%o *] b) ?=([~ %s %'tool_use'] (~(get by p.b) 'type')))
     ?~  tool-uses
-      (pure:m [(extract-text resp) (flop trace) parts])
-    ;<  ran=(unit [(list json) (list json)])  bind:m  (run-tools rail tool-uses)
-    ?~  ran  (pure:m ['[interrupted]' (flop trace) parts])
-    =/  results=(list json)    -.u.ran
+      (pure:m [(extract-text resp) (flop trace) parts rst])
+    ::  step calls are answered here and never reach the tools nexus;
+    ::  a refused move comes back as its tool result, so the agent reads
+    ::  why and names something else at the cost of one message
+    =/  all=(list json)  tool-uses
+    =/  moves=(list json)
+      %+  skim  all
+      |=(t=json =('step' (jstr t 'name')))
+    =/  rest=(list json)
+      %+  skip  all
+      |=(t=json =('step' (jstr t 'name')))
+    =/  took=[res=(list json) nxt=(unit state:rcp-lib)]
+      (take-steps rcf rst moves)
+    =.  rst  nxt.took
+    =.  trace
+      %+  weld
+        %-  flop
+        %+  turn  moves
+        |=  t=json
+        ^-  json
+        =/  input=json  ?.(?=([%o *] t) [%o ~] (fall (~(get by p.t) 'input') [%o ~]))
+        %-  pairs:enjs:format
+        :~  ['tool' s+'step']
+            ['arg' s+(jstr input 'target')]
+            ['note' s+(jstr input 'note')]
+        ==
+      trace
+    ;<  ran=(unit [(list json) (list json)])  bind:m  (run-tools rail rest)
+    ?~  ran  (pure:m ['[interrupted]' (flop trace) parts rst])
+    =/  results=(list json)    (weld res.took -.u.ran)
     =/  new-trace=(list json)  +.u.ran
     =.  trace  (weld (flop new-trace) trace)
     =.  parts
