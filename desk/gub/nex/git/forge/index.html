@@ -57,16 +57,16 @@
         <div id="pane-status" class="con-pane"></div>
         <div id="pane-history" class="con-pane" style="display:none"></div>
         <div id="pane-run" class="con-pane" style="display:none">
-          <div id="lane-main">
-            <div id="lane-log"></div>
-            <div id="lane-row">
-              <span id="lane-prompt">git ▸</span>
-              <input id="lane-input" type="text" spellcheck="false" autocomplete="off"
+          <div id="queue-main">
+            <div id="queue-log"></div>
+            <div id="queue-row">
+              <span id="queue-prompt">git ▸</span>
+              <input id="queue-input" type="text" spellcheck="false" autocomplete="off"
                      placeholder='type a git command — e.g. commit -m "message"'>
-              <button id="lane-info" title="command reference">ⓘ</button>
+              <button id="queue-info" title="command reference">ⓘ</button>
             </div>
           </div>
-          <div id="lane-docs">
+          <div id="queue-docs">
             <div class="docs-head">commands</div>
             <div class="docs-item"><code>commit -m "msg"</code><span>commit staged changes</span></div>
             <div class="docs-item"><code>add</code><span>stage everything</span></div>

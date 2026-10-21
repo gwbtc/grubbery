@@ -1381,11 +1381,11 @@
   =/  ahead=@ud
     ?~  local-hash   0
     ?~  remote-hash  0
-    (count-ahead ball u.local-hash u.remote-hash)
+    (count-only ball u.local-hash u.remote-hash)
   =/  behind=@ud
     ?~  local-hash   0
     ?~  remote-hash  0
-    (count-ahead ball u.remote-hash u.local-hash)
+    (count-only ball u.remote-hash u.local-hash)
   %-  pairs:enjs:format
   :~  ['staged' [%a staged]]
       ['unstaged' [%a unstaged]]
@@ -1401,6 +1401,51 @@
 ::    Simple linear walk — doesn't handle merge commits fully,
 ::    but correct for linear histories.
 ::
+::  +ancestry: every commit reachable from a hash by first parents, as a set.
+::  Bounded by the loose store, the same as +count-ahead.
+::
+++  ancestry
+  |=  [=ball:tarball from=hash:git-repo]
+  ^-  (set hash:git-repo)
+  =/  loose=(map hash:git-repo object:git-obj)  (read-loose-from-ball ball)
+  =|  seen=(set hash:git-repo)
+  =/  h=hash:git-repo  from
+  |-  ^-  (set hash:git-repo)
+  ?:  =(h 0x0)  seen
+  ?:  (~(has in seen) h)  seen
+  =/  obj=(unit object:git-obj)  (~(get by loose) h)
+  ?~  obj  seen
+  ?.  ?=(%commit -.u.obj)  seen
+  =.  seen  (~(put in seen) h)
+  ?~  parents.commit.u.obj  seen
+  $(h i.parents.commit.u.obj)
+::  +count-only: commits reachable from `from` that are NOT reachable from
+::  `to` — i.e. how far `from` is out in front.
+::
+::    +count-ahead walks first parents from `from` until it meets `to`, which
+::    answers only when `to` is an ancestor of `from`. Asked the other way
+::    round (how far BEHIND is a local tip that is actually ahead) the walk
+::    never meets its target and counts ancestors until the loose store runs
+::    out, reporting a stable nonsense number. ahead/behind are each other's
+::    mirror, so one of the two was always wrong.
+::
+++  count-only
+  |=  [=ball:tarball from=hash:git-repo to=hash:git-repo]
+  ^-  @ud
+  ?:  =(from to)  0
+  =/  theirs=(set hash:git-repo)  (ancestry ball to)
+  =/  loose=(map hash:git-repo object:git-obj)  (read-loose-from-ball ball)
+  =|  count=@ud
+  =/  h=hash:git-repo  from
+  |-  ^-  @ud
+  ?:  =(h 0x0)  count
+  ?:  (~(has in theirs) h)  count
+  =/  obj=(unit object:git-obj)  (~(get by loose) h)
+  ?~  obj  count
+  ?.  ?=(%commit -.u.obj)  count
+  =.  count  +(count)
+  ?~  parents.commit.u.obj  count
+  $(h i.parents.commit.u.obj)
 ++  count-ahead
   |=  [=ball:tarball from=hash:git-repo to=hash:git-repo]
   ^-  @ud

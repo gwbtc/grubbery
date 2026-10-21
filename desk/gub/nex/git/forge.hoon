@@ -541,10 +541,10 @@
   =/  inst=@t  (spat (weld p.u.fo /repos/[repo]))
   =/  tree=@t  (spat (weld p.u.fo /repos/[repo]/data/tree))
   =/  ui=@t  (spat (weld p.u.fo /repos/[repo]/data/ui))
-  =/  lane=@t  (cat 3 inst '/run.git-action')
+  =/  queue=@t  (cat 3 inst '/run.git-action')
   ::  ONE clanker per repo, bundle "build": it can read the working
   ::  tree and the docs cache, write the tree, and poke the repo's git
-  ::  lane. Which chat may do which is the chats' POLICY: docs is
+  ::  queue. Which chat may do which is the chats' POLICY: docs is
   ::  read-only (the writing tools withheld), build asks before any
   ::  write or git command. Prompts and policies are seeds (made once).
   =/  chat
@@ -584,9 +584,9 @@
         ['config' (pairs:enjs:format ~[['ui' s+ui] ['deploy' deploy]])]
         :-  'roads'
         %-  pairs:enjs:format
-        :~  ['peek' (strs (weld ~[(cat 3 tree '/') (cat 3 ui '/') lane] deploy-peeks))]
+        :~  ['peek' (strs (weld ~[(cat 3 tree '/') (cat 3 ui '/') queue] deploy-peeks))]
             ['make' (strs ~[(cat 3 tree '/')])]
-            ['poke' (strs (weld ~[lane] deploy-pokes))]
+            ['poke' (strs (weld ~[queue] deploy-pokes))]
         ==
         :-  'chats'
         :-  %a
@@ -728,10 +728,10 @@
   =/  tree=(list path)
     ?.  ?=([%ball *] tv)  ~
     (walk-files ball.tv /)
-  ::  the command lane's state (queue/active/log), grown to json
+  ::  the command queue's state (queue/active/log), grown to json
   ;<  lv=view:nexus  bind:m
     (peek:io (nex-road:io rail [%& /repos/[kid] %'run.git-action']) ~)
-  =/  lane=json
+  =/  queue=json
     ?.  ?=([%file *] lv)  ~
     =/  s=(unit action-state:git-act)
       (mole |.(!<(action-state:git-act (need-vase:tarball sang.lv))))
@@ -744,7 +744,7 @@
       ['current' (fall cur ~)]
       ['stash' (fall stash a+~)]
       ['tree' a+(turn tree |=(p=path s+(crip (slag 1 (spud p)))))]
-      ['lane' lane]
+      ['queue' queue]
   ==
 ::  +do-add: create a repo instance under /repos, write its config,
 ::  and kick a first sync when a remote is configured
@@ -986,8 +986,8 @@
       ['args' (pairs:enjs:format ~[['repo' s+repo.u.rule] ['api' s+'/grubbery/forge/api']])]
       ['follow' a+follows]
   ==
-::  +do-run: submit a git command to a repo's serial command lane. Pokes
-::  /run.git-action with {command}; the lane parses and runs it.
+::  +do-run: submit a git command to a repo's serial command queue. Pokes
+::  /run.git-action with {command}; the queue parses and runs it.
 ::
 ++  do-run
   |=  [=rail:tarball eyre-id=@ta jon=json]

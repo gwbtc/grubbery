@@ -9,7 +9,7 @@
 ::  The data nexus's on-load atomically checks out the tree.
 ::
 ::  Git actions (pull, checkout, branch, stash, commit, ...) run through
-::  the serial command lane at /run.git-action — poke it a {command} string.
+::  the serial command queue at /run.git-action — poke it a {command} string.
 ::
 /<  git-obj  /lib/git/object.hoon
 /<  git-pack  /lib/git/pack.hoon
@@ -30,7 +30,7 @@
       %+  spin:loader  ball
       :~  (manifest:loader 0)
           [%fall %& [/ %'config.json'] [[/ %json] default-config]]
-          ::  the serial command lane: one stateful grub (run.git-action) at
+          ::  the serial command queue: one stateful grub (run.git-action) at
           ::  root — the single entry point for every git action. Runs commands
           ::  one at a time: a repo has one working tree / index / HEAD, so
           ::  operations must not interleave. Poke it a {command} string; read
@@ -52,14 +52,14 @@
       ^-  process:fiber:nexus
       ?+    rail  stay:m
           ::
-          ::  /run.git-action: the serial command lane. Poke a {command}; it
+          ::  /run.git-action: the serial command queue. Poke a {command}; it
           ::  parses (lib/git/action), marks the job `active`, runs it to
           ::  completion, then appends the outcome to `log`. One command at a
           ::  time — the working tree / index / HEAD are single, so git
           ::  operations must not interleave.
           ::
           [~ %'run.git-action']
-        ;<  ~  bind:m  (rise-lane prod)
+        ;<  ~  bind:m  (rise-queue prod)
         |-
         ;<  poke-sage=sage:tarball  bind:m  take-poke:io
         =/  jon=json  (fall (mole |.(!<(json q.poke-sage))) *json)
@@ -81,7 +81,7 @@
         =/  entry=done:git-act  [id.job u.parsed raw outcome end]
         ;<  ~  bind:m  (replace:io st2(active ~, log [entry log.st2]))
         $
-          ::  /poll.json: the sync daemon. Boot-pull once, then poke the lane's
+          ::  /poll.json: the sync daemon. Boot-pull once, then poke the queue's
           ::  `pull` on poll.json's own `minutes` interval, watching itself for
           ::  changes. 0 = off (park until the interval is set).
           ::
@@ -137,7 +137,7 @@
       author-email=@t
   ==
 ::
-::  +run-command: execute one parsed git command in the serial lane,
+::  +run-command: execute one parsed git command in the serial queue,
 ::  yielding its outcome. Verbs are wired incrementally; unwired ones
 ::  report an error rather than silently no-op.
 ::
@@ -197,7 +197,7 @@
     (pure:m [%error 'stash pop failed — the stack did not shrink'])
   (pure:m [%ok (crip "popped — {(scow %ud after)} left on the stack")])
 ::  +op-stash-list: report the stash stack (from data/ui/stash.json, which
-::  the data nexus builds from the reflog) as a one-line lane summary.
+::  the data nexus builds from the reflog) as a one-line queue summary.
 ::
 ++  op-stash-list
   =/  m  (fiber:fiber:nexus ,outcome:git-act)
@@ -363,13 +363,13 @@
   ;<  ~  bind:m  (write-head value)
   ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
   (reload:io data-rd)
-::  +rise-lane: the lane fiber restarting after a crash. A command that
+::  +rise-queue: the queue fiber restarting after a crash. A command that
 ::  crashed mid-run (a GitHub API error in +gh-request, a bad path in the
 ::  data nexus) never reached the log, and `active` still names it, so the
 ::  UI shows a job that runs forever. Close it out as an %error with the
 ::  crash tang, then wait for the restart poke like any other fiber.
 ::
-++  rise-lane
+++  rise-queue
   |=  =prod:fiber:nexus
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
@@ -456,7 +456,7 @@
   :-  %ok
   (crip "committed {(trip (end [3 7] after))}: {(trip message)}")
 ::  +op-pull: fetch from the remote and check out the tracked ref — the full
-::  transport logic (formerly /actions/sync.sig), now inline in the lane:
+::  transport logic (formerly /actions/sync.sig), now inline in the queue:
 ::  discovery, resolve+pin the default ref, then an incremental fetch or a
 ::  full clone. Reports the real outcome.
 ::
@@ -1130,7 +1130,7 @@
   ::  +take-news blocks until the xfer grub changes. If the github app never
   ::  writes a terminal %done or %fail — it died, its request vanished, the
   ::  grub was never created — nothing ever wakes this loop. +run-command then
-  ::  never returns, so the run.git-action serial lane keeps active=pull
+  ::  never returns, so the run.git-action serial queue keeps active=pull
   ::  step=start permanently, and every command queued behind it is waiting on
   ::  a fetch that is never coming. Observed: a repo provisioned with no desk
   ::  for half an hour and not one line of error, because a blocked fiber has
@@ -1138,8 +1138,8 @@
   ::
   ::  So arm a timer beside the watch and take whichever arrives first. A
   ::  timeout is reported as an ordinary [%| tang], which every caller already
-  ::  handles: +op-pull turns it into "fetch failed" in the lane log, the job
-  ::  completes, and the lane moves on.
+  ::  handles: +op-pull turns it into "fetch failed" in the queue log, the job
+  ::  completes, and the queue moves on.
   ;<  now=@da  bind:m  get-time:io
   ;<  ~  bind:m  (set-timer:io /ghx-deadline (add now xfer-deadline))
   |-

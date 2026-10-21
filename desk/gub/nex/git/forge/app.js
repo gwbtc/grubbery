@@ -4,7 +4,7 @@ var API = BASE + '/api';
 // ── state ──
 var repos = [];            // repo cards from /api/list
 var selected = null;       // full instance name, e.g. contacts.git_repo
-var lane = null;           // command lane state {queue, active, log} for selected repo
+var queue = null;           // command queue state {queue, active, log} for selected repo
 var branches = [];         // local branch names for selected repo
 var mode = 'files';        // workspace mode: files (repo) | settings
 var panel = 'status';      // active bottom pane (files mode)
@@ -334,38 +334,38 @@ function loadDetail() {
     var r = repos.find(function(x) { return x.name === selected; });
     if (r) r.current = d.current || r.current;
     branches = d.branches || [];
-    lane = d.lane || null;
+    queue = d.queue || null;
     renderTopbar();
     renderStatus(d.status || {}, d.current || {}, d.stash || []);
     renderHistory(d.commits || []);
     renderLane();
   });
 }
-// ── command lane: type git commands, they run through /actions/run ──
+// ── command queue: type git commands, they run through /actions/run ──
 function renderLane() {
-  var log = document.getElementById('lane-log');
-  var entries = (lane && lane.log) || [];
+  var log = document.getElementById('queue-log');
+  var entries = (queue && queue.log) || [];
   // backend log is newest-first; render oldest→newest, top→bottom (terminal style)
   var html = entries.slice().reverse().map(function(e) {
     var cls = e.ok ? 'ok' : 'err';
-    return '<div class="lane-line ' + cls + '"><span class="lane-dot">' + (e.ok ? '✓' : '✕') + '</span>' +
-      '<span class="lane-cmd">' + esc(e.raw) + '</span> <span class="lane-msg">' + esc(e.message || '') + '</span></div>';
+    return '<div class="queue-line ' + cls + '"><span class="queue-dot">' + (e.ok ? '✓' : '✕') + '</span>' +
+      '<span class="queue-cmd">' + esc(e.raw) + '</span> <span class="queue-msg">' + esc(e.message || '') + '</span></div>';
   }).join('');
   // the currently-running command sits at the bottom, nearest the input
-  if (lane && lane.active) {
-    html += '<div class="lane-line running"><span class="lane-dot">▸</span>' +
-      esc(lane.active.raw) + ' <span class="lane-msg">running…</span></div>';
+  if (queue && queue.active) {
+    html += '<div class="queue-line running"><span class="queue-dot">▸</span>' +
+      esc(queue.active.raw) + ' <span class="queue-msg">running…</span></div>';
   }
   log.innerHTML = html;
   log.scrollTop = log.scrollHeight;
 }
 function submitLane() {
-  var inp = document.getElementById('lane-input');
+  var inp = document.getElementById('queue-input');
   var cmd = inp.value.trim();
   if (!cmd || !selected) return;
   inp.value = '';
   post('/run', { repo: selected, command: cmd }).then(function() {
-    // give the lane a beat to process, then refresh its state
+    // give the queue a beat to process, then refresh its state
     setTimeout(loadDetail, 400);
     setTimeout(loadDetail, 1500);
   });
@@ -452,10 +452,10 @@ Array.prototype.forEach.call(document.querySelectorAll('.con-tab'), function(t) 
 document.getElementById('con-toggle').onclick = function() {
   document.getElementById('main').toggle();  // <split-view> collapses the console
 };
-document.getElementById('lane-input').addEventListener('keydown', function(e) {
+document.getElementById('queue-input').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') { e.preventDefault(); submitLane(); }
 });
-document.getElementById('lane-info').onclick = function() {
+document.getElementById('queue-info').onclick = function() {
   document.getElementById('pane-run').classList.toggle('docs-open');
 };
 document.getElementById('sb-toggle').onclick = function() {

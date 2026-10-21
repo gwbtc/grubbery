@@ -32,11 +32,11 @@
       '.fgv-st .st-group{margin-bottom:10px}.fgv-st .st-title{font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}' +
       '.fgv-st .ok{color:#1a7f37}.fgv-st .warn{color:#9a6700}.fgv-st .muted{color:#57606a}' +
       '.fgv-st .st-file{display:flex;gap:8px;padding:2px 0}.fgv-st .st-mark{display:inline-block;width:16px;text-align:center;border-radius:4px;background:#eaeef2;font-size:11px}' +
-      '.fgv-run{display:flex;flex-direction:column;height:100%}.fgv-run .lane-log{flex:1;overflow:auto;padding:8px 12px}' +
-      '.fgv-run .lane-line{display:flex;gap:8px;padding:2px 0}.fgv-run .lane-line.err .lane-dot{color:#cf222e}.fgv-run .lane-line.ok .lane-dot{color:#1a7f37}.fgv-run .lane-line.running .lane-dot{color:#9a6700}' +
-      '.fgv-run .lane-msg{color:#57606a}' +
-      '.fgv-run .lane-row{flex:none;display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid #d0d7de;background:#f6f8fa}' +
-      '.fgv-run .lane-row input{flex:1;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;padding:5px 8px;border:1px solid #d0d7de;border-radius:6px;background:#fff}' +
+      '.fgv-run{display:flex;flex-direction:column;height:100%}.fgv-run .queue-log{flex:1;overflow:auto;padding:8px 12px}' +
+      '.fgv-run .queue-line{display:flex;gap:8px;padding:2px 0}.fgv-run .queue-line.err .queue-dot{color:#cf222e}.fgv-run .queue-line.ok .queue-dot{color:#1a7f37}.fgv-run .queue-line.running .queue-dot{color:#9a6700}' +
+      '.fgv-run .queue-msg{color:#57606a}' +
+      '.fgv-run .queue-row{flex:none;display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid #d0d7de;background:#f6f8fa}' +
+      '.fgv-run .queue-row input{flex:1;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;padding:5px 8px;border:1px solid #d0d7de;border-radius:6px;background:#fff}' +
       // the repo selector: one row per repo, the clanker sidebar's shape
       // (name over the last commit, the branch at the right); a single
       // column at any width, never a grid that reflows
@@ -161,21 +161,21 @@
     };
   } };
 
-  // ---- forge-run: the serial command lane — its log, and a prompt ----
+  // ---- forge-run: the serial command queue — its log, and a prompt ----
   window.Viewers['forge-run'] = { label: 'run', mount: function (root, opts) {
     css();
     var args = opts.args || {}, url = opts.url, api = args.api || '/grubbery/forge/api';
-    var lane = { queue: [], active: null, log: [] };
-    var box = el('div', 'fgv fgv-run'), log = el('div', 'lane-log'), row = el('div', 'lane-row');
+    var queue = { queue: [], active: null, log: [] };
+    var box = el('div', 'fgv fgv-run'), log = el('div', 'queue-log'), row = el('div', 'queue-row');
     var inp = el('input'); inp.type = 'text'; inp.spellcheck = false; inp.autocomplete = 'off'; inp.placeholder = 'type a git command - e.g. commit -m "message"';
     row.appendChild(el('span', 'mono', 'git ▸')); row.appendChild(inp);
     box.appendChild(log); box.appendChild(row); root.appendChild(box);
-    function line(cls, dot, raw, msg) { var d = el('div', 'lane-line ' + cls); d.appendChild(el('span', 'lane-dot', dot)); d.appendChild(el('span', 'lane-cmd mono', raw)); d.appendChild(el('span', 'lane-msg', msg || '')); return d; }
+    function line(cls, dot, raw, msg) { var d = el('div', 'queue-line ' + cls); d.appendChild(el('span', 'queue-dot', dot)); d.appendChild(el('span', 'queue-cmd mono', raw)); d.appendChild(el('span', 'queue-msg', msg || '')); return d; }
     function draw() {
       log.textContent = '';
-      (lane.log || []).slice().reverse().forEach(function (e) { log.appendChild(line(e.ok ? 'ok' : 'err', e.ok ? '✓' : '✕', e.raw, e.message)); });
-      if (lane.active) log.appendChild(line('running', '▸', lane.active.raw, 'running...'));
-      (lane.queue || []).forEach(function (q) { log.appendChild(line('queued', '·', q.raw, 'queued')); });
+      (queue.log || []).slice().reverse().forEach(function (e) { log.appendChild(line(e.ok ? 'ok' : 'err', e.ok ? '✓' : '✕', e.raw, e.message)); });
+      if (queue.active) log.appendChild(line('running', '▸', queue.active.raw, 'running...'));
+      (queue.queue || []).forEach(function (q) { log.appendChild(line('queued', '·', q.raw, 'queued')); });
       log.scrollTop = log.scrollHeight;
     }
     inp.addEventListener('keydown', function (e) {
@@ -184,12 +184,12 @@
       inp.value = '';
       fetch(api + '/run', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ repo: args.repo, command: cmd }) })
         .catch(function (err) { log.appendChild(line('err', '✕', cmd, 'submit failed: ' + err.message)); });
-      // the stream brings the lane's state back as it moves: nothing to poll
+      // the stream brings the queue's state back as it moves: nothing to poll
     });
-    get(url + '?raw=1').then(function (r) { if (r && typeof r === 'object') { lane = r; draw(); } });
+    get(url + '?raw=1').then(function (r) { if (r && typeof r === 'object') { queue = r; draw(); } });
     return {
       destroy: function () { box.remove(); },
-      onUpdate: function (ev) { if (ends(ev.path, 'run.git-action') && ev.body && typeof ev.body === 'object') { lane = ev.body; draw(); } }
+      onUpdate: function (ev) { if (ends(ev.path, 'run.git-action') && ev.body && typeof ev.body === 'object') { queue = ev.body; draw(); } }
     };
   } };
 
