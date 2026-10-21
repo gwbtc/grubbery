@@ -1210,8 +1210,11 @@ class Gmux extends HTMLElement {
   //   a monochild — the owner holding a single pane — because absorbing it
   //   automatically meant keeping one tab and destroying the rest. This moves
   //   ALL of them: the held pane's tabs take the place of the moment that held
-  //   it, in order, and the active one stays active. Afterwards the held pane
-  //   is gone and the owner shows what it was showing.
+  //   it, in order, and the active one stays active. They arrive at the END of
+  //   the parent's tabs rather than wedged in at the position the pane was
+  //   held: a tab's place in the strip is where you put it, and arriving tabs
+  //   should not shuffle the ones already there. Afterwards the held pane is
+  //   gone and the owner shows what it was showing.
   //
   //   From one SIDE of a division it means the same thing: this pane's tabs
   //   go up and this pane goes. The sibling stays — the division is left
@@ -1233,8 +1236,8 @@ class Gmux extends HTMLElement {
       // the sibling alone, and these slot in beside it.
       p.tabs = [{ entries: [], cursor: -1 }];
       this.close(p, true);
-      owner.tabs.splice(at + 1, 0, ...mine);
-      owner.activeTab = at + 1 + (p.activeTab || 0);
+      owner.tabs.push(...mine);                        // at the END, not wedged beside the division
+      owner.activeTab = owner.tabs.length - mine.length + (p.activeTab || 0);
       owner.tabs.forEach((t) => t.entries.forEach((e) => this.#reparentDiv(e, owner)));
       this.#renderPane(owner);
       this.#afterStructure();
@@ -1248,8 +1251,9 @@ class Gmux extends HTMLElement {
     const host = par.host;
     const i = host.tabs.findIndex((t) => { const e = t.entries[t.cursor]; return !!e && e.pane === p; });
     if (i < 0) { this.#flashHint('cannot find the moment holding this pane'); return false; }
-    host.tabs.splice(i, 1, ...mine);
-    host.activeTab = i + p.activeTab;
+    host.tabs.splice(i, 1);                            // the tab existed only to hold this pane
+    host.tabs.push(...mine);                           // and these land at the END
+    host.activeTab = host.tabs.length - mine.length + p.activeTab;
     // every structural moment that moved belongs to the host now, in every
     // tab and at every point in its history — a division sitting back in a
     // tab's past still named the pane it came from, which is about to go.
