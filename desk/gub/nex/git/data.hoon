@@ -59,6 +59,39 @@
       ^-  bole:tarball
       %-  ball-to-bole:tarball
       =.  ball  (~(put ba:tarball ball) [/ %'README.md'] [[/ %mime] %& !>(man)])
+      ::  the tree watcher: a grub whose only job is to hold a process that
+      ::  follows tree/ and reloads us when it moves. tree/ is the one part
+      ::  of this nexus anyone may write — the explorer's editor, a tool, an
+      ::  agent — and those writers are generic: they write a grub and know
+      ::  nothing of git. So the reaction belongs here, not at the write
+      ::  sites. Laid before any early return, so the watcher exists even
+      ::  for a repo with no packs or no HEAD yet.
+      =.  ball  (~(put ba:tarball ball) [/ %'watch.sig'] [[/ %sig] %& !>(~)])
+      ::
+      ::  === checkout request ===
+      ::  checkout is a request like commit and stash, not a HEAD written
+      ::  behind our back: we hold the tree and the index, so only we can
+      ::  tell whether moving HEAD would overwrite uncommitted work. A dirty
+      ::  tree refuses unless the request says force. Either way the answer
+      ::  goes to ui/outcome.json for the caller to report; a refusal leaves
+      ::  HEAD and tree/ exactly as they were. Handled before parse-head so
+      ::  an accepted request is the HEAD the rest of this load sees.
+      =/  checkout-req=(unit json)  (read-checkout-request ball)
+      =?  ball  ?=(^ checkout-req)
+        =.  ball  (~(del ba:tarball ball) / %'checkout-request.json')
+        =/  head=@t   (json-str u.checkout-req 'head')
+        =/  force=?   (json-flag u.checkout-req 'force')
+        =/  dirty=(list path)  (tree-dirty ball)
+        ?:  ?&(?=(^ dirty) !force)
+          %+  write-outcome  ball
+          :*  'checkout'  %.n
+              'the working tree has uncommitted changes — commit or stash them, or force'
+              dirty
+          ==
+        =.  ball
+          %+  ~(put ba:tarball ball)  [/ %'HEAD']
+          [[/ %mime] %& !>(`mime`[/text/plain (as-octt:bytestream (trip head))])]
+        (write-outcome ball ['checkout' %.y (cat 3 'HEAD -> ' head) ~])
       ::  load all packs from packs/ directory
       =/  archive=(list pack:git-pack)  (load-packs ball)
       ?~  archive  ball
@@ -370,6 +403,19 @@
       |=  =prod:fiber:nexus
       =/  m  (fiber:fiber:nexus ,~)
       ^-  process:fiber:nexus
+      ::  the tree watcher: follow tree/ and reload ourselves whenever it
+      ::  moves, so the derived views (status especially) describe the tree
+      ::  as it is rather than as it was at the last git command. A reload
+      ::  does NOT re-check-out here — on-load only checks out when HEAD
+      ::  moved, and leaves a tree already materialized from this HEAD
+      ::  alone — so this cannot drive itself in a circle.
+      ?:  ?=([~ %'watch.sig'] rail)
+        ;<  ~  bind:m  (rise-wait:io prod "%git/data watch: failed")
+        ;<  ~  bind:m  (keep:io /tree [%| 0 %| /tree] ~)
+        |-
+        ;<  *  bind:m  (take-news:io /tree)
+        ;<  ~  bind:m  (reload:io [%| 0 %| /])
+        $
       ::  everything under tree/ is a git blob and must be a %mime grub.
       ::  a non-mime grub (e.g. %hoon source) would bang ball-to-files on
       ::  the next add/commit and take the whole nexus inert — so a grub
@@ -524,6 +570,66 @@
   ?.  ?=(%o -.j)  ~
   ?:  =(~ p.j)  ~
   `j
+::  +read-checkout-request: checkout-request.json, {head, force?}. `head`
+::  is the HEAD text to install: "ref: refs/heads/<branch>" or a raw hash.
+::
+++  read-checkout-request
+  |=  =ball:tarball
+  ^-  (unit json)
+  =/  req=(unit sang:tarball)
+    (~(get ba:tarball ball) [/ %'checkout-request.json'])
+  ?~  req  ~
+  =/  j=json  (fall (mole |.(!<(json (need-vase:tarball u.req)))) *json)
+  ?.  ?=(%o -.j)  ~
+  ?:  =('' (json-str j 'head'))  ~
+  `j
+::
+++  json-str
+  |=  [j=json k=@t]
+  ^-  @t
+  ?.  ?=(%o -.j)  ''
+  =/  v  (~(get by p.j) k)
+  ?.(?=([~ %s *] v) '' p.u.v)
+::
+++  json-flag
+  |=  [j=json k=@t]
+  ^-  ?
+  ?.  ?=(%o -.j)  %.n
+  ?=([~ %b %.y] (~(get by p.j) k))
+::  +tree-dirty: the paths where tree/ differs from the index — the
+::  checkout guard's question, answered from the bytes in hand rather than
+::  from the cached status view, so a stale status can never authorize an
+::  overwrite. Same compare +build-status makes, kept to the paths.
+::
+++  tree-dirty
+  |=  =ball:tarball
+  ^-  (list path)
+  =/  idx-h=(map path hash:git-repo)  (idx-hashes (read-index ball))
+  =/  tree-ball=ball:tarball  (fall (~(get by dir.ball) 'tree') [~ ~])
+  =/  working-hashes=(map path hash:git-repo)
+    %-  malt
+    %+  turn  (ball-to-files-mt tree-ball /)
+    |=  [=path data=octs mtime=@t]
+    [path (hash-obj:git-obj %sha-1 `object:git-obj`[%blob p.data data])]
+  =/  all=(set path)  (~(uni in ~(key by working-hashes)) ~(key by idx-h))
+  %+  skim  ~(tap in all)
+  |=  =path
+  !=((~(get by working-hashes) path) (~(get by idx-h) path))
+::  +write-outcome: ui/outcome.json, the answer to the last request —
+::  {op, ok, reason, files}. The caller that wrote the request reads this
+::  after its reload and reports it; it is how a refusal gets a voice.
+::
+++  write-outcome
+  |=  [=ball:tarball op=@t ok=? reason=@t files=(list path)]
+  ^-  ball:tarball
+  =/  jon=json
+    %-  pairs:enjs:format
+    :~  ['op' s+op]
+        ['ok' b+ok]
+        ['reason' s+reason]
+        ['files' a+(turn files |=(p=path s+(crip (zing (join "/" (turn p trip))))))]
+    ==
+  (~(put ba:tarball ball) [/ui %'outcome.json'] [[/ %json] %& !>(jon)])
 ::
 ::  +read-loose-from-ball: load persisted loose objects from objects/ dir
 ::

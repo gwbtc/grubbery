@@ -314,22 +314,23 @@
   (pure:m [%ok (crip "deleted branch {(trip name)}")])
 ::  +op-checkout: git checkout <ref>. A branch name → attached HEAD
 ::  (ref: refs/heads/<name>); a commit hash → detached HEAD (raw hash).
-::  Refuses on a dirty tree; updates HEAD and reloads the data nexus.
+::  The data nexus refuses a dirty tree itself, from the bytes, when it
+::  takes the request — no pre-check here against the cached status.
 ::
 ++  op-checkout
   |=  name=branch:git-act
   =/  m  (fiber:fiber:nexus ,outcome:git-act)
   ^-  form:m
   ?:  =('' name)  (pure:m [%error 'branch or commit required'])
-  ;<  clean=?  bind:m  working-tree-clean
-  ?.  clean  (pure:m [%error 'working tree is dirty — commit or stash first'])
   ;<  ref-hash=@t  bind:m  (resolve-ref name)
   ::  a matching branch → attached checkout. The branch becomes the TRACKED
   ::  ref too (config.json "ref"): +op-pull checks out ref.cfg whenever new
   ::  objects arrive, so a checkout that left ref behind was undone by the
   ::  next poll (a handbook on develop vanished when ref still said main).
   ?.  =('' ref-hash)
-    ;<  ~  bind:m  (do-checkout (crip "ref: refs/heads/{(trip name)}"))
+    ;<  out=outcome:git-act  bind:m
+      (do-checkout (crip "ref: refs/heads/{(trip name)}") %.n)
+    ?:  ?=(%error -.out)  (pure:m out)
     ;<  ~  bind:m  (track-ref name)
     (pure:m [%ok (crip "switched to {(trip name)}")])
   ::  not a branch → try the arg as a full commit hash (detached HEAD)
@@ -339,7 +340,8 @@
   =/  sto  store:~(. git-repo repo)
   ?~  (get-commit:sto u.parsed)
     (pure:m [%error (crip "commit not found: {(scag 7 (trip name))}")])
-  ;<  ~  bind:m  (do-checkout name)
+  ;<  out=outcome:git-act  bind:m  (do-checkout name %.n)
+  ?:  ?=(%error -.out)  (pure:m out)
   (pure:m [%ok (crip "checked out {(scag 7 (trip name))} (detached)")])
 ::  +track-ref: record a branch as the one pulls follow (config.json "ref").
 ::
@@ -356,15 +358,33 @@
     ?:  &(?=(^ j) ?=([%o *] u.j))  p.u.j
     ~
   (over:io cfg-rd [[/ %json] o+(~(put by obj) 'ref' s+name)])
-::  +do-checkout: write HEAD to a value and reload the data nexus.
+::  +do-checkout: ask the data nexus to move HEAD, the way commit and
+::  stash ask — a checkout-request.json {head, force} and a reload. The
+::  data nexus holds the tree and the index, so it alone decides whether
+::  the move would overwrite uncommitted work; it answers in
+::  ui/outcome.json, which is the outcome returned here. HEAD is never
+::  written from this side any more.
 ::
 ++  do-checkout
-  |=  value=@t
-  =/  m  (fiber:fiber:nexus ,~)
+  |=  [value=@t force=?]
+  =/  m  (fiber:fiber:nexus ,outcome:git-act)
   ^-  form:m
-  ;<  ~  bind:m  (write-head value)
+  ;<  req-rd=road:tarball  bind:m
+    (ancestor-road:io [/git %repo] [%& /data %'checkout-request.json'])
+  =/  req=json  (pairs:enjs:format ~[['head' s+value] ['force' b+force]])
+  ;<  ~  bind:m  (write-repo-file req-rd [[/ %json] req])
   ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
-  (reload:io data-rd)
+  ;<  ~  bind:m  (reload:io data-rd)
+  ;<  out-rd=road:tarball  bind:m
+    (ancestor-road:io [/git %repo] [%& /data/ui %'outcome.json'])
+  ;<  =view:nexus  bind:m  (peek:io out-rd `[/ %json])
+  =/  jon=json  (view-to-json view)
+  ?.  ?=(%o -.jon)  (pure:m [%error 'checkout: the data nexus gave no outcome'])
+  =/  reason=@t
+    =/  r  (~(get by p.jon) 'reason')
+    ?:(?=([~ %s *] r) p.u.r '')
+  ?:  ?=([~ %b %.y] (~(get by p.jon) 'ok'))  (pure:m [%ok reason])
+  (pure:m [%error reason])
 ::  +rise-queue: the queue fiber restarting after a crash. A command that
 ::  crashed mid-run (a GitHub API error in +gh-request, a bad path in the
 ::  data nexus) never reached the log, and `active` still names it, so the
