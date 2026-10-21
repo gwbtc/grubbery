@@ -687,9 +687,12 @@ function setup(root, opts) {
         const pj = pr.ok ? await pr.json() : null;
         if (pj && Array.isArray(pj.pant)) pant = JSON.stringify(pj.pant);
       } catch (e) { /* the rule gets the path alone */ }
-      // a dir is told by its neck (the nexus it runs, '' when plain), a file by its blot
+      // a dir is told by its neck (the nexus it runs, '' when plain), a file by
+      // its blot, and EVERY ask carries the mode: an app may answer a phone
+      // with a different pane than it answers a desktop, or the same one
       const q = '?path=' + encodeURIComponent(rel) + '&kind=' + (kind === 'dir' ? 'dir' : 'file') +
         '&blot=' + encodeURIComponent(blot) + '&neck=' + encodeURIComponent(kind === 'dir' ? (neck || '') : '') +
+        '&mode=' + PS_MODE +
         (pant ? '&pant=' + encodeURIComponent(pant) : '') + (askView ? '&view=' + encodeURIComponent(askView) : '');
       const r = await fetch(viewers + q, { cache: 'no-store' });
       if (!r.ok) return null;
@@ -1222,6 +1225,12 @@ function setup(root, opts) {
   // there like any link, so it opens in the pane's target (or in place), sits
   // in history, and back returns. Nothing pops over the pane you are in.
   const ACTION_VIEWS = { new: 1, rename: 1, delete: 1, weir: 1, upload: 1, 'term-new': 1 };
+  // THE MODE. Desktop and mobile are distinct modes, not one layout at two
+  // widths: mobile is the focused, fat-thumb context — fewer things, bigger
+  // targets, less granular control — and an app is entitled to answer a
+  // request differently because of it, the way it already answers differently
+  // for kind, blot, neck and view. Set once, where the client is chosen.
+  let PS_MODE = 'desktop';
   function go(el, href, kind) { const r = el._ctx && el._ctx.route; if (r) r(href, kind, null); }
   // the menu for a listing-like rendering (table, grid, tree): the row's item
   // under the cursor, or the rendering's own dir on whitespace
@@ -1616,7 +1625,7 @@ function setup(root, opts) {
           .catch((e) => psWaitFail(el, 'not a valid layout: ' + ((e && e.message) || e), viewer.layout));
         return;
       }
-      if (viewer && !viewer.blocked && viewer.mount) { el._fv = viewer.mount(el, { url, onNavigate: onNav, open: vopen, close: vclose, query: psArgs(path) }); paneLive(ps, paneId, el, viewer.follow); psLanded(ps, paneId, el); return; }
+      if (viewer && !viewer.blocked && viewer.mount) { el._fv = viewer.mount(el, { url, mode: PS_MODE, onNavigate: onNav, open: vopen, close: vclose, query: psArgs(path) }); paneLive(ps, paneId, el, viewer.follow); psLanded(ps, paneId, el); return; }
       const t = document.createElement(want === 'grid' ? 'file-grid' : 'file-table');
       t.style.height = '100%';
       // ?scope: this listing is the top of what the pane may show. A layout
@@ -3627,6 +3636,7 @@ function setup(root, opts) {
     const touch = (navigator.maxTouchPoints || 0) > 0;
     const smallScreen = ((window.screen && window.screen.width) || 9999) <= 900;
     const MOBILE = /[?&]m=1/.test(location.search) || (!/[?&]m=0/.test(location.search) && (finger || mq('(max-width: 720px)') || (touch && smallScreen)));
+    PS_MODE = MOBILE ? 'mobile' : 'desktop';                            // what every viewer request below now carries
     // ?diag=1: what THIS device actually reports, so a phone that picks the
     // wrong client can say why without anyone guessing at its media queries.
     if (/[?&]diag=1/.test(location.search)) {
