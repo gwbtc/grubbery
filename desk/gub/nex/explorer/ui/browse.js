@@ -2820,7 +2820,11 @@ function setup(root, opts) {
       '.mb-hist button:disabled{opacity:.35}' +
       '.mb-histrow{display:flex;gap:6px;align-items:stretch}' +
       '.mb-histrow > button:first-child{flex:1;min-width:0}' +
-      '.mb-histrow .x{flex:0 0 auto;width:44px;font-size:17px;color:#57606a}' +
+      // the same bare glyph the desktop dropdown uses: no border, no box — the
+      // sheet's button rule would otherwise make it a bordered card. Padding
+      // rather than a width gives it a thumb's worth of room without drawing one.
+      '.mb-histrow .x{flex:0 0 auto;border:0;background:none;padding:0 14px;font-size:18px;line-height:1;color:#8b949e}' +
+      '.mb-histrow .x:active{color:#cf222e}' +
       '.mb-hist button{text-align:left;font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:12px 12px;border:1px solid #d0d7de;border-radius:8px;background:#fff;color:#1f2328;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
       '.mb-card .cap .cap-edit{flex:1;min-width:0;font:inherit;padding:2px 6px;border:1px solid #0969da;border-radius:6px;background:#fff;color:#1f2328;outline:none}' +
       '.mb-grid{flex:1;min-height:0;overflow:auto;display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px;align-content:start}' +
