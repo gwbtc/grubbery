@@ -15,9 +15,12 @@
   |=  [eyre-id=@ta src=@p req=inbound-request:eyre site=path args=quay:eyre]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  our=@p  bind:m  get-our:io
-  ?.  =(src our)
-    (send-error eyre-id 403 'Forbidden')
+  ::  No src == our check. Authority was decided in +route-http from the
+  ::  asker's own position (+asker-rail) before this request grub existed,
+  ::  and it cannot be re-decided here: a request grub lives at
+  ::  /sys/eyre/requests, so these darts originate under eyre's authority,
+  ::  not the asker's. A blanket 403 here makes every foreign weir dead
+  ::  code.
   ?>  ?=([%grubbery %api *] site)
   =/  rest=path  t.t.site
   ::  Route by first segment: file, kids, tree, tar, dir

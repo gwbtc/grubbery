@@ -6845,7 +6845,8 @@
   =/  ok-json
     |=  =json
     (ok-mime [/application/json (as-octs:mimes:html (en:json:html json))])
-  ?.  =(src our.bowl)  (err 403 'Forbidden')
+  ::  No src == our check — see +route-http, which gated this request from
+  ::  the asker's own position before dispatching here.
   =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
   ?.  ?=([%grubbery %api @ *] site)  ~
   =/  endpoint=@tas  i.t.t.site
