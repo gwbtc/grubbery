@@ -47,6 +47,7 @@
 //
 //   KEYS (after prefix): % / | split right · " / - split down · c collapse · e expand · f flip · r rotate ·
 //     z zoom toggle · C set/clear zoom context · x close · b lock bars · o cycle · m mark · ␣ swap ·
+//     n nest · N / p promote (nest's inverse: this pane's tabs rise into the one above) ·
 //     [ ] climb/descend · Tab sibling · Esc reset · h highlight · 1-9 jump ·
 //     t new tab · w close tab · T toggle bar · : focus navbar · < > prev/next tab · , . back/forward ·
 //     arrows move · shift+arrows resize (sticky).
@@ -248,6 +249,7 @@ class Gmux extends HTMLElement {
       act('⇄', 'flip the two panes of this division', () => this.flip(pid())),
       act('⟳', 'turn this division a quarter turn clockwise', () => this.rotate(pid())),
       act('⤓', 'collapse pane', () => this.collapse(pid())),
+      act('⤒', 'promote: lift this pane\u2019s tabs into the one above', () => this.promote(pid())),
       act('⬉', 'select parent container', () => this.selectParent(pid())),
       act('⛶', 'zoom to this pane', () => this.zoomPane(pid())),
       act('↑', 'zoom to parent', () => this.zoomParent(pid())),
@@ -356,6 +358,7 @@ class Gmux extends HTMLElement {
       btn('⇄', 'flip the two panes of this division', () => this.flip(id)),
       btn('⟳', 'turn this division a quarter turn clockwise', () => this.rotate(id)),
       btn('⤓', 'collapse pane', () => this.collapse(id)),
+      btn('⤒', 'promote: lift this pane\u2019s tabs into the one above', () => this.promote(id)),
       btn('⬉', 'select parent container', () => this.selectParent(id)),
       btn('C', 'toggle this pane as a zoom context — z on a pane inside it then fills it', () => this.contextToggle(this.#panes.get(id))),
       btn('⛶', 'zoom to this pane', () => this.zoomPane(id)), btn('↑', 'zoom to parent', () => this.zoomParent(id)), btn('⤢', 'zoom all the way out', () => this.zoomReset()),
@@ -2037,6 +2040,7 @@ class Gmux extends HTMLElement {
     else if (k === '"' || k === '-') this.splitDown();
     else if (k === 'x') this.close();
     else if (k === 'n') { this.nest(); this.#flashHint('nested: this tab now holds a pane of its own'); }
+    else if (k === 'N' || k === 'p') { if (this.promote()) this.#flashHint('promoted: its tabs are the pane above\u2019s now'); }
     else if (k === 'z') this.zoomToggle();
     else if (k === 'C') this.contextToggle();
     else if (k === 'b') { const on = this.toggleBars(); this.#flashHint('pane bars: ' + (on ? 'toggleable on hover' : 'locked')); }

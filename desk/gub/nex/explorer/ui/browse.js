@@ -3281,6 +3281,14 @@ function setup(root, opts) {
       };
       const tab = node.tab || { entries: [], cursor: -1 };
       row('history', tab.entries.length > 1, () => openHist(node));
+      // promote: this pane's tabs move into the one above and this pane goes.
+      // Nothing is destroyed either way, so no ask — only the root has nowhere
+      // to go, which is what disables it.
+      row('promote into the pane above', !!node.parent, () => withCursor(() => {
+        if (!model.promote(model.cursor && model.cursor.id)) return;
+        seat = model.cursorAddr() || '.';
+        redraw();
+      }));
       row('go to root', seat !== '.', () => goTo('.'));
       menu.__for = anchor;
       root.appendChild(menu);
