@@ -1253,24 +1253,36 @@
   ::  inside one (owner = containment, from the namespace, no dart)
   ;<  own=(unit fold:tarball)  bind:m  (owner:cs [(snip `path`tree-path) name])
   =/  has-code=?  &(?=(^ own) !=(code-name name))
-  ;<  build-info=[build-status=tape build-detail=tape]  bind:m
-    ?.  has-code  (pure:(fiber:fiber:nexus ,[tape tape]) ["" ""])
-    ;<  =built:nexus  bind:(fiber:fiber:nexus ,[tape tape])
+  ;<  $:  build-status=tape
+          build-detail=tape
+          suite=(unit (list [name=@tas ok=?]))
+      ==
+    bind:m
+    ?.  has-code
+      %-  pure:(fiber:fiber:nexus ,[tape tape (unit (list [@tas ?]))])
+      ["" "" ~]
+    ;<  =built:nexus
+      bind:(fiber:fiber:nexus ,[tape tape (unit (list [@tas ?]))])
       (get-code-full:io file-road)
-    %-  pure:(fiber:fiber:nexus ,[tape tape])
+    %-  pure:(fiber:fiber:nexus ,[tape tape (unit (list [@tas ?]))])
     ?-  -.built
         %vase
+      ::  the suite is an extra reading of the product, never a
+      ::  replacement for it: the printed noun still ships, so the view
+      ::  can offer the grid by default and the raw product on demand
       =/  printed=tape  ~(ram re (sell vase.built))
-      :-  "vase"
-      ?:  (lth (lent printed) 4.000)  printed
-      (weld (scag 4.000 printed) "...")
+      :+  "vase"
+        ?:  (lth (lent printed) 4.000)  printed
+        (weld (scag 4.000 printed) "...")
+      (test-suite vase.built)
         %tang
-      :-  "tang"
-      %-  zing
-      %+  turn  (render-tang-to-wall:http-utils [160 tang.built])
-      |=(t=tape (weld t "\0a"))
+      :+  "tang"
+        %-  zing
+        %+  turn  (render-tang-to-wall:http-utils [160 tang.built])
+        |=(t=tape (weld t "\0a"))
+      ~
         %mime
-      ["mime" "raw mime (no compilation)"]
+      ["mime" "raw mime (no compilation)" ~]
     ==
   ;<  ~  bind:m
     %^  send-json  eyre-id  200
@@ -1284,8 +1296,16 @@
         ['text' ?.(jammed ~ (str (noah q.sage)))]
         :-  'build'
         %-  pairs:enjs:format
-        :~  ['status' (str build-status.build-info)]
-            ['detail' (str build-detail.build-info)]
+        :~  ['status' (str build-status)]
+            ['detail' (str build-detail)]
+            ::  absent unless the product really is a test suite; the
+            ::  view draws a grid when it's here and the detail when not
+            :-  'tests'
+            ?~  suite  ~
+            :-  %a
+            %+  turn  u.suite
+            |=  [name=@tas ok=?]
+            (pairs:enjs:format ~[['name' s+name] ['ok' b+ok]])
         ==
         ['bang' ?~(bang.u.content-data ~ (str (render-tang u.bang.u.content-data)))]
     ==
@@ -1779,6 +1799,9 @@
   ::  the build kind (%vase/%tang/%mime) of a .hoon source file inside a
   ::  code namespace, or ~ when it is not a code-governed .hoon. The one-bit
   ::  summary the listing shows; the file view (?info) carries the detail.
+  ::
+  ::  (+test-suite below reads a build product as test results, for the
+  ::  grid the file view draws instead of a wall of printed noun.)
   |=  [dir=path name=@ta]
   =/  m  (fiber:fiber:nexus ,(unit @tas))
   ^-  form:m
@@ -1790,6 +1813,28 @@
   ?~  own  (pure:m ~)
   ;<  =built:nexus  bind:m  (get-code-full:io [%& %& dir (crip (scag (sub len 5) t))])
   (pure:m `-.built)
+::  +test-suite: a build product read as test results, or ~ when it isn't
+::  any. Two gates, and neither is a guess about where the file lives:
+::
+::    the +mule'd !< nests against the real type, faces and all, so a
+::    noun that merely looks like a list of pairs does not pass; and
+::    every name must carry the test- prefix that +run-tests:test uses
+::    to discover arms, so a genuine (list [name=@tas ok=?]) built for
+::    some other purpose (feature flags, say) is not mistaken for a
+::    suite. An empty list is not a suite either.
+::
+::  Path plays no part: a fixture or a helper core under lib/tests/ has
+::  nothing to render, and a suite kept elsewhere still renders.
+::
+++  test-suite
+  |=  v=vase
+  ^-  (unit (list [name=@tas ok=?]))
+  =/  got=(each (list [name=@tas ok=?]) tang)
+    (mule |.(!<((list [name=@tas ok=?]) v)))
+  ?:  ?=(%| -.got)  ~
+  ?:  =(~ p.got)  ~
+  ?.  (levy p.got |=([name=@tas ok=?] =('test-' (end 3^5 name))))  ~
+  `p.got
 ::  +built-counts: the artifacts under a directory inside a code namespace,
 ::  counted: how many compiled (%vase) and how many failed (%tang). One
 ::  %code dart on the directory answers the whole subtree. ~ when the dir

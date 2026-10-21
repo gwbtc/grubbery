@@ -88,6 +88,16 @@
     '.fv table.csv tr:nth-child(even) td{background:#fbfcfd}' +
     '.fv #build-view{flex:1;min-height:0;overflow:auto;margin:0;padding:18px;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}' +
     '.fv #build-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:7px;font-size:12px;font-weight:600;margin-bottom:14px}' +
+    // sub-tabs inside the Build pane: the same idiom as #bar one level
+    // up, so two levels of tabs read as one mechanism
+    '.fv .bsub{display:flex;gap:6px;margin:0 0 12px}' +
+    '.fv .bsub button{all:unset;cursor:pointer;padding:4px 12px;border-radius:7px;font-size:12px;color:#57606a}' +
+    '.fv .bsub button:hover{color:#24292f;background:#eaeef2}' +
+    '.fv .bsub button.on{color:#24292f;background:#fff;border:1px solid #d0d7de;font-weight:600;padding:3px 11px}' +
+    '.fv .trow{display:flex;align-items:flex-start;gap:8px;padding:4px 8px;border:1px solid #e3e3e0;border-radius:5px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace}' +
+    '.fv .trow.bad{background:#ffebe9;border-color:#ffcecb}' +
+    '.fv .tdot{flex:0 0 auto;width:7px;height:7px;border-radius:50%;margin-top:5px}' +
+    '.fv .tnam{overflow-wrap:anywhere}' +
     '.fv #build-badge.ok{background:#dafbe1;color:#116329}' +
     '.fv #build-badge.err{background:#ffebe9;color:#cf222e}' +
     '.fv #build-badge.raw{background:#fff8c5;color:#6a5c00}' +
@@ -529,12 +539,91 @@
       if (buildStatus === 'vase') { badge.className = 'ok'; badge.textContent = 'compiled'; }
       else if (buildStatus === 'tang') { badge.className = 'err'; badge.textContent = 'build error'; }
       else { badge.className = 'raw'; badge.textContent = 'raw ' + buildStatus; }
+      // a product the server read as test results: a grid rather than a
+      // wall of printed noun. Three states, not two — a file that did not
+      // compile carries no `tests` at all and still falls through to the
+      // error detail below.
+      var tests = (info.build && Array.isArray(info.build.tests)) ? info.build.tests : null;
+      var suite = (tests && tests.length) ? tests : null;
+      if (suite) {
+        var bad = suite.filter(function (t) { return !t.ok; });
+        var good = suite.filter(function (t) { return t.ok; });
+        badge.className = bad.length ? 'err' : 'ok';
+        badge.textContent = bad.length
+          ? (suite.length - bad.length) + ' of ' + suite.length + ' passing, ' + bad.length + ' failing'
+          : 'all ' + suite.length + ' passing';
+        buildView.appendChild(badge);
+        // failures stacked full-width because you read them; passes in a
+        // dense grid because you glance at them. Two blocks, so the
+        // boundary between them is not mid-row.
+        var rendered = document.createElement('div');
+        if (bad.length) rendered.appendChild(testList(bad, false));
+        if (good.length) rendered.appendChild(testList(good, true));
+        // the grid is a reading of the product, never a replacement for
+        // it, so the raw noun is a sibling tab rather than gone
+        var raw = document.createElement('pre');
+        raw.style.cssText = 'margin:0;white-space:pre-wrap;overflow-wrap:anywhere;';
+        raw.textContent = detail;
+        buildView.appendChild(subTabs([['Tests', rendered], ['Raw', raw]]));
+        buildView.appendChild(rendered);
+        buildView.appendChild(raw);
+        return;
+      }
       buildView.appendChild(badge);
       if (detail) {
         var pre = document.createElement('pre');
         pre.style.cssText = 'margin:0;white-space:pre-wrap;overflow-wrap:anywhere;';
         pre.textContent = detail; buildView.appendChild(pre);
       }
+    }
+
+    // testList: one block of results. Failures get their own full-width
+    // column, passes a dense grid. The `test-` prefix is on every arm and
+    // carries nothing, so it is stripped; names wrap rather than
+    // truncate, since half a test name is worse than a taller row.
+    function testList(items, ok) {
+      var box = document.createElement('div');
+      box.style.cssText = ok
+        ? 'display:grid;grid-template-columns:repeat(auto-fill,minmax(15rem,1fr));gap:4px;'
+        : 'display:flex;flex-direction:column;gap:4px;margin-bottom:12px;';
+      items.forEach(function (t) {
+        var row = document.createElement('div');
+        row.className = ok ? 'trow' : 'trow bad';
+        var dot = document.createElement('span');
+        dot.className = 'tdot';
+        dot.style.background = ok ? '#116329' : '#cf222e';
+        var nm = document.createElement('span');
+        nm.className = 'tnam';
+        nm.textContent = String(t.name || '').replace(/^test-/, '');
+        row.appendChild(dot); row.appendChild(nm);
+        box.appendChild(row);
+      });
+      return box;
+    }
+
+    // subTabs: the pane-tab idiom from #bar, one level down. Panes are
+    // shown by display rather than [hidden], since a pane carrying an
+    // inline display would otherwise win over the UA rule.
+    function subTabs(entries) {
+      var bar = document.createElement('div');
+      bar.className = 'bsub';
+      var btns = [];
+      entries.forEach(function (e, i) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = e[0];
+        b.className = i === 0 ? 'on' : '';
+        e[1].style.display = i === 0 ? '' : 'none';
+        b.addEventListener('click', function () {
+          entries.forEach(function (o, j) {
+            o[1].style.display = j === i ? '' : 'none';
+            btns[j].className = j === i ? 'on' : '';
+          });
+        });
+        btns.push(b);
+        bar.appendChild(b);
+      });
+      return bar;
     }
 
     return {
