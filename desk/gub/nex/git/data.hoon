@@ -255,6 +255,21 @@
         =/  parent-com=(unit commit:git-repo)  (get-commit:sto commit-hash)
         =/  parent-tree-hash=hash:git-repo
           ?~(parent-com 0x0 tree.u.parent-com)
+        ::  a `paths` pathspec in the request scopes the commit to those
+        ::  prefixes, so a shared index's other staged work stays out
+        =/  req-paths=(list path)
+          =/  j  ?.(?=(%o -.u.commit-req) ~ (~(get by p.u.commit-req) 'paths'))
+          ?.  ?=([~ %a *] j)  ~
+          %+  murn  p.u.j
+          |=(=json ?.(?=([%s *] json) ~ `(stab p.json)))
+        =/  idx=(map path hash:git-repo)
+          ?~  req-paths  idx
+          =/  base=(map path hash:git-repo)
+            %-  idx-hashes
+            %+  build-index-from-tree
+              |=(h=@ux (get-tree:sto h))
+            parent-tree-hash
+          (scope-index idx base req-paths)
         =/  commit-result
           (git-commit idx parent-tree-hash commit-hash u.commit-req)
         ?~  commit-result
@@ -557,6 +572,53 @@
   =/  tree=(unit tree-dir:git-repo)  (get-tree tree-hash)
   ?~  tree  ~
   (walk-tree-for-index get-tree / u.tree)
+::
+::  +scope-index: git's `commit -- <paths>`
+::
+::    A scoped commit takes the PARENT's tree and overlays only the index
+::    entries lying under one of the given prefixes. Everything outside
+::    keeps the parent's version, so another agent's staged work in the
+::    same index cannot ride along; a path under a prefix that is absent
+::    from the index is a deletion and is dropped.
+::
+::    ~ paths means the whole index, which is the unscoped commit — so
+::    this is safe to run unconditionally.
+::
+++  scope-index
+  |=  $:  idx=(map path hash:git-repo)
+          base=(map path hash:git-repo)
+          paths=(list path)
+      ==
+  ^-  (map path hash:git-repo)
+  ?:  =(~ paths)  idx
+  ::  is `pre` a path prefix of `p`? Written out rather than
+  ::  scag/lent, which are wet and inferred badly against the narrowed
+  ::  list type above.
+  =/  prefix
+    |=  [pre=path p=path]
+    ^-  ?
+    |-  ^-  ?
+    ?~  pre  %.y
+    ?~  p    %.n
+    ?.  =(i.pre i.p)  %.n
+    $(pre t.pre, p t.p)
+  =/  under
+    |=  p=path
+    ^-  ?
+    =/  l=(list path)  paths
+    |-  ^-  ?
+    ?~  l  %.n
+    ?:  (prefix i.l p)  %.y
+    $(l t.l)
+  =/  entries=(list [p=path h=hash:git-repo])  ~(tap by base)
+  =/  kept=(list [p=path h=hash:git-repo])
+    (skip entries |=([p=path h=hash:git-repo] (under p)))
+  =/  staged=(list [p=path h=hash:git-repo])  ~(tap by idx)
+  =/  taken=(list [p=path h=hash:git-repo])
+    (skim staged |=([p=path h=hash:git-repo] (under p)))
+  =/  out=(map path hash:git-repo)
+    (~(gas by *(map path hash:git-repo)) kept)
+  (~(gas by out) taken)
 ::
 ++  walk-tree-for-index
   |=  [get-tree=$-(hash:git-repo (unit tree-dir:git-repo)) here=path dir=tree-dir:git-repo]

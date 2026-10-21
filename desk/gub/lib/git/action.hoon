@@ -16,7 +16,7 @@
 ::
 +$  git-command
   $%  [%add paths=(list @t)]              ::  paths=~ means add all
-      [%commit message=@t]
+      [%commit message=@t paths=(list path)]
       [%push where=(unit branch)]         ::  ~ = current branch
       [%pull ~]                           ::  fetch + check out the tracked ref
       [%checkout =branch]
@@ -61,7 +61,7 @@
   %-  pairs:enjs:format
   ?-  -.c
     %add            ~[(pair 'verb' s+'add') (pair 'paths' a+(turn paths.c |=(p=@t s+p)))]
-    %commit         ~[(pair 'verb' s+'commit') (pair 'message' s+message.c)]
+    %commit         ~[(pair 'verb' s+'commit') (pair 'message' s+message.c) (pair 'paths' a+(turn paths.c |=(p=path s+(spat p))))]
     %push           ~[(pair 'verb' s+'push') (pair 'branch' ?~(where.c ~ s+u.where.c))]
     %pull           ~[(pair 'verb' s+'pull')]
     %checkout       ~[(pair 'verb' s+'checkout') (pair 'branch' s+branch.c)]
@@ -119,9 +119,23 @@
   ::  before any fallback is tried. Hence a whole second attempt, run only
   ::  when the strict grammar declined the string outright.
   ::
-  =/  strict=(unit git-command)  (parse-strict txt)
-  ?^  strict  strict
-  (parse-loose txt)
+  ::  Split off a `-- <paths>` pathspec before either pass. It cannot be
+  ::  a grammar alternative: +val-rest runs to end-of-line by design, so
+  ::  a loose -m would read `--` and the paths as message text.
+  ::
+  =/  [cmd=@t paths=(list path)]  (split-pathspec:parse:cmd txt)
+  =/  parsed=(unit git-command)
+    =/  strict=(unit git-command)  (parse-strict cmd)
+    ?^  strict  strict
+    (parse-loose cmd)
+  ?~  parsed  ~
+  ?~  paths  parsed
+  ::  Only commit scopes itself to paths. `add` already takes its paths
+  ::  positionally, and a pathspec on anything else is a mistake worth
+  ::  naming rather than ignoring.
+  ?.  ?=(%commit -.u.parsed)
+    `[%invalid txt]
+  `u.parsed(paths paths)
 ::  +parse-strict: the real grammar. Quote a message and this is what reads it.
 ::
 ++  parse-strict
@@ -143,7 +157,7 @@
     %+  cook
       |=  ms=(list @t)
       ^-  git-command
-      [%commit (rap 3 (join (crip "\0a\0a") ms))]
+      [%commit (rap 3 (join (crip "\0a\0a") ms)) ~]
     ;~  pfix  (jest 'commit')  (plus ace)
       %+  most  (plus ace)
       ;~  pose
@@ -186,7 +200,7 @@
   ^-  (unit git-command)
   =/  rest  val-rest:parse:cmd
   %+  rush  txt
-  %+  cook  |=(m=@t `git-command`[%commit m])
+  %+  cook  |=(m=@t `git-command`[%commit m ~])
   ;~  pfix  (jest 'commit')  (plus ace)
     ;~  pose
       ;~(pfix ;~(plug hep (just 'm') (plus ace)) rest)

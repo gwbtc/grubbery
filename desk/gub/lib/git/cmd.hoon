@@ -76,6 +76,42 @@
   ++  val-rest
     %+  cook  |=(t=tape (crip (trim-tail t)))
     (plus ;~(pose prn (just `@`10)))
+  ::  +split-pathspec: git's end-of-options convention
+  ::
+  ::    Everything after a bare `--` is a pathspec and never an option.
+  ::    Split it off BEFORE any option grammar runs: +val-rest is greedy
+  ::    to end-of-line by design, so a `-m` that sees `--` swallows it as
+  ::    message text. Doing it here also means every verb gets pathspec
+  ::    support for free, and strict and loose passes agree.
+  ::
+  ::    Returns the command with the pathspec removed, and the paths. No
+  ::    `--` yields the text unchanged and ~, so this is safe to run over
+  ::    every command. A leading slash is optional on each path: `--
+  ::    desk/app/x.hoon` and `-- /desk/app/x.hoon` both parse.
+  ::
+  ++  split-pathspec
+    |=  txt=@t
+    ^-  [cmd=@t paths=(list path)]
+    =/  res
+      %+  rust  (trip txt)
+      ;~  plug
+        (star ;~(less (jest ' -- ') prn))
+        ;~  pose
+          ;~(pfix (jest ' -- ') (cook some (star prn)))
+          (easy ~)
+        ==
+      ==
+    ?~  res  [txt ~]
+    =/  head=tape  -.u.res
+    =/  tail=(unit tape)  +.u.res
+    :-  (crip (trim-tail head))
+    ?~  tail  ~
+    =/  toks  (rust u.tail (most (plus ace) (plus ;~(less ace prn))))
+    ?~  toks  ~
+    %+  turn  u.toks
+    |=  t=tape
+    ^-  path
+    (stab (crip ?:(=('/' -.t) t ['/' t])))
   ++  value
     |*  kind=opt-kind
     ?-  kind

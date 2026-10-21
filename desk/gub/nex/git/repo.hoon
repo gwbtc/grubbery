@@ -152,7 +152,7 @@
     %branch         (op-branch branch.cmd)
     %branch-delete  (op-branch-delete branch.cmd)
     %add            (op-add paths.cmd)
-    %commit         (op-commit message.cmd)
+    %commit         (op-commit message.cmd paths.cmd)
     %push           (op-push where.cmd)
     %pull           op-pull
     %invalid        (pure:m [%error 'unrecognized command'])
@@ -418,7 +418,7 @@
 ::  +op-commit: create a local commit from the staged tree.
 ::
 ++  op-commit
-  |=  message=@t
+  |=  [message=@t paths=(list path)]
   =/  m  (fiber:fiber:nexus ,outcome:git-act)
   ^-  form:m
   ?:  =('' message)  (pure:m [%error 'commit message required'])
@@ -436,6 +436,9 @@
         ['author_name' s+author-name.cfg]
         ['author_email' s+author-email.cfg]
         ['date' s+(scot %da now)]
+        ::  a pathspec scopes the commit: the data nexus overlays only
+        ::  these paths onto the parent tree. Absent/empty = whole index.
+        ['paths' a+(turn paths |=(p=path s+(spat p)))]
     ==
   ;<  req-rd=road:tarball  bind:m
     (ancestor-road:io [/git %repo] [%& /data %'commit-request.json'])
