@@ -424,6 +424,22 @@
       ::  does NOT re-check-out here — on-load only checks out when HEAD
       ::  moved, and leaves a tree already materialized from this HEAD
       ::  alone — so this cannot drive itself in a circle.
+      ::
+      ::  TODO(perf): a tree write costs a FULL on-load — packs, store,
+      ::  commit log, branches, stash, docs coverage, and a SHA-1 of every
+      ::  working-tree file — when only status.json depends on the tree.
+      ::  The news this watcher takes is a wave with a cass per file, and
+      ::  those cass values are honest (a version is filled once), so the
+      ::  watcher knows exactly what moved. When it matters: keep the
+      ::  previous wave, diff-wave the two, and write the delta as a
+      ::  request — status-request.json {changed, removed}, merged into
+      ::  one already waiting so a burst folds into a single union — then
+      ::  reload. On-load takes it first: hash only `changed`, drop
+      ::  `removed` from INDEX, rebuild status from that, clear it, and
+      ::  skip everything that does not read the tree. A reload with no
+      ::  request keeps doing the whole rebuild. Status goes O(changed),
+      ::  the kernel's own change-tracking reaches the pure on-load as
+      ::  data, and it stays on the request protocol (see the header).
       ?:  ?=([~ %'watch.sig'] rail)
         ;<  ~  bind:m  (rise-wait:io prod "%git/data watch: failed")
         ;<  *  bind:m  (keep:io /tree [%| 0 %| /tree] ~)
@@ -912,6 +928,12 @@
 ::
 ::  +ball-to-files-mt: flatten ball tree with mtime from metadata
 ::
+::  TODO(perf): mtime is always '' here — the ball carries a file's noun
+::  and blot, not its cass — so the "mtime matches index, skip hashing"
+::  fast path in +git-add never fires and every file is hashed on
+::  every reload. Either feed it a real version (the watcher's wave has
+::  one per file; see the status-request idea at watch.sig) or take the
+::  fast path out, so it stops reading as an optimization that exists.
 ++  ball-to-files-mt
   |=  [=ball:tarball here=path]
   ^-  (list [=path data=octs mtime=@t])
