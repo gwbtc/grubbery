@@ -55,7 +55,8 @@
 /=  t-  /tests/loader
 |%
 +$  versioned-state
-  $%  state-9:migrations
+  $%  state-10:migrations
+      state-9:migrations
       state-8:migrations
       state-7:migrations
       state-6:migrations
@@ -119,7 +120,7 @@
 ::  reference, and it only changes with the agent itself.
 ::
 =/  sut-hash=@uv  (sham q:sut)
-=|  state-9:migrations
+=|  state-10:migrations
 =*  state  -
 ::
 =<
@@ -144,8 +145,17 @@
   |=  old-state=vase
   ^-  (quip card _this)
   =/  old  !<(versioned-state old-state)
-  ?:  ?=(%9 -.old)
+  ?:  ?=(%10 -.old)
     =.  state  old
+    =^  start-cards  state
+      abet:cold-start:hc
+    [start-cards this]
+  ::  %9 -> %10: view gained a bang. No stored view changes (pend is cold),
+  ::  but a suspended process is typed by it, so +proc-9-to-proc replaces
+  ::  live continuations with a crash tang and the reload rebuilds them.
+  ?:  ?=(%9 -.old)
+    ~>  %slog.[0 leaf+"grubbery: migrating state %9 -> %10"]
+    =.  state  (state-9-to-10:migrations old)
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
@@ -181,8 +191,8 @@
       (state-6-to-7:migrations as-6)
     ~>  %slog.[0 leaf+"grubbery: migrating state %7 -> %8"]
     (state-7-to-8:migrations as-7)
-  ~>  %slog.[0 leaf+"grubbery: migrating state %8 -> %9"]
-  =.  state  (state-8-to-9:migrations as-8)
+  ~>  %slog.[0 leaf+"grubbery: migrating state %8 -> %9 -> %10"]
+  =.  state  (state-9-to-10:migrations (state-8-to-9:migrations as-8))
   =^  start-cards  state
     abet:cold-start:hc
   [start-cards this]
@@ -1599,40 +1609,15 @@
 ::  +abet: run the take queue dry, then return cards and state
 ::
 ++  abet
-  ::  restart-cap: how many times one fiber may (re)start within a single
-  ::  drain before it is banged instead. A fiber that fails on start is
-  ::  restarted at once with a fresh start take (both fields null),
-  ::  drained in this same loop; a deterministic failure - a dart a weir
-  ::  refused, poison state, a poison timer - then loops forever inside
-  ::  one gall event, pegging the ship and answering nothing. The cap
-  ::  turns that infinite loop into a banged fiber (no restart until the
-  ::  nexus reloads) and a finished event. 32 is far above any legitimate
-  ::  per-event restart count. A well-behaved fiber avoids the loop
-  ::  itself with +rise-wait / +rise-later (wait for a poke after a crash
-  ::  instead of re-running); this is the runtime backstop for one that
-  ::  does not, or gets it wrong. The permanent case - a crash on a
-  ::  refused dart - is banged on the first failure, in +process-do-next
-  ::  below.
-  =/  restart-cap=@ud  32
-  =|  spins=(map rail:tarball @ud)
+  ::  Drain the take queue. No restart cap: nothing re-enqueues a fiber's
+  ::  own start take any more, so the loop this used to contain cannot
+  ::  form. A crash or a %fail bangs the grub (see +process-do-next), and
+  ::  it is rebuilt only when a later take needs it.
   |-
   ?:  =(~ takes)
     [(flop cards) state]
   =^  [here=rail:tarball =take:fiber:nexus]  takes  ~(get to takes)
-  =/  is-start=?  &(?=(~ give.take) ?=(~ in.take))
-  ::  a fiber that has already (re)started restart-cap times this event is
-  ::  looping: bang it instead of running it again, and drop this start
-  ::  take. A reload of its nexus restarts it.
-  ?:  &(is-start (gte (~(gut by spins) here 0) restart-cap))
-    =.  this
-      %+  bang-file  here
-      :~  leaf+"fiber crashed and restarted over {(scow %ud restart-cap)} times in one event; not restarting again"
-          leaf+"reload the nexus to retry"
-      ==
-    $
   =.  this  (process-take here take)
-  =?  spins  is-start
-    (~(put by spins) here +((~(gut by spins) here 0)))
   $
 ::  Drop hist entries matching a lose spec: the entries are DELETED and
 ::  their silo refs released. Absence at a cass is the terminal state; a
@@ -4148,7 +4133,42 @@
     %+  give-poke-sign  here
     [take `~[leaf+"no process at {(spud (snoc path.here name.here))}"]]
   =/  =proc:fiber:nexus  u.prc
-  ::  Crashed process — nack pokes immediately, queue everything else
+  ::  A BANGED grub rebuilds when ANY take arrives for it. Nothing
+  ::  retries a bang on its own -- no timer, no restart loop -- so the
+  ::  trigger is real work: whatever wants the grub is what asks for it
+  ::  back. Any take, not just a poke, because a grub driven only by
+  ::  subscriptions is never poked and would otherwise sit banged for
+  ::  ever with news piling up behind it.
+  ::
+  ::  This is NOT loop-proof, and deliberately does not pretend to be.
+  ::  The runtime has no general cycle protection: two grubs that poke
+  ::  each other spin inside one event, and always could. The old restart
+  ::  cap was never a cycle guard either -- it policed exactly one shape,
+  ::  a fiber re-enqueuing its own start take, which no longer happens.
+  ::
+  ::  The shape worth knowing about here: a bang advances the grub's cass
+  ::  and notifies its watchers, so a grub that follows the directory
+  ::  holding it is told about its own bang, which is another take, which
+  ::  tries another rebuild. See the note on ancestor subscriptions.
+  ::
+  ::  A second failure needs no special case -- we fall through to the
+  ::  nack below with the fresh tang, and the bang bumps as any bang
+  ::  does, because a new failure is new information for whoever follows
+  ::  this grub.
+  ::
+  ::  The rebuilt fiber starts CLEAN (prod ~). It has no use for the tang
+  ::  that killed it: waiting-for-a-poke after a crash only ever guarded
+  ::  against being auto-restarted, and nothing auto-restarts now.
+  ::
+  =^  proc  this
+    ?.  ?=(%| -.process.proc)  [proc this]
+    =/  rebuilt=_this  (spawn-proc here ~)
+    =/  pip=pipe:nexus  (fall (~(get of pool.rebuilt) path.here) *pipe:nexus)
+    =/  got=(unit proc:fiber:nexus)  (~(get by proc.pip) name.here)
+    [?~(got proc u.got) rebuilt]
+  ::  Still banged — nack pokes with the tang, queue everything else so
+  ::  it replays when the grub does come back (news and acks have no
+  ::  return address to nack).
   ?:  ?=(%| -.process.proc)
     ?:  ?=([* ~ %poke *] take)
       (give-poke-sign here [take `p.process.proc])
@@ -4200,17 +4220,24 @@
         ?.  ?=(%leaf -.jt)  [%none ~]
         =/  got=(unit noun)  (~(get si:nexus silo) lobe.leaf.jt)
         ?~  got  [%none ~]
+        ::  the bang rides with the grub, resolved from the ject the same
+        ::  way a ball's per-file bang is
+        =/  bang=(unit tang)
+          ?~  bang.leaf.jt  ~
+          =/  tn  (~(get si:nexus silo) u.bang.leaf.jt)
+          ?~  tn  ~
+          `!<(tang [-:!>(*tang) u.tn])
         =/  =bask:tarball  [blot.mark.leaf.jt u.got]
         =/  res  (validate-bask cod bask)
         ?:  ?=(%| -.res)
-          [%file cass.cite [blot.mark.leaf.jt %| [p.res u.got]]]
+          [%file cass.cite [blot.mark.leaf.jt %| [p.res u.got]] bang]
         =/  =sage:tarball  p.res
         =/  result=sang:tarball
           ?~  conv.cite  (sage-to-sang:tarball sage)
           ?:  =(p.sage u.conv.cite)  (sage-to-sang:tarball sage)
           =/  =tube:clay  (get-tube cod [p.sage u.conv.cite])
           (sage-to-sang:tarball [u.conv.cite (tube q.sage)])
-        [%file cass.cite result]
+        [%file cass.cite result bang]
           %ball
         =/  sub-ball
           ?:  deep.cite
@@ -4424,20 +4451,17 @@
   =/  eval-res=(each [darts=(list dart:nexus) done=(list took:eval) new-state=vase new-proc=proc:fiber:nexus res=result:eval core=_this] tang)
     (mule |.((take:eval here fil-state proc)))
   ?:  ?=(%| -.eval-res)
-    ::  Runtime crash — restart process with error prod
+    ::  Runtime crash: BANG. Nothing restarts a fiber on its own.
+    ::
+    ::  This used to rebuild the process here and enqueue a fresh start
+    ::  take, which is why +restart-cap had to exist: a fiber that
+    ::  crashed on its own restart take looped inside one event. A crash
+    ::  now makes the grub inert, with its tang, and it comes back when
+    ::  something needs it (+process-take rebuilds on the next take) --
+    ::  triggered repair, not self-healing. Queued pokes are nacked with
+    ::  the tang on arrival, so no caller is left waiting.
     ?:  (is-nexus-banged here)  this
-    =/  spool-got  (build-spool here)
-    =/  spool-res=(each spool:fiber:nexus tang)
-      ?:  ?=(%| -.spool-got)  spool-got
-      (mule |.((fall p.spool-got default-spool)))
-    ?:  ?=(%| -.spool-res)
-      (bang-file here p.spool-res)
-    =/  proc-res=(each process:fiber:nexus tang)
-      (mule |.((p.spool-res `p.eval-res)))
-    ?:  ?=(%| -.proc-res)
-      (bang-file here p.proc-res)
-    =.  this  (store-proc here [&+p.proc-res ~ next.proc])
-    (enqu-take here ~ ~)
+    (bang-file here p.eval-res)
   =/  [darts=(list dart:nexus) done=(list took:eval) new-state=vase new-proc=proc:fiber:nexus res=result:eval core=_this]
     p.eval-res
   ::  Restore core with updated vale cache
@@ -4478,35 +4502,20 @@
     ::  +mark-bang carries the pool's queues and the pool still holds the
     ::  pre-step snapshot with the take in it.
     =.  this  (store-proc here new-proc)
-    ::  A dart a weir refused is refused again on every retry, so a fiber
-    ::  that crashed consuming a %veto is a permanent loop, not a
-    ::  transient fault. The failing take is the head of `done`; if its
-    ::  input was a %veto, bang the fiber instead of restarting, naming
-    ::  the refused dart. A reload of its nexus restarts it. Every other
-    ::  failure still restarts as before.
-    =/  culprit=(unit pend:fiber:nexus)
-      ?~  done  ~
-      in.take.i.done
-    ?:  ?=([~ %veto *] culprit)
-      %+  bang-file  here
-      :~  leaf+"fiber crashed on a dart a weir refused; not restarting (the dart would be refused again)"
-          leaf+"refused: {<dart.u.culprit>}"
-          leaf+"a reload of the nexus restarts it"
-      ==
-    =/  spool-got  (build-spool here)
-    =/  spool-res=(each spool:fiber:nexus tang)
-      ?:  ?=(%| -.spool-got)  spool-got
-      (mule |.((fall p.spool-got default-spool)))
-    ?:  ?=(%| -.spool-res)
-      (bang-file here p.spool-res)
-    =/  proc-res=(each process:fiber:nexus tang)
-      (mule |.((p.spool-res `err.res)))
-    ?:  ?=(%| -.proc-res)
-      (bang-file here p.proc-res)
-    =/  merged-skip=(qeu take:fiber:nexus)
-      (~(gas to skip.new-proc) ~(tap to next.new-proc))
-    =.  this  (store-proc here [&+p.proc-res ~ merged-skip])
-    (enqu-take here ~ ~)
+    ::  A %veto gets NO special case. A weir refusing a dart is the weir
+    ::  answering correctly, not a fault: the fiber asked for something it
+    ::  is not permitted and was told so. A fiber that crashes while
+    ::  consuming that answer is an ordinary grub bug — it failed to handle
+    ::  a normal outcome — so it restarts like any other crash, and if it
+    ::  cannot handle the refusal it loops and the restart cap below bangs
+    ::  it for looping, which is the true reason.
+    ::
+    ::  (This used to bang on the veto directly, reporting a compilation
+    ::  state about a grub that compiled fine and then mishandled a
+    ::  permission answer.)
+    ::  a fiber that returned %fail bangs, same as a crash: inert with
+    ::  its tang until something needs it again.
+    (bang-file here err.res)
   ==
 ::
 ++  poke

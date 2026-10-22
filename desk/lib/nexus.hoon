@@ -83,7 +83,12 @@
 +$  wave  (axal [fold=cass:clay file=(map @ta cass:clay)])
 +$  view
   $%  [%ball =wave ball=ball:tarball]
-      [%file =cass:clay =sang:tarball]
+      ::  bang: this grub is INERT until rebuilt, and why. A peek of the
+      ::  grub itself carries it, so a fiber following a grub learns it
+      ::  banged from the thing it already watches -- before this, a bang
+      ::  was only visible by peeking the PARENT directory's ball. The
+      ::  grub's value is untouched: a bang sits beside it (+set-bang).
+      [%file =cass:clay =sang:tarball bang=(unit tang)]
       [%none ~]
       [%miss ~]
       [%veto ~]
@@ -337,7 +342,25 @@
   +$  take  [give=(unit give) in=(unit pend)]
   :: Three situations for process initialization
   ::
-  +$  prod  (unit tang)    :: ~ = clean start, [~ tang] = crash recovery
+  ::  TODO: +prod IS OBSOLETE -- REMOVE IT.
+  ::
+  ::    It carried a crash tang into a restarting fiber, for the single
+  ::    purpose of letting that fiber wait for a poke instead of
+  ::    re-running (+rise-wait / +rise-later). Nothing auto-restarts any
+  ::    more: a crash or a %fail BANGS the grub, and it is rebuilt only
+  ::    when a later take needs it -- so the trigger is already an
+  ::    external event and there is nothing to defend against.
+  ::
+  ::    Every caller now passes ~, so every +rise-wait is the clean-start
+  ::    path. The type stays only because removing it rewrites ~92 call
+  ::    sites across ~28 nexuses for zero change in behaviour; that churn
+  ::    belongs in its own commit, not in the one that changed what a
+  ::    crash means. When it goes, +spool stops needing to be
+  ::    $-(prod process) and can simply BE a process -- which also
+  ::    removes one of the two build-time bangs (the "spool crash", where
+  ::    applying the spool fails), leaving only "it would not compile".
+  ::
+  +$  prod  (unit tang)    :: always ~; see the TODO above
   ::
   ::  THE TRANSACTION IS THE ARROW: a form is $-(input output), and
   ::  one invocation — one input (a null kick counts) in, one verb

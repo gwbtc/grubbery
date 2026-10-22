@@ -487,8 +487,44 @@
 ::  rail's number only reached peak on its next write; a rail last
 ::  written before %8 and culled after would have numbered from zero.
 ::
++|  %frozen-9
+::  state-9 borrowed live `pool`, and %10 moves a type inside it: `view`
+::  gained a `bang`, and a suspended `process` is a GATE whose mold names
+::  intake -> view. No view noun is ever stored (pend is cold: "no vases
+::  — lobes and ckeys only", and hydrate resolves cite -> view at
+::  consumption time) but the continuation's TYPE drags it in, so the
+::  chain deepens here. Only the process slot widens to *; take/pend/cite
+::  are untouched by this crossing and stay live.
+::
++$  proc-9
+  $:  process=(each * tang)
+      next=(qeu take:fiber:nexus)
+      skip=(qeu take:fiber:nexus)
+  ==
++$  pipe-9  [bang=(unit tang) proc=(map @ta proc-9)]
++$  pool-9  (axal pipe-9)
+::
 +$  state-9
   $:  %9
+      =born:nexus
+      =peak:nexus
+      =silo:nexus
+      =subs:nexus
+      pool=pool-9
+      =code:nexus
+      =bins:nexus
+      =vale:nexus
+      =remo:nexus
+      =upki:nexus
+      =last:nexus
+      conns=(map @ta binding:eyre)
+  ==
+::  state-10: `view` carries the grub's bang, so a fiber that follows a
+::  grub learns it banged from the thing it already watches instead of
+::  having to peek the parent directory's ball.
+::
++$  state-10
+  $:  %10
       =born:nexus
       =peak:nexus
       =silo:nexus
@@ -502,6 +538,39 @@
       =last:nexus
       conns=(map @ta binding:eyre)
   ==
+++  state-9-to-10
+  |=  old=state-9
+  ^-  state-10
+  :*  %10
+      born.old
+      peak.old
+      silo.old
+      subs.old
+      (pool-9-to-pool pool.old)
+      code.old
+      bins.old
+      vale.old
+      remo.old
+      upki.old
+      last.old
+      conns.old
+  ==
+++  pool-9-to-pool
+  |=  p=pool-9
+  ^-  pool:nexus
+  :-  ?~  fil.p  ~
+      `[bang.u.fil.p (~(run by proc.u.fil.p) proc-9-to-proc)]
+  (~(run by dir.p) pool-9-to-pool)
+::  a live continuation cannot be re-typed, and is never resumed: the
+::  reload machinery rebuilds it. A %| tang passes through untouched.
+::
+++  proc-9-to-proc
+  |=  p=proc-9
+  ^-  proc:fiber:nexus
+  :+  ?:  ?=(%| -.process.p)  process.p
+      |+~[leaf+"migrated: process rebuilt on load (view gained bang)"]
+    next.p
+  skip.p
 ++  state-8-to-9
   |=  old=state-8
   ^-  state-9
