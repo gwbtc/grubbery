@@ -162,15 +162,6 @@ function setup(root, opts) {
           a.addEventListener('click', (e) => { e.stopPropagation(); });
           cell.append(arrow, a);
         }
-        const bangText = item.kind === 'boom' ? item.boom : item.bang;
-        if (bangText) {
-          const x = document.createElement('span');
-          x.style.cssText = 'color:#cf222e;font-weight:700;cursor:pointer;margin-left:5px;';
-          x.textContent = '!';
-          x.title = 'crash details';
-          x.addEventListener('click', (e) => { e.stopPropagation(); showBoom(bangText); });
-          cell.appendChild(x);
-        }
       },
     },
     {
@@ -254,6 +245,38 @@ function setup(root, opts) {
           cell.style.color = '#cf222e'; cell.style.fontWeight = '700';
           cell.title = 'build error — open the file for the tang';
         }
+      },
+    },
+    {
+      key: 'bang', label: 'Run', cls: 'mono',
+      // the bang, out of the Name cell and into a column of its own. It used
+      // to be a red "!" glued to the filename opening a modal; a crash is
+      // process state, which is what this column is for, and it opens as a
+      // rendering of the path (?view=run) like weir and the rest -- in the
+      // pane's target, in history, back returns.
+      //
+      // A directory's `bang` is a bang somewhere BELOW it, so a crash shows
+      // at every level down to the grub that holds it, the way Build's ✗
+      // tally does.
+      format: (v, item) => {
+        if (item.kind === 'boom') return 'boom';
+        if (item.kind === 'dir') return v ? 'banged' : '';
+        return v ? 'banged' : '';
+      },
+      decorate: (cell, item) => {
+        const text = item.kind === 'boom' ? item.boom : item.bang;
+        if (!text) return;
+        cell.style.color = '#cf222e';
+        cell.style.fontWeight = '700';
+        cell.style.cursor = 'pointer';
+        cell.title = item.kind === 'dir'
+          ? 'something below here is banged — open to drill down'
+          : 'the crash, in full';
+        cell.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const p = here.replace(/\/$/, '') + '/' + item.name;
+          route(p + '?view=run', item.kind === 'dir' ? 'dir' : 'file', null);
+        });
       },
     },
     {
@@ -1183,6 +1206,7 @@ function setup(root, opts) {
         '.ps-weir-cat{grid-template-columns:1fr;gap:4px}.ps-weir-k{padding-top:0}.ps-weir-roads input{width:100%}.ps-drop{padding:16px 10px}.ps-drop-acts{flex-wrap:wrap}.ps-drop-acts button{flex:1 1 auto}.ps-form button.ghost-danger{margin-right:0}}' +
         '.ps-form-head{padding:16px 20px 14px;border-bottom:1px solid #eaeef2}.ps-form-verb{font-weight:600;font-size:15px;line-height:1.3}.ps-form-path{margin-top:4px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:#57606a;word-break:break-all}' +
         '.ps-form-body{padding:16px 20px;display:flex;flex-direction:column;gap:14px}.ps-form-note{color:#57606a;line-height:1.5}' +
+        '.ps-tang{margin:0;padding:10px 12px;background:#f6f8fa;border:1px solid #eaeef2;border-radius:6px;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#cf222e;white-space:pre;overflow:auto;max-height:min(60vh,520px)}' +
         '.ps-form label{display:block}.ps-form label span{display:block;font-size:12px;font-weight:600;color:#57606a;margin-bottom:5px}' +
         '.ps-form input,.ps-form select{width:100%;box-sizing:border-box;font:13px ui-monospace,SFMono-Regular,Menlo,monospace;padding:7px 10px;border:1px solid #d0d7de;border-radius:6px;background:#fff;color:#24292f}' +
         '.ps-form input:focus,.ps-form select:focus{outline:none;border-color:#0969da;box-shadow:0 0 0 3px rgba(9,105,218,.15)}.ps-form input::placeholder{color:#8b949e}' +
@@ -1237,7 +1261,7 @@ function setup(root, opts) {
   // <item>?view=rename, <item>?view=delete, <dir>?view=weir. The menu routes
   // there like any link, so it opens in the pane's target (or in place), sits
   // in history, and back returns. Nothing pops over the pane you are in.
-  const ACTION_VIEWS = { new: 1, rename: 1, delete: 1, weir: 1, upload: 1, 'term-new': 1 };
+  const ACTION_VIEWS = { new: 1, rename: 1, delete: 1, weir: 1, upload: 1, run: 1, 'term-new': 1 };
   // THE MODE. Desktop and mobile are distinct modes, not one layout at two
   // widths: mobile is the focused, fat-thumb context — fewer things, bigger
   // targets, less granular control — and an app is entitled to answer a
@@ -1472,6 +1496,9 @@ function setup(root, opts) {
       note(isDir ? 'The directory and everything in it will be removed. This cannot be undone.' : 'The file will be removed. This cannot be undone.');
       const b = buttons('delete', true, () => psPost(parentUrl, isDir ? { action: 'delete-folder', foldername: name } : { action: 'delete-grub', filename: name }));
       b.focus();
+    } else if (view === 'run') {
+      h('Run', ns + (isDir ? '/' : ''));
+      runView(ps, paneId, form, body, note, url, isDir);
     } else if (view === 'weir') {
       h('Weir', ns);
       weirView(ps, paneId, el, form, body, ns, url);
@@ -1479,6 +1506,39 @@ function setup(root, opts) {
       h('Upload', ns);
       uploadView(ps, paneId, form, body, url);
     }
+  }
+  // +runView: a grub's run state as a rendering of its path (?view=run).
+  //
+  //    The crash used to be a `showBoom` modal over whatever pane you were
+  //    in; this is the same content as an action view, so it opens where
+  //    links open, sits in history and `back` returns -- the rule the rest
+  //    of the actions already follow.
+  //
+  //    The tang comes from ?info=1, which carries `bang` for a grub and
+  //    `boom` for one that failed to convert. A directory has no tang of
+  //    its own: its `bang` only says something below is banged, so it says
+  //    that and sends you down rather than pretending to show a crash.
+  function runView(ps, paneId, form, body, note, url, isDir) {
+    if (isDir) {
+      note('Something below this directory is banged. Open it and follow the Run column down to the grub that holds the crash.');
+      return;
+    }
+    const pre = document.createElement('pre');
+    pre.className = 'ps-tang';
+    pre.textContent = 'reading…';
+    body.appendChild(pre);
+    const foot = document.createElement('div'); foot.className = 'ps-form-foot';
+    const back = document.createElement('button'); back.textContent = 'back';
+    back.addEventListener('click', () => ps.back(paneId));
+    foot.appendChild(back); form.appendChild(foot);
+    fetch(url + '?info=1', { cache: 'no-store' })
+      .then((r) => r.ok ? r.json() : Promise.reject(new Error('info ' + r.status)))
+      .then((d) => {
+        const text = d.boom || d.bang;
+        if (!text) { pre.remove(); note('Not banged. This grub has no crash to show.'); return; }
+        pre.textContent = text;
+      })
+      .catch((e) => { pre.textContent = 'could not read the crash: ' + ((e && e.message) || e); });
   }
   // upload as a rendering of its dir: drop files or a folder onto the card, or
   // pick them; see the list (relative paths kept for a folder); one request
@@ -1704,6 +1764,8 @@ function setup(root, opts) {
           t.columns = ft.columns.map((c) => c.key === 'name' ? Object.assign({}, c, { link: (item) => { const h = ns.replace(/\/$/, '') + '/' + item.name; return item.kind === 'dir' ? scoped(h) : h; } })
           // the weir tag opens that dir's weir view where links open
           : c.key === 'weir' ? Object.assign({}, c, { decorate: (cell, item) => { if (item.kind !== 'dir') return; cell.style.cursor = 'pointer'; cell.style.color = item.weir ? '#9a6700' : '#1a7f37'; cell.title = "this directory's weir"; cell.addEventListener('click', (e) => { e.stopPropagation(); route(ns.replace(/\/$/, '') + '/' + item.name + '?view=weir', 'dir', null); }); } })
+          // same reason as weir: this pane's ns and route, not the page's
+          : c.key === 'bang' ? Object.assign({}, c, { decorate: (cell, item) => { const text = item.kind === 'boom' ? item.boom : item.bang; if (!text) return; cell.style.color = '#cf222e'; cell.style.fontWeight = '700'; cell.style.cursor = 'pointer'; cell.title = item.kind === 'dir' ? 'something below here is banged — open to drill down' : 'the crash, in full'; cell.addEventListener('click', (e) => { e.stopPropagation(); route(ns.replace(/\/$/, '') + '/' + item.name + '?view=run', item.kind === 'dir' ? 'dir' : 'file', null); }); } })
           : c);
       }
       t.addEventListener('ft-navigate', (e) => { const { item, href, mods } = e.detail; route(href, item ? item.kind : 'dir', mods); });
