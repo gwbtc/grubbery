@@ -34,8 +34,13 @@
     var s = document.createElement('style'); s.id = CSS_ID;
     s.textContent =
       '[data-nk]{outline:none}' +
-      '[data-nk] [role=option][aria-selected=true]{box-shadow:inset 3px 0 0 var(--ps-accent,#0969da);background:#f6f8fa}' +
-      '[data-nk]:focus [role=option][aria-selected=true]{background:#eef3fb}';
+      // the row cursor is NEUTRAL on purpose. It used to be drawn in
+      // --ps-accent, the very variable gmux paints the selected PANE's
+      // outline with, so the same blue meant two different selections at
+      // two different scales. Blue belongs to the pane; the row inside it
+      // gets grey. --ps-cursor themes it if an app wants its own.
+      '[data-nk] [role=option][aria-selected=true]{box-shadow:inset 3px 0 0 var(--ps-cursor,#8c959f);background:#f6f8fa}' +
+      '[data-nk]:focus [role=option][aria-selected=true]{background:#eaeef2}';
     document.head.appendChild(s);
   }
   function isEditable(el) { if (!el) return false; var t = el.tagName; return t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT' || !!el.isContentEditable; }

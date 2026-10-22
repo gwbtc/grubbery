@@ -44,6 +44,10 @@
 //   --tv-dir-color         a dir's name color when it's NOT a link — no
 //                          onOpenDir set (default #57606a)
 //   --tv-hover-bg          row hover background (default #f6f8fa)
+//   --tv-cur-bg            the keyboard cursor row (default #eaeef2) —
+//                          deliberately NEUTRAL, not blue: blue means the
+//                          selected PANE, and a blue row inside a pane
+//                          reads as a second, competing selection
 //   --tv-sel-bg / --tv-sel-color   the active file row (default #ddf4ff /
 //                          #0969da)
 //   --tv-loading-color     the "loading…" placeholder (default #8b949e) —
@@ -72,7 +76,7 @@
         border-radius: 6px; cursor: pointer;
       }
       .row:hover { background: var(--tv-hover-bg, #f6f8fa); }
-      .row.cur { background: var(--tv-cur-bg, #eef3fb); }
+      .row.cur { background: var(--tv-cur-bg, #eaeef2); }
       .caret {
         flex: none;
         width: var(--tv-caret-size, 20px); height: var(--tv-caret-size, 20px);

@@ -62,9 +62,11 @@ const STYLE = `
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   tr:hover td { background: #f6f8fa; }
+  /* neutral, not the pane accent: gmux outlines the SELECTED PANE in
+     --ps-accent, so a blue row inside one reads as a second selection */
   tr.sel td { background: #f6f8fa; }
-  tr.sel td:first-child { box-shadow: inset 3px 0 0 #0969da; }
-  :host(:focus) tr.sel td { background: #eef3fb; }
+  tr.sel td:first-child { box-shadow: inset 3px 0 0 var(--ps-cursor, #8c959f); }
+  :host(:focus) tr.sel td { background: #eaeef2; }
   :host { outline: none; }
   td.mono {
     font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
