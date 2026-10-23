@@ -597,6 +597,9 @@ function setup(root, opts) {
       // a pane that is declared but may not run here: its button shows,
       // disabled and saying why, so the declaration is visible even though
       // the pane is not; the tab falls back to rows or desktop
+      // an app may answer a dir with a layout; the workspace opens those,
+      // this finder shows the rows and says so on the disabled View button
+      if (viewer && viewer.layout && !viewer.mount) viewer = { label: 'View', blocked: 'it is a layout (' + viewer.layout + '), which the workspace opens' };
       const blocked = viewer && viewer.blocked ? viewer : null;
       if (blocked) viewer = null;
       panel._dirViewer = viewer;
