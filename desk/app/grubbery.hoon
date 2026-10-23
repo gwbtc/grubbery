@@ -4140,28 +4140,20 @@
   ::  subscriptions is never poked and would otherwise sit banged for
   ::  ever with news piling up behind it.
   ::
-  ::  This is NOT loop-proof, and deliberately does not pretend to be.
-  ::  The runtime has no general cycle protection: two grubs that poke
-  ::  each other spin inside one event, and always could. The old restart
-  ::  cap was never a cycle guard either -- it policed exactly one shape,
-  ::  a fiber re-enqueuing its own start take, which no longer happens.
-  ::
-  ::  The shape worth knowing about here: a bang advances the grub's cass
-  ::  and notifies its watchers, so a grub that follows the directory
-  ::  holding it is told about its own bang, which is another take, which
-  ::  tries another rebuild. See the note on ancestor subscriptions.
-  ::
-  ::  A second failure needs no special case -- we fall through to the
-  ::  nack below with the fresh tang, and the bang bumps as any bang
-  ::  does, because a new failure is new information for whoever follows
-  ::  this grub.
-  ::
+  ::  A failed rebuild is a failed build-spool, which is not cached, so
+  ::  this is not free -- the printf below is there to make the cost
+  ::  visible if it ever matters.  ::
   ::  The rebuilt fiber starts CLEAN (prod ~). It has no use for the tang
   ::  that killed it: waiting-for-a-poke after a crash only ever guarded
   ::  against being auto-restarted, and nothing auto-restarts now.
   ::
   =^  proc  this
     ?.  ?=(%| -.process.proc)  [proc this]
+    ::  loud on purpose: a rebuild is a build-spool, and a grub that will
+    ::  not build pays for one on EVERY take while it stays banged. If
+    ::  this line repeats, that is the cost showing itself rather than
+    ::  hiding in a slow event.
+    ~&  >>  "rebuild {(spud (snoc path.here name.here))}: banged, a take arrived"
     =/  rebuilt=_this  (spawn-proc here ~)
     =/  pip=pipe:nexus  (fall (~(get of pool.rebuilt) path.here) *pipe:nexus)
     =/  got=(unit proc:fiber:nexus)  (~(get by proc.pip) name.here)

@@ -61,9 +61,41 @@
           [~ %'run.git-action']
         ;<  ~  bind:m  (rise-queue prod)
         |-
-        ;<  poke-sage=sage:tarball  bind:m  take-poke:io
+        ::  take-poke-FROM: the queue remembers who asked, so it can answer
+        ::  them when the command is actually finished. The %pack the poker
+        ::  already got means "consumed" -- queued, not done -- which is
+        ::  exactly what the tool used to report as `ran:`.
+        ::
+        ::  Only when the request says `reply`. The poll daemon pokes this
+        ::  queue too and then goes back to waiting on poll.json, so an
+        ::  unsolicited poke would land on its fiber as a skip and sit in
+        ::  its skip queue for ever.
+        ::
+        ;<  [src=from:fiber:nexus poke-sage=sage:tarball]  bind:m  take-poke-from:io
         =/  jon=json  (fall (mole |.(!<(json q.poke-sage))) *json)
         =/  raw=@t  (fall (jget jon 'command') '')
+        =/  wants-reply=?
+          =/  r  (~(get by ?:(?=(%o -.jon) p.jon ~)) 'reply')
+          ?=([~ %b %.y] r)
+        =/  answer
+          |=  out=outcome:git-act
+          =/  m  (fiber:fiber:nexus ,~)
+          ^-  form:m
+          ?.  wants-reply  (pure:m ~)
+          =/  rep=json
+            %-  pairs:enjs:format
+            :~  ['ok' b+?=(%ok -.out)]
+                ['message' s+msg.out]
+                ['command' s+raw]
+            ==
+          ::  poke-SOFT: a requester that has gone away must not take the
+          ::  queue down with it, and a failed answer is not a failed job.
+          ::  two different +bends: a fiber's `from` is (pair @ud rail),
+          ::  while a +road's relative arm is (pair @ud lane) -- so the
+          ::  sender's rail has to be wrapped as a lane to address it.
+          =/  back=road:tarball  [%| [p.src [%& q.src]]]
+          ;<  err=(unit tang)  bind:m  (poke-soft:io back [[/ %json] rep])
+          (pure:m ~)
         =/  parsed=(unit git-command:git-act)  (parse-command:git-act raw)
         ;<  st-vase=vase  bind:m  get-state:io
         =/  st=action-state:git-act  (read-action-state:git-act q.st-vase)
@@ -72,6 +104,7 @@
           ;<  now=@da  bind:m  get-time:io
           =/  bad=done:git-act  [next-id.st raw [%error 'unrecognized command'] now]
           ;<  ~  bind:m  (replace:io st(log [bad log.st], next-id +(next-id.st)))
+          ;<  ~  bind:m  (answer [%error 'unrecognized command'])
           $
         ::  mark the job active, run it, log the outcome
         =/  =job:git-act  [next-id.st raw %start ~]
@@ -82,6 +115,7 @@
         =/  st2=action-state:git-act  (read-action-state:git-act q.st2-vase)
         =/  entry=done:git-act  [id.job raw outcome end]
         ;<  ~  bind:m  (replace:io st2(active ~, log [entry log.st2]))
+        ;<  ~  bind:m  (answer outcome)
         $
           ::  /poll.json: the sync daemon. Boot-pull once, then poke the queue's
           ::  `pull` on poll.json's own `minutes` interval, watching itself for

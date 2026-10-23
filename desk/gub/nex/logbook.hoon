@@ -1,4 +1,4 @@
-::  logbook nexus: accepts text pokes, appends to a log
+::  logbook nexus: accepts text pokes, appends to a log.
 ::  mirror.sig subscribes to a remote ship's logbook and mirrors main.txt
 ::
 /&  man  ../man/logbook/readme.md

@@ -920,13 +920,49 @@
     (ball-to-files-mt tree-ball /)
   =/  working-map=(map path [octs @t])
     (malt (turn working |=([=path data=octs mtime=@t] [path data mtime])))
-  =/  todo=(list path)  ~(tap in paths)
+  ::  EXPAND the request the way git's pathspec does, then stage files.
+  ::
+  ::    Each requested path is one of four things, and only the first two
+  ::    were handled before -- a directory matched nothing and fell into
+  ::    the removal branch, so `add code` quietly staged zero files.
+  ::
+  ::      a file in the working tree      stage its content
+  ::      absent here, present in index   stage the DELETION
+  ::      a directory                     stage every file beneath it
+  ::      neither                         no match; op-add reports it
+  ::
+  ::    `.` is NOT special and is not made special: there is no cwd here
+  ::    for it to mean, so it is matched literally like any other name,
+  ::    finds nothing, and comes back as no match. (It arrives as the
+  ::    one-segment path /. because the request splits names on '/' --
+  ::    see +read-add-request's note on never using +stab.) Bare `add`,
+  ::    with no paths at all, is the way to stage everything; it does not
+  ::    reach here, it goes to +git-add.
+  ::
+  =/  working-paths=(list path)  (turn working |=([=path *] path))
+  =/  under=$-(path (list path))
+    |=  pre=path
+    ^-  (list path)
+    %+  skim  working-paths
+    |=  w=path
+    ?~  (decap:tarball pre w)  %.n
+    %.y
+  =/  todo=(list path)
+    %-  zing
+    %+  turn  ~(tap in paths)
+    |=  pax=path
+    ^-  (list path)
+    ::  a file, or an index entry whose file is gone (a deletion)
+    ?:  |((~(has by working-map) pax) (~(has by old-idx) pax))  ~[pax]
+    ::  a directory: everything beneath it. Empty when it matches
+    ::  nothing, which is how op-add comes to report no match.
+    (under pax)
   |-
   ?~  todo  [new-idx new-loose]
   =/  pax=path  i.todo
   =/  file-data=(unit [octs @t])  (~(get by working-map) pax)
   ?~  file-data
-    ::  file not in working tree — remove from index
+    ::  in the index but gone from the working tree: stage the deletion
     $(todo t.todo, new-idx (~(del by new-idx) pax))
   ::  file exists — hash and stage
   =/  data=octs  -.u.file-data
