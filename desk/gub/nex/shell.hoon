@@ -41,6 +41,8 @@
 /&  tools-html     shell/ui/tools/index.html
 /&  tools-js       shell/ui/tools/app.js
 /&  tools-css      shell/ui/tools/style.css
+::  the explorer panes for a tools nexus and one of its tools
+/&  tools-pane-js  shell/ui/tools/pane.js
 /&  tg-js          /lib/ui/tab-group.js
 /&  md-js          /lib/ui/modal-dialog.js
 =<  ^-  nexus:nexus
@@ -77,6 +79,7 @@
           [%over %& [/ui/tools %'components.js'] [[/ %mime] kit-js]]
           [%over %& [/ui/tools %'style.css'] [[/ %mime] tools-css]]
           [%over %& [/ui/tools %'icon.svg'] [[/ %mime] tools-icon]]
+          [%over %& [/ui/tools %'pane.js'] [[/ %mime] tools-pane-js]]
           ::  usergroups.sig: the shell's ONE registry liaison. Registrant
           ::  prefixes nest-clobber (%how replaces every road under the
           ::  sender's prefix), so exactly one root-prefix fiber makes all
