@@ -55,7 +55,8 @@
 /=  t-  /tests/loader
 |%
 +$  versioned-state
-  $%  state-10:migrations
+  $%  state-11:migrations
+      state-10:migrations
       state-9:migrations
       state-8:migrations
       state-7:migrations
@@ -120,7 +121,7 @@
 ::  reference, and it only changes with the agent itself.
 ::
 =/  sut-hash=@uv  (sham q:sut)
-=|  state-10:migrations
+=|  state-11:migrations
 =*  state  -
 ::
 =<
@@ -145,17 +146,25 @@
   |=  old-state=vase
   ^-  (quip card _this)
   =/  old  !<(versioned-state old-state)
-  ?:  ?=(%10 -.old)
+  ?:  ?=(%11 -.old)
     =.  state  old
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
+  ::  %10 -> %11: a %file cite carries the grub's position. A queued
+  ::  peek is given its reader's, where its mark resolved from before.
+  ?:  ?=(%10 -.old)
+    ~>  %slog.[0 leaf+"grubbery: migrating state %10 -> %11"]
+    =.  state  (state-10-to-11:migrations old)
+    =^  start-cards  state
+      abet:cold-start:hc
+    [start-cards this]
   ::  %9 -> %10: view gained a bang. No stored view changes (pend is cold),
-  ::  but a suspended process is typed by it, so +proc-9-to-proc replaces
+  ::  but a suspended process is typed by it, so +proc-9-to-proc-10 replaces
   ::  live continuations with a crash tang and the reload rebuilds them.
   ?:  ?=(%9 -.old)
-    ~>  %slog.[0 leaf+"grubbery: migrating state %9 -> %10"]
-    =.  state  (state-9-to-10:migrations old)
+    ~>  %slog.[0 leaf+"grubbery: migrating state %9 -> %10 -> %11"]
+    =.  state  (state-10-to-11:migrations (state-9-to-10:migrations old))
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
@@ -185,14 +194,14 @@
         =/  six=state-6:migrations
           ~>  %slog.[0 leaf+"grubbery: migrating state %5 -> %6"]
           (state-5-to-6:migrations as-5)
-        =/  fsr=[pool:nexus silo:nexus]  (fsr-pool:hc pool.six silo.six)
+        =/  fsr=[pool-10:migrations silo:nexus]  (fsr-pool:hc pool.six silo.six)
         six(pool -.fsr, silo +.fsr)
       ~>  %slog.[0 leaf+"grubbery: migrating state %6 -> %7"]
       (state-6-to-7:migrations as-6)
     ~>  %slog.[0 leaf+"grubbery: migrating state %7 -> %8"]
     (state-7-to-8:migrations as-7)
-  ~>  %slog.[0 leaf+"grubbery: migrating state %8 -> %9 -> %10"]
-  =.  state  (state-9-to-10:migrations (state-8-to-9:migrations as-8))
+  ~>  %slog.[0 leaf+"grubbery: migrating state %8 -> %9 -> %10 -> %11"]
+  =.  state  (state-10-to-11:migrations (state-9-to-10:migrations (state-8-to-9:migrations as-8)))
   =^  start-cards  state
     abet:cold-start:hc
   [start-cards this]
@@ -673,41 +682,41 @@
   =.  this  (save-file new-rail [[/ %behn-state] merged])
   (cull-if-exists %& old-rail)
 ++  fsr-pool
-  |=  [pol=pool:nexus sil=silo:nexus]
-  ^-  [pool:nexus silo:nexus]
+  |=  [pol=pool-10:migrations sil=silo:nexus]
+  ^-  [pool-10:migrations silo:nexus]
   =^  nfil  sil
     ?~  fil.pol  [fil.pol sil]
     =^  procs  sil  (fsr-procs proc.u.fil.pol sil)
     [`u.fil.pol(proc procs) sil]
   =^  ndir  sil
-    =/  kids=(list [p=@ta q=pool:nexus])  ~(tap by dir.pol)
-    =|  acc=(map @ta pool:nexus)
-    |-  ^-  [(map @ta pool:nexus) silo:nexus]
+    =/  kids=(list [p=@ta q=pool-10:migrations])  ~(tap by dir.pol)
+    =|  acc=(map @ta pool-10:migrations)
+    |-  ^-  [(map @ta pool-10:migrations) silo:nexus]
     ?~  kids  [acc sil]
     =^  sub  sil  (fsr-pool q.i.kids sil)
     $(kids t.kids, acc (~(put by acc) p.i.kids sub))
   [[nfil ndir] sil]
 ++  fsr-procs
-  |=  [ps=(map @ta proc:fiber:nexus) sil=silo:nexus]
-  ^-  [(map @ta proc:fiber:nexus) silo:nexus]
-  =/  items=(list [p=@ta q=proc:fiber:nexus])  ~(tap by ps)
-  =|  acc=(map @ta proc:fiber:nexus)
-  |-  ^-  [(map @ta proc:fiber:nexus) silo:nexus]
+  |=  [ps=(map @ta proc-10:migrations) sil=silo:nexus]
+  ^-  [(map @ta proc-10:migrations) silo:nexus]
+  =/  items=(list [p=@ta q=proc-10:migrations])  ~(tap by ps)
+  =|  acc=(map @ta proc-10:migrations)
+  |-  ^-  [(map @ta proc-10:migrations) silo:nexus]
   ?~  items  [acc sil]
   =^  sk  sil  (fsr-queue skip.q.i.items sil)
   $(items t.items, acc (~(put by acc) p.i.items q.i.items(skip sk)))
 ++  fsr-queue
-  |=  [q=(qeu take:fiber:nexus) sil=silo:nexus]
-  ^-  [(qeu take:fiber:nexus) silo:nexus]
-  =/  items=(list take:fiber:nexus)  ~(tap to q)
-  =|  acc=(list take:fiber:nexus)
-  |-  ^-  [(qeu take:fiber:nexus) silo:nexus]
-  ?~  items  [(~(gas to *(qeu take:fiber:nexus)) (flop acc)) sil]
+  |=  [q=(qeu take-10:migrations) sil=silo:nexus]
+  ^-  [(qeu take-10:migrations) silo:nexus]
+  =/  items=(list take-10:migrations)  ~(tap to q)
+  =|  acc=(list take-10:migrations)
+  |-  ^-  [(qeu take-10:migrations) silo:nexus]
+  ?~  items  [(~(gas to *(qeu take-10:migrations)) (flop acc)) sil]
   =^  tk  sil  (fsr-take i.items sil)
   $(items t.items, acc [tk acc])
 ++  fsr-take
-  |=  [tk=take:fiber:nexus sil=silo:nexus]
-  ^-  [take:fiber:nexus silo:nexus]
+  |=  [tk=take-10:migrations sil=silo:nexus]
+  ^-  [take-10:migrations silo:nexus]
   ?~  in.tk  [tk sil]
   ?+    -.u.in.tk  [tk sil]
       %peep
@@ -977,7 +986,11 @@
     ?~  p.pace.u.snap.pk  [%none ~]
     ?-  -.dest.pk
       %|  [%ball *wave:nexus u.p.pace.u.snap.pk deep.pk]
-      %&  [%file cass.u.snap.pk u.p.pace.u.snap.pk blot.pk]
+        %&
+      ::  the grub's position here is its stand-in under /sys/ames
+      :*  %file  cass.u.snap.pk  u.p.pace.u.snap.pk  blot.pk
+          (weld /sys/ames/ships/[(scot %p ship.pk)]/root path.p.dest.pk)
+      ==
     ==
   ::  Bump silo ref for data-carrying cites — %file and %ball both
   ::  carry a lobe that +hydrate drops after reading, so both must
@@ -1974,6 +1987,16 @@
   =/  entry=(unit [refs=@ud =built:nexus])  (~(get by bins) u.ckey)
   ?~  entry  ~
   `[i.cands src u.ckey built.u.entry]
+::
+::  +mark-position: where a grub's mark resolves from. Its own
+::  position when a marc is reachable there (a desk-local mark reads
+::  from anywhere), else the reader's.
+::
+++  mark-position
+  |=  [reader=path at=path =blot:tarball]
+  ^-  path
+  ?~  (resolve-built at %mar blot)  reader
+  at
 ::
 ++  get-built
   |=  [pax=path kind=?(%mar %nex) addr=rail:tarball]
@@ -3858,7 +3881,7 @@
     ::  Bump silo ref to keep ject alive while queued
     =.  silo  (~(bump-ject-ref si:nexus silo) u.src-lobe)
     =/  =cass:clay  (fall (top:hist:nexus sk) *cass:clay)
-    (enqu-take here ~ ~ %peek wire.dart [%file cass u.src-lobe blot.load.dart])
+    (enqu-take here ~ ~ %peek wire.dart [%file cass u.src-lobe blot.load.dart path.dest])
   ==
 ::  dart-code: peek the /code bins slice at dest — walk up to the governing
 ::  code nexus (lode), return its refs at the inner path. a file may resolve a
@@ -4220,14 +4243,17 @@
           ?~  tn  ~
           `!<(tang [-:!>(*tang) u.tn])
         =/  =bask:tarball  [blot.mark.leaf.jt u.got]
-        =/  res  (validate-bask cod bask)
+        ::  the mark resolves from the grub's own position when it is
+        ::  found there, else from the reader's
+        =/  pos=path  (mark-position cod at.cite p.bask)
+        =/  res  (validate-bask pos bask)
         ?:  ?=(%| -.res)
           [%file cass.cite [blot.mark.leaf.jt %| [p.res u.got]] bang]
         =/  =sage:tarball  p.res
         =/  result=sang:tarball
           ?~  conv.cite  (sage-to-sang:tarball sage)
           ?:  =(p.sage u.conv.cite)  (sage-to-sang:tarball sage)
-          =/  =tube:clay  (get-tube cod [p.sage u.conv.cite])
+          =/  =tube:clay  (get-tube pos [p.sage u.conv.cite])
           (sage-to-sang:tarball [u.conv.cite (tube q.sage)])
         [%file cass.cite result bang]
           %ball

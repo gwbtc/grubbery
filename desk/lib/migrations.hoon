@@ -67,7 +67,7 @@
 ::
 +$  pend-0
   $%  [%poke =from =bask:tarball]
-      [%peek =wire =cite]
+      [%peek =wire cite=cite-10]
       [%peep =wire res=(each (list [=cass:clay lobe=jobe]) tang)]
       [%code =wire res=(each (axal (map @ta @uv)) (each @uv tang))]
       [%news =wire =wave]
@@ -130,7 +130,7 @@
 ::
 +$  pend-1
   $%  [%poke =from =bask:tarball]
-      [%peek =wire =cite]
+      [%peek =wire cite=cite-10]
       [%peep =wire res=(each (list [=cass:clay lobe=jobe]) tang)]
       [%code =wire res=(each (axal (map @ta @uv)) (each @uv tang))]
       [%news =wire =wave]
@@ -210,7 +210,7 @@
 ::
 +$  pend-3
   $%  [%poke =from =bask:tarball]
-      [%peek =wire =cite]
+      [%peek =wire cite=cite-10]
       [%peep =wire res=(each (list [=cass:clay lobe=jobe]) tang)]
       [%code =wire res=(each (axal (map @ta @uv)) (each @uv tang))]
       [%news =wire =wave]
@@ -316,7 +316,7 @@
       =born:nexus   ::  truth: version history for every directory and file
       =silo:nexus   ::  truth: content-addressed object store with refcounts
       =subs:nexus   ::  live: subscription indexes, by target and by watcher
-      =pool:nexus   ::  live: the running process for each grub
+      pool=pool-10    ::  live: the running process for each grub
       code=code-4   ::  derived: the build index for each code namespace (frozen)
       =bins:nexus   ::  derived: compiled artifacts, keyed by build hash
       =vale:nexus   ::  derived: cached validation results
@@ -332,7 +332,7 @@
       =born:nexus   ::  truth: version history for every directory and file
       =silo:nexus   ::  truth: content-addressed object store with refcounts
       =subs:nexus   ::  live: subscription indexes, by target and by watcher
-      =pool:nexus   ::  live: the running process for each grub
+      pool=pool-10    ::  live: the running process for each grub
       =code:nexus   ::  derived: the build index for each code namespace
       =bins:nexus   ::  derived: compiled artifacts, keyed by build hash
       =vale:nexus   ::  derived: cached validation results
@@ -348,7 +348,7 @@
       =born:nexus
       =silo:nexus
       =subs:nexus
-      =pool:nexus
+      pool=pool-10
       =code:nexus
       =bins:nexus
       =vale:nexus
@@ -372,7 +372,7 @@
       =born:nexus
       =silo:nexus
       =subs:nexus
-      =pool:nexus
+      pool=pool-10
       =code:nexus
       =bins:nexus
       =vale:nexus
@@ -470,7 +470,7 @@
       =peak:nexus
       =silo:nexus
       =subs:nexus
-      =pool:nexus
+      pool=pool-10
       =code:nexus
       =bins:nexus
       =vale:nexus
@@ -494,12 +494,12 @@
 ::  — lobes and ckeys only", and hydrate resolves cite -> view at
 ::  consumption time) but the continuation's TYPE drags it in, so the
 ::  chain deepens here. Only the process slot widens to *; take/pend/cite
-::  are untouched by this crossing and stay live.
+::  are untouched by this crossing, and are frozen at %10 below.
 ::
 +$  proc-9
   $:  process=(each * tang)
-      next=(qeu take:fiber:nexus)
-      skip=(qeu take:fiber:nexus)
+      next=(qeu take-10)
+      skip=(qeu take-10)
   ==
 +$  pipe-9  [bang=(unit tang) proc=(map @ta proc-9)]
 +$  pool-9  (axal pipe-9)
@@ -529,7 +529,7 @@
       =peak:nexus
       =silo:nexus
       =subs:nexus
-      =pool:nexus
+      pool=pool-10
       =code:nexus
       =bins:nexus
       =vale:nexus
@@ -546,7 +546,7 @@
       peak.old
       silo.old
       subs.old
-      (pool-9-to-pool pool.old)
+      (pool-9-to-pool-10 pool.old)
       code.old
       bins.old
       vale.old
@@ -555,22 +555,139 @@
       last.old
       conns.old
   ==
-++  pool-9-to-pool
+++  pool-9-to-pool-10
   |=  p=pool-9
-  ^-  pool:nexus
+  ^-  pool-10
   :-  ?~  fil.p  ~
-      `[bang.u.fil.p (~(run by proc.u.fil.p) proc-9-to-proc)]
-  (~(run by dir.p) pool-9-to-pool)
+      `[bang.u.fil.p (~(run by proc.u.fil.p) proc-9-to-proc-10)]
+  (~(run by dir.p) pool-9-to-pool-10)
 ::  a live continuation cannot be re-typed, and is never resumed: the
 ::  reload machinery rebuilds it. A %| tang passes through untouched.
 ::
-++  proc-9-to-proc
+++  proc-9-to-proc-10
   |=  p=proc-9
-  ^-  proc:fiber:nexus
+  ^-  proc-10
   :+  ?:  ?=(%| -.process.p)  process.p
       |+~[leaf+"migrated: process rebuilt on load (view gained bang)"]
     next.p
   skip.p
++|  %frozen-10
+::  state-10 borrowed live `pool`, and %11 moves a type inside it: a
+::  %file cite gained `at`, the grub's position, which is where its mark
+::  resolves from. A queued peek persists in a proc's next and skip as a
+::  pend holding its cite, so the chain cite -> pend -> take -> proc ->
+::  pipe -> pool freezes here.
+::
++$  cite-10
+  $%  [%file =cass:clay lobe=jobe conv=(unit blot:tarball)]
+      [%ball =wave lobe=jobe deep=?]
+      [%none ~]
+      [%miss ~]
+      [%veto ~]
+      [%tomb ~]
+  ==
++$  pend-10
+  $%  [%poke =from =bask:tarball]
+      [%peek =wire cite=cite-10]
+      [%peep =wire res=(each (list [=cass:clay lobe=jobe]) tang)]
+      [%code =wire res=(each (axal (map @ta @uv)) (each @uv tang))]
+      [%news =wire =wave]
+      [%kept =wire =kept]
+      [%made =wire err=(unit tang)]
+      [%gone =wire err=(unit tang)]
+      [%pack =wire err=(unit tang)]
+      [%sand =wire err=(unit tang)]
+      [%load =wire err=(unit tang)]
+      [%lost =wire err=(unit tang)]
+      [%gain =wire err=(unit tang)]
+      [%held =wire err=(unit tang)]
+      [%seek =wire res=(each (list [=rail:tarball =cass:clay]) tang)]
+      [%born =wire res=(each (list [=cass:clay tags=(set @t) tomb=?]) tang)]
+      [%fell =wire]
+      [%veto =dart]
+      [%here =wire =here]
+  ==
++$  take-10  [give=(unit give) in=(unit pend-10)]
++$  proc-10
+  $:  process=(each * tang)
+      next=(qeu take-10)
+      skip=(qeu take-10)
+  ==
++$  pipe-10  [bang=(unit tang) proc=(map @ta proc-10)]
++$  pool-10  (axal pipe-10)
+::  state-11: a %file cite says where the grub is, so its mark resolves
+::  from the grub's own code namespace and a desk-local mark reads from
+::  anywhere; the reader's namespace is the fallback.
+::
++$  state-11
+  $:  %11
+      =born:nexus
+      =peak:nexus
+      =silo:nexus
+      =subs:nexus
+      =pool:nexus
+      =code:nexus
+      =bins:nexus
+      =vale:nexus
+      =remo:nexus
+      =upki:nexus
+      =last:nexus
+      conns=(map @ta binding:eyre)
+  ==
+++  state-10-to-11
+  |=  old=state-10
+  ^-  state-11
+  :*  %11
+      born.old
+      peak.old
+      silo.old
+      subs.old
+      (pool-10-to-pool / pool.old)
+      code.old
+      bins.old
+      vale.old
+      remo.old
+      upki.old
+      last.old
+      conns.old
+  ==
+::  a queued peek's answer did not say where it was read. It is given
+::  its reader's position, which is where its mark resolved from under
+::  %10, so nothing already queued reads differently.
+::
+++  pool-10-to-pool
+  |=  [here=path p=pool-10]
+  ^-  pool:nexus
+  :-  ?~  fil.p  ~
+      `[bang.u.fil.p (~(run by proc.u.fil.p) (cury proc-10-to-proc here))]
+  %-  ~(urn by dir.p)
+  |=([k=@ta kid=pool-10] ^$(here (snoc here k), p kid))
+::
+++  proc-10-to-proc
+  |=  [here=path p=proc-10]
+  ^-  proc:fiber:nexus
+  :+  ?:  ?=(%| -.process.p)  process.p
+      |+~[leaf+"migrated: process rebuilt on load (cite gained at)"]
+    (takes-10-to-takes here next.p)
+  (takes-10-to-takes here skip.p)
+::
+++  takes-10-to-takes
+  |=  [here=path q=(qeu take-10)]
+  ^-  (qeu take)
+  (~(gas to *(qeu take)) (turn ~(tap to q) (cury take-10-to-take here)))
+::
+++  take-10-to-take
+  |=  [here=path t=take-10]
+  ^-  take
+  ?~  in.t  [give.t ~]
+  [give.t `(pend-10-to-pend here u.in.t)]
+::
+++  pend-10-to-pend
+  |=  [here=path p=pend-10]
+  ^-  pend
+  ?.  ?=(%peek -.p)  p
+  ?.  ?=(%file -.cite.p)  [%peek wire.p cite.p]
+  [%peek wire.p [%file cass.cite.p lobe.cite.p conv.cite.p here]]
 ++  state-8-to-9
   |=  old=state-8
   ^-  state-9
@@ -824,20 +941,21 @@
   ?.  ?=(%tag -.l)  l
   [%tags case.l tags.l]
 ::
-+|  %pool-3-to-live
++|  %pool-3-to-10
 ::  Drops what no longer exists: a queued %font take, and a vetoed dart
-::  whose load was %font. Everything else passes through.
+::  whose load was %font. Everything else passes through. The result is
+::  the %10 pool: states %4 through %10 share that shape.
 ::
 ++  pool-3-to-pool
   |=  p=pool-3
-  ^-  pool:nexus
+  ^-  pool-10
   :-  ?~  fil.p  ~
       `[bang.u.fil.p (~(run by proc.u.fil.p) proc-3-to-proc)]
   (~(run by dir.p) pool-3-to-pool)
 ::
 ++  proc-3-to-proc
   |=  p=proc-3
-  ^-  proc:fiber:nexus
+  ^-  proc-10
   :+  ?:  ?=(%| -.process.p)  process.p
       |+~[leaf+"migrated: process rebuilt on load"]
     (takes-3-to-takes next.p)
@@ -845,21 +963,21 @@
 ::
 ++  takes-3-to-takes
   |=  q=(qeu take-3)
-  ^-  (qeu take)
-  %-  ~(gas to *(qeu take))
+  ^-  (qeu take-10)
+  %-  ~(gas to *(qeu take-10))
   (murn ~(tap to q) take-3-to-take)
 ::
 ++  take-3-to-take
   |=  t=take-3
-  ^-  (unit take)
+  ^-  (unit take-10)
   ?~  in.t  `[give.t ~]
-  =/  p=(unit pend)  (pend-3-to-pend u.in.t)
+  =/  p=(unit pend-10)  (pend-3-to-pend u.in.t)
   ?~  p  ~
   `[give.t p]
 ::
 ++  pend-3-to-pend
   |=  p=pend-3
-  ^-  (unit pend)
+  ^-  (unit pend-10)
   ?:  ?=(%font -.p)  ~
   ?.  ?=(%veto -.p)  `p
   ?:  ?=([%node * * %font ~] dart.p)  ~

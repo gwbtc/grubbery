@@ -4,12 +4,6 @@
 !:
 ^-  tool:tools
 |%
-::  TODO: this tool converts under ITS OWN position (/apps/mcp.mcp/tools/
-::  runs), so a grub under a desk whose mark lives only in that desk's code
-::  reads as "no marc for %x--y" here even though it is a valid grub. Fall
-::  back to the raw noun with its blot when no conversion is reachable
-::  from here, instead of reporting a boom.
-::
 ++  name  'read_grub'
 ++  description  'Read a grub (file) from the grubbery ball. Returns JSON content directly, other marks as text.'
 ++  parameters
@@ -38,5 +32,14 @@
     (lookup-grub:tools pax u.file-name)
   ?.  ?=([%file *] view)
     (pure:m [%error (crip "Not found: {(trip u.file-path)}/{(trip u.file-name)}")])
-  (render-grub-content:tools view)
+  ::  a mark this nexus has no conversion for is converted where the
+  ::  grub lives: the peek asks for mime, and the kernel resolves the
+  ::  tube from the grub's own position
+  =/  known=?
+    ?:  ?=(%| -.q.sang.view)  &
+    =/  nm=@tas  name.p.sang.view
+    |((is-text-blot:tools nm) =(%mime nm))
+  ?:  known  (render-grub-content:tools view)
+  ;<  as-mime=view:nexus  bind:m  (peek:io [%& %& pax u.file-name] `[/ %mime])
+  (render-grub-content:tools as-mime)
 --

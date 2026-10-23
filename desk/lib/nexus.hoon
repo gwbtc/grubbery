@@ -95,7 +95,9 @@
       [%tomb ~]
   ==
 +$  cite
-  $%  [%file =cass:clay lobe=jobe conv=(unit blot:tarball)]
+  ::  at: the grub's position, where its mark resolves from. The path it
+  ::  was read at; for a remote grub, its stand-in under /sys/ames.
+  $%  [%file =cass:clay lobe=jobe conv=(unit blot:tarball) at=path]
       [%ball =wave lobe=jobe deep=?]
       [%none ~]
       [%miss ~]
