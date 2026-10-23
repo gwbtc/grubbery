@@ -2,7 +2,7 @@
 // mount(root, {url, args, open, onNavigate}) -> {destroy, onUpdate}.
 //
 //   tools-nexus  one tools nexus: its tools (click one: it opens as a
-//                tab) and the runs in flight. args {at}: the nexus's
+//                tab) and the runs it keeps. args {at}: the nexus's
 //                absolute path
 //   tool         one tool, opened on its source file: description,
 //                schema, a form to run it, the source. args {at, file}:
@@ -124,9 +124,13 @@
       tTools.classList.toggle('on', mode === 'tools'); tRuns.classList.toggle('on', mode === 'runs');
       tRuns.textContent = runs.length ? 'runs · ' + runs.length : 'runs';
       if (err) { list.appendChild(el('div', 'tn-err', err)); return; }
+      // a nexus may keep its runs (the clanker keeps the newest fifty) or
+      // cull them on completion (the MCP endpoint does): what is here is
+      // what it kept, and what has not reached %done is running
       if (mode === 'runs') {
-        count.textContent = runs.length ? runs.length + ' in flight' : '';
-        if (!runs.length) { list.appendChild(el('div', 'tn-empty', 'No runs in flight.')); return; }
+        var running = runs.filter(function (r) { return r.step !== 'done'; }).length;
+        count.textContent = runs.length ? runs.length + ' kept' + (running ? ' · ' + running + ' running' : '') : '';
+        if (!runs.length) { list.appendChild(el('div', 'tn-empty', 'No runs kept.')); return; }
         runs.forEach(function (r) {
           var row = el('div', 'tn-row');
           row.appendChild(el('div', 'name', r.tool));
