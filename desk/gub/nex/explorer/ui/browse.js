@@ -613,8 +613,9 @@ function setup(root, opts) {
       styleModeBtn(panel._modeView, mode === 'view');
       if (mode === 'view') {
         // a dir pane navigates this tab to a dir by default, or to a file
-        // when it says so: onNavigate(url, 'file')
-        try { panel._fv = viewer.mount(panel._body, { url: path, onNavigate: (u, k) => navigateTab(panel, u, k === 'file' ? 'file' : 'dir') }) || { destroy() {} }; }
+        // when it says so: onNavigate(url, 'file'). A relative url
+        // ('./chat') is against this dir, as everywhere else (psRel)
+        try { panel._fv = viewer.mount(panel._body, { url: path, onNavigate: (u, k) => navigateTab(panel, psRel(path, u), k === 'file' ? 'file' : 'dir') }) || { destroy() {} }; }
         catch (e) { panel._body.textContent = 'viewer failed: ' + e; }
         if (!panel.hidden) markActiveInTree(path);
         saveTabs();
@@ -636,7 +637,7 @@ function setup(root, opts) {
       panel._crumbs.appendChild(n);
       panel._modeWrap.style.display = 'none';
       // under a scope the header crumb starts at the scope's root, like the tree
-      const opts = { url: path, wrapKey: K + '-wrap', crumbBase: ROOT, onNavigate: (u) => navigateTab(panel, u, 'dir') };
+      const opts = { url: path, wrapKey: K + '-wrap', crumbBase: ROOT, onNavigate: (u) => navigateTab(panel, psRel(path.slice(0, path.lastIndexOf('/')) || '/', u), 'dir') };
       // a registered viewer for this file's mark becomes FileView's first
       // pane (the file itself stays one click away in Source)
       const viewer = await viewerFor(path, 'file');
