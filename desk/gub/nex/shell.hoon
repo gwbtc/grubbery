@@ -32,11 +32,26 @@
 /&  notif-html     shell/ui/notifications/index.html
 /&  notif-js       shell/ui/notifications/app.js
 /&  notif-css      shell/ui/notifications/style.css
+::  tools: the MCP endpoint (lib/shell/mcp), its page at /grubbery/tools
+::  on the kit (tab-group, modal-dialog), and its tools nexus seeded
+::  from the tool bundle
+/<  mcp            /lib/shell/mcp.hoon
+/&  tool-bundle    /lib/tool-bundle/
+/&  tools-icon     shell/ui/tools/icon.svg
+/&  tools-html     shell/ui/tools/index.html
+/&  tools-js       shell/ui/tools/app.js
+/&  tools-css      shell/ui/tools/style.css
+/&  tg-js          /lib/ui/tab-group.js
+/&  md-js          /lib/ui/modal-dialog.js
 =<  ^-  nexus:nexus
     |%
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
+      ::  the kit components the tools page uses, welded into one served file
+      =/  wrap  |=(=mime ^-(@ (rap 3 ~[123 10 q.q.mime 10 125 10])))
+      =/  kit-js=mime
+        [/application/javascript (as-octs:mimes:html (rap 3 ~[(wrap tg-js) (wrap md-js)]))]
       %+  spin:loader  ball
       :~  (manifest:loader 0)
           ::  /ui: everything served over HTTP. http.sig binds the routes and
@@ -55,6 +70,13 @@
           [%over %& [/ui/notifications %'app.js'] [[/ %mime] notif-js]]
           [%over %& [/ui/notifications %'style.css'] [[/ %mime] notif-css]]
           [%over %& [/ui/notifications %'icon.svg'] [[/ %mime] notif-icon]]
+          ::  /ui/tools: the tools page (lib/shell/mcp), at /grubbery/tools
+          [%fall %| /ui/tools empty-dir:loader]
+          [%over %& [/ui/tools %'index.html'] [[/ %mime] tools-html]]
+          [%over %& [/ui/tools %'app.js'] [[/ %mime] tools-js]]
+          [%over %& [/ui/tools %'components.js'] [[/ %mime] kit-js]]
+          [%over %& [/ui/tools %'style.css'] [[/ %mime] tools-css]]
+          [%over %& [/ui/tools %'icon.svg'] [[/ %mime] tools-icon]]
           ::  usergroups.sig: the shell's ONE registry liaison. Registrant
           ::  prefixes nest-clobber (%how replaces every road under the
           ::  sender's prefix), so exactly one root-prefix fiber makes all
@@ -139,6 +161,12 @@
           [%fall %& [/notifications %'registry.json'] [[/ %json] [%o ~]]]
           [%fall %& [/notifications %'inbox.inbox'] [[/ %inbox] *inbox:nib]]
           [%over %| /notifications/tools (seed-tools:nex-tools notif-bundle)]
+          ::  /tools: the tools nexus the MCP endpoint serves (lib/shell/mcp):
+          ::  the bundle over whatever tools were added at runtime. Its tile
+          ::  is a local one, like Landscape's.
+          [%over %| /tools (tools-bole:mcp ball tool-bundle)]
+          [%fall %| /tiles/tools empty-dir:loader]
+          [%fall %& [/tiles/tools %'tile.json'] [[/ %json] tile:mcp]]
       ==
     ::
     ++  on-file
@@ -156,6 +184,7 @@
         ;<  ~  bind:m  (bind-http:io [~ /apps/grubbery])
         ;<  ~  bind:m  (bind-http:io [~ /grubbery/tiles])
         ;<  ~  bind:m  (bind-http:io [~ /grubbery/inbox])
+        ;<  ~  bind:m  (bind-http:io [~ /grubbery/tools])
         (http-dispatch:io %shell)
           ::  notifications/main.sig: the bus's poke loop (register, notify,
           ::  ack, clear); lib/shell/notifications does the work
@@ -369,6 +398,9 @@
         ::  /grubbery/inbox[/<file>] → the notifications page
         ?:  ?=([%grubbery %inbox *] site)
           (serve-page:notifications rail)
+        ::  /grubbery/tools → the MCP endpoint and its page
+        ?:  ?=([%grubbery %tools *] site)
+          (serve-request:mcp rail)
         =/  suffix=path  (slag (lent prefix) site)
         ::  POST /apps/grubbery/peers/{create,members,permissions}: the three
         ::  writes the peers panes need. Reads are the explorer's; these are

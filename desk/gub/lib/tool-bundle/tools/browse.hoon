@@ -8,7 +8,7 @@
 ++  description  'List files and subdirectories at a path in the grubbery ball'
 ++  parameters
   ^-  (map @t parameter-def:tools)
-  (malt ~[['path' [%string 'Directory path (e.g. "/" or "/mcp.mcp")']]])
+  (malt ~[['path' [%string 'Directory path (e.g. "/" or "/apps")']]])
 ++  required  ~['path']
 ++  handler
   ^-  tool-handler:tools
