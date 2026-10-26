@@ -7381,8 +7381,7 @@
   ::
       %scry
     ?:  =([/ %scry-request] p.sage)
-      =.  this  (handle-typed-scry here wir q.sage)
-      `(enqu-take here ~ ~ %pack wir ~)
+      `(handle-typed-scry here wir q.sage)
     ::  remote-scry farm writes. Weir-gated as ordinary /sys pokes by
     ::  arrival here; gall consumes the emitted cards and signs
     ::  nothing back, so each is fire-and-forget on this %pack.
@@ -8024,16 +8023,38 @@
   (ws-tell owner.u.row [/ %ws-closed] wid)
 ::  /sys/scry/ typed scry service
 ::
+::
+::  The caller names the scry. A scry that fails takes the kernel's whole
+::  event down: +mule hands a scry through to the event's own, so no mole
+::  and no fiber trap catches it, and the caller is left waiting for good.
+::  Clay answers whether a file exists, and gall whether an agent runs,
+::  without ever failing, so a miss there is caught first and goes back as
+::  a failed pack, the same
+::  take a refused poke gives. A scry of another vane, or of a path a
+::  running agent does not answer, still fails the event; only scoping
+::  what a caller may scry closes that.
+::
 ++  handle-typed-scry
   |=  [sender=rail:tarball =wire vaz=vase]
   ^+  this
   =/  [mark=@tas pat=path]  !<([@tas path] vaz)
   =/  scry-rail=rail:tarball  [/sys/scry %'main.sig']
-  ?>  ?=([@ @ *] pat)
-  =/  res=*
-    .^(* i.pat (scot %p our.bowl) i.t.pat (scot %da now.bowl) t.t.pat)
+  =/  fail
+    |=  why=tape
+    (enqu-take sender ~ ~ %pack wire `~[leaf+"{why}: {(spud pat)}"])
+  ?.  ?=([@ @ *] pat)  (fail "scry needs a care and a desk")
+  =/  at=path  [(scot %p our.bowl) i.t.pat (scot %da now.bowl) t.t.pat]
+  =/  vane=@t  (end 3 i.pat)
+  ::  %cu is file existence, so it guards only the file read; a %cy or %cs
+  ::  of a directory has no file and goes through as asked
+  ?:  &(=(%cx i.pat) !.^(? %cu at))
+    (fail "no such file")
+  ?:  &(=('g' vane) !=(%gu i.pat) !.^(? %gu /(scot %p our.bowl)/[i.t.pat]/(scot %da now.bowl)/$))
+    (fail "no such agent")
+  =/  res=*  .^(* i.pat at)
   =/  rel=from:fiber:nexus  (relativize-from:nexus sender scry-rail)
-  (enqu-take sender ~ ~ %poke rel [[/ mark] res])
+  =.  this  (enqu-take sender ~ ~ %poke rel [[/ mark] res])
+  (enqu-take sender ~ ~ %pack wire ~)
 ::  /sys/scry remote-scry farm service, write side. Semantics ported
 ::  from nisfeb's PR #41 (the dart-shaped original); delivery moved to
 ::  service pokes so weirs gate it with no special cases and no state
