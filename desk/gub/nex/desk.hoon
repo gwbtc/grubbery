@@ -309,16 +309,20 @@
     ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
     ?+    name.p.sage  $
         %handle-http-request
+      ::  the same sender checks as +http-dispatch:io
+      ?.  =(*from:fiber:nexus from)  $
       =/  [eyre-id=@ta src=@p req=inbound-request:eyre]
         !<([@ta @p inbound-request:eyre] q.sage)
       ;<  ~  bind:m
         (make:io [%| 0 %& /requests eyre-id] |+[[[/ %http-request] [src req]] ~])
       $
         %handle-http-cancel
+      ?.  =(*from:fiber:nexus from)  $
       =/  eyre-id=@ta  !<(@ta q.sage)
       ;<  ~  bind:m  (cull:io [%| 0 %& /requests eyre-id])
       $
         %eyre-action
+      ?.  =(0 p.from)  $
       ;<  ~  bind:m  (send-dart:io %node / server-road %poke [p.sage q.q.sage])
       $
         %json

@@ -2076,15 +2076,22 @@
   ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from
   ?+    name.p.sage  $
       %handle-http-request
+    ::  only the kernel opens a request, and it pokes with no sender,
+    ::  which no grub can pose as
+    ?.  =(*from:fiber:nexus from)  $
     =/  [eyre-id=@ta src=@p req=inbound-request:eyre]
       !<([eyre-id=@ta @p inbound-request:eyre] q.sage)
     ;<  ~  bind:m  (make [%| 0 %& /requests eyre-id] |+[[[/ %http-request] [src req]] ~])
     $
       %handle-http-cancel
+    ?.  =(*from:fiber:nexus from)  $
     =/  eyre-id=@ta  !<(@ta q.sage)
     ;<  ~  bind:m  (cull [%| 0 %& /requests eyre-id])
     $
       %eyre-action
+    ::  relayed with this nexus's own bindings, so only for its own
+    ::  fibers: a sender with no steps up lives under this directory
+    ?.  =(0 p.from)  $
     ;<  ~  bind:m  (send-dart %node / server-road %poke [p.sage q.q.sage])
     $
   ==
