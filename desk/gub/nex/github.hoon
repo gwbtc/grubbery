@@ -180,6 +180,16 @@
   =/  account=@t
     (fall (bind (gets 'account') |=(=json ?>(?=(%s -.json) p.json))) '')
   ;<  cfg=[api=@t accounts=(map @t @t)]  bind:m  read-config
+  ::  the path is appended to the API base, so it must start a path: one
+  ::  starting with '@' or '.' names another host, and the token with it
+  ?.  =('/' (end 3 pax))
+    ;<  ~  bind:m
+      %-  replace:io
+      %-  pairs:enjs:format
+      :~  ['status' s+'done']  ['request' req]
+          ['code' (numb:enjs:format 400)]  ['body' s+'path must start with /']
+      ==
+    stay:m
   =/  url=@t  (cat 3 api.cfg pax)
   =/  =request:http
     :^    (parse-method method)
@@ -302,7 +312,19 @@
     =/  location=(unit @t)
       (~(get by (malt headers.response-header.client-response)) 'location')
     ?~  location  ~|  "%github: redirect without location"  !!
-    ;<  ~  bind:m  (send-request:io request(url u.location))
+    ::  the token is for the host it was sent to: a redirect to another
+    ::  host, or down to plain http, goes on without it
+    =/  keep=?
+      ?&  =((url-host url.request) (url-host u.location))
+          !=("http://" (scag 7 (trip u.location)))
+      ==
+    =/  hop=request:http
+      ?:  keep  request(url u.location)
+      %=  request
+        url  u.location
+        header-list  (skip header-list.request |=([k=@t *] =("authorization" (cass (trip k)))))
+      ==
+    ;<  ~  bind:m  (send-request:io hop)
     ;<  =res=client-response:iris  bind:m  take-client-response:io
     ?.  ?=(%finished -.res-client-response)
       ~|  "%github: redirect did not finish"  !!
@@ -314,6 +336,17 @@
   :-  code
   ?~  full-file.client-response  *octs
   data.u.full-file.client-response
+::  +url-host: the host of an absolute url, without scheme or path
+::
+++  url-host
+  |=  url=@t
+  ^-  @t
+  =/  t=tape  (trip url)
+  =/  rest=tape
+    ?:  =("https://" (scag 8 t))  (slag 8 t)
+    ?:  =("http://" (scag 7 t))  (slag 7 t)
+    t
+  (crip (scag (fall (find "/" rest) (lent rest)) rest))
 ::  +run-auth: the OAuth device flow, living on auth.json. starting ->
 ::  request a device code from GitHub, record it -> poll until the user
 ::  approves in a browser -> write the token into config.json -> done.
