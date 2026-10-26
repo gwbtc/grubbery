@@ -2426,6 +2426,21 @@
   ?.  ?=(%o -.j)  ~
   =/  r  (~(get by p.j) 'road')
   ?.(?=([~ %s *] r) ~ `p.u.r)
+::  +narrow-to-ask: the granted roads that the app's own ask declares, per
+::  category, as bare road strings.
+::
+++  narrow-to-ask
+  |=  [granted=json ask=json]
+  ^-  json
+  :-  %o
+  %-  ~(gas by *(map @t json))
+  %+  turn  `(list @t)`~['poke' 'peek' 'make']
+  |=  cat=@t
+  =/  ok=(set @t)  (silt (road-strs ask cat))
+  :-  cat
+  :-  %a
+  %+  turn  (skim (road-strs granted cat) |=(t=@t (~(has in ok) t)))
+  |=(t=@t s+t)
 ::  +cat-arr: pass a category's raw json array through (for the record).
 ::
 ++  cat-arr
@@ -2647,8 +2662,9 @@
   ;<  ask=(unit json)  bind:m  (read-app-weir-json app)
   ?~  ask  (pure:m ~)
   ?.  ?=(%o -.u.ask)  (pure:m ~)
-  ::  what gets sanded is the granted subset, not the whole declared ask
-  =/  sub=json  ?:(?=(%o -.granted) granted u.ask)
+  ::  what gets sanded is the granted subset, not the whole declared ask,
+  ::  and a road the app never asked for is dropped whatever the POST says
+  =/  sub=json  (narrow-to-ask ?:(?=(%o -.granted) granted u.ask) u.ask)
   ::  the alias directory costs a peek per installed app - most of this
   ::  fiber's time - and only an ask that names an @alias needs it.
   ;<  menus=json  bind:m
