@@ -7040,7 +7040,11 @@
   ?-    -.act
       %init
     ?^  config.st  this  :: already initialized
-    =/  new-config=push-config:push  (generate-vapid-keypair:web-push eny.act sub.act)
+    ::  the key pair comes from the kernel's entropy, never the poke's: a
+    ::  caller who chose it would know the private key. eny.act stays in
+    ::  the mark for the apps that send it, and is ignored.
+    =.  last  last(eny (shaz (cat 3 eny.bowl eny.last)))
+    =/  new-config=push-config:push  (generate-vapid-keypair:web-push eny.last sub.act)
     (save-push-state st(config `new-config))
   ::
       %subscribe
@@ -7071,11 +7075,17 @@
     ?~  target-subs  this
     =/  [sub-id=@ta ps=push-sub:nexus]  i.target-subs
     =/  sub=subscription:push  subscription.ps
+    ::  a send's key and nonce come from the kernel's entropy, rolled for
+    ::  each send as a bowl read rolls it, so no two sends share them. A
+    ::  caller who chose them could repeat a nonce under one key and undo
+    ::  the encryption. eny.act is ignored.
+    =.  last  last(eny (shaz (cat 3 eny.bowl eny.last)))
+    =/  eny=@uvJ  eny.last
     =/  req=request:http
-      (send-notification:web-push sub config payload exp eny.act)
+      (send-notification:web-push sub config payload exp eny)
     ::  Build push wire: /push/send/{path-len}/{path...}/{name}/{sub-id}/{notif-id}
     ::  notif-id keeps concurrent sends to the same sub on distinct wires
-    =/  notif-id=@ta  (scot %uv (end [3 8] (shax (cat 3 eny.act sub-id))))
+    =/  notif-id=@ta  (scot %uv (end [3 8] (shax (cat 3 eny sub-id))))
     =/  push-wire=path
       :-  %push
       :-  %send
