@@ -273,6 +273,37 @@
     ==
   ==
 ::
+::  +runnable-mime: would a browser run content of this type? Served
+::  from the ship's origin it runs with the owner's session, so content
+::  not trusted with that goes out as inert text instead. XML and XSLT
+::  count: a stylesheet can turn an XML document into a scripted page.
+::
+++  runnable-mime
+  |=  =mite
+  ^-  ?
+  ::  a cord, since a path literal can't hold the '+' in svg+xml
+  =/  ct=@t  (spat `path`mite)
+  ?|  =('/text/html' ct)            =('/application/javascript' ct)
+      =('/text/javascript' ct)      =('/application/ecmascript' ct)
+      =('/image/svg+xml' ct)        =('/application/wasm' ct)
+      =('/application/xhtml+xml' ct)  =('/application/xml' ct)
+      =('/text/xml' ct)             =('/text/xsl' ct)
+      =('/application/xslt+xml' ct)
+  ==
+::  +inert-response: content as text/plain, never sniffed into anything
+::  a browser would run, and marked as served inert so a reader can tell
+::  "sandboxed" from "missing" or "broken".
+::
+++  inert-response
+  |=  =octs
+  ^-  simple-payload:http
+  :_  `octs
+  :-  200
+  :~  ['content-type' 'text/plain']
+      ['x-content-type-options' 'nosniff']
+      ['x-grubbery-serve' 'sandboxed']
+  ==
+::
 ++  cross-origin-forbidden
   |=  [mode=(unit @t) site=(unit @t)]
   ^-  simple-payload:http
