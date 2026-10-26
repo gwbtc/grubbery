@@ -841,7 +841,8 @@
     ?.  ?=([%ball *] cur)  ~
     ?~(fil.ball.cur ~ neck.u.fil.ball.cur)
   =/  root=pulp:tarball  (fall fil.bol `pulp:tarball`[~ ~ %.n ~])
-  =.  bol  bol(fil `root(neck nek))
+  ::  the root's weir is ours too: none here keeps the one recorded
+  =.  bol  bol(fil `root(neck nek, weir ~))
   (over-fold:io (nex-road:io rail [%| dir]) bol)
 ::
 ::  do-snapshot: capture a WORLD snapshot — firm both /data and /code
@@ -1259,7 +1260,23 @@
 ++  code-bole
   |=  b=ball:tarball
   ^-  bole:tarball
-  (hoonify-bole (ball-to-bole:tarball b) %.n)
+  (strip-nested (hoonify-bole (ball-to-bole:tarball b) %.n))
+::  +strip-nested: the necks and weirs inside a synced tree are its
+::  publisher's. A neck would start a nexus inside /desk/code that no one
+::  consented to, and a weir would set governance there, so both go from
+::  every directory below the root. Instances start only through
+::  bill.json and shell consent.
+::
+++  strip-nested
+  |=  bol=bole:tarball
+  ^-  bole:tarball
+  %=    bol
+      dir
+    %-  ~(run by dir.bol)
+    |=  kid=bole:tarball
+    =?  fil.kid  ?=(^ fil.kid)  `u.fil.kid(neck ~, weir ~)
+    (strip-nested kid)
+  ==
 ::
 ++  is-bundle-dir
   |=  seg=@ta
