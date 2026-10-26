@@ -1555,6 +1555,23 @@
 ::
 ::  sends prompt to API, handles tool_use responses, loops until end_turn
 ::
+::  +max-tool-calls: tool calls one user message may lead to. Every round
+::  is a metered call to the model, and a model that keeps asking for
+::  tools would otherwise loop as long as it liked.
+::
+++  max-tool-calls  50
+::  +calls-since-user: tool calls made since the last user message
+::
+++  calls-since-user
+  |=  =convo
+  ^-  @ud
+  =/  rev=(list entry)  (flop convo)
+  =|  n=@ud
+  |-
+  ?~  rev  n
+  ?:  &(?=(%msg -.i.rev) =('user' role.i.rev))  n
+  $(rev t.rev, n ?:(?=(%tool-use -.i.rev) +(n) n))
+::
 ++  agent-turn
   |=  [chat-name=@ta model=@t api-name=@t ctx-window=@ud msg-cap=@ud =convo tools=(map @t tool:nex-tools)]
   =/  m  (fiber:fiber:nexus ,^convo)
@@ -1577,7 +1594,17 @@
       "Ship: {(scow %p our)}\0a"
       "Location: {(spud (snoc path.here name.here))}"
     ==
-  |-
+  ::  each round comes back here; a bare $ further down would name the
+  ::  continuation of the last ;< instead of this trap
+  |-  ^-  form:m
+  =*  loop  $
+  ::  checked at the top of a round, where every tool_use already has its
+  ::  result, so the history stays one the API accepts
+  ?:  (gte (calls-since-user convo) max-tool-calls)
+    =/  stop=^convo
+      (snoc convo [%msg 'assistant' (crip "[stopped: {<max-tool-calls>} tool calls without an answer]")])
+    ;<  ~  bind:m  (write-chat stop)
+    (pure:m stop)
   =/  sys-prompt=@t
     %-  crip
     ;:  weld
@@ -1677,7 +1704,7 @@
   ?~  result
     ::  interrupted during tool execution — exit turn
     (pure:m updated)
-  $(convo u.result)
+  loop(convo u.result)
 ::
 ::  +run-tool-calls: execute tool calls via /tools grubs
 ::
