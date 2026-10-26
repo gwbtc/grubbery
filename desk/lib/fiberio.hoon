@@ -489,12 +489,12 @@
 ::  firm the fold hist (whose pace lobe is the subtree merkle root).
 ::
 ++  checkpoint
-  |=  =road:tarball
+  |=  [=road:tarball tags=(set @t)]
   =/  m  (fiber ,~)
   ^-  form:m
   ;<  =wire  bind:m  (nonce /firm)
   ;<  ~  bind:m
-    (send-dart %node wire road %firm ~)
+    (send-dart %node wire road %firm tags)
   (take-held wire)
 ::  +tag: set tags on a hist entry (file or fold, per road)
 ::
@@ -553,6 +553,16 @@
   ^-  form:m
   ;<  =wire  bind:m  (nonce /peek)
   ;<  ~  bind:m  (send-dart %node wire road %peek blot ~ %.n)
+  (take-peek wire)
+::
+::  Shallow peek at a historical version: this level only, no recursion
+::
+++  peek-shallow-at
+  |=  [=road:tarball blot=(unit blot:tarball) =case:nexus]
+  =/  m  (fiber ,view:nexus)
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /peek)
+  ;<  ~  bind:m  (send-dart %node wire road %peek blot `case %.n)
   (take-peek wire)
 ::
 ::  Peek at a historical version of a file

@@ -604,7 +604,7 @@
       [%seek =wire res=(each (list [=rail:tarball =cass:clay]) tang)]
       [%born =wire res=(each (list [=cass:clay tags=(set @t) tomb=?]) tang)]
       [%fell =wire]
-      [%veto =dart]
+      [%veto dart=dart-11]
       [%here =wire =here]
   ==
 +$  take-10  [give=(unit give) in=(unit pend-10)]
@@ -625,7 +625,7 @@
       =peak:nexus
       =silo:nexus
       =subs:nexus
-      =pool:nexus
+      pool=pool-11
       =code:nexus
       =bins:nexus
       =vale:nexus
@@ -657,7 +657,7 @@
 ::
 ++  pool-10-to-pool
   |=  [here=path p=pool-10]
-  ^-  pool:nexus
+  ^-  pool-11
   :-  ?~  fil.p  ~
       `[bang.u.fil.p (~(run by proc.u.fil.p) (cury proc-10-to-proc here))]
   %-  ~(urn by dir.p)
@@ -665,7 +665,7 @@
 ::
 ++  proc-10-to-proc
   |=  [here=path p=proc-10]
-  ^-  proc:fiber:nexus
+  ^-  proc-11
   :+  ?:  ?=(%| -.process.p)  process.p
       |+~[leaf+"migrated: process rebuilt on load (cite gained at)"]
     (takes-10-to-takes here next.p)
@@ -673,18 +673,18 @@
 ::
 ++  takes-10-to-takes
   |=  [here=path q=(qeu take-10)]
-  ^-  (qeu take)
-  (~(gas to *(qeu take)) (turn ~(tap to q) (cury take-10-to-take here)))
+  ^-  (qeu take-11)
+  (~(gas to *(qeu take-11)) (turn ~(tap to q) (cury take-10-to-take here)))
 ::
 ++  take-10-to-take
   |=  [here=path t=take-10]
-  ^-  take
+  ^-  take-11
   ?~  in.t  [give.t ~]
   [give.t `(pend-10-to-pend here u.in.t)]
 ::
 ++  pend-10-to-pend
   |=  [here=path p=pend-10]
-  ^-  pend
+  ^-  pend-11
   ?.  ?=(%peek -.p)  p
   ?.  ?=(%file -.cite.p)  [%peek wire.p cite.p]
   [%peek wire.p [%file cass.cite.p lobe.cite.p conv.cite.p here]]
@@ -843,6 +843,148 @@
       last.old
   ==
 ::
++|  %frozen-11
+::  %12 widens the %firm load to carry tags: +firm-hist always took
+::  them, the dart never supplied them. Loads persist in pool process
+::  queues via pend's [%veto =dart], so the documented chain freezes
+::  here: load -> dart -> pend -> take -> proc -> pipe -> pool.
+::
++$  load-11
+  $%  [%poke =bask:tarball]
+      [%make force=? gain=? =make]
+      [%cull ~]
+      [%sand weir=(unit weir)]
+      [%load ~]
+      [%peek blot=(unit blot:tarball) case=(unit case) deep=?]
+      [%keep blot=(unit blot:tarball)]
+      [%drop ~]
+      [%lose =lose]
+      [%gain flag=?]
+      [%firm ~]
+      [%tags case=(unit case) tags=(set @t)]
+      [%seek =nobe]
+      [%peep =find]
+      [%born ~]
+      [%code ~]
+  ==
+::
++$  dart-11
+  $%  [%node =wire road=road:tarball load=load-11]
+      [%here =wire]
+      [%kept =wire]
+  ==
+::
++$  pend-11
+  $%  [%poke =from =bask:tarball]
+      [%peek =wire =cite]
+      [%peep =wire res=(each (list [=cass:clay lobe=jobe]) tang)]
+      [%code =wire res=(each (axal (map @ta @uv)) (each @uv tang))]
+      [%news =wire =wave]
+      [%kept =wire =kept]
+      [%made =wire err=(unit tang)]
+      [%gone =wire err=(unit tang)]
+      [%pack =wire err=(unit tang)]
+      [%sand =wire err=(unit tang)]
+      [%load =wire err=(unit tang)]
+      [%lost =wire err=(unit tang)]
+      [%gain =wire err=(unit tang)]
+      [%held =wire err=(unit tang)]
+      [%seek =wire res=(each (list [=rail:tarball =cass:clay]) tang)]
+      [%born =wire res=(each (list [=cass:clay tags=(set @t) tomb=?]) tang)]
+      [%fell =wire]
+      [%veto dart=dart-11]
+      [%here =wire =here]
+  ==
+::
++$  take-11  [give=(unit give) in=(unit pend-11)]
++$  proc-11
+  $:  process=(each * tang)
+      next=(qeu take-11)
+      skip=(qeu take-11)
+  ==
++$  pipe-11  [bang=(unit tang) proc=(map @ta proc-11)]
++$  pool-11  (axal pipe-11)
+::  state-12: a %firm load carries the labels to set on the version it
+::  promotes, so committing a version and naming it is one write.
+::
++$  state-12
+  $:  %12
+      =born:nexus
+      =peak:nexus
+      =silo:nexus
+      =subs:nexus
+      =pool:nexus
+      =code:nexus
+      =bins:nexus
+      =vale:nexus
+      =remo:nexus
+      =upki:nexus
+      =last:nexus
+      conns=(map @ta binding:eyre)
+  ==
+++  state-11-to-12
+  |=  old=state-11
+  ^-  state-12
+  :*  %12
+      born.old
+      peak.old
+      silo.old
+      subs.old
+      (pool-11-to-pool pool.old)
+      code.old
+      bins.old
+      vale.old
+      remo.old
+      upki.old
+      last.old
+      conns.old
+  ==
+::  a queued %firm carried no labels, so it gets none.
+::
+++  pool-11-to-pool
+  |=  p=pool-11
+  ^-  pool:nexus
+  :-  ?~  fil.p  ~
+      `[bang.u.fil.p (~(run by proc.u.fil.p) proc-11-to-proc)]
+  (~(run by dir.p) pool-11-to-pool)
+::
+++  proc-11-to-proc
+  |=  p=proc-11
+  ^-  proc:fiber:nexus
+  :+  ?:  ?=(%| -.process.p)  process.p
+      |+~[leaf+"migrated: process rebuilt on load (%firm gained tags)"]
+    (takes-11-to-takes next.p)
+  (takes-11-to-takes skip.p)
+::
+++  takes-11-to-takes
+  |=  q=(qeu take-11)
+  ^-  (qeu take)
+  (~(gas to *(qeu take)) (turn ~(tap to q) take-11-to-take))
+::
+++  take-11-to-take
+  |=  t=take-11
+  ^-  take
+  ?~  in.t  [give.t ~]
+  [give.t `(pend-11-to-pend u.in.t)]
+::
+++  pend-11-to-pend
+  |=  p=pend-11
+  ^-  pend
+  ?.  ?=(%veto -.p)  p
+  [%veto (dart-11-to-dart dart.p)]
+::
+++  dart-11-to-dart
+  |=  d=dart-11
+  ^-  dart:nexus
+  ?.  ?=(%node -.d)  d
+  [%node wire.d road.d (load-11-to-load load.d)]
+::
+++  load-11-to-load
+  |=  l=load-11
+  ^-  load:nexus
+  ?.  ?=(%firm -.l)  l
+  [%firm ~]
+::
 +|  %pool-0-to-1
 ::
 ++  pool-0-to-1
@@ -985,7 +1127,7 @@
 ::
 ++  dart-3-to-dart
   |=  d=dart-3
-  ^-  dart:nexus
+  ^-  dart-11
   ?.  ?=(%node -.d)  d
   ?<  ?=(%font -.load.d)
   [%node wire.d road.d load.d]

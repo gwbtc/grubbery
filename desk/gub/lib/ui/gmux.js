@@ -325,7 +325,10 @@ class Gmux extends HTMLElement {
     // row 1 — tabs + structure controls
     const row1 = document.createElement('div'); row1.className = 'ps-bar-row';
     const tabs = document.createElement('div'); tabs.className = 'ps-bar-tabs';
-    const add = btn('+', 'new tab', () => this.newTab(id, this.#curPath(id)));
+    // a FRESH tab, not another of where you already are. Passing the
+    // pane's current path deduped against the active tab every time --
+    // which is always showing it -- so the button only re-selected it.
+    const add = btn('+', 'new tab', () => this.newTab(id));
     const viewBtn = btn('', 'rendering mode', () => this.#cycleView(id));
     const menu = btn('≡', 'full bar / tabs only', () => this.setNav(id)); menu.classList.add('ps-bar-menu');
     const hide = btn('▴', 'hide bar', () => this.setBar(id, false)); hide.classList.add('ps-bar-menu');   // stays in tabs-only too

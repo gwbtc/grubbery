@@ -130,7 +130,7 @@
       [%drop ~]                 :: unsubscribe from dest
       [%lose =lose]             :: drop hist entries, decrement silo refs
       [%gain flag=?]            :: set gain flag (recursive on directories)
-      [%firm ~]                 :: promote current entry to %firm
+      [%firm tags=(set @t)]     :: promote current entry to %firm, with labels
       [%tags case=(unit case) tags=(set @t)]  :: set tags on hist entry (~ = current)
       [%seek =nobe]              :: find all [rail cass] pairs with this hash
       [%peep =find]
@@ -1054,11 +1054,12 @@
       ==
     =/  [new-jobe=jobe fin-silo=^silo]
       (~(put-ject si mid-silo) new-ject)
-    ::  drop old ject ref
-    =.  fin-silo  (~(drop-ject si fin-silo) old-lobe)
+    ::  the old ject STAYS. A bang is a new version, and the version it
+    ::  follows still names this ject -- releasing it here left records
+    ::  pointing at collected objects. Its release is +drop-temp's call,
+    ::  made with the entry it belongs to.
     [new-jobe fin-silo]
-  ::  Clear bang on an existing ject.  Builds a new ject with bang=~,
-  ::  drops the old ject and the old bang noun ref.
+  ::  Clear bang on an existing ject.  Builds a new ject with bang=~.
   ::  Returns ~ if ject has no bang or doesn't exist.
   ::
   ++  clear-bang
@@ -1080,8 +1081,8 @@
       ==
     =/  [new-jobe=jobe mid-silo=^silo]
       (~(put-ject si silo) new-ject)
-    ::  drop old ject ref (cascades to drop old bang noun ref)
-    =.  mid-silo  (~(drop-ject si mid-silo) old-lobe)
+    ::  as in +set-bang: the version being followed still names the old
+    ::  ject, so it is not released here
     `[new-jobe mid-silo]
   ::  +drop-temp: a %temp pace that is being replaced is deleted, not
   ::  tombed. A hist then holds only readable paces, so a hot file does

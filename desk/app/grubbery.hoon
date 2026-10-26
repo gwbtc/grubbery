@@ -55,7 +55,8 @@
 /=  t-  /tests/loader
 |%
 +$  versioned-state
-  $%  state-11:migrations
+  $%  state-12:migrations
+      state-11:migrations
       state-10:migrations
       state-9:migrations
       state-8:migrations
@@ -121,7 +122,7 @@
 ::  reference, and it only changes with the agent itself.
 ::
 =/  sut-hash=@uv  (sham q:sut)
-=|  state-11:migrations
+=|  state-12:migrations
 =*  state  -
 ::
 =<
@@ -146,16 +147,24 @@
   |=  old-state=vase
   ^-  (quip card _this)
   =/  old  !<(versioned-state old-state)
-  ?:  ?=(%11 -.old)
+  ?:  ?=(%12 -.old)
     =.  state  old
+    =^  start-cards  state
+      abet:cold-start:hc
+    [start-cards this]
+  ::  %11 -> %12: the %firm load carries the labels to set on the
+  ::  version it promotes. A queued %firm carried none, so it gets none.
+  ?:  ?=(%11 -.old)
+    ~>  %slog.[0 leaf+"grubbery: migrating state %11 -> %12"]
+    =.  state  (state-11-to-12:migrations old)
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
   ::  %10 -> %11: a %file cite carries the grub's position. A queued
   ::  peek is given its reader's, where its mark resolved from before.
   ?:  ?=(%10 -.old)
-    ~>  %slog.[0 leaf+"grubbery: migrating state %10 -> %11"]
-    =.  state  (state-10-to-11:migrations old)
+    ~>  %slog.[0 leaf+"grubbery: migrating state %10 -> %11 -> %12"]
+    =.  state  (state-11-to-12:migrations (state-10-to-11:migrations old))
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
@@ -163,8 +172,8 @@
   ::  but a suspended process is typed by it, so +proc-9-to-proc-10 replaces
   ::  live continuations with a crash tang and the reload rebuilds them.
   ?:  ?=(%9 -.old)
-    ~>  %slog.[0 leaf+"grubbery: migrating state %9 -> %10 -> %11"]
-    =.  state  (state-10-to-11:migrations (state-9-to-10:migrations old))
+    ~>  %slog.[0 leaf+"grubbery: migrating state %9 -> %10 -> %11 -> %12"]
+    =.  state  (state-11-to-12:migrations (state-10-to-11:migrations (state-9-to-10:migrations old)))
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
@@ -200,8 +209,10 @@
       (state-6-to-7:migrations as-6)
     ~>  %slog.[0 leaf+"grubbery: migrating state %7 -> %8"]
     (state-7-to-8:migrations as-7)
-  ~>  %slog.[0 leaf+"grubbery: migrating state %8 -> %9 -> %10 -> %11"]
-  =.  state  (state-10-to-11:migrations (state-9-to-10:migrations (state-8-to-9:migrations as-8)))
+  ~>  %slog.[0 leaf+"grubbery: migrating state %8 -> %9 -> %10 -> %11 -> %12"]
+  =.  state
+    %-  state-11-to-12:migrations
+    (state-10-to-11:migrations (state-9-to-10:migrations (state-8-to-9:migrations as-8)))
   =^  start-cards  state
     abet:cold-start:hc
   [start-cards this]
@@ -1641,7 +1652,12 @@
 ++  drop-hist
   |=  [here=rail:tarball =lose:nexus]
   ^+  this
-  =/  sk=hist:nexus  (need (get-born here))
+  ::  no history at this rail: nothing to drop. A +need here crashed the
+  ::  whole dart, which banged the fiber that sent it -- a caller naming
+  ::  the wrong rail took out the grub that asked.
+  =/  got=(unit hist:nexus)  (get-born here)
+  ?~  got  this
+  =/  sk=hist:nexus  u.got
   =/  entries=(list [key=cass:clay val=entry:hist:nexus])
     (tap:hon:hist:nexus sk)
   =/  kept=(list [key=cass:clay val=entry:hist:nexus])  ~
@@ -2657,9 +2673,14 @@
   =/  [new-jobe=jobe:nexus new-silo=silo:nexus]
     (~(set-bang si:nexus silo) u.p.u.pv err)
   =/  new-cass=cass:clay  (~(next-cass bo:nexus now.bowl born) u.cas)
-  =/  new-sok=hist:nexus
-    (put-pace:hist:nexus u.sok new-cass [%temp `new-jobe])
   =.  silo  new-silo
+  ::  the version this one follows goes by the ordinary rule: %temp is
+  ::  deleted and its ject released together, %firm keeps both
+  =^  dropped=hist:nexus  silo
+    =/  res  (~(drop-temp si:nexus silo) u.sok u.cas)
+    [+.res -.res]
+  =/  new-sok=hist:nexus
+    (put-pace:hist:nexus dropped new-cass [%temp `new-jobe])
   =.  this  (put-born here new-sok)
   =/  old-born=born:nexus  born
   =.  this  (record-trees path.here)
@@ -2682,9 +2703,12 @@
   =/  [new-jobe=jobe:nexus new-silo=silo:nexus]
     (~(set-bang si:nexus silo) u.p.u.pv err)
   =/  new-cass=cass:clay  (~(next-cass bo:nexus now.bowl born) u.cas)
-  =/  new-fold=hist:nexus
-    (put-pace:hist:nexus fold.u.node new-cass [%temp `new-jobe])
   =.  silo  new-silo
+  =^  dropped=hist:nexus  silo
+    =/  res  (~(drop-temp si:nexus silo) fold.u.node u.cas)
+    [+.res -.res]
+  =/  new-fold=hist:nexus
+    (put-pace:hist:nexus dropped new-cass [%temp `new-jobe])
   =.  born  (~(put of born) dest u.node(fold new-fold))
   =/  old-born=born:nexus  born
   =.  this  (record-trees dest)
@@ -2765,9 +2789,12 @@
     =/  cleared  (~(clear-bang si:nexus silo) u.p.u.pv)
     ?~  cleared  this
     =/  new-cass=cass:clay  (~(next-cass bo:nexus now.bowl born) u.fold-cas)
-    =/  new-fold=hist:nexus
-      (put-pace:hist:nexus fold.u.fil.bor new-cass [%temp `lobe.u.cleared])
     =.  silo  silo.u.cleared
+    =^  dropped=hist:nexus  silo
+      =/  res  (~(drop-temp si:nexus silo) fold.u.fil.bor u.fold-cas)
+      [+.res -.res]
+    =/  new-fold=hist:nexus
+      (put-pace:hist:nexus dropped new-cass [%temp `lobe.u.cleared])
     =.  born
       =/  node  (fall (~(get of born) pax) *[fold=hist:nexus file=(map @ta hist:nexus)])
       (~(put of born) pax node(fold new-fold))
@@ -2789,9 +2816,12 @@
     ?~  cleared  $(files t.files)
     =/  here=rail:tarball  [pax name]
     =/  new-cass=cass:clay  (~(next-cass bo:nexus now.bowl born) u.cas)
-    =/  new-sok=hist:nexus
-      (put-pace:hist:nexus sok new-cass [%temp `lobe.u.cleared])
     =.  silo  silo.u.cleared
+    =^  dropped=hist:nexus  silo
+      =/  res  (~(drop-temp si:nexus silo) sok u.cas)
+      [+.res -.res]
+    =/  new-sok=hist:nexus
+      (put-pace:hist:nexus dropped new-cass [%temp `lobe.u.cleared])
     =.  this  (put-born here new-sok)
     $(files t.files)
   ::  Recurse into subdirectories
@@ -2817,42 +2847,69 @@
 ::  rail numbers after it. Gain governs what a hist retains in life
 ::  (firm vs temp), not what survives death: nothing does.
 ::
+::  +drop-grub: the path stops holding anything.
+::
+::    A PATH is what carries versions, not the grub at it. So deletion
+::    is an event on that timeline, the same shape as creation: +init
+::    opens every path with a version holding nothing, and this closes
+::    it with one. A path deleted and remade has one history, with the
+::    gap visible in it, rather than two orphans.
+::
+::    Both ways a grub can go come through here -- an explicit delete,
+::    and a settle that finds it gone from the tree -- so they cannot
+::    drift apart. They had: +delete destroyed the timeline instead.
+::
+::    The replaced version follows the ordinary retention rule, exactly
+::    as a write does: %temp goes, %firm stays. Without that a nexus's
+::    requests dir, which makes and culls a grub per HTTP request, would
+::    keep every one of them forever.
+::
+++  drop-grub
+  |=  [dir=path name=@ta]
+  ^+  this
+  =/  here=rail:tarball  [dir name]
+  =.  this  (sub-wipe here)
+  =.  this
+    =/  sok=(unit hist:nexus)  (get-born here)
+    ?~  sok  this
+    =/  cas=(unit cass:clay)  (top:hist:nexus u.sok)
+    ?~  cas  this
+    =/  cur=(unit pace:hist:nexus)  (get-pace:hist:nexus u.sok u.cas)
+    ::  already holding nothing: no second empty version
+    ?:  &(?=(^ cur) ?=(?(%temp %firm) -.u.cur) ?=(~ p.u.cur))
+      this
+    =/  new-cass=cass:clay  (~(next-cass bo:nexus now.bowl born) u.cas)
+    =/  prev-leaf=(unit leaf:nexus)  (hist-leaf u.sok u.cas)
+    =^  dropped=hist:nexus  silo
+      =/  res  (~(drop-temp si:nexus silo) u.sok u.cas)
+      [+.res -.res]
+    =?  vale  ?=(~ (get-pace:hist:nexus dropped u.cas))  (gc-vale-prev prev-leaf)
+    (put-born here (put-pace:hist:nexus dropped new-cass [%temp ~]))
+  ::  queued inputs are answered, not dropped on the floor
+  =/  old-proc=(unit proc:fiber:nexus)
+    =/  pip=pipe:nexus  (fall (~(get of pool) dir) *pipe:nexus)
+    (~(get by proc.pip) name)
+  =?  this  ?=(^ old-proc)
+    =.  this  (nack-poke-takes here next.u.old-proc ~[leaf+"deleted"])
+    (nack-poke-takes here skip.u.old-proc ~[leaf+"deleted"])
+  =/  pip=pipe:nexus  (fall (~(get of pool) dir) *pipe:nexus)
+  this(pool (~(put of pool) dir pip(proc (~(del by proc.pip) name))))
+::
 ++  delete
   |=  [dir=path name=@ta]
   ^+  this
-  =/  del-check  (peek-grub-now [dir name])
   ::  deleting what is already gone is a no-op, not a fault
-  ~?  &(dbg ?=(~ del-check))
+  ~?  &(dbg ?=(~ (peek-grub-now [dir name])))
     "no grub at {(spud (weld dir /[name]))}"
-  ::  Clean up outgoing subscriptions from this file
-  =.  this  (sub-wipe [dir name])
-  ::  Snapshot before mutations
   =/  old-born=born:nexus  born
-  ::  Tomb previous %temp entry, then append [%temp ~ ~] for deletion
-  =/  sok=(unit hist:nexus)  (get-born [dir name])
-  =.  this
-    ?.  ?=(^ sok)  this
-    =/  file-cass=cass:clay  (need (top:hist:nexus u.sok))
-    ::  Capture the leaf being tombed so its vale entry can follow it
-    =/  prev-leaf=(unit leaf:nexus)  (hist-leaf u.sok file-cass)
-    ::  one HTTP request makes and culls a grub under the nexus's
-    ::  requests dir; a record kept here would be a record every later
-    ::  request in that dir walks past. The number is already in peak.
-    =.  silo  (~(drop-hist si:nexus silo) u.sok)
-    =.  born  (~(del bo:nexus now.bowl born) [dir name])
-    =.  vale  (gc-vale-prev prev-leaf)
-    this
+  =.  this  (drop-grub dir name)
   =.  this  (propagate old-born [dir name])
-  =/  old=pipe:nexus  (fall (~(get of pool) dir) *pipe:nexus)
-  =/  =pipe:nexus  old(proc (~(del by proc.old) name))
-  =.  pool  (~(put of pool) dir pipe)
   ::  Rebuild if deletion is inside a code nexus
   =/  cod=(unit path)
     (owner-code dir)
   ?~  cod  this
   ~?  dbg  "delete: triggering build-code from {(spud dir)}"
-  =.  this  (build-code u.cod `(sy `(list rail:tarball)`~[[dir name]]))
-  this
+  (build-code u.cod `(sy `(list rail:tarball)`~[[dir name]]))
 ::  Send ack/nack back to poke source
 ::  - Internal (%&): enqueue %pack intake to source path
 ::  - External (%|): emit gall card
@@ -3751,8 +3808,8 @@
       =/  res=(each _this tang)
         %-  mule  |.
         ?-  -.u.dest-lane
-          %&  (firm-hist p.u.dest-lane ~)
-          %|  (firm-fold p.u.dest-lane ~)
+          %&  (firm-hist p.u.dest-lane tags.load.dart)
+          %|  (firm-fold p.u.dest-lane tags.load.dart)
         ==
       ?-  -.res
         %&  (enqu-take:p.res here ~ ~ %held wire.dart ~)
@@ -5103,7 +5160,8 @@
       (fall (~(get by dir.bol) i.all-kids) *bole:tarball)
     =.  this  ^$(here (snoc here i.all-kids), bol kid-bole)
     $(all-kids t.all-kids)
-  ::  2. Record files: store jects for bole files, [%temp ~ ~] for stale
+  ::  2. Record files: store jects for bole files, drop the record of
+  ::  any the tree no longer has
   =/  new-files=(map @ta [=bask:tarball gain=?])
     ?~(fil.bol ~ contents.u.fil.bol)
   =/  new-names=(set @ta)  ~(key by new-files)
@@ -5135,27 +5193,7 @@
       ~(tap in (~(dif in ~(key by file.u.node)) new-names))
     |-
     ?~  to-delete  this
-    =/  sok=(unit hist:nexus)  (get-born [here i.to-delete])
-    ?~  sok  $(to-delete t.to-delete)
-    =/  file-cas=(unit cass:clay)  (top:hist:nexus u.sok)
-    ?~  file-cas  $(to-delete t.to-delete)
-    =/  cur-pace=(unit pace:hist:nexus)
-      (get-pace:hist:nexus u.sok u.file-cas)
-    ?:  &(?=(^ cur-pace) ?=(?(%temp %firm) -.u.cur-pace) =(~ p.u.cur-pace))
-      $(to-delete t.to-delete)
-    =/  new-cass=cass:clay  (next-cass:boo u.file-cas)
-    =/  new-sok=hist:nexus  (put-pace:hist:nexus u.sok new-cass [%temp ~])
-    =.  this  (put-born [here i.to-delete] new-sok)
-    ::  Nack queued inputs and remove process for deleted file
-    =/  del-rail=rail:tarball  [here i.to-delete]
-    =/  old-pipe=pipe:nexus  (fall (~(get of pool) here) *pipe:nexus)
-    =/  old-proc=(unit proc:fiber:nexus)  (~(get by proc.old-pipe) i.to-delete)
-    =?  this  ?=(^ old-proc)
-      =.  this  (nack-poke-takes del-rail next.u.old-proc ~[leaf+"deleted"])
-      (nack-poke-takes del-rail skip.u.old-proc ~[leaf+"deleted"])
-    =.  pool
-      =/  =pipe:nexus  old-pipe(proc (~(del by proc.old-pipe) i.to-delete))
-      (~(put of pool) here pipe)
+    =.  this  (drop-grub here i.to-delete)
     $(to-delete t.to-delete)
   ::  3. Build tree from settled born + update fold
   ::  If bole has no content here, delete the fold
@@ -6679,6 +6717,127 @@
   |=  [caller=rail:tarball =jump:nexus dest=lane:tarball]
   ^-  ?
   !?=([~ %|] (allowed-quiet jump caller `dest))
+::  +jobe-at-case: the ject a path held at a given version.
+::
+::    The bridge that makes the PAST BROWSABLE. A fold's tree ject names
+::    each child's jobe, and every ancestor is bumped on any write
+::    beneath it, so a directory at a cass resolves its whole subtree as
+::    it stood. Feeding that jobe to +peek-ball / +peek-ball-shallow
+::    reuses the present-day rendering unchanged -- a past listing is the
+::    same listing, read from a different tree.
+::
+::    ~ covers every way a version fails to resolve, and the reasons
+::    differ: no such version, a tomb, a pace holding nothing, or a
+::    jobe the silo does not have. +case-gone tells them apart for the
+::    reader; this gate only says whether there is a ject.
+::
+++  jobe-at-case
+  |=  [here=lane:tarball cas=@ud]
+  ^-  (unit jobe:nexus)
+  =/  sk=(unit hist:nexus)
+    ?-  -.here
+      %&  (get-born p.here)
+      %|  =/(n (~(get of born) p.here) ?~(n ~ `fold.u.n))
+    ==
+  ?~  sk  ~
+  =/  cp  (resolve-case:nexus [%ud cas] u.sk)
+  ?~  cp  ~
+  ?:  ?=(%tomb -.pace.u.cp)  ~
+  p.pace.u.cp
+::  +jobe-under: a descendant's ject INSIDE an ancestor's version.
+::
+::    Standing in version N of a directory, the things under it are the
+::    things it held then -- not those paths as they are now. A tree
+::    ject names its children's jects directly, so this is a walk down
+::    from the anchor's jobe, one segment at a time, and costs nothing
+::    like reading the subtree.
+::
+::    `rel` is the path from the anchor down. Its last segment is a file
+::    when `file` is set, a directory otherwise.
+::
+++  jobe-under
+  |=  [anchor=jobe:nexus rel=path file=?]
+  ^-  (unit jobe:nexus)
+  ?~  rel  ?:(file ~ `anchor)
+  =/  jot  (~(get by jects.silo) anchor)
+  ?~  jot  ~
+  ?.  ?=(%tree -.ject.u.jot)  ~
+  =/  =tree:nexus  tree.ject.u.jot
+  ?~  t.rel
+    ?:  file  (~(get by fil.tree) i.rel)
+    =/  kid  (~(get by dir.tree) i.rel)
+    ?~(kid ~ `lobe.u.kid)
+  =/  kid  (~(get by dir.tree) i.rel)
+  ?~  kid  ~
+  $(anchor lobe.u.kid, rel t.rel)
+::  +ud-arg: a version number as a URL carries it.
+::
+::    slaw %ud and dem:ag both want hoon's dotted form (1.000), and a
+::    url carries the plain number. Every version >= 1000 therefore
+::    parsed as ~ -- and a ~ case means "now", so the request silently
+::    served the PRESENT under a past label. dim:ag is the bare-digit
+::    parser; dots are stripped first so both spellings work.
+::
+++  ud-arg
+  |=  t=@t
+  ^-  (unit @ud)
+  (rush (crip (skip (trip t) |=(a=@tD =('.' a)))) dim:ag)
+::  +asof-arg: the ?asof= a request asked for.
+::
+::    Spelled <path>:<version> -- /apps/forge.git_forge/repos:14 -- so
+::    one argument carries both halves: WHOSE version, and which. A case
+::    says "this path at version N"; an asof says "this path as it was
+::    inside version N of that ancestor".
+::
+++  asof-arg
+  |=  args=quay:eyre
+  ^-  (unit [anchor=path cas=@ud])
+  =/  a=(unit @t)  (get-key:kv:html-utils 'asof' args)
+  ?~  a  ~
+  =/  txt=tape  (trip u.a)
+  ::  paths hold no colon, so the first one is the separator
+  =/  idx=(unit @ud)  (find ":" txt)
+  ?~  idx  ~
+  =/  num=(unit @ud)  (ud-arg (crip (slag +(u.idx) txt)))
+  ?~  num  ~
+  `[(stab (crip (scag u.idx txt))) u.num]
+::  +asof-jobe: resolve a path as of an ancestor's version.
+::
+++  asof-jobe
+  |=  [as=[anchor=path cas=@ud] =path file=?]
+  ^-  (unit jobe:nexus)
+  ?.  =(anchor.as (scag (lent anchor.as) path))  ~   ::  not under the anchor
+  =/  root  (jobe-at-case [%| anchor.as] cas.as)
+  ?~  root  ~
+  (jobe-under u.root (slag (lent anchor.as) path) file)
+::  +case-gone: why a version would not resolve. Three distinct cases.
+::
+::    no entry       -- never recorded, or since collected
+::    entry, no jobe -- the path held nothing in that version
+::    entry, a jobe not in the silo -- a fault
+::
+++  case-gone
+  |=  [here=lane:tarball cas=@ud]
+  ^-  @t
+  =/  sk=(unit hist:nexus)
+    ?-  -.here
+      %&  (get-born p.here)
+      %|  =/(n (~(get of born) p.here) ?~(n ~ `fold.u.n))
+    ==
+  ?~  sk  'no such version'
+  =/  cp  (resolve-case:nexus [%ud cas] u.sk)
+  ?~  cp  'no such version'
+  ?:  ?=(%tomb -.pace.u.cp)  'that version was dropped'
+  ?~  p.pace.u.cp  'nothing was at this path in that version'
+  'this version references an object that is not in the silo; that cannot happen, and means something is broken'
+::  +case-arg: the ?case= a request asked for, if any and if a number
+::
+++  case-arg
+  |=  args=quay:eyre
+  ^-  (unit @ud)
+  =/  c=(unit @t)  (get-key:kv:html-utils 'case' args)
+  ?~  c  ~
+  (ud-arg u.c)
 ::  +ball-op-jump: which jump does this endpoint perform?
 ::
 ::    The URL surface is unchanged — every existing caller keeps working
@@ -6694,7 +6853,7 @@
   |=  [method=@tas endpoint=@tas]
   ^-  (unit jump:nexus)
   ?+    [method endpoint]  ~
-      [%'GET' ?(%file %kids %tree %tar %dir %sand %weir %keep)]   `%peek
+      [%'GET' ?(%file %kids %tree %tar %dir %sand %weir %keep %born)]   `%peek
       [%'POST' %poke]                                             `%poke
       [%'PUT' ?(%file %dir %weir)]                                `%make
       [%'POST' ?(%over %upload)]                                  `%make
@@ -6711,7 +6870,8 @@
 ++  ball-op-dest
   |=  [endpoint=@tas api-path=path]
   ^-  (unit lane:tarball)
-  ?:  ?=(?(%kids %tree %tar %dir %sand %weir) endpoint)
+  ::  born addresses either, and resolves whichever exists
+  ?:  ?=(?(%kids %tree %tar %dir %sand %weir %born) endpoint)
     `[%| api-path]
   ?~  api-path  ~
   `[%& [(snip `path`api-path) (rear api-path)]]
@@ -6906,7 +7066,19 @@
   =/  api-path=path  t.t.t.site
   ?+  [method.request.req endpoint]  ~   ::  ~ = not a sync read; needs a fiber
       [%'GET' %kids]
-    =/  =ball:tarball  (peek-ball-now api-path)
+    =/  cas=(unit @ud)  (case-arg args)
+    =/  as=(unit [anchor=path cas=@ud])  (asof-arg args)
+    =/  bal=(unit ball:tarball)
+      ?^  as
+        =/  jb  (asof-jobe u.as api-path %.n)
+        ?~(jb ~ `(peek-ball-shallow u.jb))
+      ?~  cas  `(peek-ball-now api-path)
+      =/  jb  (jobe-at-case [%| api-path] u.cas)
+      ?~(jb ~ `(peek-ball-shallow u.jb))
+    ?~  bal
+      ?^  as  (err 410 'that directory was not there in that version')
+      (err 410 (case-gone [%| api-path] (need cas)))
+    =/  =ball:tarball  u.bal
     %-  ok-json
     %-  pairs:enjs:format
     :~  ['files' [%a (turn (~(lis ba:tarball ball) /) |=(n=@ta s+n))]]
@@ -6914,8 +7086,19 @@
     ==
   ::
       [%'GET' %tree]
-    =/  =ball:tarball  (peek-ball-now api-path)
-    (ok-json (tree-to-json:tarball (ball-to-tree:tarball ball)))
+    =/  cas=(unit @ud)  (case-arg args)
+    =/  as=(unit [anchor=path cas=@ud])  (asof-arg args)
+    =/  bal=(unit ball:tarball)
+      ?^  as
+        =/  jb  (asof-jobe u.as api-path %.n)
+        ?~(jb ~ `(peek-ball u.jb))
+      ?~  cas  `(peek-ball-now api-path)
+      =/  jb  (jobe-at-case [%| api-path] u.cas)
+      ?~(jb ~ `(peek-ball u.jb))
+    ?~  bal
+      ?^  as  (err 410 'that directory was not there in that version')
+      (err 410 (case-gone [%| api-path] (need cas)))
+    (ok-json (tree-to-json:tarball (ball-to-tree:tarball u.bal)))
   ::
       [%'GET' %sand]
     =/  =ball:tarball  (peek-ball-now api-path)
@@ -6925,12 +7108,99 @@
     =/  =ball:tarball  (peek-ball-now api-path)
     (ok-json (ball-weirs-to-json:nexus ball))
   ::
+      [%'GET' %born]
+    ::  the SURVIVING MOMENTS of a path -- the versions whose record is
+    ::  still here, for a grub or a directory alike. Sparse by nature:
+    ::  the past is mostly collected, and what is left is what was kept.
+    ::  `firm` marks a version somebody promoted, `tomb` one whose
+    ::  content is gone though its record remains.
+    ::
+    ::  A directory's own cass is a real recursive snapshot: its tree
+    ::  ject names each child's jobe, and every ancestor is bumped on
+    ::  any write beneath it (+record-trees-lanes recurses to the root),
+    ::  so a fold at a cass resolves its whole subtree as it was.
+    ::  ?fold=1 asks for the DIRECTORY's history at this path. Without it
+    ::  a path that reads as both -- a grub `x` in /a and a directory
+    ::  /a/x -- answers with the grub's, while +jobe-at-case resolves a
+    ::  directory against the fold's. Two different histories for one
+    ::  path: the version list and the versions it navigates to did not
+    ::  belong to the same thing.
+    =/  want-fold=?  =([~ '1'] (get-key:kv:html-utils 'fold' args))
+    =/  as-fold=(unit hist:nexus)
+      =/  n  (~(get of born) api-path)
+      ?~(n ~ `fold.u.n)
+    =/  sk=(unit hist:nexus)
+      ?~  api-path  =/(n (~(get of born) /) ?~(n ~ `fold.u.n))
+      ?:  want-fold  as-fold
+      =/  as-file=(unit hist:nexus)
+        (get-born [(snip `path`api-path) (rear api-path)])
+      ?^  as-file  as-file
+      as-fold
+    ?~  sk  (err 404 'no history at that path')
+    %-  ok-json
+    :-  %a
+    %+  turn  (tap:hon:hist:nexus u.sk)
+    |=  [key=cass:clay val=entry:hist:nexus]
+    ::  `empty` is a version in which the path held nothing: the one
+    ::  +init opens a path with, and the one +drop-grub closes it with.
+    ::  A real version of the path, with no object to read.
+    ::
+    ::  `broken` names an object the silo does not have. That cannot
+    ::  happen and means something is wrong -- but it belongs IN THE
+    ::  LIST, not only in the answer when the version is opened, so an
+    ::  unreadable version can be seen and dropped without clicking
+    ::  every row to find it.
+    =/  broken=?
+      ?:  ?=(%tomb -.pace.val)  %.n
+      ?~  p.pace.val  %.n
+      !(~(has by jects.silo) u.p.pace.val)
+    %-  pairs:enjs:format
+    :~  ['ud' (numb:enjs:format ud.key)]
+        ['da' s+(scot %da da.key)]
+        ['tags' [%a (turn ~(tap in tags.val) |=(t=@t s+t))]]
+        ['tomb' b+?=(%tomb -.pace.val)]
+        ['firm' b+?=(%firm -.pace.val)]
+        ['empty' b+?:(?=(%tomb -.pace.val) %.y ?=(~ p.pace.val))]
+        ['broken' b+broken]
+    ==
+  ::
       [%'GET' %file]
     ?~  api-path  (err 400 'File path required')
     =/  dir=path  (snip `path`api-path)
     =/  name=@ta  (rear api-path)
-    =/  content=(unit sang:tarball)  (peek-grub-now dir name)
-    ?~  content  (err 404 'Not found')
+    ::  ?case=N serves a PAST version of this grub. Without it, now.
+    ::  The peek has always taken a case (load's %peek carries one); it
+    ::  was simply never reachable over HTTP, so an old version could be
+    ::  listed and not read. A tomb is a version whose record survived
+    ::  its content, and says so rather than 404ing as if it never was.
+    =/  cas=(unit @ud)  (case-arg args)
+    =/  as=(unit [anchor=path cas=@ud])  (asof-arg args)
+    =/  content=(unit sang:tarball)
+      ?^  as
+        =/  jb  (asof-jobe u.as api-path %.y)
+        ?~(jb ~ (peek-grub u.jb))
+      ?~  cas  (peek-grub-now dir name)
+      =/  jb  (jobe-at-case [%& [dir name]] u.cas)
+      ?~(jb ~ (peek-grub u.jb))
+    ?~  content
+      ?^  as  (err 410 'that file was not there in that version')
+      ?~  cas  (err 404 'Not found')
+      (err 410 (case-gone [%& [dir name]] u.cas))
+    ::  A BOOM is the noun surviving its type: it is here, and it does not
+    ::  clam with the blot it is stored under. That is not special to old
+    ::  versions -- a blot is a convention, marcs are meant to stay
+    ::  backward compatible, and when one does not the honest answer is to
+    ::  say so and name the blot, rather than serve a jam blob. The noun
+    ::  is still readable through ?pretty.
+    ?:  (is-boom:tarball u.content)
+      %-  err
+      :-  409
+      %-  crip
+      ;:  weld
+        "does not clam with the present "
+        (trip (spat (snoc path.p.u.content name.p.u.content)))
+        " blot; the noun is intact -- read it with ?pretty"
+      ==
     =/  =sage:tarball  [p.u.content (need-vase:tarball u.content)]
     ::  optional ?blot= conversion, then blot->mime, all synchronous via
     ::  get-tube (resolved from the grub's own governing code nexus)

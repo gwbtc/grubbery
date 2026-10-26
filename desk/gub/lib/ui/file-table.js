@@ -78,6 +78,10 @@ const STYLE = `
   a.name {
     font: 12.5px ui-monospace, SFMono-Regular, Menlo, monospace;
   }
+  /* a grub may legitimately have no name -- dill's default session is the
+     empty name, and /sys/dill/sessions/ IS that file. An empty link is
+     invisible and unclickable, so it is named for the reader instead. */
+  a.name.unnamed { color: #8b949e; font-style: italic; }
   td.acts {
     white-space: nowrap; text-align: right;
     overflow: visible; text-overflow: clip;
@@ -307,7 +311,8 @@ class FileTable extends HTMLElement {
           const a = document.createElement('a');
           a.className = 'name';
           a.href = href;
-          a.textContent = display;
+          if (display === '' || display == null) { a.textContent = '[unnamed]'; a.classList.add('unnamed'); }
+          else a.textContent = display;
           a.addEventListener('click', (e) => {
             e.preventDefault();
             this.#emit('ft-navigate', { item, href, column: col.key, mods: { meta: e.metaKey, ctrl: e.ctrlKey, shift: e.shiftKey, alt: e.altKey } });

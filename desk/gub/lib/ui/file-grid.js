@@ -56,6 +56,7 @@ const STYLE = `
     overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2;
     -webkit-box-orient: vertical; overflow-wrap: anywhere;
   }
+  .lb.unnamed { color: #8b949e; font-style: italic; }
   .loading {
     display: flex; align-items: center; justify-content: center; gap: 8px;
     font-size: 12px; color: #8b949e; user-select: none;
@@ -177,9 +178,13 @@ class FileGrid extends HTMLElement {
 
       const lb = document.createElement('div');
       lb.className = 'lb';
-      lb.textContent = this.#labelFn ? this.#labelFn(item) : item.name;
+      const lab = this.#labelFn ? this.#labelFn(item) : item.name;
+      // a grub may have no name (dill's default session is the empty one):
+      // an empty label is an invisible target, so it is named for the reader
+      if (lab === '' || lab == null) { lb.textContent = '[unnamed]'; lb.classList.add('unnamed'); }
+      else lb.textContent = lab;
       // the label clamps to two lines; hover shows the full name
-      el.title = item.name;
+      el.title = item.name || '[unnamed]';
 
       el.append(gl, lb);
 

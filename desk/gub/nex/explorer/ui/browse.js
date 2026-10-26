@@ -885,6 +885,15 @@ function setup(root, opts) {
   const psMoment = (p) => { const q = psSplit(p).query; return psNs(p) + (q ? '?' + q : ''); };
   const psUrl = (p) => { const n = psNs(p); return n === '/' ? PREFIX : PREFIX + n; };   // root → /grubbery/ball (no trailing slash)
   const psBase = (p) => psNs(p).replace(/\/$/, '').split('/').filter(Boolean).pop() || '/';
+  // ~2026.10.25..18.07.13..a11e -> 2026-10-25 18:07:13. SECONDS matter:
+  // versions a minute apart read as duplicates without them, and three of
+  // HEAD's moments share one minute.
+  const psWhen = (da) => {
+    const m = /^~(\d+)\.(\d+)\.(\d+)\.\.(\d+)\.(\d+)\.(\d+)/.exec(da || '');
+    if (!m) return da || '';
+    const p2 = (x) => String(x).padStart(2, '0');
+    return m[1] + '-' + p2(m[2]) + '-' + p2(m[3]) + ' ' + p2(m[4]) + ':' + p2(m[5]) + ':' + p2(m[6]);
+  };
   // ---- @name prefixes: a path under a /sys/link name ----
   // A moment may start with a NAME instead of a place: `@forge/repos` is the
   // app claiming `forge` (earliest claimant) plus `/repos`. Names are paths;
@@ -1027,6 +1036,48 @@ function setup(root, opts) {
     psWaitFail(el, why || 'does not exist', key);
     psDead.add(key);
     ps.redrawBars();
+  }
+  // +psNoVersion: a pane standing in a version that will not resolve.
+  //
+  //   NOT the same as a path that does not exist, and must not borrow that
+  //   treatment: `psMarkDead` strikes the path through, reddens it, and
+  //   installs a watcher waiting for it to be made -- all of which is a lie
+  //   about a path that is alive right now and simply cannot be read at the
+  //   version asked for. This says what happened and stops.
+  //
+  //   The file viewer has the same state (#unviewable); this is the one for
+  //   a directory pane, which has no viewer to put it in.
+  //   `head` is the pane's own header -- the past bar and the crumbs. It is
+  //   built here because the listing never got far enough to build one, and
+  //   WHERE YOU ARE is the first thing you need when a pane says no: which
+  //   path, and which version of it.
+  function psNoVersion(el, title, why, head) {
+    try { if (el._live) el._live(); } catch (_) {} el._live = null;
+    try { if (el._fv && el._fv.destroy) el._fv.destroy(); } catch (_) {} el._fv = null;
+    el._menu = null; el._dirUrl = null;
+    el.innerHTML = '';
+    el.className = '';
+    el.style.cssText = 'height:100%;display:flex;flex-direction:column;overflow:auto';
+    (head || []).forEach((h) => { if (h) el.appendChild(h); });
+    // the ordinary failed-pane look, in a box that fills what the header
+    // leaves -- .ps-wait centres its children, so it cannot be the pane
+    // itself once the pane also carries a header
+    const box = document.createElement('div');
+    box.className = 'ps-wait fail';
+    box.style.cssText = 'flex:1;min-height:0';
+    const ring = document.createElement('div'); ring.className = 'ps-wait-ring';
+    const t = document.createElement('div'); t.className = 'ps-wait-text'; t.textContent = title;
+    box.append(ring, t);
+    if (why) {
+      const sub = document.createElement('div');
+      sub.className = 'ps-wait-sub'; sub.textContent = why; sub.title = why;
+      // the reason is what gets pasted into a bug report, so it is
+      // selectable and the pane's drag gesture does not start on it
+      sub.style.cssText = 'user-select:text;-webkit-user-select:text;white-space:pre-wrap;max-width:68ch;text-align:center';
+      sub.addEventListener('mousedown', (e) => e.stopPropagation());
+      box.appendChild(sub);
+    }
+    el.appendChild(box);
   }
   // +psAlive: this path just answered, so it is not dead any more.
   //
@@ -1210,6 +1261,57 @@ function setup(root, opts) {
         '.ps-weir-cat{grid-template-columns:1fr;gap:4px}.ps-weir-k{padding-top:0}.ps-weir-roads input{width:100%}.ps-drop{padding:16px 10px}.ps-drop-acts{flex-wrap:wrap}.ps-drop-acts button{flex:1 1 auto}.ps-form button.ghost-danger{margin-right:0}}' +
         '.ps-form-head{padding:16px 20px 14px;border-bottom:1px solid #eaeef2}.ps-form-verb{font-weight:600;font-size:15px;line-height:1.3}.ps-form-path{margin-top:4px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:#57606a;word-break:break-all}' +
         '.ps-form-body{padding:16px 20px;display:flex;flex-direction:column;gap:14px}.ps-form-note{color:#57606a;line-height:1.5}' +
+        '.ps-noversion{padding:40px 32px;color:#57606a;font:13px/1.6 -apple-system,BlinkMacSystemFont,sans-serif;user-select:text;-webkit-user-select:text;cursor:text}' +
+        '.ps-noversion .hd{font-size:18px;color:#1f2328;margin-bottom:8px}' +
+        '.ps-noversion .wy{max-width:68ch;white-space:pre-wrap}' +
+        '.ps-past{display:flex;align-items:center;gap:10px;padding:5px 10px;background:#fff8c5;border-bottom:1px solid #d4a72c;font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#7d4e00}' +
+        '.ps-past .what{flex:1;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+        // the two steps sit together as one control, browser-style
+        // the label editor: the set sits in its own row ABOVE the input and
+        // is only redrawn when it changes, so typing never moves it
+        '.ps-tags{display:flex;flex-direction:column;align-items:flex-start;gap:9px;min-width:0}' +
+        '.ps-tags .row{display:flex;flex-wrap:wrap;gap:6px}' +
+        '.ps-tags .none{font:11px -apple-system,BlinkMacSystemFont,sans-serif;color:#8b949e}' +
+        // NO fixed height and NO line-height tied to it: a mono face with
+        // zero slack would not centre. Padding sizes the pill, line-height
+        // is 1, and flex does the centring.
+        '.ps-tags .tag{display:inline-flex;align-items:center;gap:5px;box-sizing:border-box;' +
+          'background:#f6f8fa;border:1px solid #d0d7de;border-radius:999px;padding:4px 5px 4px 11px;' +
+          'font:11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:#24292f}' +
+        '.ps-tags .tag.dup{border-color:#d4a72c;background:#fff8c5}' +
+        '.ps-tags .tag .n{display:block;line-height:1;max-width:28ch;overflow:hidden;' +
+          'text-overflow:ellipsis;white-space:nowrap}' +
+        '.ps-tags .tag button{all:unset;cursor:pointer;color:#8b949e;flex:none;' +
+          'width:15px;height:15px;display:flex;align-items:center;justify-content:center;' +
+          'border-radius:999px;font:13px/1 -apple-system,BlinkMacSystemFont,sans-serif}' +
+        '.ps-tags .tag button:hover{background:#e2e7ee}' +
+        '.ps-tags .warn{font:11px -apple-system,BlinkMacSystemFont,sans-serif;color:#9a6700}' +
+        '.ps-tags input.add{all:unset;box-sizing:border-box;width:280px;max-width:100%;' +
+          'border:1px solid #d0d7de;border-radius:7px;padding:5px 9px;background:#fff;' +
+          'font:11px ui-monospace,SFMono-Regular,Menlo,monospace;color:#24292f}' +
+        '.ps-tags input.add:focus{border-color:#0969da}' +
+        '.ps-past .step{display:inline-flex;gap:0}' +
+        // a section of its own: fixed width, ruled off, scrolls sideways.
+        // Never grows, never shrinks, never reflows the steps.
+        '.ps-past .tagbox{flex:0 0 220px;display:flex;align-items:center;gap:7px;min-width:0;' +
+          'padding-left:10px;border-left:1px solid rgba(125,78,0,.35)}' +
+        '.ps-past .tagbox .cap{flex:none;font-size:9px;text-transform:uppercase;letter-spacing:.06em;opacity:.6}' +
+        '.ps-past .tagbox .scroll{flex:1;min-width:0;overflow-x:auto;overflow-y:hidden;white-space:nowrap;' +
+          'font:11px/1.8 ui-monospace,SFMono-Regular,Menlo,monospace;scrollbar-width:thin}' +
+        '.ps-past .tagbox .scroll::-webkit-scrollbar{height:4px}' +
+        '.ps-past .tagbox .scroll::-webkit-scrollbar-thumb{background:rgba(125,78,0,.3);border-radius:2px}' +
+        '.ps-past.now .tagbox{border-left-color:rgba(61,90,69,.35)}' +
+        '.ps-past.now .tagbox .scroll::-webkit-scrollbar-thumb{background:rgba(61,90,69,.3)}' +
+        '.ps-past button+button{margin-left:-1px}' +
+        '.ps-past button{all:unset;cursor:pointer;padding:2px 8px;border:1px solid #d4a72c;border-radius:5px;background:#fff;color:#7d4e00;font:inherit}' +
+        '.ps-past button:hover{background:#fffbe6}' +
+        '.ps-past button:disabled,.ps-past button:disabled:hover{opacity:.35;cursor:default;background:#fff}' +
+        // at now: the same bar, saying this path HAS a past, without
+        // claiming you are standing in it
+        '.ps-past.now{background:#f2f8f3;border-bottom-color:#b7cfbc;color:#3d5a45}' +
+        '.ps-past.now button{border-color:#b7cfbc;color:#3d5a45}' +
+        '.ps-past.now button:hover{background:#eaf3ec}' +
+
         '.ps-tang{margin:0;padding:10px 12px;background:#f6f8fa;border:1px solid #eaeef2;border-radius:6px;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#cf222e;white-space:pre;overflow:auto;max-height:min(60vh,520px)}' +
         '.ps-form label{display:block}.ps-form label span{display:block;font-size:12px;font-weight:600;color:#57606a;margin-bottom:5px}' +
         '.ps-form input,.ps-form select{width:100%;box-sizing:border-box;font:13px ui-monospace,SFMono-Regular,Menlo,monospace;padding:7px 10px;border:1px solid #d0d7de;border-radius:6px;background:#fff;color:#24292f}' +
@@ -1227,6 +1329,10 @@ function setup(root, opts) {
         '.ps-drop-acts{display:flex;justify-content:center;gap:8px;margin-top:10px}' +
         '.ps-files{max-height:min(220px,40vh);overflow:auto;border:1px solid #eaeef2;border-radius:6px}.ps-file{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:5px 10px;border-bottom:1px solid #eaeef2;font:12px ui-monospace,SFMono-Regular,Menlo,monospace}.ps-file:last-child{border-bottom:0}.ps-file > span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
         '.ps-file .size{color:#8b949e}.ps-file button{all:unset;cursor:pointer;color:#8b949e;padding:0 4px}.ps-file button:hover{color:#cf222e}' +
+        // a moment row IS the link to that version: the whole row takes the click
+        '.ps-file.ps-moment{cursor:pointer}.ps-file.ps-moment:hover{background:#f6f8fa}' +
+        '.ps-file.ps-moment.gone{color:#8b949e}' +
+        '.ps-file.ps-moment.broke{color:#cf222e}' +
         '.ps-prog{height:6px;border-radius:3px;background:#eaeef2;overflow:hidden}.ps-prog > div{height:100%;width:0;background:#0969da;transition:width .15s}' +
         '.ps-menu .mi{display:block;width:100%;text-align:left;font:13px -apple-system,BlinkMacSystemFont,sans-serif;padding:5px 12px;border:0;background:none;cursor:pointer;white-space:nowrap}.ps-menu .mi:hover{background:#eaeef2}.ps-menu .mi.danger{color:#cf222e}';
       document.head.appendChild(s);
@@ -1265,7 +1371,7 @@ function setup(root, opts) {
   // <item>?view=rename, <item>?view=delete, <dir>?view=weir. The menu routes
   // there like any link, so it opens in the pane's target (or in place), sits
   // in history, and back returns. Nothing pops over the pane you are in.
-  const ACTION_VIEWS = { new: 1, rename: 1, delete: 1, weir: 1, upload: 1, run: 1, 'term-new': 1 };
+  const ACTION_VIEWS = { new: 1, rename: 1, delete: 1, weir: 1, upload: 1, run: 1, history: 1, 'term-new': 1, 'drop-version': 1, label: 1, keep: 1, gain: 1 };
   // THE MODE. Desktop and mobile are distinct modes, not one layout at two
   // widths: mobile is the focused, fat-thumb context — fewer things, bigger
   // targets, less granular control — and an app is entitled to answer a
@@ -1358,11 +1464,267 @@ function setup(root, opts) {
     return row;
   }
   // the sticky head of a directory rendering: where you are, then what it is
-  function psDirHead(el, d, ns, abs, url, route) {
+  function psDirHead(el, d, ns, abs, url, route, path) {
     const head = document.createElement('div');
     head.className = 'ps-dirhead';
+    const past = psPastBar(ns, path, 'dir', route);
+    if (past) head.appendChild(past);
     head.append(psCrumbRow(abs, route), psChipRow(el, d, ns, url, route));
     return head;
+  }
+  // +psPastBar: a pane looking at ?case= is LOOKING AT THE PAST, and that
+  // has to be unmissable rather than a badge. The explorer has an editor in
+  // it; an old version that reads as current is the dangerous failure here,
+  // not a confusing one.
+  //
+  // Returns null when the moment carries no case, so every caller can append
+  // it unconditionally.
+  function psPastBar(ns, path, kind, route) {
+    const args = path ? psArgs(path) : {};
+    // The bar is not a past-only thing. A path WITH A PAST should say so
+    // while you are standing in the present too -- otherwise the only way
+    // to learn history exists is to go looking for it. At now it is quiet
+    // (green) and offers the way back; in the past it is loud (yellow).
+    const atNow = !args.asof && !args.case;
+    // ?asof=<path>:<ud> -- this path AS IT WAS inside a version of an
+    // ancestor. ?case=<ud> -- this path's own version. The bar is the same
+    // bar; what differs is whose version you are standing in, which is the
+    // thing it has to say out loud.
+    const asof = args.asof ? String(args.asof) : null;
+    // every path here is normalised to NO trailing slash. Concatenating
+    // onto an ns that already ends in one grew a slash per click
+    // (/apps/x//////) and then the born lookup for the owner missed.
+    const bare = (p) => (String(p || '').replace(/\/+$/, '') || '/');
+    const owner = bare(asof ? asof.slice(0, asof.lastIndexOf(':')) : ns);
+    const cs = asof ? asof.slice(asof.lastIndexOf(':') + 1) : (args.case || null);
+    const bar = document.createElement('div');
+    bar.className = atNow ? 'ps-past now' : 'ps-past';
+    // hidden until born answers: the bar has nothing to say without a
+    // version number, and an empty strip reads as broken chrome
+    bar.hidden = true;
+    // NO trailing slash on the target. `kind` already tells the pane this
+    // is a directory, and the slash made `back to now` land on
+    // /apps/x/ which does not resolve.
+    const here = bare(ns);
+    // a directory's label carries its slash; a file's must not
+    const ownerLabel = owner === '/' ? '/'
+                     : owner + ((kind === 'dir' || asof) ? '/' : '');
+    // WHOSE versions these are. A path has its own history, and a fold's
+    // version resolves its whole subtree, so "version 14" is meaningless
+    // without saying 14 of what -- especially when you walked down into
+    // this file from a past directory and are seeing ITS version, not the
+    // file's own.
+    const what = document.createElement('span');
+    what.className = 'what';
+    // labels get their own SECTION: a fixed-width box, divided off from
+    // the info line, that scrolls sideways. Inside the info text they were
+    // the first thing the ellipsis ate; as chips they read as buttons.
+    const tagStrip = document.createElement('span');
+    tagStrip.className = 'tagbox';
+    const tagCap = document.createElement('span');
+    tagCap.className = 'cap'; tagCap.textContent = 'labels';
+    const tagScroll = document.createElement('span');
+    tagScroll.className = 'scroll';
+    tagStrip.append(tagCap, tagScroll);
+    // the pane's own drag gesture eats mousedown, which would make the box
+    // unscrollable and the text unselectable
+    tagScroll.addEventListener('mousedown', (e) => e.stopPropagation());
+    // a trackpad's horizontal swipe arrives as wheel; a plain vertical
+    // wheel over the box scrolls it sideways rather than doing nothing
+    tagScroll.addEventListener('wheel', (e) => {
+      const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      if (!d) return;
+      const max = tagScroll.scrollWidth - tagScroll.clientWidth;
+      if (max <= 0) return;
+      e.preventDefault(); e.stopPropagation();
+      tagScroll.scrollLeft = Math.max(0, Math.min(max, tagScroll.scrollLeft + d));
+    }, { passive: false });
+    const say = () => atNow
+      ? 'now · ' + ownerLabel
+      : 'past · ' + (asof ? 'inside ' : '') + ownerLabel + ' · read only';
+    what.textContent = say();
+    // stepping keeps the anchor: you move the DIRECTORY's version and stay
+    // on the same path inside it
+    const at = (ud) => route(here + (asof ? '?asof=' + owner + ':' + ud : '?case=' + ud), kind, null);
+    // Browser back/forward: the arrow steps, holding it opens the list of
+    // everywhere it could go. Two arrows side by side, and the version you
+    // are on is spelled out in the bar rather than inside a menu.
+    let cur = cs ? String(cs) : '';
+    let tagsHere = '';                       // this version's labels, once born answers
+    let newestUd = null;                     // which row is `now`, for the held menu
+    // ?fold=1 when this is a directory: born must answer about the same
+    // thing the navigation resolves against, or the list and the places it
+    // goes are two different histories
+    const bornUrl = '/grubbery/api/born' + (owner === '/' ? '' : owner) +
+                    ((kind === 'dir' || asof) ? '?fold=1' : '');
+    // READ FRESH, ALWAYS. These histories churn: most entries are %temp,
+    // so each write deletes the one it replaces. Stepping from the list
+    // fetched when the bar was built walked into versions that had since
+    // been deleted -- the "unlisted version" you kept landing on.
+    const fetchRows = () => fetch(bornUrl, { cache: 'no-store' })
+      .then((r) => r.ok ? r.json() : null)
+      // EVERY version, including empty and broken ones. A version you
+      // cannot step to is a version you cannot drop, and hiding a broken
+      // one hides the fault. The pane says honestly what each one is.
+      .then((ms) => Array.isArray(ms)
+        ? ms.slice().sort((a, b) => (b.ud || 0) - (a.ud || 0))
+        : [])
+      .catch(() => []);
+    const older = document.createElement('button');
+    older.textContent = '←'; older.disabled = true;
+    older.title = 'older version — hold for the list';
+    const newer = document.createElement('button');
+    newer.textContent = '→'; newer.disabled = true;
+    newer.title = 'newer version — hold for the list';
+    const vlabel = (m, isNow) => 'v' + m.ud + '   ' + psWhen(m.da) +
+                                 (isNow ? '   · now' : '') + (m.firm ? '   · firm' : '') +
+                                 (m.broken ? '   · broken' : '') +
+                                 ((m.tags || []).length ? '   · ' + m.tags.join(' ') : '');
+    // +arm: give a step button its click and its held menu. `side` picks
+    // the direction: +1 is older (further down a newest-first list), -1 is
+    // newer. Both re-read the history first, so a version deleted since the
+    // bar was drawn is never a destination.
+    // Partitioned by VERSION NUMBER, never by index. The version we are
+    // on is routinely deleted while we stand on it -- every %temp write
+    // replaces the top -- and a version that is gone has no index, so
+    // index arithmetic made `older` return the whole list (jumping to the
+    // NEWEST) and `newer` return nothing. A number still orders.
+    const sideRows = async (side) => {
+      const rows = await fetchRows();
+      if (!rows.length) return [];
+      const ref = Number(cur || cs || (rows[0] && rows[0].ud));
+      return side > 0
+        ? rows.filter((m) => Number(m.ud) < ref)                  // older: nearest first
+        : rows.filter((m) => Number(m.ud) > ref).reverse();       // newer: nearest first
+    };
+    const arm = (btn, side) => {
+      let timer = null, held = false;
+      const open = async () => {
+        held = true;
+        const list = await sideRows(side);
+        if (!list.length || !btn.isConnected) return;
+        const r = btn.getBoundingClientRect();
+        showMenu(list.map((m) => ({ label: vlabel(m, m.ud === newestUd), run: () => at(m.ud) })),
+                 r.left, r.bottom + 4);
+      };
+      const stop = () => { if (timer) clearTimeout(timer); timer = null; };
+      btn.addEventListener('mousedown', (e) => {
+        e.stopPropagation();                 // not the pane's drag gesture
+        if (e.button !== 0 || btn.disabled) return;
+        held = false; timer = setTimeout(open, 400);
+      });
+      btn.addEventListener('mouseup', stop);
+      btn.addEventListener('mouseleave', stop);
+      btn.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); if (!btn.disabled) open(); });
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        if (held) { held = false; return; }
+        const list = await sideRows(side);
+        if (list.length) at(list[0].ud);
+      });
+    };
+    const now = document.createElement('button');
+    now.textContent = 'back to now';
+    now.title = 'the same path in the present';
+    // dropping the arg, keeping the path: you land on this thing as it is,
+    // not back where you came from
+    now.addEventListener('click', () => route(here, kind, null));
+    // Dropping a version is destructive, so it goes where every other
+    // destructive thing in here goes: its own page, saying what will
+    // happen, with the verb on the button. Not a question mark in a bar.
+    // &kind= is how an action view learns what it is looking at -- the
+    // path alone no longer says, since the target carries no trailing
+    // slash. Without it a directory was acted on as if it were a grub.
+    const kq = '&kind=' + (kind === 'dir' ? 'dir' : 'file');
+    const act = (label, title, build) => {
+      const b = document.createElement('button');
+      b.textContent = label; b.title = title;
+      b.addEventListener('click', (e) => { e.stopPropagation(); const u = build(); if (u) route(u, kind, null); });
+      return b;
+    };
+    const drop = act('drop', 'delete this version',
+      () => cur && here + '?view=drop-version&case=' + cur + kq);
+    // labels live on a version; at now that is the live one, with no case
+    const label = act('label', 'set this version\u2019s labels',
+      () => here + '?view=label' + (atNow ? '' : '&case=' + cur) + kq +
+            (tagsHere ? '&tags=' + encodeURIComponent(tagsHere) : ''));
+    // COMMIT in the button, %firm in the tooltip. `firm` is the model's
+    // word and means nothing on sight; `keep` was taken (a keep is the
+    // subscription primitive). Only meaningful at now -- the dart always
+    // promotes whichever version is current.
+    const keep = act('commit',
+      'commit this version: marks it firm, so later writes do not delete it',
+      () => here + '?view=keep' + kq);
+    // +drawTags: the first few as chips, the rest behind a count. The
+    // full set is on the title of every piece, so hovering anywhere in
+    // the strip reads them all without widening the bar.
+    const drawTags = (list) => {
+      if (!list.length) { tagStrip.hidden = true; tagScroll.textContent = ''; return; }
+      tagStrip.hidden = false;
+      const all = list.join('  ');
+      tagScroll.textContent = all;
+      tagStrip.title = list.length + (list.length === 1 ? ' label: ' : ' labels: ') + list.join(' ');
+      tagScroll.scrollLeft = 0;
+    };
+    drawTags([]);
+    arm(older, 1); arm(newer, -1);
+    // `back to now` sits LEFT of the steps: it comes and goes with the
+    // state, and the arrows must not move under the cursor when it does.
+    bar.append(what, tagStrip, label);
+    if (atNow) bar.append(keep); else bar.append(drop, now);
+    bar.append(older, newer);
+    // The bar IS the history: stepping and jumping both live here, so
+    // walking a path's past never means a round trip to the moments card.
+    // The moments arrive after the bar is on screen, so it fills itself in.
+    // NOT gated on bar.isConnected: the caller appends this bar AFTER we
+    // return, so a fast answer would find it detached and silently leave
+    // it empty -- which looks exactly like the history failing to load.
+    fetchRows()
+      .then((rows) => {
+        if (!rows.length) return;
+        // at now we are on the newest readable version; nobody told us its
+        // number, so it is simply the first row
+        const i = atNow ? 0 : rows.findIndex((m) => String(m.ud) === String(cs));
+        // ASKING FOR THE NEWEST VERSION IS ASKING FOR NOW. Carrying a case
+        // that names the live version made the pane read-only and the bar
+        // say "past" about the present. Drop the arg and everything else
+        // follows: green bar, editor live, url honest. i === 0 is the
+        // newest row, so this cannot loop.
+        if (!atNow && i === 0) { route(here, kind, null); return; }
+        // shown even at 1 of 1: the version, its date and its labels are
+        // worth saying, and `keep` / `label` are only reachable here --
+        // without the bar a single-version path could not be marked at all
+        bar.hidden = false;
+        // The number in the url may name no version: most entries are
+        // %temp, so each write deletes the one it replaces and a busy
+        // directory churns them in seconds. It is NOT a version with
+        // something missing -- there is no such version -- so it gets no
+        // row of its own. The bar says so and lists the ones that are.
+        const gone = i < 0;
+        newestUd = rows[0].ud;
+        cur = gone ? '' : String(rows[i].ud);
+        tagsHere = gone ? '' : (rows[i].tags || []).join(' ');
+        what.textContent = gone
+          ? 'no version ' + cs + ' of ' + ownerLabel + ' · ' + rows.length + ' survive'
+          : say() + ' · version ' + cur + ' · ' + psWhen(rows[i].da) +
+            ' · ' + (i + 1) + ' of ' + rows.length +
+            (rows[i].firm ? ' · firm' : '') +
+            (rows[i].tomb ? ' · dropped' : rows[i].empty ? ' · nothing here' : '') +
+            (rows[i].broken ? ' · broken: its object is not in the silo' : '');
+        drawTags(gone ? [] : (rows[i].tags || []));
+        // rows are newest-first, so OLDER is further along and NEWER is
+        // back toward the head. These counts are only the LABELS -- the
+        // steps themselves re-read the history when pressed.
+        const ref = Number(cur || cs);
+        const nOlder = rows.filter((m) => Number(m.ud) < ref).length;
+        const nNewer = rows.filter((m) => Number(m.ud) > ref).length;
+        older.disabled = !nOlder;
+        newer.disabled = !nNewer;
+        if (nOlder) older.title = nOlder + ' older — hold for the list';
+        if (nNewer) newer.title = nNewer + ' newer — hold for the list';
+      })
+      .catch(() => {});
+    return bar;
   }
   function listingMenu(e, el, dirUrl) {
     const hit = e.composedPath().find((x) => x && x.__item);
@@ -1389,6 +1751,8 @@ function setup(root, opts) {
     const items = [
       { label: 'New…', run: () => go(el, dirUrl + '?view=new', 'dir') },
       { label: 'Weir…', run: () => go(el, dirUrl + '?view=weir', 'dir') },
+      { label: 'History…', run: () => go(el, dirUrl + '?view=history', 'dir') },
+      { label: 'Retention…', run: () => go(el, dirUrl + '?view=gain&kind=dir', 'dir') },
       { label: 'Upload…', run: () => go(el, dirUrl + '?view=upload', 'dir') },
       { label: 'Download', run: () => { location.href = dirUrl + '?download=tar'; } },
     ];
@@ -1406,7 +1770,11 @@ function setup(root, opts) {
     const dir = item.__dir, isDir = item.kind === 'dir' || item.isDir, base = dir.replace(/\/$/, '') + '/' + item.name;
     const items = [];
     if (isDir) items.push(...dirMenu(el, base, !!(item.neck && item.neck !== '-')));
-    else items.push({ label: 'Download', run: () => { const l = document.createElement('a'); l.href = base + '?raw=1'; l.download = item.name; l.click(); } });
+    else items.push(
+      { label: 'Download', run: () => { const l = document.createElement('a'); l.href = base + '?raw=1'; l.download = item.name; l.click(); } },
+      { label: 'History…', run: () => go(el, base + '?view=history', 'file') },
+      { label: 'Retention…', run: () => go(el, base + '?view=gain&kind=file', 'file') },
+    );
     // move/copy go to the pane's TARGET: the dir the target pane shows is the
     // destination. That is what a target is for. No target → ask for a path.
     const ctx = el._ctx || {};
@@ -1500,6 +1868,135 @@ function setup(root, opts) {
       note(isDir ? 'The directory and everything in it will be removed. This cannot be undone.' : 'The file will be removed. This cannot be undone.');
       const b = buttons('delete', true, () => psPost(parentUrl, isDir ? { action: 'delete-folder', foldername: name } : { action: 'delete-grub', filename: name }));
       b.focus();
+    } else if (view === 'label' || view === 'keep') {
+      // Labels are a SET, in their own stable row ABOVE the input. Only
+      // the row ever redraws, never the field, so nothing moves while you
+      // type. `keep` is the same editor: %firm carries tags, so a commit
+      // can name itself in one write.
+      const committing = view === 'keep';
+      const cs = psArgs(path).case || '';
+      h(committing ? 'Commit version' : 'Label', ns + (isDir ? '/' : ''));
+      note(committing
+        ? 'The version live now will be marked firm, so later writes do not delete it. ' +
+          'Any labels below are set on it in the same write. ' +
+          'This commits one version; it does not change the retention policy of the path.'
+        : (cs ? 'Labels on version ' + cs + '.' : 'Labels on the version live now.'));
+      const set = [];
+      if (!committing) {
+        (psArgs(path).tags || '').split(/\s+/).filter(Boolean)
+          .forEach((t) => { if (!set.includes(t)) set.push(t); });
+      }
+      const wrapT = document.createElement('div'); wrapT.className = 'ps-tags';
+      const rowT = document.createElement('div'); rowT.className = 'row';
+      const none = document.createElement('div'); none.className = 'none';
+      none.textContent = committing ? 'no labels — optional' : 'no labels';
+      const inp = document.createElement('input');
+      inp.className = 'add'; inp.placeholder = 'type a label, press enter';
+      inp.spellcheck = false;
+      // a <label> with no `for` activates its FIRST labelable descendant,
+      // which is a tag's × button -- clicking the input pressed it
+      inp.id = 'ps-tag-add';
+      const warn = document.createElement('div'); warn.className = 'warn'; warn.hidden = true;
+      wrapT.append(rowT, none, inp, warn);
+      let flash = null;
+      const drawRow = () => {
+        rowT.textContent = '';
+        none.hidden = !!set.length;
+        rowT.hidden = !set.length;
+        set.forEach((t, i) => {
+          const c = document.createElement('span'); c.className = 'tag';
+          if (t === flash) c.classList.add('dup');
+          const n = document.createElement('span'); n.className = 'n'; n.textContent = t;
+          const x = document.createElement('button'); x.type = 'button';
+          x.textContent = '\u00d7'; x.title = 'remove ' + t;
+          x.addEventListener('click', (e) => { e.preventDefault(); set.splice(i, 1); drawRow(); inp.focus(); });
+          c.append(n, x); rowT.appendChild(c);
+        });
+      };
+      const say = (m) => {
+        warn.textContent = m || ''; warn.hidden = !m;
+        if (m) setTimeout(() => { warn.hidden = true; flash = null; drawRow(); }, 1800);
+      };
+      const add = () => {
+        const parts = inp.value.split(/[\s,]+/).filter(Boolean);
+        const dup = parts.filter((t) => set.includes(t));
+        let grew = false;
+        parts.forEach((t) => { if (!set.includes(t)) { set.push(t); grew = true; } });
+        inp.value = '';
+        // a label already on the set is not an error worth stopping for,
+        // but saying nothing looks like the keystroke was swallowed
+        flash = dup.length ? dup[dup.length - 1] : null;
+        if (grew || dup.length) drawRow();
+        say(dup.length ? '\u201c' + dup.join('\u201d, \u201c') + '\u201d already added' : '');
+      };
+      inp.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); add(); }
+        else if (e.key === 'Escape') ps.back(paneId);
+      });
+      const lab = document.createElement('label');
+      lab.htmlFor = inp.id;
+      const sp = document.createElement('span'); sp.textContent = 'labels';
+      lab.append(sp, wrapT); body.appendChild(lab);
+      drawRow();
+      const b = buttons(committing ? 'commit it' : 'set labels', false, () => {
+        add();                               // whatever is still typed counts
+        return psPost(url, committing
+          ? { action: 'keep-version', tags: set.join(' '), kind: isDir ? 'dir' : 'file' }
+          : Object.assign({ action: 'tag-version', tags: set.join(' '),
+                            kind: isDir ? 'dir' : 'file' }, cs ? { case: cs } : {}));
+      });
+      inp.focus();
+    } else if (view === 'gain') {
+      // the PATH's policy, not one version's
+      h('Retention', ns + (isDir ? '/' : ''));
+      note('Gain on: every write is kept and the history accumulates. ' +
+           'Gain off: each write deletes the version it replaces, so only the present survives.' +
+           (isDir ? ' On a directory this applies to everything beneath it.' : ''));
+      const sel = document.createElement('select');
+      [['1', 'on — every write is firm, history accumulates'], ['0', 'off — each write deletes the one it replaces']].forEach(([v, t]) => {
+        const o = document.createElement('option'); o.value = v; o.textContent = t; sel.appendChild(o);
+      });
+      const l = document.createElement('label');
+      const sp = document.createElement('span'); sp.textContent = 'gain';
+      l.append(sp, sel); body.appendChild(l);
+      const b = buttons('set retention', false, () =>
+        psPost(url, { action: 'set-gain', flag: sel.value, kind: isDir ? 'dir' : 'file' }));
+      b.focus();
+    } else if (view === 'drop-version') {
+      // the same shape as Delete: a page that says what goes and asks
+      const cs = psArgs(path).case || '';
+      h('Drop version', ns + (isDir ? '/' : ''));
+      note('Version ' + cs + ' of this ' + (isDir ? 'directory' : 'grub') +
+           ' will be deleted, and the object it names released. ' +
+           'Nothing else in the history changes. This cannot be undone.');
+      // not `back`: back is the version we just deleted. Land on the
+      // NEAREST SURVIVING version instead -- older first, since that is
+      // the direction you were reading, else newer, else the path itself.
+      // Dropping one version should not throw you out of the past.
+      const b = buttons('drop v' + cs, true, async () => {
+        const okd = await psPost(url, { action: 'drop-version', case: cs, kind: isDir ? 'dir' : 'file' });
+        if (!okd) return false;
+        const bare = ns.replace(/\/+$/, '') || '/';
+        let to = bare;
+        try {
+          const r = await fetch('/grubbery/api/born' + (bare === '/' ? '' : bare) +
+                                (isDir ? '?fold=1' : ''), { cache: 'no-store' });
+          const ms = r.ok ? await r.json() : [];
+          const live = (Array.isArray(ms) ? ms : []).filter((m) => !m.empty && !m.tomb)
+                         .map((m) => Number(m.ud)).sort((a, b) => b - a);
+          const ref = Number(cs);
+          const older = live.find((u) => u < ref);
+          const newer = live.filter((u) => u > ref).pop();        // nearest above
+          const pick = older != null ? older : newer;
+          if (pick != null && pick !== live[0]) to = bare + '?case=' + pick;  // live[0] IS now
+        } catch (_) {}
+        ps.openFrom(paneId, to);
+        return false;                       // we navigated; buttons must not also go back
+      });
+      b.focus();
+    } else if (view === 'history') {
+      h('History', ns + (isDir ? '/' : ''));
+      historyView(ps, paneId, form, body, note, ns, url, isDir);
     } else if (view === 'run') {
       h('Run', ns + (isDir ? '/' : ''));
       runView(ps, paneId, form, body, note, url, isDir);
@@ -1510,6 +2007,83 @@ function setup(root, opts) {
       h('Upload', ns);
       uploadView(ps, paneId, form, body, url);
     }
+  }
+  // +historyView: a path's SURVIVING MOMENTS, as a rendering of the path.
+  //
+  //    History here is per-grub and per-directory, not global: there is no
+  //    commit. Every write bumps every ancestor fold, and a fold's tree
+  //    ject names each child's jobe, so a directory at a cass really is
+  //    its whole subtree as it stood -- which is why this works for dirs
+  //    as well as files, and why directories usually have the richer past.
+  //
+  //    DATE-LED on purpose. An app directory's casses run to five figures
+  //    and are not contiguous, because every write anywhere beneath bumps
+  //    them; "version 34976" tells a reader nothing and the date tells them
+  //    everything. The number is still shown, small, because it is what the
+  //    ?case= argument takes.
+  //
+  //    The list is SPARSE and that is normal: the past is mostly collected,
+  //    and what survives is what was kept.
+  function historyView(ps, paneId, form, body, note, ns, url, isDir) {
+    const list = document.createElement('div');
+    list.className = 'ps-files';
+    list.style.display = 'none';
+    body.appendChild(list);
+    const foot = document.createElement('div'); foot.className = 'ps-form-foot';
+    const back = document.createElement('button'); back.textContent = 'back';
+    back.addEventListener('click', () => ps.back(paneId));
+    foot.appendChild(back); form.appendChild(foot);
+
+    const when = psWhen;
+
+    fetch(url.replace('/api/file', '/api/born').replace('/grubbery/ball', '/grubbery/api/born'), { cache: 'no-store' })
+      .then((r) => r.ok ? r.json() : Promise.reject(new Error('born ' + r.status)))
+      .then((moments) => {
+        if (!Array.isArray(moments) || !moments.length) { note('No history recorded for this path.'); return; }
+        // newest first: the question is almost always "what was this before"
+        const rows = moments.slice().sort((a, b) => (b.ud || 0) - (a.ud || 0));
+        note(rows.length + (rows.length === 1 ? ' moment survives' : ' moments survive') + ' of this ' + (isDir ? 'directory' : 'grub') + '.');
+        list.style.display = '';
+        rows.forEach((mo, i) => {
+          // an EMPTY version is one where the path held nothing: the one a
+          // path opens with, and the one deleting it closes with. A real
+          // version of the path with nothing to read, so it is shown and
+          // not opened. That is what makes a deleted-and-remade path read
+          // as one history with a gap in it.
+          // empty and broken are DIFFERENT and cannot co-occur: an empty
+          // pace names no object, so there is nothing to be missing.
+          const empty = !!mo.empty, broke = !!mo.broken;
+          const row = document.createElement('div');
+          row.className = 'ps-file ps-moment' + (empty ? ' gone' : '') + (broke ? ' broke' : '');
+          const left = document.createElement('span');
+          left.textContent = when(mo.da) + (i === 0 ? '  · now' : '');
+          const mid = document.createElement('span');
+          mid.className = 'size';
+          const marks = [];
+          if (mo.firm) marks.push('firm');
+          if ((mo.tags || []).length) marks.push(mo.tags.join(' '));
+          if (mo.tomb) marks.push('dropped');
+          else if (empty) marks.push('nothing here');
+          else if (broke) marks.push('broken');
+          mid.textContent = marks.join(' · ');
+          const ver = document.createElement('span');
+          ver.className = 'size';
+          ver.textContent = 'v' + mo.ud;
+          row.append(left, mid, ver);
+          row.title = mo.tomb ? 'this version was dropped'
+                    : empty ? 'the path held nothing in this version'
+                    : broke ? 'this version names an object the silo does not have — open it to drop it'
+                    : 'open this version';
+          // the row is the only thing on it, so the row takes the click. An
+          // action view has no `route` -- it navigates the pane itself, the
+          // way term-new does
+          row.addEventListener('click', () => {
+            ps.openFrom(paneId, ns + (isDir ? '/' : '') + '?case=' + mo.ud);
+          });
+          list.appendChild(row);
+        });
+      })
+      .catch((e) => note('could not read the history: ' + ((e && e.message) || e)));
   }
   // +runView: a grub's run state as a rendering of its path (?view=run).
   //
@@ -1677,9 +2251,35 @@ function setup(root, opts) {
     // route a link: the view says WHAT (a moment, maybe with an offered name);
     // the layout this pane sits in says WHERE (its routing table; in place by
     // default). ⌘-click is the user's own override: a new pane beside.
+    // +psCarry: the past travels DOWN. Standing in a version of a directory,
+    // everything opened from it must be that thing as it was then -- without
+    // this, one click on a child silently returns you to the present, which
+    // is the whole point of being able to stand in a version at all.
+    //
+    // A ?case= on a directory becomes an ?asof= anchored AT that directory
+    // the moment you step out of it: below the anchor you are no longer
+    // looking at a path's own history, you are looking inside the
+    // directory's. An existing ?asof= rides along unchanged. Stepping above
+    // the anchor drops it, and so does any destination that already names a
+    // version of its own -- which is how `back to now` and the bar's own
+    // jumps get out.
+    const psCarry = (h) => {
+      const a = psArgs(path);
+      const asof = a.asof ? String(a.asof) : null;
+      const anchor = asof ? (asof.slice(0, asof.lastIndexOf(':')).replace(/\/+$/, '') || '/')
+                   : a.case ? (psNs(path).replace(/\/+$/, '') || '/') : null;
+      const ver = asof ? asof.slice(asof.lastIndexOf(':') + 1) : a.case;
+      if (!anchor || !ver) return h;
+      const dest = psNs(h).replace(/\/+$/, '') || '/', da = psArgs(h);
+      if (da.asof || da.case) return h;
+      if (dest === (psNs(path).replace(/\/+$/, '') || '/')) return h;       // this path itself: back to now
+      const base = anchor === '/' ? '/' : anchor + '/';
+      if (!(dest === anchor || dest.startsWith(base))) return h;            // left the subtree
+      return h + (h.indexOf('?') >= 0 ? '&' : '?') + 'asof=' + anchor + ':' + ver;
+    };
     const route = (href, kind, mods, name) => {
       const bare = (typeof href === 'string' && href.startsWith(PREFIX)) ? (href.slice(PREFIX.length) || '/') : href;
-      const h = psMoment(psRel(ns, bare));                                  // relative to this moment, as spelled
+      const h = psCarry(psMoment(psRel(ns, bare)));                         // relative to this moment, as spelled
       if (kind) psKind.set(psNs(h), kind === 'dir' ? 'dir' : 'file');      // glyph the target before nav
       if (mods && (mods.meta || mods.ctrl)) { ps.open(h, 'beside'); return; }   // ⌘-click → new pane
       ps.openFrom(paneId, h, name);
@@ -1706,7 +2306,14 @@ function setup(root, opts) {
     const vopen = (u, o) => route(u, null, mods(o), o && o.name);
     psWait(el, 'loading', ns);                                                // until the first answer lands (fades in after a beat)
     const vclose = (u) => unroute(u);
-    fetch(url + '?list=1').then((r) => r.ok ? r.json() : Promise.reject(r.status)).then(async (d) => {
+    // THE LISTING IS READ AT THE VERSION THE PANE IS ON. The server takes
+    // ?case= / ?asof= on the listing, but this fetch never sent one -- so a
+    // past directory listed the PRESENT files, and every row linked to a
+    // file that was not there then.
+    const dArgs = psArgs(path);
+    const listQ = '?list=1' + (dArgs.asof ? '&asof=' + encodeURIComponent(dArgs.asof)
+                             : dArgs.case ? '&case=' + encodeURIComponent(dArgs.case) : '');
+    fetch(url + listQ).then((r) => r.ok ? r.json() : Promise.reject(r.status)).then(async (d) => {
       if (!d || !Array.isArray(d.children)) throw 'f';
       psClear(el);
       psAlive(ps, ns);                                                     // it answered: clear any stale dead mark
@@ -1774,7 +2381,7 @@ function setup(root, opts) {
       }
       t.addEventListener('ft-navigate', (e) => { const { item, href, mods } = e.detail; route(href, item ? item.kind : 'dir', mods); });
       el._menu = (e) => listingMenu(e, el, url);                            // right-click: the row's item, or this dir
-      const head = psDirHead(el, d, ns, abs, url, route);
+      const head = psDirHead(el, d, ns, abs, url, route, path);
       el.appendChild(head);
       el.appendChild(t);
       // the listing's own column header is sticky too, so tell it how much
@@ -1793,7 +2400,7 @@ function setup(root, opts) {
       // constantly, and a listing that rebuilt itself on each move could not
       // be clicked. Refreshes coalesce to at most one every 500ms.
       let timer = null;
-      const refreshRows = () => fetch(url + '?list=1', { cache: 'no-store' }).then((r) => { if (r.status === 404) { psMarkDead(ps, el, ns, 'deleted'); return null; } return r.ok ? r.json() : null; }).then((nd) => {
+      const refreshRows = () => fetch(url + listQ, { cache: 'no-store' }).then((r) => { if (r.status === 404) { psMarkDead(ps, el, ns, 'deleted'); return null; } return r.ok ? r.json() : null; }).then((nd) => {
         if (!nd || !Array.isArray(nd.children) || !el.isConnected) return;
         nd.children.forEach((c) => { c.__dir = url; });
         t.items = nd.children;
@@ -1803,6 +2410,23 @@ function setup(root, opts) {
     }).catch(async (why) => {
       // a 404 keeps watching: the path may yet be made, and `new` revives it
       if (why === 404) {
+        // ONLY a 404. Any other failure here is how this pane learns the
+        // path is a FILE, not a listing -- intercepting it sent every
+        // versioned file to the directory's no-version page instead of
+        // rendering the file.
+        const vArgs = psArgs(path);
+        const vAt = vArgs.asof ? ('asof=' + vArgs.asof) : vArgs.case ? ('case=' + vArgs.case) : '';
+        if (vAt) {
+          // standing in a version, a 404 is about THAT VERSION, never about
+          // the path: it is alive, so it is not struck through and not
+          // watched for creation. Ask the version-aware endpoint why.
+          const probe = PREFIX.replace('/ball', '/api/kids') + ns.replace(/\/+$/, '');
+          let said = '';
+          try { const r = await fetch(probe + '?' + vAt, { cache: 'no-store' }); if (!r.ok) said = await r.text(); } catch (_) {}
+          psNoVersion(el, 'nothing to show', said || 'this path could not be read at that version',
+                      [psPastBar(ns, path, 'dir', route), psCrumbRow(abs, route)]);
+          return;
+        }
         psMarkDead(ps, el, ns);
         el._gone = psWatchFile(ps, paneId, el, ns, abs);                   // not there YET: `new` brings it back by itself
         return;
@@ -1818,7 +2442,15 @@ function setup(root, opts) {
       // name, so /sys/dill/sessions/ itself IS that file (the kernel serves
       // it there), and the pane on it is the ship's own terminal
       if (!raw && abs.startsWith(SESSIONS) && !abs.slice(SESSIONS.length).includes('/')) { psTerminal(ps, paneId, el, ns, abs, abs.slice(SESSIONS.length), psArgs(path)); return; }
-      if (!raw) {
+      // A PAST version never goes to a declared viewer. The viewer fetches
+      // the path itself, with no version on it, so it would render either
+      // the present content under a past label or -- when the version does
+      // not resolve -- the server's error body as if it were the file.
+      // FileView is the component that carries a version and tells the two
+      // apart, and its Preview pane still renders markdown.
+      const pastArgs = psArgs(path);
+      const atPast = pastArgs.asof || pastArgs.case;
+      if (!raw && !atPast) {
         let v = null; try { v = await viewerFor(url, 'file', '', psArgs(path).view || null); } catch (_) {}
         if (v && !v.blocked && v.mount) {
           // the moment's ?args ride along as `query`: a viewer may read how it
@@ -1827,10 +2459,31 @@ function setup(root, opts) {
           return;                                                         // rendered: the rendering alone
         }
       }
-      const opts = { url, crumbBase: ROOT, onNavigate: onNav, open: vopen, close: vclose };          // raw, or no renderer → the raw package
+      // every fetch this view makes carries the version it is being read at
+      // -- a ?case= of its own, or the ?asof= it inherited walking down
+      // from a past directory
+      const atCase = pastArgs.asof ? ('asof=' + pastArgs.asof)
+                   : pastArgs.case ? ('case=' + pastArgs.case) : '';
+      const opts = { url, crumbBase: ROOT, onNavigate: onNav, open: vopen, close: vclose,
+                     readOnly: !!atCase, at: atCase ? '&' + atCase : '' };   // raw, or no renderer → the raw package
       // right-click anywhere in the file: the file's own actions
       el._menu = () => itemMenu(el, { kind: 'file', name: psBase(abs), __dir: psUrl(abs.replace(/\/[^/]*$/, '') || '/') });
-      try { el._fv = window.FileView.mount(el, opts); paneLive(ps, paneId, el, [{ road: abs }]); psLanded(ps, paneId, el); }   // the raw package follows its file
+      // and the same menu on a button, the way a listing carries one: History
+      // is otherwise reachable only by right-click or by typing ?view=history
+      opts.menu = (x, y) => showMenu(el._menu(), x, y);
+      // A PAST version is read-only, and has to look it. The viewer carries a
+      // full editor -- Edit / Save / Live -- and an old version that offers to
+      // save would write it back as the present, so opts.readOnly withholds
+      // saving while still showing the file.
+      //
+      // The bar goes in AFTER mount: +mount does root.innerHTML = MARKUP, so
+      // anything put there first is wiped.
+      try {
+        el._fv = window.FileView.mount(el, opts);
+        const pastBar = psPastBar(ns, path, 'file', onNav);
+        if (pastBar) el.insertBefore(pastBar, el.firstChild);
+        paneLive(ps, paneId, el, [{ road: abs }]); psLanded(ps, paneId, el);
+      }   // the raw package follows its file
       catch (e) { el.textContent = 'open failed: ' + e; }
     });
   }

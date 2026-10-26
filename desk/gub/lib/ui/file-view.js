@@ -74,6 +74,9 @@
     '.fv #missing{padding:40px 32px;color:#57606a}' +
     '.fv #missing h1{font-size:18px;margin:0 0 8px;color:#1f2328}' +
     '.fv #missing a{color:#0969da;text-decoration:none}' +
+    '.fv #unviewable{padding:40px 32px;color:#57606a}' +
+    '.fv #unviewable h1{font-size:18px;margin:0 0 8px;color:#1f2328}' +
+    '.fv #unviewable p{margin:0;max-width:68ch;white-space:pre-wrap}' +
     '.fv .md{max-width:74ch;padding:24px 32px;line-height:1.65}' +
     '.fv .md h1,.fv .md h2,.fv .md h3{border-bottom:1px solid #e2e7ee;padding-bottom:.3em}' +
     '.fv .md code{background:#f2f4f7;padding:1px 5px;border-radius:5px;font:12px ui-monospace,monospace}' +
@@ -119,6 +122,7 @@
       '<span class="chip" id="chip-mime" style="display:none"><span class="k">mime</span><span class="v"></span></span>' +
       '<span class="chip bang" id="bang-chip" style="display:none" title="click for the crash tang"><span class="k">bang</span><span class="v">fiber crashed</span></span>' +
       '<span class="grow"></span>' +
+      '<button id="more" style="display:none" title="this file\'s actions">⋯</button>' +
     '</div>' +
     '<div id="tools" style="display:none">' +
       '<button id="edit">Edit</button>' +
@@ -143,6 +147,10 @@
         '<h1>nothing here</h1>' +
         '<p id="missing-path"></p>' +
         '<p><a id="missing-up" href="/grubbery/ball">back</a></p>' +
+      '</div>' +
+      '<div id="unviewable" style="display:none">' +
+        '<h1 id="unviewable-title"></h1>' +
+        '<p id="unviewable-why"></p>' +
       '</div>' +
     '</div>' +
     '<div id="mime-view" style="display:none"></div>' +
@@ -198,9 +206,16 @@
     root.classList.add('fv');
     root.innerHTML = MARKUP;
     var wrapKey = opts.wrapKey || 'explorer-wrap';
+    // opts.readOnly — show the file but never let it be written (past versions)
     var $ = function (id) { return root.querySelector('#' + id); };
 
     var here = opts.url;
+    // opts.at: a ?case= (or any extra query) that must ride along on EVERY
+    // fetch this view makes -- otherwise a past version shows the present
+    // file's content under a past label, which is worse than failing.
+    var at = opts.at ? String(opts.at) : '';
+    // `here` may already carry a query, so pick the separator per call
+    var q = function (suffix) { return here + (here.indexOf('?') >= 0 ? '&' : '?') + suffix + at; };
     var name = decodeURIComponent((here.split('/').filter(Boolean).pop()) || '');
     var ext = (name.match(/\.([a-z0-9]+)$/i) || [, ''])[1].toLowerCase();
     // mime-first kind detection — a mime type the server actually resolved
@@ -293,9 +308,20 @@
       wrap.appendChild(mk('/', acc));
       parts.slice(0, -1).forEach(function (s) { acc += '/' + s; wrap.appendChild(mk(s + '/', acc)); });
     })();
+    // opts.menu(x, y) — the host's actions for this file (History, Download,
+    // move/copy...). A host that has none leaves the button hidden. The same
+    // menu is on right-click, which a phone cannot reach.
+    if (opts.menu) {
+      var more = $('more'); more.style.display = '';
+      more.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var r = more.getBoundingClientRect();
+        opts.menu(r.left, r.bottom + 4);
+      });
+    }
     function chip(id, text) { var c = $(id); c.querySelector('.v').textContent = text; c.style.display = ''; }
 
-    var info = null, mite = '', texty = false, editable = false, buildStatus = '';
+    var info = null, mite = '', texty = false, editable = false, writable = false, buildStatus = '';
     var mimeRendered = false, buildRendered = false, sandboxed = false;
     // a grub whose mite is runnable in a browser — the only kinds the kernel
     // serve-sandbox ever downgrades, so the only ones worth a header check
@@ -311,7 +337,9 @@
 
     (async function boot() {
       try {
-        info = await (await fetch(here + '?info=1', { headers: { accept: 'application/json' } })).json();
+        var ir = await fetch(q('info=1'), { headers: { accept: 'application/json' } });
+        if (!ir.ok) { renderUnviewable('nothing to show', (await ir.text()) || ('http ' + ir.status)); return; }
+        info = await ir.json();
       } catch (e) { showErr('explorer', 'could not load file info: ' + e); return; }
       if (info.bang) {
         var b = $('bang-chip'); b.style.display = '';
@@ -322,6 +350,24 @@
       await renderFile();
     })();
 
+    // A file that cannot be shown is a STATE OF THE PANE, not an alert over
+    // it. A modal gets dismissed and leaves the viewer looking like it holds
+    // the file; this replaces the viewer and says why.
+    function renderUnviewable(title, why) {
+      // ALL of the file chrome goes. A blot, a mime type, Source/Preview
+      // tabs, an edit toolbar and an actions menu are claims about a file
+      // that is not here -- rendering them around an error message makes
+      // the error look like the file's contents.
+      ['bar', 'tools', 'mime-row', 'mime-view', 'build-view', 'src', 'missing', 'view-pane'].forEach(function (id) {
+        try { var e = $(id); if (e) e.style.display = 'none'; } catch (_) {}
+      });
+      try { $('edwrap').style.display = 'none'; } catch (_) {}
+      try { $('src-display').style.display = 'none'; } catch (_) {}
+      try { $('text-view').style.display = ''; } catch (_) {}   // holds #unviewable
+      $('unviewable-title').textContent = title;
+      $('unviewable-why').textContent = why || '';
+      $('unviewable').style.display = '';
+    }
     function renderMissing() {
       var parent = here.replace(/\/[^/]*$/, '') || '/grubbery/ball';
       $('missing-path').textContent = 'There is no file or directory at ' + (info.path || here.replace('/grubbery/ball', '') || '/') + '.';
@@ -340,6 +386,15 @@
       mite = info.mite || '';
       texty = !!info.texty;
       editable = texty && !info.jammed;
+      // opts.readOnly: a host showing a PAST version. The editor would
+      // otherwise offer to save an old version back as the present, which
+      // is the one genuinely dangerous thing this component can do.
+      //
+      // WRITABLE, not editable: `editable` also decides whether the text is
+      // rendered at all, so folding read-only into it showed "binary
+      // content" instead of the file. The content is shown either way; only
+      // saving is withheld.
+      writable = editable && !opts.readOnly;
       buildStatus = (info.build && info.build.status) || '';
       chip('chip-blot', info.blot || '');
       chip('chip-mime', mite);
@@ -350,13 +405,14 @@
       // the kernel serve-sandbox fired for this file, from any pane
       if (runnableMite(mite)) {
         try {
-          var hr = await fetch(here + '?raw=1');
+          var hr = await fetch(q('raw=1'));
           if (hr.headers.get('x-content-type-options') === 'nosniff') { sandboxed = true; showSandboxBanner(); }
         } catch (_) {}
       }
       if (buildStatus) tabBuild.style.display = '';
       if (editable) {
-        edText = present(await readRaw());
+        try { edText = present(await readRaw()); }
+        catch (e) { renderUnviewable('nothing to show', (e && e.message) || String(e)); return; }
         edwrap.style.display = '';
       } else if (info.jammed) {
         src.textContent = info.text || ''; src.style.display = '';
@@ -366,7 +422,17 @@
       setupPanes(); setupWrap(); setupEditor(); renderSource();
     }
 
-    function readRaw() { return fetch(here + '?raw=1').then(function (r) { return r.text(); }); }
+    // a failed read is an ERROR, never content: without the status check the
+    // server's message ("that version is not there") lands in the editor and
+    // reads as the file's own text
+    function readRaw() {
+      return fetch(q('raw=1')).then(function (r) {
+        return r.text().then(function (t) {
+          if (!r.ok) throw new Error(t || ('http ' + r.status));
+          return t;
+        });
+      });
+    }
     function present(text) {
       if (effectiveKind() === 'json') { try { return JSON.stringify(JSON.parse(text), null, 2); } catch (_) {} }
       return text;
@@ -448,7 +514,7 @@
     }
 
     function setupEditor() {
-      if (!editable) {
+      if (!writable) {
         editBtn.setAttribute('disabled', ''); saveBtn.setAttribute('disabled', ''); liveBtn.setAttribute('disabled', '');
         vimBtn.setAttribute('disabled', '');
         return;
@@ -538,7 +604,7 @@
     }
 
     async function renderMime() {
-      var rawUrl = here + '?raw=1';
+      var rawUrl = q('raw=1');
       var text = editable ? (ve ? ve.getValue() : edText) : (src.textContent || '');
       mimeView.textContent = '';
       var k = effectiveKind();

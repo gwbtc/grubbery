@@ -234,7 +234,9 @@
           t.t.site
 
         ~?  dbg  %explorer-dispatch-start
-        ;<  dir-view=view:nexus  bind:m  (peek-shallow:io [%& %| raw-path] ~)
+        =/  vers  (version-args args)
+        ;<  dir-view=view:nexus  bind:m
+          (peek-versioned raw-path cas.vers asof.vers)
         ~?  dbg  %explorer-peek-done
         ?.  ?=([%ball *] dir-view)
           ::  Not a directory — try parent for file view
@@ -242,7 +244,11 @@
             ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
             (pure:m ~)
           =/  parent=path  (snip `path`raw-path)
-          ;<  par-view=view:nexus  bind:m  (peek-shallow:io [%& %| parent] ~)
+          ::  a ?case= on a FILE numbers the file, not its directory, so
+          ::  the parent is read in the present. ?asof= is anchor-relative
+          ::  and does apply to both.
+          ;<  par-view=view:nexus  bind:m
+            (peek-versioned parent ~ asof.vers)
           ?.  ?=([%ball *] par-view)
             ;<  ~  bind:m  (send-missing eyre-id raw-path args (wants-html req))
             (pure:m ~)
@@ -1067,6 +1073,99 @@
   ?.  (levy (trip i.segs) safe-seg-char)
     [%| 'invalid characters in path segment (use a-z 0-9 . - _ ~)']
   $(segs t.segs, acc (snoc acc i.segs))
+::  +ud-arg: a version number as a URL carries it.
+::
+::    slaw %ud and dem:ag both want hoon's dotted form (1.000), and a
+::    url carries the plain number. Every version >= 1000 therefore
+::    parsed as ~ -- and a ~ case means "now", so the request silently
+::    served the PRESENT under a past label. dim:ag is the bare-digit
+::    parser; dots are stripped first so both spellings work.
+::
+++  ud-arg
+  |=  t=@t
+  ^-  (unit @ud)
+  (rush (crip (skip (trip t) |=(a=@tD =('.' a)))) dim:ag)
+::  +version-args: the ?case= / ?asof= a request is reading at.
+::
+::    ?case=N    -- this path at its own version N
+::    ?asof=P:N  -- this path as it stood inside version N of P
+::
+++  version-args
+  |=  args=(list [key=@t value=@t])
+  ^-  [cas=(unit @ud) asof=(unit [anchor=path cas=@ud])]
+  =/  c=(unit @ud)
+    =/  k  (get-key:kv:html-utils 'case' args)
+    ?~(k ~ (ud-arg u.k))
+  =/  a=(unit [anchor=path cas=@ud])
+    =/  k  (get-key:kv:html-utils 'asof' args)
+    ?~  k  ~
+    =/  txt=tape  (trip u.k)
+    =/  idx=(unit @ud)  (find ":" txt)
+    ?~  idx  ~
+    =/  n=(unit @ud)  (ud-arg (crip (slag +(u.idx) txt)))
+    ?~  n  ~
+    `[(stab (crip (scag u.idx txt))) u.n]
+  [c a]
+::  +act-road: the road a version/policy action targets.
+::
+::    A fold entry and a grub entry are different histories, and
+::    handle-post is reached for both, so the caller says which.
+::
+++  act-road
+  |=  [pax=path is-dir=?]
+  ^-  road:tarball
+  ?:  is-dir  [%& %| pax]
+  ?~  pax  [%& %| pax]
+  ::  snip loses the element type without the cast
+  [%& %& (snip `path`pax) (rear pax)]
+::  +tag-set: "draft release v2" -> {'draft' 'release' 'v2'}
+::
+++  tag-set
+  |=  t=@t
+  ^-  (set @t)
+  %-  ~(gas in *(set @t))
+  %+  murn  (split-fas-space t)
+  |=(a=@t ?:(=('' a) ~ `a))
+::
+++  split-fas-space
+  |=  t=@t
+  ^-  (list @t)
+  =/  parts=(list tape)  (scan-space (trip t))
+  (turn parts crip)
+::
+++  scan-space
+  |=  a=tape
+  ^-  (list tape)
+  =|  out=(list tape)
+  =|  cur=tape
+  |-
+  ?~  a  (flop ?~(cur out [(flop cur) out]))
+  ?:  =(' ' i.a)
+    $(a t.a, cur ~, out ?~(cur out [(flop cur) out]))
+  $(a t.a, cur [i.a cur])
+::  +peek-versioned: the ball to render this path from.
+::
+::    A listing that ignores the version shows the PRESENT files under a
+::    past heading, and every one of them is a link that does not resolve
+::    at that version. So the listing is read at the version too.
+::
+::    ?asof= cannot be a shallow peek: the anchor's version names its
+::    whole subtree, so the anchor is read deep and walked down to here.
+::
+++  peek-versioned
+  |=  [pax=path cas=(unit @ud) asof=(unit [anchor=path cas=@ud])]
+  =/  m  (fiber:fiber:nexus ,view:nexus)
+  ^-  form:m
+  ?^  asof
+    ?.  =(anchor.u.asof (scag (lent anchor.u.asof) pax))
+      (pure:m [%ball *wave:nexus *ball:tarball])
+    ;<  av=view:nexus  bind:m
+      (peek-at:io [%& %| anchor.u.asof] ~ [%ud cas.u.asof])
+    ?.  ?=([%ball *] av)  (pure:m av)
+    =/  rel=path  (slag (lent anchor.u.asof) pax)
+    (pure:m [%ball wave.av (~(dip of ball.av) rel)])
+  ?^  cas  (peek-shallow-at:io [%& %| pax] ~ [%ud u.cas])
+  (peek-shallow:io [%& %| pax] ~)
 ::  +parse-road-input: parse "../../foo/bar" into a proper road
 ::  Counts leading "../" as relative steps, remainder as the lane.
 ::
@@ -1219,7 +1318,24 @@
     ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
     (pure:m ~)
   =/  name=@ta  (rear tree-path)
+  ::  ?case=N reads a PAST version of this grub. Without it, the parent
+  ::  ball's current listing. +peek-at has carried a case all along; the
+  ::  file view simply never asked for one, so history was listable and
+  ::  not readable.
+  =/  case-arg=(unit @ud)
+    =/  c  (get-key:kv:html-utils 'case' args)
+    ?~(c ~ (ud-arg u.c))
+  ;<  past=(unit sang:tarball)  bind:m
+    =/  m  (fiber:fiber:nexus ,(unit sang:tarball))
+    ^-  form:m
+    ?~  case-arg  (pure:m ~)
+    ;<  rd=road:tarball  bind:m
+      (ancestor-road:io [/explorer %main] [%& [(snip `path`tree-path) name]])
+    ;<  v=view:nexus  bind:m  (peek-at:io rd ~ [%ud u.case-arg])
+    ?.  ?=([%file *] v)  (pure:m ~)
+    (pure:m `sang.v)
   =/  content-data=(unit [=sang:tarball gain=? bang=(unit tang)])
+    ?^  past  `[u.past %.n ~]
     ?~  fil.ball  ~
     (find-grub name u.fil.ball)
   ?~  content-data
@@ -1272,7 +1388,13 @@
   ::  inert (text/plain + nosniff) there. We only ever served the stored bytes
   ::  here, so a 307 is transparent to fetch()/img/download consumers.
   ?~  info-param
-    =/  loc=@t  (crip (weld "/grubbery/api/file" (spud `path`tree-path)))
+    =/  loc=@t
+      %-  crip
+      ;:  weld
+        "/grubbery/api/file"
+        (spud `path`tree-path)
+        ?~(case-arg "" (weld "?case=" (a-co:co u.case-arg)))
+      ==
     ;<  ~  bind:m  (send-simple:srv eyre-id [[307 ~[['location' loc]]] ~])
     (pure:m ~)
   ;<  =mime  bind:m  (sage-to-mime:io sage)
@@ -1375,6 +1497,65 @@
   ?+    u.action
       ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Unknown action')])
       (pure:m ~)
+  ::
+      ::  keep-version: promote the CURRENT version to %firm with any
+      ::  labels the caller sent, in one write. The dart has no case:
+      ::  %firm always means "the one live now".
+      ::
+      %'keep-version'
+    ;<  ~  bind:m
+      %:  checkpoint:io
+        (act-road tree-path =(`'dir' (get-key:kv:html-utils 'kind' args)))
+        (tag-set (fall (get-key:kv:html-utils 'tags' args) ''))
+      ==
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
+    (pure:m ~)
+  ::
+      ::  tag-version: set the labels on a version. The caller hands the
+      ::  full desired set, so this both adds and removes. No ?case= means
+      ::  the current one.
+      ::
+      %'tag-version'
+    =/  cas=(unit @ud)
+      =/  k  (get-key:kv:html-utils 'case' args)
+      ?~(k ~ (ud-arg u.k))
+    =/  tags=(set @t)  (tag-set (fall (get-key:kv:html-utils 'tags' args) ''))
+    ;<  ~  bind:m
+      %:  tag:io
+        (act-road tree-path =(`'dir' (get-key:kv:html-utils 'kind' args)))
+        ?~(cas ~ `[%ud u.cas])
+        tags
+      ==
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
+    (pure:m ~)
+  ::
+      ::  set-gain: the RETENTION POLICY of this path. gain on, every
+      ::  write is %firm and the history accumulates; off, each write
+      ::  deletes the version it replaces. Recursive on a directory.
+      ::
+      %'set-gain'
+    =/  flag=?  =(`'1' (get-key:kv:html-utils 'flag' args))
+    ;<  ~  bind:m  (gain:io (act-road tree-path =(`'dir' (get-key:kv:html-utils 'kind' args))) flag)
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
+    (pure:m ~)
+  ::
+      ::  drop-version: delete ONE version of this path. %lose deletes the
+      ::  entry and releases its object together -- the pair that must
+      ::  always move as one. ?case= names the version; a directory drops
+      ::  its fold entry, a file its own.
+      ::
+      %'drop-version'
+    =/  cas=(unit @ud)
+      =/  k  (get-key:kv:html-utils 'case' args)
+      ?~(k ~ (ud-arg u.k))
+    ?~  cas
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'no version')])
+      (pure:m ~)
+    =/  =road:tarball
+      (act-road tree-path =(`'dir' (get-key:kv:html-utils 'kind' args)))
+    ;<  ~  bind:m  (lose:io road [%numb `u.cas `u.cas])
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
+    (pure:m ~)
   ::
       %'delete-grub'
     =/  filename=@t  (fall (get-key:kv:html-utils 'filename' args) '')

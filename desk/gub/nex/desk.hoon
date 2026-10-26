@@ -893,7 +893,7 @@
   ::  one firm of /desk captures the whole world — snapshotting a path
   ::  recursively firms everything beneath it, so /desk/code and
   ::  /desk/data ride along. One revision, one number.
-  ;<  ~  bind:m  (checkpoint:io (nex-road:io rail [%| /desk]))
+  ;<  ~  bind:m  (checkpoint:io (nex-road:io rail [%| /desk]) ~)
   ::  a firm of UNCHANGED content dedupes to the existing top revision —
   ::  which, if the world hasn't moved since the last snapshot, is already
   ::  a snapshot (carries a numeric tag). Capturing the same world twice is
