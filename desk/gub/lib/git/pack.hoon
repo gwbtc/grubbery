@@ -249,6 +249,8 @@
   =^  biz=@ud  sea  (read-object-size sea)
   =^  siz=@ud  sea  (read-object-size sea)
   ?>  =(size.base biz)
+  ?:  (gth siz max-object)
+    ~|  "+expand-delta-object: target of {<siz>}b is past the cap"  !!
   =|  data=octs
   =<
   |-
@@ -262,6 +264,10 @@
     ?:  =(0 (dis bat 0x80))
       (add-data bat sea)
     (copy-data bat sea)
+  ::  the target size is declared up front, so output past it is refused
+  ::  as it would be built, not checked once it exists
+  ?:  (gth (add p.data p.chunk) siz)
+    ~|  "+expand-delta-object: output past its declared {<siz>}b"  !!
   $(data (cat-octs:bytestream data chunk))
   ::
   |%
@@ -308,6 +314,10 @@
     =.  size  siz
     =?  size  =(0 size)
       `@ud`0x1.0000
+    ::  a copy is a range of the base: past its end git refuses it, and
+    ::  +cut would make up zeros of any length
+    ?:  (gth (add offset size) p.data.base)
+      ~|  "+expand-delta-object: copy past the end of its base"  !!
     :_  sea
     [size (cut 3 [offset size] q.data.base)]
   --
@@ -317,12 +327,20 @@
   ^-  [pack-object bays:bytestream]
   =+  pin=(got:pack-on index.pack hash)
   (read-pack-object (seek-to:bytestream pin stream.pack))
+::  +max-object: the largest object a pack may hold, in bytes. A pack
+::  comes from a remote, and each object's size is declared before it is
+::  inflated into the loom; a declaration past this is refused unread.
+::  ponytail: one fixed cap, raise it if a real repo needs bigger blobs.
+::
+++  max-object  ^~((bex 27))
 ++  read-pack-object
   |=  sea=bays:bytestream
   ^-  [pack-object bays:bytestream]
   =+  pos=pos.sea
   =^  [type=pack-object-type size=@ud]  sea
     (read-pack-object-header sea)
+  ?:  (gth size max-object)
+    ~|  "Object is too large: stated {<size>}b, the cap is {<max-object>}b"  !!
   ?+  type
     =^  data=octs  sea  (decompress-zlib:zlib sea)
     ?.  =(p.data size)
