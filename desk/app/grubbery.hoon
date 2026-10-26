@@ -7310,13 +7310,20 @@
       =/  dek=desk  !<(desk q.sage)
       =.  this  (handle-clay-unmount dek)
       `(enqu-take here ~ ~ %pack wir ~)
+    ::  %base and %grubbery are the ship's own code: writing either is a
+    ::  kernel upgrade, which %unmount-desk already refuses to touch
+    =/  kernel-desk  |=(dek=desk |(=(%base dek) =(%grubbery dek)))
     ?:  =([/ %new-desk] p.sage)
       =/  dek=desk  !<(desk q.sage)
+      ?:  (kernel-desk dek)
+        `(enqu-take here ~ ~ %pack wir `~[leaf+"%{(trip dek)} is not written through /sys/clay"])
       =.  this  (handle-clay-new-desk dek)
       `(enqu-take here ~ ~ %pack wir ~)
     ?:  =([/ %clay-info] p.sage)
       =/  [dek=desk files=(list [path (unit mime)])]
         !<([desk (list [path (unit mime)])] q.sage)
+      ?:  (kernel-desk dek)
+        `(enqu-take here ~ ~ %pack wir `~[leaf+"%{(trip dek)} is not written through /sys/clay"])
       =.  this  (handle-clay-info dek files)
       `(enqu-take here ~ ~ %pack wir ~)
     ~  :: unknown clay poke, fall through
