@@ -120,23 +120,21 @@
       |=  [[nam=@ta kid=ball:tarball] acc=_here]
       (weld acc (ball-code-files (snoc sub nam) kid))
     ::  +await-tool: look up a compiled tool handler by name in this
-    ::  instance's own seeded /code (or by an absolute /-prefixed source
-    ::  location — an explicit address, which the weir governs). No
-    ::  fallback anywhere: a tool that fails to build reports its build
-    ::  tang as the run's error, never a lookup elsewhere.
+    ::  instance's own seeded /code. No fallback anywhere: a tool that
+    ::  fails to build reports its build tang as the run's error, never a
+    ::  lookup elsewhere. A name is never a path: a /-prefixed name used to
+    ::  compile and run any source it named, with this instance's
+    ::  authority. A tool that lives elsewhere is reached by call_tool.
     ::
     ++  await-tool
       |=  [=rail:tarball tool-name=@t]
       =/  m  (fiber:fiber:nexus ,(each tool:nex-tools tang))
       ^-  form:m
       =/  road=(each road:tarball tang)
-        ?.  =('/' (end 3 tool-name))
-          =/  [sub=path arm=@ta]  (name-to-place:nex-tools tool-name)
-          [%& (nex-road:io rail [%& (weld /code/lib/tools sub) arm])]
-        =/  pax=(unit path)  (rush tool-name stap)
-        ?:  |(?=(~ pax) ?=(~ u.pax))
-          [%| ~[leaf+"bad tool path: {(trip tool-name)}"]]
-        [%& [%& %& (snip `path`u.pax) (rear u.pax)]]
+        ?:  =('/' (end 3 tool-name))
+          [%| ~[leaf+"tool names are not paths: {(trip tool-name)}"]]
+        =/  [sub=path arm=@ta]  (name-to-place:nex-tools tool-name)
+        [%& (nex-road:io rail [%& (weld /code/lib/tools sub) arm])]
       ?:  ?=(%| -.road)  (pure:m road)
       ;<  res=built:nexus  bind:m  (get-code-full:io p.road)
       ?-    -.res
