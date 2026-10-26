@@ -393,6 +393,7 @@
       ::  agent-facing response channel: subscribe before poking
       ::  %grub-cmd requests tagged with the same id
       [%client @ ~]
+    ?<  ~|(%client-chan-taken (client-chan-other:hc i.t.path src.bowl))
     [~ this]
       ::  Jael subscribes on / for all udiffs
       ::
@@ -1044,10 +1045,21 @@
   |=  [id=@ta =res:grub]
   ^+  this
   (emit-card [%give %fact ~[/client/[id]] %grub-fact !>(`fact:grub`[id res])])
+::  +client-chan-other: is a ship other than .who watching /client/[id]?
+::  A channel belongs to the ship that watches it first, so the results
+::  of one ship's %grub-cmd requests are never given to another.
+::
+++  client-chan-other
+  |=  [id=@ta who=@p]
+  ^-  ?
+  %+  lien  ~(val by sup.bowl)
+  |=  [=ship pax=path]
+  &(=(pax /client/[id]) !=(ship who))
 ::
 ++  handle-grub-cmd
   |=  [src=@p =cmd:grub]
   ^+  this
+  ?<  ~|(%client-chan-taken (client-chan-other chan.cmd src))
   =.  this  (ensure-peer-ship src)
   =/  caller=rail:tarball  (ship-sig-rail src)
   =/  cwire=wire  /client/[chan.cmd]
