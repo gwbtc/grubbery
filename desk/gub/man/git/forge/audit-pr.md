@@ -151,6 +151,16 @@ report names which. A PR that leaves the reader unable to judge is
 `not evaluable`. The standard is what the auditor's feedback to the
 author points at.
 
+## Fetching the PR
+
+A repo clanker reads a pull request by number: `pr_diff` fetches the
+hunks and `pr_description` the author's account, both through the
+ship's GitHub proxy, which the forge names in the clanker's config
+along with the repository. The two are separate tools on purpose: the
+advocate takes the diff, the judge the description. A diff and a
+description pasted into the chat work as before. The audit asks nothing
+of anyone: an input it cannot find ends the run by abort.
+
 ## Later: feedback on the PR
 
 Once the reports are trustworthy, the audit writes its feedback on the
