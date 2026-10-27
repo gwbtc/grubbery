@@ -3544,6 +3544,18 @@
 ::  ames instead, it came back from our own ship and was admitted as
 ::  our unweired ship.sig.
 ::
+::  The invariant this restores: every dart is judged by its real
+::  local destination before the weir check; an ames-self-lane is
+::  normalized to its real lane at admission.
+::
+::  The rewrite cascades: after it, dest no longer resolves under
+::  /sys/ames/ships/, so the +resolve-remote calls downstream in
+::  %keep, %drop, +dart-peek, and +dart-poke all see a non-ames lane
+::  and take the local path. That cascade is load-bearing: each of
+::  those sites re-derives the lane from dest, and without the
+::  rewrite here they would each stage a remote operation against
+::  our own ship.
+::
 ++  loopback-lane
   |=  =lane:tarball
   ^-  lane:tarball
