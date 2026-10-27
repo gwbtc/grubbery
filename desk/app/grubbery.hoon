@@ -7381,6 +7381,10 @@
   ::
       %scry
     ?:  =([/ %scry-request] p.sage)
+      ::  every other handler in this branch updates state and lets the
+      ::  dispatch site emit the %pack; +handle-typed-scry owns its own
+      ::  %pack because it must also emit the result %poke first, and on
+      ::  a guarded miss it emits the failed %pack instead of either
       `(handle-typed-scry here wir q.sage)
     ::  remote-scry farm writes. Weir-gated as ordinary /sys pokes by
     ::  arrival here; gall consumes the emitted cards and signs
@@ -8045,9 +8049,11 @@
   ?.  ?=([@ @ *] pat)  (fail "scry needs a care and a desk")
   =/  at=path  [(scot %p our.bowl) i.t.pat (scot %da now.bowl) t.t.pat]
   =/  vane=@t  (end 3 i.pat)
-  ::  %cu is file existence, so it guards only the file read; a %cy or %cs
-  ::  of a directory has no file and goes through as asked
-  ?:  &(=(%cx i.pat) !.^(? %cu at))
+  ::  %cu answers whether a path exists, so it guards the file read (%cx)
+  ::  and the tree read (%ct, which clay-tree issues and which crashes the
+  ::  same way on a missing desk path); a %cy or %cs of a directory has no
+  ::  file and goes through as asked
+  ?:  &(?=(%cx %ct) !.^(? %cu at))
     (fail "no such file")
   ?:  &(=('g' vane) !=(%gu i.pat) !.^(? %gu /(scot %p our.bowl)/[i.t.pat]/(scot %da now.bowl)/$))
     (fail "no such agent")
