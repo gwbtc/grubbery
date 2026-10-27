@@ -122,9 +122,10 @@
     ::  +await-tool: look up a compiled tool handler by name in this
     ::  instance's own seeded /code. No fallback anywhere: a tool that
     ::  fails to build reports its build tang as the run's error, never a
-    ::  lookup elsewhere. A name is never a path: a /-prefixed name used to
-    ::  compile and run any source it named, with this instance's
-    ::  authority. A tool that lives elsewhere is reached by call_tool.
+    ::  lookup elsewhere. A name is never a path: a /-prefixed name was
+    ::  formerly accepted as a source path, compiling and running whatever
+    ::  it named with this instance's authority; that branch is now
+    ::  removed. A tool that lives elsewhere is reached by call_tool.
     ::
     ++  await-tool
       |=  [=rail:tarball tool-name=@t]
