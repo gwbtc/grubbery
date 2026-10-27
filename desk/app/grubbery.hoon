@@ -6794,7 +6794,10 @@
   ::  every owner gate downstream asks only src == our, which the
   ::  session cookie decides, and a browser sends that cookie on a write
   ::  from any site. A write that carries the owner's session must come
-  ::  from our own origin.
+  ::  from our own origin. Websocket upgrades would be method GET and
+  ::  so pass this gate unconditionally, but no inbound upgrade path
+  ::  reaches it: the only websockets here are outbound client sockets
+  ::  through iris, poked from our own ship.
   =/  cross=(unit [mode=(unit @t) site=(unit @t)])  (cross-site-write req)
   ?^  cross
     %-  emit-cards
@@ -6862,8 +6865,11 @@
 ::  nothing. Sec-Fetch-Site same-origin or none passes. With no
 ::  Sec-Fetch-Site, an Origin naming our own host passes, and so does
 ::  no Origin at all: browsers send one on every cross-site write, so
-::  that is a native client. A moz-extension:// origin is an add-on the
-::  owner installed. The host is compared without the scheme, since
+::  that is a native client. A moz-extension:// origin passes on its
+::  scheme prefix alone: the check cannot verify that the add-on is
+::  one the owner installed, only that the request came from a
+::  browser extension context rather than a web page. The host is
+::  compared without the scheme, since
 ::  a ship behind a TLS proxy sees plain http.
 ::
 ++  cross-site-write
