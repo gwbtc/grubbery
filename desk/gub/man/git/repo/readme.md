@@ -5,7 +5,7 @@ Clone a public git repo into the namespace and act on it. Config: repo, ref.
 ## Files
 
 - `config.json` — repo (owner/repo), ref (branch/tag/sha), token, account.
-- `run.git-action` — the serial command lane. Poke `{command: "<git command>"}`;
+- `run.git-action` — the serial command queue. Poke `{command: "<git command>"}`;
   it parses and runs one command at a time. Read it for the queue/active/log
   outcome. This is the single entry point for every git action.
 - `poll.json` — self-configuring sync daemon. Holds `{minutes: N}` (0 = off);

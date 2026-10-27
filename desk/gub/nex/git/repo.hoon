@@ -304,6 +304,18 @@
   ;<  =view:nexus  bind:m  (peek:io road `[/ %json])
   =/  jon=json  (view-to-json view)
   (pure:m ?:(?=(%a -.jon) (lent p.jon) 0))
+::  +request-pending: is a request file still in the data dir? The data
+::  nexus consumes add-request.json and commit-request.json when it runs
+::  them, so one still there after a reload means the request did not
+::  run, which is a different answer from "nothing changed".
+::
+++  request-pending
+  |=  name=@ta
+  =/  m  (fiber:fiber:nexus ,?)
+  ^-  form:m
+  ;<  rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /data name])
+  ;<  v=(unit view:nexus)  bind:m  (peek-soft:io rd ~)
+  (pure:m ?=([~ %file *] v))
 ::  +staged-count: how many paths the index holds that HEAD does not
 ::  (data/ui/status.json "staged"); 0 when unknown.
 ::
@@ -482,6 +494,9 @@
   ::  after it then found no changes and said nothing at all.
   ;<  before=@ud  bind:m  staged-count
   ;<  ~  bind:m  (reload:io data-rd)
+  ;<  stuck=?  bind:m  (request-pending %'add-request.json')
+  ?:  stuck
+    (pure:m [%error 'the data nexus did not run the add request: add-request.json is still there after the reload'])
   ;<  after=@ud  bind:m  staged-count
   ?:  =(before after)
     ?~  paths
@@ -528,6 +543,9 @@
   ::  reported a commit that was never made. Ask HEAD instead.
   ;<  before=@t  bind:m  resolve-head
   ;<  ~  bind:m  (reload:io data-rd)
+  ;<  stuck=?  bind:m  (request-pending %'commit-request.json')
+  ?:  stuck
+    (pure:m [%error 'the data nexus did not run the commit request: commit-request.json is still there after the reload'])
   ;<  after=@t  bind:m  resolve-head
   ?:  =(before after)
     %-  pure:m

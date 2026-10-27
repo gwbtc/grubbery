@@ -278,10 +278,14 @@
         ball
       ::
       ::  === add request handling ===
-      ::  if add-request.json exists, stage files into INDEX
+      ::  if add-request.json exists, stage files into INDEX. The load
+      ::  goes on to a commit request after it: an add request sitting
+      ::  here must not shadow a commit, or the commit never runs and its
+      ::  request file sits unconsumed
       ::
       =/  add-req=(unit json)  (read-add-request ball)
-      ?^  add-req
+      =.  ball
+        ?~  add-req  ball
         ~?  dbg  "%git/data: add request found"
         ?>  ?=(%o -.u.add-req)
         =/  req-map=(map @t json)  p.u.add-req
