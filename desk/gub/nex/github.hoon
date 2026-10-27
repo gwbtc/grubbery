@@ -15,7 +15,8 @@
 ::                    xfer/[id] [%pending xreq] -> [%done octs]/[%fail tang]
 ::
 ::  Flow (both kinds): keep the lifecycle grub's road FIRST, then poke
-::  main.sig; read the result on news, then drop. The claw/api pattern.
+::  main.sig; read the result on news, then drop. The lifecycle-grub
+::  pattern the anthropic and openrouter proxies share.
 ::
 /&  man      ../man/github/readme.md
 /<  ui-html  github/index.html
