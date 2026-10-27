@@ -2663,7 +2663,10 @@
   ?~  ask  (pure:m ~)
   ?.  ?=(%o -.u.ask)  (pure:m ~)
   ::  what gets sanded is the granted subset, not the whole declared ask,
-  ::  and a road the app never asked for is dropped whatever the POST says
+  ::  and a road the app never asked for is dropped whatever the POST
+  ::  says. When granted is not a JSON object the whole ask is sanded as
+  ::  before: (narrow-to-ask u.ask u.ask) is the identity, so the filter
+  ::  is a no-op on that branch and the semantics are unchanged.
   =/  sub=json  (narrow-to-ask ?:(?=(%o -.granted) granted u.ask) u.ask)
   ::  the alias directory costs a peek per installed app - most of this
   ::  fiber's time - and only an ask that names an @alias needs it.
