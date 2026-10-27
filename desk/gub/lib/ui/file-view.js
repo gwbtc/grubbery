@@ -34,6 +34,7 @@
     '.fv #crumbs a{color:#57606a;padding:2px 4px;border-radius:5px;text-decoration:none}' +
     '.fv #crumbs a:hover{color:#24292f;background:#eaeef2}' +
     '.fv #fname{font:600 12px ui-monospace,SFMono-Regular,Menlo,monospace;color:#24292f;padding:2px 4px}' +
+    '.fv #fname.unnamed{color:#8b949e;font-style:italic;font-weight:400}' +
     '.fv .chip{display:inline-flex;align-items:center;gap:5px;background:#eef1f4;border:1px solid #e2e7ee;border-radius:6px;padding:2px 8px}' +
     '.fv .chip .k{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#8b949e}' +
     '.fv .chip .v{font:11px ui-monospace,SFMono-Regular,Menlo,monospace;color:#24292f}' +
@@ -216,7 +217,14 @@
     var at = opts.at ? String(opts.at) : '';
     // `here` may already carry a query, so pick the separator per call
     var q = function (suffix) { return here + (here.indexOf('?') >= 0 ? '&' : '?') + suffix + at; };
-    var name = decodeURIComponent((here.split('/').filter(Boolean).pop()) || '');
+    // A grub may have NO NAME -- dill's default session is the empty one,
+    // and /sys/dill/sessions/ IS that file. Its path ends in the separator,
+    // so filter(Boolean) drops the empty segment and the view would name
+    // itself after its own parent directory. An unnamed grub is named for
+    // the reader instead, the same way a listing names one.
+    var segs = here.replace(/\?.*$/, '').split('/');
+    var unnamed = segs[segs.length - 1] === '';
+    var name = unnamed ? '' : decodeURIComponent(segs[segs.length - 1] || '');
     var ext = (name.match(/\.([a-z0-9]+)$/i) || [, ''])[1].toLowerCase();
     // mime-first kind detection — a mime type the server actually resolved
     // (via its marc) is more trustworthy than a filename's extension, which
@@ -291,7 +299,8 @@
       errOverlay.style.display = '';
     }
 
-    $('fname').textContent = name;
+    if (unnamed) { $('fname').textContent = '[unnamed]'; $('fname').classList.add('unnamed'); }
+    else $('fname').textContent = name;
     (function crumbs() {
       var wrap = $('crumbs');
       var base = opts.crumbBase || '/grubbery/ball';
@@ -306,7 +315,10 @@
       };
       var acc = base;
       wrap.appendChild(mk('/', acc));
-      parts.slice(0, -1).forEach(function (s) { acc += '/' + s; wrap.appendChild(mk(s + '/', acc)); });
+      // slice(0,-1) drops the FILENAME. An unnamed grub has none -- its
+      // path ends in the separator -- so its last segment is its parent
+      // directory and must stay, or the crumb loses a level.
+      (unnamed ? parts : parts.slice(0, -1)).forEach(function (s) { acc += '/' + s; wrap.appendChild(mk(s + '/', acc)); });
     })();
     // opts.menu(x, y) — the host's actions for this file (History, Download,
     // move/copy...). A host that has none leaves the button hidden. The same

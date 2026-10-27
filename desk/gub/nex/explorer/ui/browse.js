@@ -885,6 +885,26 @@ function setup(root, opts) {
   const psMoment = (p) => { const q = psSplit(p).query; return psNs(p) + (q ? '?' + q : ''); };
   const psUrl = (p) => { const n = psNs(p); return n === '/' ? PREFIX : PREFIX + n; };   // root → /grubbery/ball (no trailing slash)
   const psBase = (p) => psNs(p).replace(/\/$/, '').split('/').filter(Boolean).pop() || '/';
+  // +psLabel: a path's name AS SHOWN. A grub may have none -- dill's
+  // default session is the empty name, and /sys/dill/sessions/ IS that
+  // file -- and an unnamed grub's path is spelled exactly like its parent
+  // directory, so psBase names it after the parent. Only the kind tells
+  // them apart. Display only: anything that feeds an action (rename,
+  // delete) keeps the real, empty name.
+  const psLabel = (p) => {
+    const ns = psNs(p);
+    return (/\/$/.test(ns) && psKind.get(ns) === 'file') ? '[unnamed]' : psBase(p);
+  };
+  // +psOwn: a grub's REAL name and the directory holding it. An unnamed
+  // grub's path ends in the separator, so stripping "the last segment"
+  // takes its PARENT and leaves the grandparent -- actions then named the
+  // wrong directory and sent the parent's name as the filename.
+  const psOwn = (p) => {
+    const ns = psNs(p);
+    return /\/$/.test(ns)
+      ? { name: '', dir: psUrl(ns) }
+      : { name: psBase(p), dir: psUrl(ns.replace(/\/[^/]*$/, '') || '/') };
+  };
   // ~2026.10.25..18.07.13..a11e -> 2026-10-25 18:07:13. SECONDS matter:
   // versions a minute apart read as duplicates without them, and three of
   // HEAD's moments share one minute.
@@ -1007,7 +1027,7 @@ function setup(root, opts) {
   // a tab is its name; no glyph guessed from kind. A moment with ?page= (a
   // rendering's own sub-page: the docs pane) is named by that page, so the
   // history reads as the pages visited, not the same grub nine times
-  function paneTabInfo(p) { const pg = psArgs(p).page; return { icon: '', label: pg ? (pg.split('/').filter(Boolean).pop() || pg) : psBase(p), dead: psDead.has(psNs(p).replace(/\/$/, '') || '/') }; }
+  function paneTabInfo(p) { const pg = psArgs(p).page; return { icon: '', label: pg ? (pg.split('/').filter(Boolean).pop() || pg) : psLabel(p), dead: psDead.has(psNs(p).replace(/\/$/, '') || '/') }; }
   // ---- deletion: a moment whose path is gone is DEAD, not closed ----
   // Every content moment follows its parent dir, folded (one event when a
   // direct child is made or culled). On that event the moment's own path is
@@ -1506,8 +1526,12 @@ function setup(root, opts) {
     // is a directory, and the slash made `back to now` land on
     // /apps/x/ which does not resolve.
     const here = bare(ns);
-    // a directory's label carries its slash; a file's must not
-    const ownerLabel = owner === '/' ? '/'
+    // a directory's label carries its slash; a file's must not. An
+    // UNNAMED grub's path is spelled like its parent directory, so the
+    // bar would name the parent -- it is named for the reader instead.
+    const nameless = kind !== 'dir' && !asof && /\/$/.test(psNs(ns));
+    const ownerLabel = nameless ? owner + '/[unnamed]'
+                     : owner === '/' ? '/'
                      : owner + ((kind === 'dir' || asof) ? '/' : '');
     // WHOSE versions these are. A path has its own history, and a fold's
     // version resolves its whole subtree, so "version 14" is meaningless
@@ -1801,7 +1825,8 @@ function setup(root, opts) {
   function actionView(ps, paneId, el, path, abs) {
     const args = psArgs(path), ns = psNs(path), view = args.view;
     abs = abs || ns;
-    const url = psUrl(abs), name = psBase(abs), parentUrl = psUrl(abs.replace(/\/[^/]*$/, '') || '/');
+    const own = psOwn(abs);
+    const url = psUrl(abs), name = own.name, parentUrl = own.dir;
     const isDir = args.kind === 'dir';
     psChrome();
     const wrap = document.createElement('div'); wrap.className = 'ps-form-wrap';
@@ -1809,7 +1834,10 @@ function setup(root, opts) {
     const head = document.createElement('div'); head.className = 'ps-form-head';
     const body = document.createElement('div'); body.className = 'ps-form-body';
     form.append(head, body);
-    const h = (verb, p) => { head.textContent = ''; const v = document.createElement('div'); v.className = 'ps-form-verb'; v.textContent = verb; const d = document.createElement('div'); d.className = 'ps-form-path'; d.textContent = p; d.title = p; head.append(v, d); };
+    // an unnamed GRUB's path is spelled like its parent directory, which
+    // on a delete page reads as "the directory" -- it is named instead
+    const shown = (p) => (!isDir && /\/$/.test(p)) ? p + '[unnamed]' : p;
+    const h = (verb, p) => { head.textContent = ''; const v = document.createElement('div'); v.className = 'ps-form-verb'; v.textContent = verb; const d = document.createElement('div'); d.className = 'ps-form-path'; d.textContent = shown(p); d.title = shown(p); head.append(v, d); };
     const note = (t) => { const d = document.createElement('div'); d.className = 'ps-form-note'; d.textContent = t; body.appendChild(d); };
     const field = (label, value, ph) => { const l = document.createElement('label'); const s = document.createElement('span'); s.textContent = label; const i = document.createElement('input'); i.value = value || ''; i.placeholder = ph || ''; i.spellcheck = false; l.append(s, i); body.appendChild(l); return i; };
     const buttons = (ok, danger, run) => { const foot = document.createElement('div'); foot.className = 'ps-form-foot'; const c = document.createElement('button'); c.textContent = 'cancel'; c.addEventListener('click', () => ps.back(paneId)); const b = document.createElement('button'); b.className = danger ? 'danger' : 'go'; b.textContent = ok; b.addEventListener('click', async () => { b.disabled = true; const okd = await run(); b.disabled = false; if (okd) ps.back(paneId); }); foot.append(c, b); form.appendChild(foot); return b; };
@@ -2467,7 +2495,7 @@ function setup(root, opts) {
       const opts = { url, crumbBase: ROOT, onNavigate: onNav, open: vopen, close: vclose,
                      readOnly: !!atCase, at: atCase ? '&' + atCase : '' };   // raw, or no renderer → the raw package
       // right-click anywhere in the file: the file's own actions
-      el._menu = () => itemMenu(el, { kind: 'file', name: psBase(abs), __dir: psUrl(abs.replace(/\/[^/]*$/, '') || '/') });
+      el._menu = () => { const o = psOwn(abs); return itemMenu(el, { kind: 'file', name: o.name, __dir: o.dir }); };
       // and the same menu on a button, the way a listing carries one: History
       // is otherwise reachable only by right-click or by typing ?view=history
       opts.menu = (x, y) => showMenu(el._menu(), x, y);
@@ -3673,7 +3701,7 @@ function setup(root, opts) {
     const srcOf = (n) => (n.entry ? (n.entry.div ? n.entry.div.src : (n.entry.pane ? n.entry.src : null)) : null) || null;
     const countLeaves = (n) => n.kind === 'leaf' ? 1 : n.kids.reduce((a, k) => a + countLeaves(k), 0);
     // a container is named the way gmux names one: what opened it, else 'layout'
-    const labelOf = (n) => n.kind === 'leaf' ? (n.name || (n.path ? psBase(n.path) : 'empty')) : tabLabel(n.tab);
+    const labelOf = (n) => n.kind === 'leaf' ? (n.name || (n.path ? psLabel(n.path) : 'empty')) : tabLabel(n.tab);
     // the user's name for a tab, else the name the content offered when it
     // opened, else what it is — the same order gmux uses on the desktop
     const tabLabel = (t) => {
@@ -3683,7 +3711,7 @@ function setup(root, opts) {
       if (!e) return 'empty';
       if (e.name) return e.name;
       if (e.div || e.pane) { const src = (e.div && e.div.src) || e.src; return src ? psBase(src) : 'layout'; }
-      return psBase(e.path) || 'empty';
+      return psLabel(e.path) || 'empty';
     };
     const tabIcon = (t) => {
       const e = t && t.cursor >= 0 ? t.entries[t.cursor] : null;
