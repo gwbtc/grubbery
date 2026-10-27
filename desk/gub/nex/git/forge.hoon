@@ -60,6 +60,9 @@
 /&  marked-js   forge/marked.min.js
 /<  nex-tools   /lib/tools.hoon
 /&  forge-tools  forge/tool-bundle/
+::  the recipes the forge ships with each repo's clanker: forge/recipes/
+::  <name>.json, with the files it ships with beside it under <name>/
+/&  forge-recipes  forge/recipes/
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -582,6 +585,7 @@
         ['system' s+(repo-clanker-prompt short tree)]
         ['repo' s+tree]
         ['config' (pairs:enjs:format ~[['ui' s+ui] ['deploy' deploy]])]
+        ['recipes' shipped-recipes]
         :-  'roads'
         %-  pairs:enjs:format
         :~  ['peek' (strs (weld ~[(cat 3 tree '/') (cat 3 ui '/') queue] deploy-peeks))]
@@ -614,6 +618,35 @@
     (poke-soft:io sig [/ %json] ensure)
   ?.  ?=([~ ~] res)  (pure:m ~)
   (pure:m `[p.u.cl short])
+::  +shipped-recipes: the recipes the forge ships with a repo's clanker,
+::  as the ensure poke carries them: [{name, recipe, files: {name: text}}],
+::  one per forge/recipes/<name>.json, its files the ones under
+::  forge/recipes/<name>/. The clanker makes them once, under its recipes/.
+++  shipped-recipes
+  ^-  json
+  :-  %a
+  %+  murn  ~(tap by (fall fil.forge-recipes ~))
+  |=  [n=@ta =mime]
+  ^-  (unit json)
+  =/  t=tape  (trip n)
+  ?:  (lth (lent t) 6)  ~
+  ?.  =(".json" (slag (sub (lent t) 5) t))  ~
+  =/  name=@ta  (crip (scag (sub (lent t) 5) t))
+  =/  rcp=(unit json)  (de:json:html `@t`q.q.mime)
+  ?~  rcp  ~
+  =/  files=(list [@t json])
+    =/  sub=(unit (axal (map @ta ^mime)))  (~(get by dir.forge-recipes) name)
+    ?~  sub  ~
+    %+  turn  ~(tap by (fall fil.u.sub ~))
+    |=  [f=@ta m=^mime]
+    ^-  [@t json]
+    [f s+`@t`q.q.m]
+  :-  ~
+  %-  pairs:enjs:format
+  :~  ['name' s+name]
+      ['recipe' u.rcp]
+      ['files' (pairs:enjs:format files)]
+  ==
 ::  +fill-repo: a layout template with every {repo} filled with the
 ::  repo's short name
 ++  fill-repo
