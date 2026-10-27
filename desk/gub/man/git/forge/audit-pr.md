@@ -265,4 +265,16 @@ Seams seen so far:
   unaffected" is false for a foreign caller, which the testing plan
   notices, but legibility was graded `evaluable with effort`, not `not
   evaluable` as the scale says for a self-claim the hunks contradict.
+- Run 8 (grubbery #101, a real PR, given by number only). The first
+  run that fetched its own inputs: `pr_diff` and `pr_description` in
+  the first turn, then the tree. 14 turns, 34 events, no human. The
+  advocate found the ownership gap from the `owner` field and the
+  connect path's use of it; the judge traced both fiberio callers by
+  line and settled the pending-versus-open question; the advocate
+  raised four objections, two upheld, two in part. Report: `accept with
+  required changes`, on a threat model the description gets backwards
+  (the easier case is a second fiber on the same grub, not a second
+  grub) and on the absence of a described test. Seam: the advocate
+  fetched the description along with the diff in its first turn; the
+  step now says the diff is all it fetches.
 
