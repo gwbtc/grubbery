@@ -195,64 +195,23 @@
     %invalid        (pure:m [%error 'unrecognized command'])
     %stash-list     op-stash-list
   ==
-::  +op-stash: stash the dirty index and reset the tree to HEAD. Writes
-::  stash-request.sig into the data ball and reloads (the data nexus does
-::  the git work). Same logic the /actions/stash.sig arm ran.
+::  +op-stash, +op-stash-pop, +op-stash-drop: the stash stack, each one
+::  request to the data nexus, which holds the tree and the index and
+::  answers from them: a clean tree has nothing to stash, an empty stack
+::  nothing to pop or drop.
 ::
 ++  op-stash
   =/  m  (fiber:fiber:nexus ,outcome:git-act)
   ^-  form:m
-  ::  nothing to put away, and nothing that said so: stashing a clean tree
-  ::  answered 'stashed' and pushed no entry, so the pop that followed had
-  ::  nothing to find and said 'stash popped' about it
-  ;<  clean=?  bind:m  working-tree-clean
-  ?:  clean  (pure:m [%error 'nothing to stash — the working tree is clean'])
-  ;<  before=@ud  bind:m  stash-depth
-  ;<  req-rd=road:tarball  bind:m
-    (ancestor-road:io [/git %repo] [%& /data %'stash-request.sig'])
-  ;<  ~  bind:m  (write-repo-file req-rd [[/ %sig] ~])
-  ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
-  ;<  ~  bind:m  (reload:io data-rd)
-  ;<  after=@ud  bind:m  stash-depth
-  ?:  (lte after before)
-    (pure:m [%error 'stash failed — the stack did not grow'])
-  (pure:m [%ok (crip "stashed — {(scow %ud after)} on the stack")])
-::  +op-stash-pop: pop the most recent stash onto the working tree.
-::
+  (request 'stash' ~)
 ++  op-stash-pop
   =/  m  (fiber:fiber:nexus ,outcome:git-act)
   ^-  form:m
-  ;<  before=@ud  bind:m  stash-depth
-  ?:  =(0 before)  (pure:m [%error 'no stash to pop — the stack is empty'])
-  ;<  req-rd=road:tarball  bind:m
-    (ancestor-road:io [/git %repo] [%& /data %'stash-pop-request.sig'])
-  ;<  ~  bind:m  (write-repo-file req-rd [[/ %sig] ~])
-  ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
-  ;<  ~  bind:m  (reload:io data-rd)
-  ;<  after=@ud  bind:m  stash-depth
-  ?:  (gte after before)
-    (pure:m [%error 'stash pop failed — the stack did not shrink'])
-  (pure:m [%ok (crip "popped — {(scow %ud after)} left on the stack")])
-::  +op-stash-drop: discard the most recent stash without restoring it.
-::
-::    The working tree and index are untouched -- that is the whole
-::    difference from a pop. Reports the real delta off stash-depth, so a
-::    drop that did not shrink the stack says so instead of claiming it.
-::
+  (request 'stash-pop' ~)
 ++  op-stash-drop
   =/  m  (fiber:fiber:nexus ,outcome:git-act)
   ^-  form:m
-  ;<  before=@ud  bind:m  stash-depth
-  ?:  =(0 before)  (pure:m [%error 'no stash to drop -- the stack is empty'])
-  ;<  req-rd=road:tarball  bind:m
-    (ancestor-road:io [/git %repo] [%& /data %'stash-drop-request.sig'])
-  ;<  ~  bind:m  (write-repo-file req-rd [[/ %sig] ~])
-  ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
-  ;<  ~  bind:m  (reload:io data-rd)
-  ;<  after=@ud  bind:m  stash-depth
-  ?:  (gte after before)
-    (pure:m [%error 'stash drop failed -- the stack did not shrink'])
-  (pure:m [%ok (crip "dropped -- {(scow %ud after)} left on the stack")])
+  (request 'stash-drop' ~)
 ::  +op-stash-list: report the stash stack (from data/ui/stash.json, which
 ::  the data nexus builds from the reflog) as a one-line queue summary.
 ::
@@ -293,43 +252,84 @@
   ?+  cl  (pure:m %.n)
     [~ %b %.y]  (pure:m %.y)
   ==
-::  +stash-depth: how many entries the stash stack holds (data/ui/stash.json,
-::  which the data nexus builds from the reflog); 0 when unknown or empty.
+::  +request: one request to the data nexus, answered. Appends {id, kind,
+::  ...fields} to data/requests.json, reloads the data nexus, which runs
+::  every pending request in order and records each outcome beside its
+::  id, and reads this one's back. The id is this command's own queue id.
+::  An id still pending after the reload, or missing altogether, is
+::  reported as that: the request did not run. Never an inference from
+::  HEAD or a status count.
 ::
-++  stash-depth
-  =/  m  (fiber:fiber:nexus ,@ud)
+++  request
+  |=  [kind=@t fields=(list [@t json])]
+  =/  m  (fiber:fiber:nexus ,outcome:git-act)
   ^-  form:m
-  ;<  road=road:tarball  bind:m
-    (ancestor-road:io [/git %repo] [%& /data/ui %'stash.json'])
-  ;<  =view:nexus  bind:m  (peek:io road `[/ %json])
-  =/  jon=json  (view-to-json view)
-  (pure:m ?:(?=(%a -.jon) (lent p.jon) 0))
-::  +request-pending: is a request file still in the data dir? The data
-::  nexus consumes add-request.json and commit-request.json when it runs
-::  them, so one still there after a reload means the request did not
-::  run, which is a different answer from "nothing changed".
+  ;<  st-vase=vase  bind:m  get-state:io
+  =/  st=action-state:git-act  (read-action-state:git-act q.st-vase)
+  =/  id=@ud  ?~(active.st 0 id.u.active.st)
+  ;<  rd=road:tarball  bind:m
+    (ancestor-road:io [/git %repo] [%& /data %'requests.json'])
+  ;<  cur=json  bind:m  (read-requests rd)
+  =/  entry=json
+    (pairs:enjs:format [['id' (numb:enjs:format id)] ['kind' s+kind] fields])
+  =/  next=json
+    %-  pairs:enjs:format
+    :~  ['pending' a+(snoc (json-list cur 'pending') entry)]
+        ['done' a+(json-list cur 'done')]
+    ==
+  ;<  ~  bind:m  (write-repo-file rd [[/ %json] next])
+  ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
+  ;<  ~  bind:m  (reload:io data-rd)
+  ;<  after=json  bind:m  (read-requests rd)
+  =/  mine=(unit json)  (find-id (json-list after 'done') id)
+  ?^  mine
+    =/  msg=@t  (json-str u.mine 'message')
+    ?:  (json-flag u.mine 'ok')  (pure:m [%ok msg])
+    (pure:m [%error msg])
+  ?^  (find-id (json-list after 'pending') id)
+    %-  pure:m
+    :-  %error
+    (crip "the data nexus did not run the {(trip kind)} request: it is still pending after the reload")
+  %-  pure:m
+  :-  %error
+  (crip "the data nexus gave no answer to the {(trip kind)} request")
+::  +read-requests: data/requests.json, or an empty object when absent.
 ::
-++  request-pending
-  |=  name=@ta
-  =/  m  (fiber:fiber:nexus ,?)
+++  read-requests
+  |=  rd=road:tarball
+  =/  m  (fiber:fiber:nexus ,json)
   ^-  form:m
-  ;<  rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /data name])
-  ;<  v=(unit view:nexus)  bind:m  (peek-soft:io rd ~)
-  (pure:m ?=([~ %file *] v))
-::  +staged-count: how many paths the index holds that HEAD does not
-::  (data/ui/status.json "staged"); 0 when unknown.
+  ;<  v=(unit view:nexus)  bind:m  (peek-soft:io rd `[/ %json])
+  ?~  v  (pure:m [%o ~])
+  =/  j=json  (view-to-json u.v)
+  (pure:m ?:(?=(%o -.j) j [%o ~]))
+++  json-list
+  |=  [j=json k=@t]
+  ^-  (list json)
+  ?.  ?=(%o -.j)  ~
+  =/  v  (~(get by p.j) k)
+  ?.(?=([~ %a *] v) ~ p.u.v)
+++  json-str
+  |=  [j=json k=@t]
+  ^-  @t
+  ?.  ?=(%o -.j)  ''
+  =/  v  (~(get by p.j) k)
+  ?.(?=([~ %s *] v) '' p.u.v)
+++  json-flag
+  |=  [j=json k=@t]
+  ^-  ?
+  ?.  ?=(%o -.j)  %.n
+  ?=([~ %b %.y] (~(get by p.j) k))
+::  +find-id: the entry of a request list with this id.
 ::
-++  staged-count
-  =/  m  (fiber:fiber:nexus ,@ud)
-  ^-  form:m
-  ;<  status-rd=road:tarball  bind:m
-    (ancestor-road:io [/git %repo] [%& /data/ui %'status.json'])
-  ;<  status-view=view:nexus  bind:m  (peek:io status-rd `[/ %json])
-  =/  status-json=json  (view-to-json status-view)
-  ?.  ?=(%o -.status-json)  (pure:m 0)
-  =/  st  (~(get by p.status-json) 'staged')
-  ?.  ?=([~ %a *] st)  (pure:m 0)
-  (pure:m (lent p.u.st))
+++  find-id
+  |=  [l=(list json) id=@ud]
+  ^-  (unit json)
+  |-
+  ?~  l  ~
+  =/  got  ?.(?=(%o -.i.l) ~ (~(get by p.i.l) 'id'))
+  ?:  &(?=([~ %n *] got) =(`id (rush p.u.got dem)))  `i.l
+  $(l t.l)
 ::  +local-ahead: how many local commits the remote-tracking ref lacks
 ::  (data/ui/status.json "ahead"); 0 when unknown.
 ::
@@ -425,33 +425,16 @@
     ?:  &(?=(^ j) ?=([%o *] u.j))  p.u.j
     ~
   (over:io cfg-rd [[/ %json] o+(~(put by obj) 'ref' s+name)])
-::  +do-checkout: ask the data nexus to move HEAD, the way commit and
-::  stash ask — a checkout-request.json {head, force} and a reload. The
-::  data nexus holds the tree and the index, so it alone decides whether
-::  the move would overwrite uncommitted work; it answers in
-::  ui/outcome.json, which is the outcome returned here. HEAD is never
-::  written from this side any more.
+::  +do-checkout: ask the data nexus to move HEAD: a checkout request
+::  {head, force}. The data nexus holds the tree and the index, so it
+::  alone decides whether the move would overwrite uncommitted work. HEAD
+::  is never written from this side.
 ::
 ++  do-checkout
   |=  [value=@t force=?]
   =/  m  (fiber:fiber:nexus ,outcome:git-act)
   ^-  form:m
-  ;<  req-rd=road:tarball  bind:m
-    (ancestor-road:io [/git %repo] [%& /data %'checkout-request.json'])
-  =/  req=json  (pairs:enjs:format ~[['head' s+value] ['force' b+force]])
-  ;<  ~  bind:m  (write-repo-file req-rd [[/ %json] req])
-  ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
-  ;<  ~  bind:m  (reload:io data-rd)
-  ;<  out-rd=road:tarball  bind:m
-    (ancestor-road:io [/git %repo] [%& /data/ui %'outcome.json'])
-  ;<  =view:nexus  bind:m  (peek:io out-rd `[/ %json])
-  =/  jon=json  (view-to-json view)
-  ?.  ?=(%o -.jon)  (pure:m [%error 'checkout: the data nexus gave no outcome'])
-  =/  reason=@t
-    =/  r  (~(get by p.jon) 'reason')
-    ?:(?=([~ %s *] r) p.u.r '')
-  ?:  ?=([~ %b %.y] (~(get by p.jon) 'ok'))  (pure:m [%ok reason])
-  (pure:m [%error reason])
+  (request 'checkout' ~[['head' s+value] ['force' b+force]])
 ::  +rise-queue: the queue fiber restarting after a crash. A command that
 ::  crashed mid-run (a GitHub API error in +gh-request, a bad path in the
 ::  data nexus) never reached the log, and `active` still names it, so the
@@ -473,41 +456,16 @@
     =/  entry=done:git-act  [id.job raw.job [%error msg] now]
     (replace:io st(active ~, log [entry log.st]))
   (rise-wait:io prod "%git/repo run: failed")
-::  +op-add: stage changes. Empty paths = add all; else selective. Writes
-::  add-request.json into the data ball and reloads.
+::  +op-add: stage changes. Empty paths = add all; else selective. The
+::  data nexus counts what the add changed in the index and says so.
 ::
 ++  op-add
   |=  paths=(list @t)
   =/  m  (fiber:fiber:nexus ,outcome:git-act)
   ^-  form:m
-  =/  req=json
-    ?~  paths  (pairs:enjs:format ~[['all' b+%.y]])
-    (pairs:enjs:format ~[['paths' a+(turn paths |=(p=@t s+p))]])
-  ;<  req-rd=road:tarball  bind:m
-    (ancestor-road:io [/git %repo] [%& /data %'add-request.json'])
-  ;<  ~  bind:m  (write-repo-file req-rd [[/ %json] req])
-  ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
-  ::  what was staged BEFORE, so the report can be about what this add did
-  ::  rather than about what it was asked to do. Naming a path that matches
-  ::  nothing — `add .`, which is a literal path here and not git's "all" —
-  ::  used to answer "staged 1 path(s)" and stage nothing, and the commit
-  ::  after it then found no changes and said nothing at all.
-  ;<  before=@ud  bind:m  staged-count
-  ;<  ~  bind:m  (reload:io data-rd)
-  ;<  stuck=?  bind:m  (request-pending %'add-request.json')
-  ?:  stuck
-    (pure:m [%error 'the data nexus did not run the add request: add-request.json is still there after the reload'])
-  ;<  after=@ud  bind:m  staged-count
-  ?:  =(before after)
-    ?~  paths
-      (pure:m [%ok 'nothing to stage — the working tree matches the index'])
-    %-  pure:m
-    :-  %error
-    %-  crip
-    "staged nothing: no such path(s) in the working tree (plain `add` stages everything)"
-  %-  pure:m
-  :-  %ok
-  (crip "staged {(scow %ud (sub after before))} path(s)")
+  %+  request  'add'
+  ?~  paths  ~[['all' b+%.y]]
+  ~[['paths' a+(turn paths |=(p=@t s+p))]]
 ::  +op-commit: create a local commit from the staged tree.
 ::
 ++  op-commit
@@ -523,37 +481,15 @@
   ?:  =('' author-email.cfg)
     (pure:m [%error 'no author email set — configure your identity in settings'])
   ;<  now=@da  bind:m  get-time:io
-  =/  req=json
-    %-  pairs:enjs:format
-    :~  ['message' s+message]
-        ['author_name' s+author-name.cfg]
-        ['author_email' s+author-email.cfg]
-        ['date' s+(scot %da now)]
-        ::  a pathspec scopes the commit: the data nexus overlays only
-        ::  these paths onto the parent tree. Absent/empty = whole index.
-        ['paths' a+(turn paths |=(p=path s+(spat p)))]
-    ==
-  ;<  req-rd=road:tarball  bind:m
-    (ancestor-road:io [/git %repo] [%& /data %'commit-request.json'])
-  ;<  ~  bind:m  (write-repo-file req-rd [[/ %json] req])
-  ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
-  ::  HEAD before and after. The data nexus builds the tree from the INDEX
-  ::  and, when it matches the parent's, drops the request and commits
-  ::  nothing — so reporting success off the back of writing the request
-  ::  reported a commit that was never made. Ask HEAD instead.
-  ;<  before=@t  bind:m  resolve-head
-  ;<  ~  bind:m  (reload:io data-rd)
-  ;<  stuck=?  bind:m  (request-pending %'commit-request.json')
-  ?:  stuck
-    (pure:m [%error 'the data nexus did not run the commit request: commit-request.json is still there after the reload'])
-  ;<  after=@t  bind:m  resolve-head
-  ?:  =(before after)
-    %-  pure:m
-    :-  %error
-    'nothing to commit — the staged tree matches HEAD (stage your changes first)'
-  %-  pure:m
-  :-  %ok
-  (crip "committed {(trip (end [3 7] after))}: {(trip message)}")
+  %+  request  'commit'
+  :~  ['message' s+message]
+      ['author_name' s+author-name.cfg]
+      ['author_email' s+author-email.cfg]
+      ['date' s+(scot %da now)]
+      ::  a pathspec scopes the commit: the data nexus overlays only
+      ::  these paths onto the parent tree. Absent/empty = whole index.
+      ['paths' a+(turn paths |=(p=path s+(spat p)))]
+  ==
 ::  +op-pull: fetch from the remote and check out the tracked ref — the full
 ::  transport logic (formerly /actions/sync.sig), now inline in the queue:
 ::  discovery, resolve+pin the default ref, then an incremental fetch or a
