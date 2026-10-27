@@ -180,8 +180,9 @@
   =/  account=@t
     (fall (bind (gets 'account') |=(=json ?>(?=(%s -.json) p.json))) '')
   ;<  cfg=[api=@t accounts=(map @t @t)]  bind:m  read-config
-  ::  the path is appended to the API base, so it must start a path: one
-  ::  starting with '@' or '.' names another host, and the token with it
+  ::  the path is appended to the API base, so it must be a relative
+  ::  path segment beginning with '/': any other prefix could name a
+  ::  different origin, and the request would carry the token to it
   ?.  =('/' (end 3 pax))
     ;<  ~  bind:m
       %-  replace:io
