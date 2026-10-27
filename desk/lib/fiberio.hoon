@@ -2076,8 +2076,12 @@
   ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from
   ?+    name.p.sage  $
       %handle-http-request
-    ::  only the kernel opens a request, and it pokes with no sender,
-    ::  which no grub can pose as
+    ::  only the kernel opens a request, and it pokes with no sender.
+    ::  The bunt is unforgeable: the kernel assigns .from itself with
+    ::  relativize-from from the actual source rail, so no grub can
+    ::  arrange the bunt as its own sender. The threat this refuses is
+    ::  a trusted-tier nexus or a shell-approved grub that holds a poke
+    ::  road to this main.sig.
     ?.  =(*from:fiber:nexus from)  $
     =/  [eyre-id=@ta src=@p req=inbound-request:eyre]
       !<([eyre-id=@ta @p inbound-request:eyre] q.sage)
