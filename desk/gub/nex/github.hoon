@@ -179,12 +179,16 @@
   =/  body=(unit json)  (gets 'body')
   =/  account=@t
     (fall (bind (gets 'account') |=(=json ?>(?=(%s -.json) p.json))) '')
+  ::  an Accept the consumer asks for ('' = the REST default): a PR's
+  ::  diff, say, is the same path as its JSON with a different Accept
+  =/  accept=@t
+    (fall (bind (gets 'accept') |=(=json ?>(?=(%s -.json) p.json))) '')
   ;<  cfg=[api=@t accounts=(map @t @t)]  bind:m  read-config
   =/  url=@t  (cat 3 api.cfg pax)
   =/  =request:http
     :^    (parse-method method)
         url
-      (gh-headers (pick-token accounts.cfg account))
+      (gh-headers (pick-token accounts.cfg account) accept)
     ?~  body  ~
     `(as-octs:mimes:html (en:json:html u.body))
   ;<  res=[code=@ud =octs]  bind:m  (fetch request)
@@ -394,7 +398,7 @@
     =/  a  (~(get by om) 'api')
     ?:(?=([~ %s *] a) p.u.a 'https://api.github.com')
   ;<  res=[code=@ud =octs]  bind:m
-    (fetch [%'GET' (cat 3 api '/user') (gh-headers token) ~])
+    (fetch [%'GET' (cat 3 api '/user') (gh-headers token '') ~])
   =/  login=@t
     ?.  =(200 code.res)  ''
     (jget (fall (de:json:html q.octs.res) *json) 'login')
@@ -477,13 +481,13 @@
 
 ::
 ++  gh-headers
-  |=  token=@t
+  |=  [token=@t accept=@t]
   ^-  (list [@t @t])
   %+  weld
     ?:  =('' token)  ~
     ~[['Authorization' (cat 3 'token ' token)]]
   :~  ['User-Agent' 'grubbery']
-      ['Accept' 'application/vnd.github.v3+json']
+      ['Accept' ?:(=('' accept) 'application/vnd.github.v3+json' accept)]
       ['Content-Type' 'application/json']
   ==
 ::

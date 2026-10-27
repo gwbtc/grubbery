@@ -576,6 +576,20 @@
   =/  deploy-peeks=(list @t)
     ?.  clay-deploy  ~
     ~['/sys/dill/logs.dill-told']
+  ::  the GitHub proxy, for the tools that read a pull request (pr_diff,
+  ::  pr_description): its root and the repo's owner/name go into the
+  ::  clanker's config, and its calls/ and main.sig into the roads
+  ;<  gh=(unit lane:tarball)  bind:m  (resolve-link:io '@github')
+  =/  gh-root=@t  ?.(?=([~ %| *] gh) '' (spat p.u.gh))
+  =/  gh-repo=@t
+    ?.  ?=([~ %o *] rcfg)  ''
+    =/  r  (~(get by p.u.rcfg) 'repo')
+    ?:(?=([~ %s *] r) p.u.r '')
+  ::  calls/ is peeked for the answer and written to cull the call grub
+  ::  once read, which the proxy leaves to its caller
+  =/  gh-peeks=(list @t)  ?:(=('' gh-root) ~ ~[(cat 3 gh-root '/calls/')])
+  =/  gh-makes=(list @t)  gh-peeks
+  =/  gh-pokes=(list @t)  ?:(=('' gh-root) ~ ~[(cat 3 gh-root '/main.sig')])
   =/  ensure=json
     %-  pairs:enjs:format
     :~  ['action' s+'ensure']
@@ -584,13 +598,19 @@
         ['bundle' s+'build']
         ['system' s+(repo-clanker-prompt short tree)]
         ['repo' s+tree]
-        ['config' (pairs:enjs:format ~[['ui' s+ui] ['deploy' deploy]])]
+        :-  'config'
+        %-  pairs:enjs:format
+        :~  ['ui' s+ui]
+            ['deploy' deploy]
+            ['github' s+gh-root]
+            ['github_repo' s+gh-repo]
+        ==
         ['recipes' shipped-recipes]
         :-  'roads'
         %-  pairs:enjs:format
-        :~  ['peek' (strs (weld ~[(cat 3 tree '/') (cat 3 ui '/') queue] deploy-peeks))]
-            ['make' (strs ~[(cat 3 tree '/')])]
-            ['poke' (strs (weld ~[queue] deploy-pokes))]
+        :~  ['peek' (strs :(weld ~[(cat 3 tree '/') (cat 3 ui '/') queue] deploy-peeks gh-peeks))]
+            ['make' (strs (weld ~[(cat 3 tree '/')] gh-makes))]
+            ['poke' (strs :(weld ~[queue] deploy-pokes gh-pokes))]
         ==
         :-  'chats'
         :-  %a
