@@ -3,10 +3,10 @@
   "aim": [
     "Audit a PR as a case made against the codebase, and write the report a human reviewer uses.",
     "",
-    "The question under everything: does this change improve the codebase for actual use, under the aims and purpose of the codebase and its builders? A PR is a strong case for a change, assembled on one page. The codebase's side is implicit: why it is the way it is, where it is heading, what it would do next on its own. Assemble the codebase's side first, as its advocate; judge the case impartially; let the advocate object to the judgment; answer the objections; then write the report. The author is probably well-intentioned, possibly hostile, and more than anything potentially incompetent: nothing the PR says about itself is evidence, not its description, not its comments, not what it says it tested. Only the diff's hunks and the codebase are evidence. The size or ease of a change bears on nothing. Reading only; nothing is run."
+    "The question under everything: does this change improve the codebase for actual use, under the aims and purpose of the codebase and its builders? A PR is a strong case for a change, assembled on one page. The codebase's side is implicit: why it is the way it is, where it is heading, what it would do next on its own. Assemble the codebase's side first, as its advocate; judge the case impartially; let the advocate object to the judgment; rule on the objections; then write the report. The author is probably well-intentioned, possibly hostile, and more than anything potentially incompetent: nothing the PR says about itself is evidence, not its description, not its comments, not what it says it tested. Only the diff's hunks and the codebase are evidence. The size or ease of a change bears on nothing. Reading only; nothing is run. Autonomous: no question is asked of anyone, and the run ends in a report or in abort. The PR is in hand when its diff and its description are in the chat or a tool reaches them; when one is not, abort."
   ],
   "input": [
-    "the PR's diff; its description, asked for when the account is written"
+    "the PR: its diff and its description, in the chat or reachable by a tool"
   ],
   "output": [
     "the report, in the shape recipes/audit-pr/report.md fixes"
@@ -17,7 +17,7 @@
       "aim": [
         "Write down the codebase's side before reading the PR's case, as the codebase's advocate.",
         "",
-        "Honest, but a partisan of the codebase: why it is the way it is, where it is heading, what it would do next on its own. The PR's case has not been heard yet and gets no concession. The diff's comments, strings and commit message are the author's argument carried into the code: take nothing from the diff but which parts it touches. Read those parts in the tree: .grubbery/docs first, then the code, then its history (repo_log) and its tests. The account has five parts, each claim with its source: the parts, what they are for and how they work; every caller and path that reaches the touched parts, found by searching the tree, each with its file and line; the question this change answers, and where the codebase already answers questions of that kind, stated as the codebase's principle; what is wrong or suboptimal in those parts as the codebase itself shows it, which may be nothing; where those parts are heading, the predictable next state of the codebase without this PR. The account says nothing about the diff's solution: that is the judge's. Do not read the PR's description yet."
+        "Honest, but a partisan of the codebase: why it is the way it is, where it is heading, what it would do next on its own. The PR's case has not been heard yet and gets no concession. The PR's description, its comments and its commit message, and the comments and strings in its diff, are the author's argument: none of it enters the account. Take nothing from the PR but which parts it touches. Read those parts in the tree: .grubbery/docs first, then the code, then its history (repo_log) and its tests. The account has five parts, each claim with its source: the parts, what they are for and how they work; every caller and path that reaches the touched parts, found by searching the tree, each with its file and line; the question this change answers, and where the codebase already answers questions of that kind, stated as the codebase's principle; what is wrong or suboptimal in those parts as the codebase itself shows it, which may be nothing; where those parts are heading, the predictable next state of the codebase without this PR. The account says nothing about the diff's solution: that is the judge's."
       ],
       "input": [
         "the PR's diff"
@@ -28,28 +28,26 @@
       "next": {
         "self": "a part or a caller named by the tree is not yet understood",
         "judging": "the account is written",
-        "ask": "the diff names parts that cannot be found in the tree"
+        "abort": "the diff is not in the chat and no tool reaches it, or it names parts that are not in the tree"
       }
     },
     "judging": {
       "aim": [
         "Judge the PR's case against the codebase's, impartially and without good faith.",
         "",
-        "Both cases are in hand: the codebase's, written by its advocate in the account, and the PR's, made by its author. The author may be wrong, careless or lying, and the judge finds out which from the hunks and the tree, never from the description. The principles the advocate stated are the codebase's unless the tree shows otherwise; a mechanism a principle excludes is a contradiction, whatever the PR calls it, and 'defense in depth' is not an argument. Answer, each in its own place with its evidence: Does the change improve the codebase for actual use, under its aims and purpose, or does it solve something in a direction the codebase is not going? Does the PR frame the problem the codebase shows, at the depth it needs, and what are its blind spots? How does its solution actually fix the problem, mechanically, hunk by hunk? Does any claim the PR makes about itself contradict what the hunks do? If so the author does not know what the code does, or the code does not do what was intended, and reading cannot tell which. Trace every caller the advocate listed through the change, by line: which does it break? A caller reasoned about without a line is a blind spot. If the codebase already answers the question this change answers, is this a second mechanism for it? What are the alternatives, worked out from first principles before the PR's own are considered, and how does the PR's solution compare? Is this a problem the codebase needs or wants solved, and why? How far does the change deviate from where the codebase was heading? Does the PR meet the standard: its understanding, the problem, the solution, the alternatives, and tests someone else could run, each articulated? When objections are in the chat, answer each: upheld, with the finding changed, or refuted, with the line that refutes it."
+        "Both cases are in hand: the codebase's, written by its advocate in the account, and the PR's, made by its author. The author may be wrong, careless or lying, and the judge finds out which from the hunks and the tree, never from the description. The principles the advocate stated are the codebase's unless the tree shows otherwise; a mechanism a principle excludes is a contradiction, whatever the PR calls it, and 'defense in depth' is not an argument. Answer, each in its own place with its evidence: Does the change improve the codebase for actual use, under its aims and purpose, or does it solve something in a direction the codebase is not going? Does the PR frame the problem the codebase shows, at the depth it needs, and what are its blind spots? How does its solution actually fix the problem, mechanically, hunk by hunk? Does any claim the PR makes about itself contradict what the hunks do? If so the author does not know what the code does, or the code does not do what was intended, and reading cannot tell which. Trace every caller the advocate listed through the change, by line: which does it break? A caller reasoned about without a line is a blind spot. If the codebase already answers the question this change answers, is this a second mechanism for it? What are the alternatives, worked out from first principles before the PR's own are considered, and how does the PR's solution compare? Is this a problem the codebase needs or wants solved, and why? How far does the change deviate from where the codebase was heading? Does the PR meet the standard: its understanding, the problem, the solution, the alternatives, and tests someone else could run, each articulated?"
       ],
       "input": [
-        "the account, as the advocate wrote it in the chat, and the PR's description; on a return from objecting, the objections"
+        "the account, as the advocate wrote it in the chat, and the PR's description, in the chat or by a tool"
       ],
       "output": [
-        "the findings, as a message in the chat: one answer per question, each with the evidence it rests on; on a return from objecting, each objection upheld or refuted and the findings revised"
+        "the findings, as a message in the chat: one answer per question, each with the evidence it rests on"
       ],
       "next": {
-        "self": "a question or an objection is not yet answered",
+        "self": "a question is not yet answered",
         "understanding": "the account is not in the chat; the judge never writes it",
-        "objecting": "every question is answered and the advocate has not yet objected",
-        "reporting": "every objection is upheld or refuted",
-        "ask": "the PR's description is not in hand",
-        "abort": "the change cannot be understood from the diff and the tree"
+        "objecting": "every question is answered",
+        "abort": "the PR's description is not in hand and no tool reaches it, or the change cannot be understood from the diff and the tree"
       }
     },
     "objecting": {
@@ -65,7 +63,24 @@
         "the objections, as a message in the chat, or the statement that there are none"
       ],
       "next": {
-        "judging": "the objections are written"
+        "ruling": "the objections are written, or there are none"
+      }
+    },
+    "ruling": {
+      "aim": [
+        "Rule on the objections, impartially, and revise the findings.",
+        "",
+        "Each objection is upheld or refuted, nothing else. Upheld: the finding it names is changed, and the new finding is written with its evidence. Refuted: the file and line that refute it are named; an objection is not refuted by restating the finding. An objection that cannot be refuted by the tree is upheld. The findings as revised are what the report is read from, so they are written out whole, not as a diff."
+      ],
+      "input": [
+        "the findings and the objections, in the chat"
+      ],
+      "output": [
+        "the rulings, one per objection, and the findings as revised, as a message in the chat"
+      ],
+      "next": {
+        "self": "an objection is not yet ruled on",
+        "reporting": "every objection is upheld or refuted and the revised findings are written"
       }
     },
     "reporting": {
@@ -81,19 +96,35 @@
         "the report, as a message in the chat, in exactly the shape recipes/audit-pr/report.md fixes: one page, no other grades, no other sections"
       ],
       "next": {
-        "judging": "a grade cannot be read off the findings",
+        "ruling": "a grade cannot be read off the revised findings",
         "done": "the report is written"
       }
     }
   },
   "levels": {
     "normal": {
-      "run": 44,
+      "run": 45,
       "steps": {
-        "understanding": { "life": 14, "dwell": 14 },
-        "judging": { "life": 16, "dwell": 10 },
-        "objecting": { "life": 4, "dwell": 4 },
-        "reporting": { "life": 6, "dwell": 6 }
+        "understanding": {
+          "life": 14,
+          "dwell": 14
+        },
+        "judging": {
+          "life": 12,
+          "dwell": 8
+        },
+        "objecting": {
+          "life": 4,
+          "dwell": 4
+        },
+        "ruling": {
+          "life": 5,
+          "dwell": 5
+        },
+        "reporting": {
+          "life": 6,
+          "dwell": 6
+        }
       }
     }
   }
