@@ -161,10 +161,15 @@ advocate takes the diff, the judge the description. A diff and a
 description pasted into the chat work as before. The audit asks nothing
 of anyone: an input it cannot find ends the run by abort.
 
-## Later: feedback on the PR
+## Feedback on the PR
 
-Once the reports are trustworthy, the audit writes its feedback on the
-PR itself. Not yet.
+The last step, `posting`, puts the audit on the PR's thread with
+`pr_comment`, in the shape `recipes/audit-pr/comment.md` fixes: the
+recommendation and its rule; for the reviewer, the grades and where to
+look; for the author, the required changes and what the standard asks
+that the request left out; and the tests that would show it. Half a
+page, read off the report, public and under the ship owner's name. A PR
+pasted into the chat has no number, so nothing is posted.
 
 ## The testing plan
 
