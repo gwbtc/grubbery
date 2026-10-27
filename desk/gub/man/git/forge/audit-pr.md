@@ -292,4 +292,16 @@ Seams seen so far:
   8 found the inverted threat model. Both readings are correct. The
   verdict holds across runs; the particulars vary with what the
   advocate happens to read.
+- Runs 10 to 30 (every open PR, 83 to 105, run in parallel once each
+  chat had its own process; comments posted). Every verdict `accept
+  with required changes`: the rule makes it the attractor, since accept
+  needs every grade at its best and legibility alone forces required
+  changes. Eight of the twenty-one had code-level findings (105, 99,
+  100, 103, 98, 86, 91, 83); the rest asked for description or comment
+  changes. Within an hour the author's agent answered eight with the
+  changes made. Two failures of the stance: 96 graded a Hoon scoping
+  claim "stated and verified" that reading cannot verify, and 83 quoted
+  the PR's own test count as evidence. And 96 fixed a nexus nothing
+  mounts: claw, obviated by clanker, which the account never asked. The
+  account now asks whether a part is reachable from a mounted root.
 
