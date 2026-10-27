@@ -87,7 +87,7 @@
       "aim": [
         "Write the report from the findings, in the fixed shape.",
         "",
-        "Read recipes/audit-pr/report.md first, by that path: it fixes the sections, their order, the grades with their scales, and the rule that derives the recommendation. The grades are read off the findings as revised after the objections; the recommendation is the first rule that applies, never a choice, and the size of the change bears on nothing. The testing plan is written from first principles, not from what the PR says it tested."
+        "Read recipes/audit-pr/report.md first, with read_file at that path, which is in this clanker's own directory and not in the repo: it fixes the sections, their order, the grades with their scales, and the rule that derives the recommendation. The grades are read off the findings as revised after the objections; the recommendation is the first rule that applies, never a choice, and the size of the change bears on nothing. The testing plan is written from first principles, not from what the PR says it tested."
       ],
       "input": [
         "the findings, and recipes/audit-pr/report.md"

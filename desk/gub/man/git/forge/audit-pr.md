@@ -236,3 +236,23 @@ Seams seen so far:
   `diverts` defer to the owner. And a step: `objecting`, the advocate
   reading the findings and objecting before the report, so the arguing
   happens every run without a human.
+- Run 7 (the same fake, five steps, diff and description handed over
+  together, no ask). Clean run, 36 events, no human in the loop: account
+  in 7 turns of reading, findings in one, objections in 7 turns of
+  reading, rulings in one, report in 3. The judge asserted an off-by-one
+  in `(snip path.here)` that was wrong; the advocate read `rail:tarball`
+  and retracted it in the objections, and the ruling corrected the
+  finding. The report found a real gap the author never saw:
+  `get-here-abs` needs peek to root, so a host with a narrow peek weir
+  bangs `main.sig` on the first call. Recommendation `reject` on
+  `contradiction`, with need `beneficial` and comparison `inferior` to a
+  poke weir on the tools directory. Seams: reporting reached for
+  `skills/recipes.md` and a repo path before `read_file
+  recipes/audit-pr/report.md`, so the step now names the tool and says
+  the file is the clanker's own; after `done` the model wrote a second,
+  free-form summary of the report into the chat. And a judgment call it
+  made without saying so: the description's "list and cull are
+  unaffected" is false for a foreign caller, which the testing plan
+  notices, but legibility was graded `evaluable with effort`, not `not
+  evaluable` as the scale says for a self-claim the hunks contradict.
+
