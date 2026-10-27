@@ -250,14 +250,14 @@
 ::
 +$  state-0
   $:  %0
-      =born:nexus   ::  truth: version history for every directory and file
+      born=born-12  ::  truth: version history for every directory and file
       =silo:nexus   ::  truth: content-addressed object store with refcounts
       =subs:nexus   ::  live: subscription indexes, by target and by watcher
       pool=pool-0   ::  live: the running process for each grub (frozen)
       code=code-2   ::  derived: the build index for each code namespace (frozen)
       =bins:nexus   ::  derived: compiled artifacts, keyed by build hash
       =vale:nexus   ::  derived: cached validation results
-      =remo:nexus   ::  live: pending cross-ship peeks and pinned snapshots
+      remo=remo-12   ::  live: pending cross-ship peeks and pinned snapshots
       =upki:nexus   ::  live: the rail that backs jael pki subscriptions
       =last:nexus   ::  live: monotonic time and entropy for the bowl
   ==
@@ -265,14 +265,14 @@
 ::
 +$  state-1
   $:  %1
-      =born:nexus   ::  truth: version history for every directory and file
+      born=born-12  ::  truth: version history for every directory and file
       =silo:nexus   ::  truth: content-addressed object store with refcounts
       =subs:nexus   ::  live: subscription indexes, by target and by watcher
       pool=pool-1   ::  live: the running process for each grub (frozen)
       code=code-2   ::  derived: the build index for each code namespace (frozen)
       =bins:nexus   ::  derived: compiled artifacts, keyed by build hash
       =vale:nexus   ::  derived: cached validation results
-      =remo:nexus   ::  live: pending cross-ship peeks and pinned snapshots
+      remo=remo-12   ::  live: pending cross-ship peeks and pinned snapshots
       =upki:nexus   ::  live: the rail that backs jael pki subscriptions
       =last:nexus   ::  live: monotonic time and entropy for the bowl
   ==
@@ -281,14 +281,14 @@
 ::
 +$  state-2
   $:  %2
-      =born:nexus   ::  truth: version history for every directory and file
+      born=born-12  ::  truth: version history for every directory and file
       =silo:nexus   ::  truth: content-addressed object store with refcounts
       =subs:nexus   ::  live: subscription indexes, by target and by watcher
       pool=pool-3   ::  live: the running process for each grub (frozen)
       code=code-2   ::  derived: the build index for each code namespace (frozen)
       =bins:nexus   ::  derived: compiled artifacts, keyed by build hash
       =vale:nexus   ::  derived: cached validation results
-      =remo:nexus   ::  live: pending cross-ship peeks and pinned snapshots
+      remo=remo-12   ::  live: pending cross-ship peeks and pinned snapshots
       =upki:nexus   ::  live: the rail that backs jael pki subscriptions
       =last:nexus   ::  live: monotonic time and entropy for the bowl
   ==
@@ -297,14 +297,14 @@
 ::
 +$  state-3
   $:  %3
-      =born:nexus   ::  truth: version history for every directory and file
+      born=born-12  ::  truth: version history for every directory and file
       =silo:nexus   ::  truth: content-addressed object store with refcounts
       =subs:nexus   ::  live: subscription indexes, by target and by watcher
       pool=pool-3   ::  live: the running process for each grub (frozen)
       code=code-4   ::  derived: the build index for each code namespace (frozen)
       =bins:nexus   ::  derived: compiled artifacts, keyed by build hash
       =vale:nexus   ::  derived: cached validation results
-      =remo:nexus   ::  live: pending cross-ship peeks and pinned snapshots
+      remo=remo-12   ::  live: pending cross-ship peeks and pinned snapshots
       =upki:nexus   ::  live: the rail that backs jael pki subscriptions
       =last:nexus   ::  live: monotonic time and entropy for the bowl
   ==
@@ -313,14 +313,14 @@
 ::
 +$  state-4
   $:  %4
-      =born:nexus   ::  truth: version history for every directory and file
+      born=born-12  ::  truth: version history for every directory and file
       =silo:nexus   ::  truth: content-addressed object store with refcounts
       =subs:nexus   ::  live: subscription indexes, by target and by watcher
       pool=pool-10    ::  live: the running process for each grub
       code=code-4   ::  derived: the build index for each code namespace (frozen)
       =bins:nexus   ::  derived: compiled artifacts, keyed by build hash
       =vale:nexus   ::  derived: cached validation results
-      =remo:nexus   ::  live: pending cross-ship peeks and pinned snapshots
+      remo=remo-12   ::  live: pending cross-ship peeks and pinned snapshots
       =upki:nexus   ::  live: the rail that backs jael pki subscriptions
       =last:nexus   ::  live: monotonic time and entropy for the bowl
   ==
@@ -329,14 +329,14 @@
 ::
 +$  state-5
   $:  %5
-      =born:nexus   ::  truth: version history for every directory and file
+      born=born-12  ::  truth: version history for every directory and file
       =silo:nexus   ::  truth: content-addressed object store with refcounts
       =subs:nexus   ::  live: subscription indexes, by target and by watcher
       pool=pool-10    ::  live: the running process for each grub
       =code:nexus   ::  derived: the build index for each code namespace
       =bins:nexus   ::  derived: compiled artifacts, keyed by build hash
       =vale:nexus   ::  derived: cached validation results
-      =remo:nexus   ::  live: pending cross-ship peeks and pinned snapshots
+      remo=remo-12   ::  live: pending cross-ship peeks and pinned snapshots
       =upki:nexus   ::  live: the rail that backs jael pki subscriptions
       =last:nexus   ::  live: monotonic time and entropy for the bowl
   ==
@@ -345,14 +345,14 @@
 ::  correction has run, so it runs exactly once, at the upgrade.
 +$  state-6
   $:  %6
-      =born:nexus
+      born=born-12
       =silo:nexus
       =subs:nexus
       pool=pool-10
       =code:nexus
       =bins:nexus
       =vale:nexus
-      =remo:nexus
+      remo=remo-12
       =upki:nexus
       =last:nexus
   ==
@@ -369,14 +369,14 @@
 ::
 +$  state-7
   $:  %7
-      =born:nexus
+      born=born-12
       =silo:nexus
       =subs:nexus
       pool=pool-10
       =code:nexus
       =bins:nexus
       =vale:nexus
-      =remo:nexus
+      remo=remo-12
       =upki:nexus
       =last:nexus
       ::  live: which eyre binding is serving each open eyre-id
@@ -466,7 +466,7 @@
 ::
 +$  state-8
   $:  %8
-      =born:nexus
+      born=born-12
       =peak:nexus
       =silo:nexus
       =subs:nexus
@@ -474,7 +474,7 @@
       =code:nexus
       =bins:nexus
       =vale:nexus
-      =remo:nexus
+      remo=remo-12
       =upki:nexus
       =last:nexus
       conns=(map @ta binding:eyre)
@@ -506,7 +506,7 @@
 ::
 +$  state-9
   $:  %9
-      =born:nexus
+      born=born-12
       =peak:nexus
       =silo:nexus
       =subs:nexus
@@ -514,7 +514,7 @@
       =code:nexus
       =bins:nexus
       =vale:nexus
-      =remo:nexus
+      remo=remo-12
       =upki:nexus
       =last:nexus
       conns=(map @ta binding:eyre)
@@ -525,7 +525,7 @@
 ::
 +$  state-10
   $:  %10
-      =born:nexus
+      born=born-12
       =peak:nexus
       =silo:nexus
       =subs:nexus
@@ -533,7 +533,7 @@
       =code:nexus
       =bins:nexus
       =vale:nexus
-      =remo:nexus
+      remo=remo-12
       =upki:nexus
       =last:nexus
       conns=(map @ta binding:eyre)
@@ -621,7 +621,7 @@
 ::
 +$  state-11
   $:  %11
-      =born:nexus
+      born=born-12
       =peak:nexus
       =silo:nexus
       =subs:nexus
@@ -629,7 +629,7 @@
       =code:nexus
       =bins:nexus
       =vale:nexus
-      =remo:nexus
+      remo=remo-12
       =upki:nexus
       =last:nexus
       conns=(map @ta binding:eyre)
@@ -704,24 +704,24 @@
 ::  top entry stays whatever it is: it is the rail's current state.
 ::
 ++  sweep-dead-born
-  |=  bon=born:nexus
-  ^-  born:nexus
+  |=  bon=born-12
+  ^-  born-12
   =?  fil.bon  ?=(^ fil.bon)
     :-  ~
     %=  u.fil.bon
       fold  (sweep-hist fold.u.fil.bon)
       file  (~(run by file.u.fil.bon) sweep-hist)
     ==
-  bon(dir (~(run by dir.bon) |=(kid=born:nexus ^$(bon kid))))
+  bon(dir (~(run by dir.bon) |=(kid=born-12 ^$(bon kid))))
 ::
 ++  sweep-hist
-  |=  sk=hist:nexus
-  ^-  hist:nexus
-  =/  top=(unit cass:clay)  (top:hist:nexus sk)
+  |=  sk=hist-12
+  ^-  hist-12
+  =/  top=(unit cass:clay)  (top-12 sk)
   ?~  top  sk
-  %+  gas:hon:hist:nexus  *hist:nexus
-  %+  skim  (tap:hon:hist:nexus sk)
-  |=  [key=cass:clay val=entry:hist:nexus]
+  %+  gas:hon-12  *hist-12
+  %+  skim  (tap:hon-12 sk)
+  |=  [key=cass:clay val=entry-12]
   ?:  =(key u.top)  %.y
   ?:  ?=(%tomb -.pace.val)  %.n
   ?=(^ p.pace.val)
@@ -729,15 +729,15 @@
 ::  peak as it stands (a peak only ever rises).
 ::
 ++  seed-peak
-  |=  [bon=born:nexus pk=peak:nexus]
+  |=  [bon=born-12 pk=peak:nexus]
   ^-  peak:nexus
   =/  here=(unit [fold=(unit cass:clay) file=(map @ta cass:clay)])
     ?~  fil.bon  ~
     :-  ~
-    :-  (top:hist:nexus fold.u.fil.bon)
+    :-  (top-12 fold.u.fil.bon)
     %-  ~(rep by file.u.fil.bon)
-    |=  [[nom=@ta sk=hist:nexus] out=(map @ta cass:clay)]
-    =/  t=(unit cass:clay)  (top:hist:nexus sk)
+    |=  [[nom=@ta sk=hist-12] out=(map @ta cass:clay)]
+    =/  t=(unit cass:clay)  (top-12 sk)
     ?~  t  out
     (~(put by out) nom u.t)
   =/  merged=(unit [fold=(unit cass:clay) file=(map @ta cass:clay)])
@@ -757,7 +757,7 @@
   |=  k=@ta
   :-  k
   %+  seed-peak
-    (fall (~(get by dir.bon) k) *born:nexus)
+    (fall (~(get by dir.bon) k) *born-12)
   (fall (~(get by dir.pk) k) *peak:nexus)
 ::
 ++  max-cass
@@ -794,29 +794,29 @@
 ::    the silo. Dropping it releases no refcounts because it holds none.
 ::
 ++  prune-dead-born
-  |=  bon=born:nexus
-  ^-  born:nexus
+  |=  bon=born-12
+  ^-  born-12
   =?  fil.bon  ?=(^ fil.bon)
     :-  ~
     %=    u.fil.bon
         file
       %-  ~(rep by file.u.fil.bon)
-      |=  [[nom=@ta sk=hist:nexus] out=(map @ta hist:nexus)]
+      |=  [[nom=@ta sk=hist-12] out=(map @ta hist-12)]
       ?.  (hist-readable sk)  out
       (~(put by out) nom sk)
     ==
   %=    bon
       dir
     %-  ~(run by dir.bon)
-    |=(kid=born:nexus ^$(bon kid))
+    |=(kid=born-12 ^$(bon kid))
   ==
 ::  +hist-readable: does any revision of this file still point at a ject?
 ::
 ++  hist-readable
-  |=  sk=hist:nexus
+  |=  sk=hist-12
   ^-  ?
-  %+  lien  (tap:hon:hist:nexus sk)
-  |=  [key=cass:clay val=entry:hist:nexus]
+  %+  lien  (tap:hon-12 sk)
+  |=  [key=cass:clay val=entry-12]
   ?:  ?=(%tomb -.pace.val)  %.n
   ?=(^ p.pace.val)
 ::
@@ -909,7 +909,7 @@
 ::
 +$  state-12
   $:  %12
-      =born:nexus
+      born=born-12
       =peak:nexus
       =silo:nexus
       =subs:nexus
@@ -917,7 +917,7 @@
       =code:nexus
       =bins:nexus
       =vale:nexus
-      =remo:nexus
+      remo=remo-12
       =upki:nexus
       =last:nexus
       conns=(map @ta binding:eyre)
@@ -984,6 +984,138 @@
   ^-  load:nexus
   ?.  ?=(%firm -.l)  l
   [%firm ~]
+::
++|  %frozen-12
+::  %13 makes emptiness unrepresentable: a version always references
+::  content. The chain pace -> entry -> hist -> born freezes here, and
+::  born is a state field, so every state up to %12 holds the old one.
+::
++$  pace-12
+  $%  [%firm p=(unit jobe)]
+      [%temp p=(unit jobe)]
+      [%tomb ~]
+  ==
++$  entry-12  [pace=pace-12 tags=(set @t)]
++$  hist-12   ((mop cass:clay entry-12) cor:hist:nexus)
+++  hon-12    ((on cass:clay entry-12) cor:hist:nexus)
++$  born-12   (axal [fold=hist-12 file=(map @ta hist-12)])
+::  pace is reachable from TWO places, not one: a staged cross-ship peek
+::  holds the pace it negotiated, so remo freezes alongside born.
+::
++$  snap-12   [=cass:clay pace=pace-12 refs=lobes:nexus]
++$  peek-12
+  $:  ship=@p
+      dest=lane:tarball
+      deep=?
+      blot=(unit blot:tarball)
+      snap=(unit snap-12)
+      snap-id=@uvJ
+  ==
++$  peeks-12  (map [rail:tarball wire] peek-12)
++$  remo-12   [peeks=peeks-12 snaps=snaps:remo:nexus]
+++  top-12
+  |=  h=hist-12
+  ^-  (unit cass:clay)
+  =/  got=(unit [key=cass:clay val=entry-12])  (ram:hon-12 h)
+  ?~(got ~ `key.u.got)
+::  state-13: a version cannot say the path held nothing. What exists is
+::  $peak's answer -- a peak above born's top is a path that no longer
+::  does -- and what it held is born's. The two no longer blur.
+::
++$  state-13
+  $:  %13
+      =born:nexus
+      =peak:nexus
+      =silo:nexus
+      =subs:nexus
+      =pool:nexus
+      =code:nexus
+      =bins:nexus
+      =vale:nexus
+      =remo:nexus
+      =upki:nexus
+      =last:nexus
+      conns=(map @ta binding:eyre)
+  ==
+++  state-12-to-13
+  |=  old=state-12
+  ^-  state-13
+  :*  %13
+      (born-12-to-born born.old)
+      peak.old
+      silo.old  subs.old  pool.old  code.old
+      bins.old  vale.old  (remo-12-to-remo remo.old)  upki.old  last.old
+      conns.old
+  ==
+::  Every null reference goes. A version that referenced nothing was one
+::  of two things and neither survives: +init's placeholder, a leftover
+::  of the old [%file ~] / [%fold ~] kind sentinel, and the marker a
+::  deletion used to append. A rail left with no versions goes with
+::  them -- it kept no history, and $peak still holds its number, so a
+::  later grub there still numbers above it.
+::
+::  Nothing is released: these paces name no ject, so they hold no silo
+::  refs to drop.
+::
+::  a staged peek whose negotiated pace referenced nothing cannot be
+::  represented, and could not have been read anyway: the snap goes and
+::  the peek renegotiates.
+::
+++  remo-12-to-remo
+  |=  r=remo-12
+  ^-  remo:nexus
+  :_  snaps.r
+  %-  ~(run by peeks.r)
+  |=  p=peek-12
+  ^-  peek:remo:nexus
+  :*  ship.p
+      dest.p
+      deep.p
+      blot.p
+      ?~  snap.p  ~
+      ?:  ?=(%tomb -.pace.u.snap.p)
+        `[cass.u.snap.p [%tomb ~] refs.u.snap.p]
+      ?~  p.pace.u.snap.p  ~
+      :-  ~
+      :+  cass.u.snap.p
+        ?-  -.pace.u.snap.p
+          %firm  [%firm u.p.pace.u.snap.p]
+          %temp  [%temp u.p.pace.u.snap.p]
+        ==
+      refs.u.snap.p
+      snap-id.p
+  ==
+::
+++  born-12-to-born
+  |=  b=born-12
+  ^-  born:nexus
+  :-  ?~  fil.b  ~
+      =/  files=(map @ta hist:nexus)
+        %-  ~(gas by *(map @ta hist:nexus))
+        %+  murn  ~(tap by file.u.fil.b)
+        |=  [nom=@ta h=hist-12]
+        ^-  (unit [@ta hist:nexus])
+        =/  kept=hist:nexus  (hist-12-to-hist h)
+        ?:  =(~ kept)  ~
+        `[nom kept]
+      `[(hist-12-to-hist fold.u.fil.b) files]
+  (~(run by dir.b) born-12-to-born)
+::
+++  hist-12-to-hist
+  |=  h=hist-12
+  ^-  hist:nexus
+  %+  gas:hon:hist:nexus  *hist:nexus
+  %+  murn  (tap:hon-12 h)
+  |=  [key=cass:clay val=entry-12]
+  ^-  (unit [cass:clay entry:hist:nexus])
+  ?:  ?=(%tomb -.pace.val)  `[key [[%tomb ~] tags.val]]
+  ?~  p.pace.val  ~
+  :+  ~  key
+  :_  tags.val
+  ?-  -.pace.val
+    %firm  [%firm u.p.pace.val]
+    %temp  [%temp u.p.pace.val]
+  ==
 ::
 +|  %pool-0-to-1
 ::

@@ -182,9 +182,10 @@ function setup(root, opts) {
       // top-bar sandbox chip. Click to edit that directory's roads in the weir
       // modal — writes target that row's own URL, so the server edits it, not
       // the directory we're viewing.
-      format: (v, item) => item.kind === 'dir' ? (item.weir ? 'restricted' : 'unrestricted') : '',
+      format: (v, item) => item.ghost ? '–' : item.kind === 'dir' ? (item.weir ? 'restricted' : 'unrestricted') : '',
       decorate: (cell, item) => {
         if (item.kind !== 'dir') return;
+        if (item.ghost) return;   // nothing here to sandbox
         cell.style.cursor = 'pointer';
         cell.style.color = item.weir ? '#9a6700' : '#1a7f37';
         cell.title = "edit this directory's weir";
@@ -282,6 +283,7 @@ function setup(root, opts) {
     {
       key: 'mime', label: 'Mime Type', cls: 'mono',
       format: (v, item) => {
+        if (item.ghost) return '–';
         if (item.kind === 'dir' || item.kind === 'symlink' || item.kind === 'boom') return '–';
         return v || '–';
       },
@@ -289,6 +291,7 @@ function setup(root, opts) {
     {
       key: 'size', label: 'Size', cls: 'mono',
       format: (v, item) => {
+        if (item.ghost) return '–';
         if (item.kind === 'dir' || item.kind === 'symlink' || item.kind === 'boom') return '–';
         return fmtSize(v);
       },
@@ -587,6 +590,8 @@ function setup(root, opts) {
         if (!r.ok) throw new Error(r.status);
         d = await r.json();
       } catch (e) { toast('listing failed: ' + e, true); }
+      if (panel.dataset.path !== path) return; // moved on while in flight
+      if (d && Array.isArray(d.children)) d.children = d.children.concat(await psGhosts(path, null));
       if (panel.dataset.path !== path) return; // moved on while in flight
       const neckDisp = d && d.nexus && typeof d.nexus.display === 'string' ? d.nexus.display : '-';
       const neck = neckDisp === '-' ? '' : neckDisp;
@@ -913,6 +918,33 @@ function setup(root, opts) {
     if (!m) return da || '';
     const p2 = (x) => String(x).padStart(2, '0');
     return m[1] + '-' + p2(m[2]) + '-' + p2(m[3]) + ' ' + p2(m[4]) + ':' + p2(m[5]) + ':' + p2(m[6]);
+  };
+  // ---- ghosts: the children that USED to be here ----
+  // peak says what was ever written under a directory, born says what is
+  // still there; the difference is a ghost. They go in the SAME table,
+  // drained of colour, carrying the version they died at and the date
+  // they stopped — so a deletion is visible where it happened instead of
+  // only in the history of a path you already have to know about.
+  //
+  // Present only: at a past version a ghost was alive and the listing
+  // already carries it, so asking there would draw the row twice.
+  const ghostsShown = () => { try { return localStorage.getItem(K + '-ghosts') === '1'; } catch (_) { return false; } };
+  const setGhostsShown = (v) => { try { localStorage.setItem(K + '-ghosts', v ? '1' : '0'); } catch (_) {} };
+  const psGhosts = async (url, args) => {
+    if (!ghostsShown()) return [];
+    if (args && (args.case || args.asof)) return [];
+    const gurl = url.replace(PREFIX, '/grubbery/api/ghost');
+    if (gurl === url) return [];
+    try {
+      const r = await fetch(gurl, { cache: 'no-store' });
+      if (!r.ok) return [];
+      const gs = await r.json();
+      if (!Array.isArray(gs)) return [];
+      return gs.map((g) => ({
+        name: g.name, kind: g.fold ? 'dir' : 'file',
+        ghost: true, case: g.case, modified: g.modified,
+      }));
+    } catch (_) { return []; }
   };
   // ---- @name prefixes: a path under a /sys/link name ----
   // A moment may start with a NAME instead of a place: `@forge/repos` is the
@@ -1410,7 +1442,7 @@ function setup(root, opts) {
   //   scroller here (file-table does not scroll itself, and the phone restores
   //   el.scrollTop), so moving the scroll into a wrapper would break both.
   //
-  function psChipRow(el, d, ns, url, route) {
+  function psChipRow(el, d, ns, url, route, path) {
     const row = document.createElement('div');
     row.className = 'ps-chips';
     const neck = d.nexus && d.nexus.display;
@@ -1427,7 +1459,7 @@ function setup(root, opts) {
       }
       row.appendChild(chip('nexus', v));
     }
-    row.appendChild(chip('items', String((d.children || []).length)));
+    row.appendChild(chip('items', String((d.children || []).filter((c) => !c.ghost).length)));
     const open = d.root || !d.weir;
     const sb = chip('sandbox', open ? 'unrestricted' : 'restricted', open);
     const here = ns.replace(/\/$/, '') || '/';
@@ -1442,6 +1474,42 @@ function setup(root, opts) {
       sb.addEventListener('click', () => route(here + '?view=weir', 'dir', null));
     }
     row.appendChild(sb);
+    // History and Retention are not management, they are how you read this
+    // directory -- one says what it held, the other whether what it holds
+    // survives a cull. Both were two clicks deep in the \u22ef menu.
+    const btn = (glyph, label, title, on) => {
+      const b = document.createElement('button');
+      b.className = 'ps-chip-btn' + (on ? ' on' : '');
+      b.title = title;
+      const g = document.createElement('span'); g.className = 'g'; g.textContent = glyph;
+      b.appendChild(g);
+      if (label) { const t = document.createElement('span'); t.className = 't'; t.textContent = label; b.appendChild(t); }
+      return b;
+    };
+    const acts = document.createElement('div');
+    acts.className = 'ps-chip-acts';
+    const hist = btn('\u25f7', 'History', "the versions of this directory");
+    hist.addEventListener('click', (e) => { e.stopPropagation(); route(here + '?view=history', 'dir', null); });
+    acts.appendChild(hist);
+    const keep = btn('\u25c9', 'Retention', "whether what is here survives a cull");
+    keep.addEventListener('click', (e) => { e.stopPropagation(); route(here + '?view=gain&kind=dir', 'dir', null); });
+    acts.appendChild(keep);
+    // Ghosts: a GLOBAL preference, not this directory's -- it governs every
+    // listing at once. Only at now: a ghost is a fact about the present
+    // (peak against what is here), so standing in a version has nothing to
+    // toggle, and the button would lie about what the page can show.
+    const vargs = path ? psArgs(path) : {};
+    if (!vargs.case && !vargs.asof) {
+      const on = ghostsShown();
+      const gh = btn('\u25cc', '', on ? 'hide ghosts everywhere' : 'show ghosts everywhere \u2014 names that were here and are not', on);
+      gh.addEventListener('click', (e) => {
+        e.stopPropagation();
+        setGhostsShown(!ghostsShown());
+        const c = el._ctx;
+        if (c && c.ps && c.paneId) try { c.ps.refresh(c.paneId); } catch (_) {}
+      });
+      acts.appendChild(gh);
+    }
     // Manage: new folder/nexus/file/symlink, upload, download, reload nexus —
     // the legacy bar's button. They are all in the right-click menu, which is
     // unreachable on a phone, so the row carries the same menu as a button.
@@ -1452,7 +1520,8 @@ function setup(root, opts) {
       const r = more.getBoundingClientRect();
       showMenu(dirMenu(el, url, !!(d.nexus && d.nexus.display && d.nexus.display !== '-')), r.left, r.bottom + 4);
     });
-    row.appendChild(more);
+    acts.appendChild(more);
+    row.appendChild(acts);
     return row;
   }
   // +psCrumbRow: where this listing sits, ABSOLUTELY. Built from the resolved
@@ -1489,7 +1558,7 @@ function setup(root, opts) {
     head.className = 'ps-dirhead';
     const past = psPastBar(ns, path, 'dir', route);
     if (past) head.appendChild(past);
-    head.append(psCrumbRow(abs, route), psChipRow(el, d, ns, url, route));
+    head.append(psCrumbRow(abs, route), psChipRow(el, d, ns, url, route, path));
     return head;
   }
   // +psPastBar: a pane looking at ?case= is LOOKING AT THE PAST, and that
@@ -1587,9 +1656,9 @@ function setup(root, opts) {
     // been deleted -- the "unlisted version" you kept landing on.
     const fetchRows = () => fetch(bornUrl, { cache: 'no-store' })
       .then((r) => r.ok ? r.json() : null)
-      // EVERY version, including empty and broken ones. A version you
-      // cannot step to is a version you cannot drop, and hiding a broken
-      // one hides the fault. The pane says honestly what each one is.
+      // EVERY version, broken ones included. A version you cannot step
+      // to is a version you cannot drop, and hiding a broken one hides
+      // the fault. The pane says honestly what each one is.
       .then((ms) => Array.isArray(ms)
         ? ms.slice().sort((a, b) => (b.ud || 0) - (a.ud || 0))
         : [])
@@ -1733,7 +1802,7 @@ function setup(root, opts) {
           : say() + ' · version ' + cur + ' · ' + psWhen(rows[i].da) +
             ' · ' + (i + 1) + ' of ' + rows.length +
             (rows[i].firm ? ' · firm' : '') +
-            (rows[i].tomb ? ' · dropped' : rows[i].empty ? ' · nothing here' : '') +
+            (rows[i].tomb ? ' · dropped' : '') +
             (rows[i].broken ? ' · broken: its object is not in the silo' : '');
         drawTags(gone ? [] : (rows[i].tags || []));
         // rows are newest-first, so OLDER is further along and NEWER is
@@ -1775,8 +1844,6 @@ function setup(root, opts) {
     const items = [
       { label: 'New…', run: () => go(el, dirUrl + '?view=new', 'dir') },
       { label: 'Weir…', run: () => go(el, dirUrl + '?view=weir', 'dir') },
-      { label: 'History…', run: () => go(el, dirUrl + '?view=history', 'dir') },
-      { label: 'Retention…', run: () => go(el, dirUrl + '?view=gain&kind=dir', 'dir') },
       { label: 'Upload…', run: () => go(el, dirUrl + '?view=upload', 'dir') },
       { label: 'Download', run: () => { location.href = dirUrl + '?download=tar'; } },
     ];
@@ -2010,7 +2077,7 @@ function setup(root, opts) {
           const r = await fetch('/grubbery/api/born' + (bare === '/' ? '' : bare) +
                                 (isDir ? '?fold=1' : ''), { cache: 'no-store' });
           const ms = r.ok ? await r.json() : [];
-          const live = (Array.isArray(ms) ? ms : []).filter((m) => !m.empty && !m.tomb)
+          const live = (Array.isArray(ms) ? ms : []).filter((m) => !m.tomb)
                          .map((m) => Number(m.ud)).sort((a, b) => b - a);
           const ref = Number(cs);
           const older = live.find((u) => u < ref);
@@ -2078,11 +2145,11 @@ function setup(root, opts) {
           // version of the path with nothing to read, so it is shown and
           // not opened. That is what makes a deleted-and-remade path read
           // as one history with a gap in it.
-          // empty and broken are DIFFERENT and cannot co-occur: an empty
-          // pace names no object, so there is nothing to be missing.
-          const empty = !!mo.empty, broke = !!mo.broken;
+          // a version always references content, so there is no "held
+          // nothing" row: either it reads, or its object is missing.
+          const broke = !!mo.broken;
           const row = document.createElement('div');
-          row.className = 'ps-file ps-moment' + (empty ? ' gone' : '') + (broke ? ' broke' : '');
+          row.className = 'ps-file ps-moment' + (mo.tomb ? ' gone' : '') + (broke ? ' broke' : '');
           const left = document.createElement('span');
           left.textContent = when(mo.da) + (i === 0 ? '  · now' : '');
           const mid = document.createElement('span');
@@ -2091,7 +2158,6 @@ function setup(root, opts) {
           if (mo.firm) marks.push('firm');
           if ((mo.tags || []).length) marks.push(mo.tags.join(' '));
           if (mo.tomb) marks.push('dropped');
-          else if (empty) marks.push('nothing here');
           else if (broke) marks.push('broken');
           mid.textContent = marks.join(' · ');
           const ver = document.createElement('span');
@@ -2099,7 +2165,6 @@ function setup(root, opts) {
           ver.textContent = 'v' + mo.ud;
           row.append(left, mid, ver);
           row.title = mo.tomb ? 'this version was dropped'
-                    : empty ? 'the path held nothing in this version'
                     : broke ? 'this version names an object the silo does not have — open it to drop it'
                     : 'open this version';
           // the row is the only thing on it, so the row takes the click. An
@@ -2343,6 +2408,7 @@ function setup(root, opts) {
                              : dArgs.case ? '&case=' + encodeURIComponent(dArgs.case) : '');
     fetch(url + listQ).then((r) => r.ok ? r.json() : Promise.reject(r.status)).then(async (d) => {
       if (!d || !Array.isArray(d.children)) throw 'f';
+      d.children = d.children.concat(await psGhosts(url, dArgs));
       psClear(el);
       psAlive(ps, ns);                                                     // it answered: clear any stale dead mark
       psKind.set(ns, 'dir'); ps.redrawBars();                              // this path lists → it's a dir
@@ -2456,6 +2522,22 @@ function setup(root, opts) {
           return;
         }
         psMarkDead(ps, el, ns);
+        // A path that is not here still has a PLACE and may still have a
+        // PAST -- a ghost is exactly that. So draw the ordinary pane:
+        // crumbs saying where this is, and the version bar, which stays
+        // hidden by itself when born has nothing to offer. Without it the
+        // only way into a deleted path's history was to already know the
+        // version and type it.
+        //
+        // 'file', not 'dir', though we may be looking at either: the bar
+        // asks born with ?fold=1 for a dir, and a dir's fold hist is the
+        // ONLY thing that answers then. Without it born resolves
+        // file-first and falls back to the fold, which is right for a
+        // ghost of unknown kind -- a gone grub finds its grub history, a
+        // gone directory finds its fold's. The pane re-learns the real
+        // kind from the next listing either way.
+        psNoVersion(el, 'nothing here', 'this path is not here',
+                    [psPastBar(ns, path, 'file', route), psCrumbRow(abs, route)]);
         el._gone = psWatchFile(ps, paneId, el, ns, abs);                   // not there YET: `new` brings it back by itself
         return;
       }
@@ -2686,8 +2768,13 @@ function setup(root, opts) {
       data = await r.json();
     } catch (e) {
       toast('listing failed: ' + e, true);
+      // say it is empty rather than spinning forever -- stepping into a
+      // ghost lands here, and a pane that never stops loading reads as a
+      // hang instead of as a path that is not there
+      ft.items = []; fg.items = [];
       return;
     }
+    if (data && Array.isArray(data.children)) data.children = data.children.concat(await psGhosts(here, null));
     renderChips();
     renderBang();
     // the way up stops at the scope's root
@@ -2753,7 +2840,7 @@ function setup(root, opts) {
       }
       c.appendChild(chip('nexus', v));
     }
-    c.appendChild(chip('items', String(data.children.length)));
+    c.appendChild(chip('items', String(data.children.filter((x) => !x.ghost).length)));
     const open = data.root || !data.weir;
     const sb = chip('sandbox', open ? 'unrestricted' : 'restricted', open);
     const PROTECTED = ['/apps', '/apps/explorer.explorer'];
@@ -2911,6 +2998,7 @@ function setup(root, opts) {
 
   function renderManage() {
     $('mi-reload').style.display = (data.nexus && data.nexus.display !== '-') ? '' : 'none';
+    $('mi-ghosts').textContent = ghostsShown() ? 'Hide ghosts' : 'Show ghosts';
   }
 
   // create-modals default to `here`; a directory's own right-click actions
@@ -2939,6 +3027,7 @@ function setup(root, opts) {
   $('mi-upload').addEventListener('click', () => openModal('upload-modal'));
   $('mi-upload-dir').addEventListener('click', () => openModal('upload-dir-modal'));
   $('mi-download').addEventListener('click', () => { location.href = here + '?download=tar'; });
+  $('mi-ghosts').addEventListener('click', () => { setGhostsShown(!ghostsShown()); load(); });
   $('mi-reload').addEventListener('click', () => post({ action: 'reload-nexus' }));
   $('m-weir-make').addEventListener('click', () => post({ action: 'make-weir' }, weirEndpoint));
   $('m-weir-clear').addEventListener('click', () =>
@@ -4680,7 +4769,18 @@ namespace-explorer #chips { display: inline-flex; align-items: center; gap: 7px;
 .ps-crumbs a:hover { color: #24292f; background: #eaeef2; }
 .ps-crumbs .cur { color: #24292f; padding: 2px 4px; }
 .ps-chips .chip.click, .ps-chips .ps-chip-more { min-height: 26px; }
-.ps-chips .ps-chip-more { margin-left: auto; font: 15px/1 ui-monospace, Menlo, monospace; padding: 2px 10px; border: 1px solid #e2e7ee; border-radius: 6px; background: #eef1f4; color: #24292f; cursor: pointer; }
+.ps-chips .ps-chip-acts { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+.ps-chips .ps-chip-btn {
+  display: inline-flex; align-items: center; gap: 5px; min-height: 26px;
+  font: 11px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  padding: 2px 9px; border: 1px solid #e2e7ee; border-radius: 6px;
+  background: #eef1f4; color: #24292f; cursor: pointer;
+}
+.ps-chips .ps-chip-btn:hover { border-color: #d0d7de; background: #e2e7ee; }
+.ps-chips .ps-chip-btn .g { font: 13px/1 ui-monospace, Menlo, monospace; color: #57606a; }
+.ps-chips .ps-chip-btn.on { background: #dbe9f6; border-color: #b6d2ec; }
+.ps-chips .ps-chip-btn.on .g { color: #0969da; }
+.ps-chips .ps-chip-more { font: 15px/1 ui-monospace, Menlo, monospace; padding: 2px 10px; border: 1px solid #e2e7ee; border-radius: 6px; background: #eef1f4; color: #24292f; cursor: pointer; }
 .ps-chips .ps-chip-more:hover { border-color: #d0d7de; background: #e2e7ee; }
 .ps-chips .chip, namespace-explorer .chip { display: inline-flex; align-items: center; gap: 5px; background: #eef1f4; border: 1px solid #e2e7ee; border-radius: 6px; padding: 2px 8px; white-space: nowrap; }
 .ps-chips .chip.click, namespace-explorer .chip.click { cursor: pointer; }
@@ -4785,6 +4885,7 @@ const EXPLORER_HTML = (K) => `  <div id="bar">
       <button class="mi" id="mi-upload">Upload files&hellip;</button>
       <button class="mi" id="mi-upload-dir">Upload directory&hellip;</button>
       <button class="mi" id="mi-download">Download as tarball</button>
+      <button class="mi" id="mi-ghosts">Show ghosts</button>
       <button class="mi" id="mi-reload" style="display:none">Reload nexus</button>
     </drop-menu>
   </div>

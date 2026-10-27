@@ -82,6 +82,11 @@ const STYLE = `
      empty name, and /sys/dill/sessions/ IS that file. An empty link is
      invisible and unclickable, so it is named for the reader instead. */
   a.name.unnamed { color: #8b949e; font-style: italic; }
+  /* a ghost: a name that WAS here. Same row, same columns, drained of
+     colour -- it reads as present-but-past without a legend. */
+  tr.ghost td { color: #b6bec6; }
+  tr.ghost a.name { color: #8c959f; }
+  tr.ghost:hover td { background: #f6f8fa; }
   td.acts {
     white-space: nowrap; text-align: right;
     overflow: visible; text-overflow: clip;
@@ -301,6 +306,7 @@ class FileTable extends HTMLElement {
   #row(item) {
     const tr = document.createElement('tr');
     tr.__item = item;
+    if (item.ghost) tr.classList.add('ghost');
     for (const col of this.#columns) {
       const raw = item[col.key];
       const display = col.format ? col.format(raw, item) : (raw ?? '–');
