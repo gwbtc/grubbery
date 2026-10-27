@@ -330,7 +330,10 @@
 ::  +max-object: the largest object a pack may hold, in bytes. A pack
 ::  comes from a remote, and each object's size is declared before it is
 ::  inflated into the loom; a declaration past this is refused unread.
-::  ponytail: one fixed cap, raise it if a real repo needs bigger blobs.
+::  ponytail: one fixed cap, raise it if a real repo needs bigger blobs —
+::  with care: at 128 MiB the cap is already a large fraction of the
+::  default 2 GiB loom and generous for a single object, so a bigger cap
+::  is a loom-budget decision, not just a larger-blob wish.
 ::
 ++  max-object  ^~((bex 27))
 ++  read-pack-object
