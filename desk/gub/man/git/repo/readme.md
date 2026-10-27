@@ -11,6 +11,10 @@ Clone a public git repo into the namespace and act on it. Config: repo, ref.
 - `poll.json` — self-configuring sync daemon. Holds `{minutes: N}` (0 = off);
   its own fiber pokes `pull` on that interval.
 - `data/` — the git object store (packs, refs, HEAD, index) and checked-out tree.
+  The queue acts on it through `data/requests.json`: it appends a request under
+  the command's id, reloads the data nexus, and reads the outcome recorded under
+  that id. The message the queue logs is that outcome's message; the entry itself
+  also carries the paths concerned. Every request ever and its outcome are there.
 
 ## Commands (poke `run.git-action`)
 

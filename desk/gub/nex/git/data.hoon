@@ -104,7 +104,7 @@
         =^  out=outcome  ball  (run-request ball r)
         %=  $
           pending.log  t.pending.log
-          done.log  (scag 50 `(list json)`[(outcome-json r out) done.log])
+          done.log  `(list json)`[(outcome-json r out) done.log]
         ==
       ::
       ::  === checkout ===
