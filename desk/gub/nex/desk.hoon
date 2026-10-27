@@ -1264,17 +1264,20 @@
 ::  +strip-nested: the necks and weirs inside a synced tree are its
 ::  publisher's. A neck would start a nexus inside /desk/code that no one
 ::  consented to, and a weir would set governance there, so both go from
-::  every directory below the root. Instances start only through
-::  bill.json and shell consent.
+::  every level of the tree, the root included. Instances start only
+::  through bill.json and shell consent. The destination's own root
+::  governance is the caller's to attach afterward: +sync-dir re-attaches
+::  the recorded neck and no weir at the root, so nothing the publisher
+::  carried survives at any level.
 ::
 ++  strip-nested
   |=  bol=bole:tarball
   ^-  bole:tarball
+  =?  fil.bol  ?=(^ fil.bol)  `u.fil.bol(neck ~, weir ~)
   %=    bol
       dir
     %-  ~(run by dir.bol)
     |=  kid=bole:tarball
-    =?  fil.kid  ?=(^ fil.kid)  `u.fil.kid(neck ~, weir ~)
     (strip-nested kid)
   ==
 ::
