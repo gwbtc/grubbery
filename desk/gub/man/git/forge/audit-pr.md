@@ -282,4 +282,14 @@ Seams seen so far:
   grub) and on the absence of a described test. Seam: the advocate
   fetched the description along with the diff in its first turn; the
   step now says the diff is all it fetches.
+- Run 9 (grubbery #101 again, the first run that posted). 32 events,
+  11 turns, no human; the comment went up on the PR under the ship
+  owner's account, in the shape comment.md fixes. Same recommendation
+  as run 8, `accept with required changes` on legibility, and six of
+  seven grades the same; the required changes differ: this run found
+  the behaviour change on an unknown wid (no-op to error pack) and the
+  second call site of `handle-ws-close` in the connect loop, where run
+  8 found the inverted threat model. Both readings are correct. The
+  verdict holds across runs; the particulars vary with what the
+  advocate happens to read.
 
