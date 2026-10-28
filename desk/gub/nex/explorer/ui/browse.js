@@ -751,6 +751,8 @@ function setup(root, opts) {
       // this ship) rooted at it: entry paths in the layout starting with
       // './' resolve against the opened dir. One layout, any instance.
       if (typeof rule.layout === 'string') return OWN_ROUTE.test(rule.layout) ? { layout: rule.layout } : null;
+      // {view: 'frame', args: {url}}: the stock frame, no script of the app's
+      if (rule.view === 'frame') { const fa = (rule.args && typeof rule.args === 'object') ? rule.args : {}; return { label: 'frame', follow: null, mount: (root, opts) => frameMount(root, Object.assign({}, opts, { args: fa })) }; }
       const src = rule.script, view = rule.view;
       if (typeof view !== 'string' || typeof src !== 'string' || !OWN_ROUTE.test(src)) { toast('viewer refused: needs a view name and a script on this ship', true); return null; }
       window.Viewers = window.Viewers || {};
@@ -2356,11 +2358,70 @@ function setup(root, opts) {
       }, null);
     }).catch(() => {});
   }
+  // ---- frame: a page on this ship inside a pane ----
+  // A moment is a namespace path, or a URL this ship serves spelled
+  // `url:/grubbery/forge`: the host tells them apart by spelling and frames
+  // the second. ?view=frame on a path frames the thing itself as the ship
+  // serves it (an html grub as a page); an app answers {view: 'frame',
+  // args: {url}} for a path it wants looked at that way. Only a path on
+  // this ship: a url carrying a scheme or a host is refused. The page
+  // inside keeps its own history and liveness; the pane's follows never
+  // reach it.
+  const psIsUrl = (p) => typeof p === 'string' && p.startsWith('url:');
+  function frameSrc(moment, args) {
+    const u = psIsUrl(moment) ? moment.slice(4)
+      : (typeof args.url === 'string' && args.url) ? args.url
+      : psUrl(psNs(moment)) + '?raw=1';
+    return (u.startsWith('/') && !u.startsWith('//')) ? u : null;
+  }
+  function frameMount(root, opts) {
+    root.innerHTML = '';
+    const moment = String(opts.url || '');
+    const args = (opts.args && typeof opts.args === 'object') ? opts.args : {};
+    const src = frameSrc(moment, args);
+    if (!src) { psWaitFail(root, 'frame refused: only a path on this ship (url:/…) can be framed', moment); return { destroy() { root.innerHTML = ''; } }; }
+    const f = document.createElement('iframe');
+    f.src = src; f.title = src; f.referrerPolicy = 'same-origin';
+    f.style.cssText = 'display:block;width:100%;height:100%;border:0;background:#fff';
+    root.appendChild(f);
+    // Links inside the page, by kind. A link to this ship navigates the
+    // frame, and the pane's moment follows it (`url:` + where it went, as
+    // history, so back works). A link the page marks for a new tab
+    // (target=_blank) to this ship is a moment the pane OPENS, routed by
+    // its layout like any link. A link off the ship goes to the browser's
+    // own new tab: nothing off the ship inside the workspace.
+    let shown = src;                                                        // where the frame is, as the pane knows it
+    const wire = (doc) => {
+      if (!doc || doc._psWired) return; doc._psWired = true;
+      doc.addEventListener('click', (e) => {
+        const a = e.target && e.target.closest ? e.target.closest('a[href]') : null; if (!a) return;
+        let u; try { u = new URL(a.getAttribute('href'), doc.location.href); } catch (_) { return; }
+        if (u.origin !== location.origin) { e.preventDefault(); window.open(u.href, '_blank', 'noopener'); return; }
+        if (a.target !== '_blank') return;                                   // in the frame, the page's own way
+        e.preventDefault();
+        const m = 'url:' + u.pathname + u.search, name = (a.textContent || '').trim().slice(0, 40) || undefined;
+        if (opts.open) opts.open(m, { name }); else if (opts.ps && opts.paneId) opts.ps.openFrom(opts.paneId, m, name);
+      }, true);
+    };
+    f.addEventListener('load', () => {
+      let here; try { here = f.contentWindow.location.pathname + f.contentWindow.location.search; wire(f.contentDocument); } catch (_) { return; }
+      if (here === shown) return;
+      shown = here;
+      if (opts.ps && opts.paneId) opts.ps.navigate(opts.paneId, 'url:' + here);   // the pane follows the frame; updateContent keeps this element
+    });
+    return {
+      destroy() { f.remove(); },
+      // the pane moved (back, forward, a typed url:): point the frame there,
+      // unless it is already there because it moved itself
+      goTo(u) { if (u === shown) return; shown = u; f.src = u; },
+    };
+  }
   function paneContent(ps, paneId, path) {
     const el = document.createElement('div');
     el.style.cssText = 'height:100%;overflow:auto';
     el._moment = path;                                                        // what this content shows (updateContent compares against it)
     const raw = !!(ps.viewOf && ps.viewOf(paneId) === 'raw');                 // the mode this element is FOR, fixed now
+    if (psIsUrl(path)) { el._fv = frameMount(el, { url: path, ps, paneId }); psLanded(ps, paneId, el); return el; }   // a served page, framed
     const ns = psNs(path);
     if (!psLink(ns)) { paneContentAt(ps, paneId, el, path, ns, ns, raw); return el; }
     // an @name moment: resolve the name first, then render at the place it
@@ -2417,6 +2478,7 @@ function setup(root, opts) {
     // `raw` arrives from paneContent: the mode this element was BUILT for, so
     // an @name that renders after its link resolves still renders that mode
     if (ACTION_VIEWS[psArgs(path).view]) { actionView(ps, paneId, el, path, abs); return; }   // a form over this path
+    if (psArgs(path).view === 'frame') { el._fv = frameMount(el, { url: path }); psLanded(ps, paneId, el); return; }   // a page on this ship, framed
     if (!raw && /\.layout$/.test(abs)) {                                   // this pane landed ON a layout → become it
       psWait(el, 'opening layout', ns);
       fetch(url).then((r) => r.ok ? r.json() : Promise.reject('x')).then((spec) => {
@@ -2480,7 +2542,7 @@ function setup(root, opts) {
           : (o && typeof o === 'object') ? Object.fromEntries(Object.keys(o).map((k) => [k, (k === 'path' && typeof o[k] === 'string') ? psRel(ns, o[k]) : rebase(o[k])]))
           : o;
         fetch(viewer.layout, { cache: 'no-store' }).then((r) => r.ok ? r.json() : Promise.reject('x'))
-          .then((spec) => { if (el.isConnected) ps.replaceWithLayout(paneId, rebase(spec), ns); })
+          .then((spec) => { if (el.isConnected) ps.replaceWithLayout(paneId, rebase(spec), path); })   // the source is the moment, ?args and all
           .catch((e) => psWaitFail(el, 'not a valid layout: ' + ((e && e.message) || e), viewer.layout));
         return;
       }
@@ -3212,10 +3274,14 @@ function setup(root, opts) {
   });
 
   // ---- snaps: pictures of the page for tools on the ship ----
-  // A tool writes snaps/<id>.json {moment} under the explorer; this page,
-  // the only thing that can see itself, renders the pane showing that
-  // moment (or the whole workspace when none does) to a PNG and uploads
-  // <id>.png beside the request. The tool awaits the png and culls both.
+  // A tool writes snaps/<id>.json {session, moment} under the explorer; the
+  // page attached to that session, the only thing that can see it, renders
+  // the pane showing that moment (or the whole workspace when none does) to
+  // a PNG. It uploads <id>.answer.json first, saying what it drew
+  // ({session, client, wanted, found, pictured, width, height}), then
+  // <id>.png; the tool awaits the png, reads the answer, and culls all
+  // three. One session has one attached client, so one page answers; a
+  // passive mirror and every other session stay quiet.
   const SNAPS = '/apps/explorer.explorer/snaps/';
   let h2c = null;
   function html2canvasLoad() {
@@ -3243,20 +3309,30 @@ function setup(root, opts) {
     }
     return near;
   }
-  function psSnaps(ps) {
+  function psSnaps(ps, mine) {
+    const upload = async (name, blob) => {
+      const fd = new FormData(); fd.append('file', blob, name);
+      const r = await fetch(PREFIX + SNAPS.replace(/\/$/, ''), { method: 'POST', body: fd, redirect: 'manual' });
+      if (r.status >= 400) throw new Error('upload ' + name + ' ' + r.status);
+    };
     live([{ road: SNAPS, body: true }], async (ev) => {
-      if (ev.kind !== 'new' || !ev.path.endsWith('.json')) return;
+      if (ev.kind !== 'new' || !ev.path.endsWith('.json') || ev.path.endsWith('.answer.json')) return;
       const id = ev.path.slice(SNAPS.length, -5);
-      const moment = ev.body && typeof ev.body === 'object' ? String(ev.body.moment || '') : '';
+      const req = ev.body && typeof ev.body === 'object' ? ev.body : {};
+      const session = String(req.session || '');
+      const client = mine(session);
+      if (!client) return;
+      const moment = String(req.moment || '');
       try {
         const render = await html2canvasLoad();
-        const target = psPaneShowing(ps, moment) || ps;
+        const pane = psPaneShowing(ps, moment);
+        const target = pane || ps;
         const w = target.getBoundingClientRect().width || 1;
         const canvas = await render(target, { useCORS: true, logging: false, backgroundColor: '#ffffff', scale: Math.min(1, 1600 / w) });
         const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
-        const fd = new FormData(); fd.append('file', blob, id + '.png');
-        const r = await fetch(PREFIX + SNAPS.replace(/\/$/, ''), { method: 'POST', body: fd, redirect: 'manual' });
-        if (r.status >= 400) throw new Error('upload ' + r.status);
+        const answer = { session, client, wanted: moment, found: !!pane, pictured: pane ? moment : 'workspace', width: canvas.width, height: canvas.height };
+        await upload(id + '.answer.json', new Blob([JSON.stringify(answer)], { type: 'application/json' }));
+        await upload(id + '.png', blob);
       } catch (e) { toast('snap failed: ' + (e && e.message || e), true); }
     }, null);
   }
@@ -3571,6 +3647,9 @@ function setup(root, opts) {
     const goPassive = (st) => {
       if (passive) return;
       passive = true;
+      // what this tab shows IS the spec it last wrote: a mirror that finds
+      // the same spec in the grub has nothing to rebuild
+      if (mirrored == null) mirrored = sansCursor(ps.serialize());
       const who = st && st.client && st.client.since ? new Date(st.client.since).toLocaleTimeString() : '';
       say('This session is now open in another tab' + (who ? ' (since ' + who + ')' : '') + '. This tab is passive.', 'Take over', attach);
     };
@@ -3579,15 +3658,26 @@ function setup(root, opts) {
     const cover = document.createElement('div');
     const covering = (text, sub, fail) => { (fail ? psWaitFail : psWait)(cover, text, sub); cover.style.cssText = 'position:absolute;inset:0;z-index:40'; if (!cover.parentNode) root.appendChild(cover); };
     root.style.position = 'relative';
+    // the spec without the selection, keys in one order (the ship writes
+    // json in its own order): what a rebuild would change
+    const canon = (o) => Array.isArray(o) ? '[' + o.map(canon).join(',') + ']'
+      : (o && typeof o === 'object') ? '{' + Object.keys(o).sort().map((k) => JSON.stringify(k) + ':' + canon(o[k])).join(',') + '}'
+      : JSON.stringify(o);
+    const sansCursor = (sp) => { const c = Object.assign({}, sp); delete c.cursor; return canon(c); };
     const attach = async () => {
       banner.style.display = 'none';
-      covering('attaching', sessionName);
+      // a passive tab taking over already shows the spec it mirrored: no
+      // cover, no rebuild, it just becomes the driver where it stands
+      const standing = mirrored != null;
+      if (!standing) covering('attaching', sessionName);
       const r = await api({ attach: clientId });
       if (r.status !== 200 || !r.json) { covering('could not attach to this session', 'http ' + r.status, true); say('Could not attach to session "' + sessionName + '" (' + r.status + ').', 'Sessions', () => { location.href = '/grubbery/explorer'; }); return; }
       cover.remove();
       const st = r.json;
+      const same = standing && st.spec && typeof st.spec === 'object' && sansCursor(st.spec) === mirrored;
       passive = false; attached = true; ver = st.ver || 0; mirrored = null;
-      if (st.spec && typeof st.spec === 'object') ps.restore(st.spec);
+      if (same) { if (typeof st.spec.cursor === 'string' && st.spec.cursor !== ps.cursorAddr()) ps.cursorToAddr(st.spec.cursor); }
+      else if (st.spec && typeof st.spec === 'object') ps.restore(st.spec);
       else if (typeof st.layout === 'string' && st.layout) {
         ps.open('/', 'here');
         try { const spec = await fetch(psUrl(st.layout), { cache: 'no-store' }).then((x) => x.ok ? x.json() : Promise.reject(x.status)); ps.replaceWithLayout(ps.cursor.id, spec, st.layout); } catch (e) { toast('layout did not load: ' + e, true); }
@@ -3605,7 +3695,6 @@ function setup(root, opts) {
         goPassive(st);
         if (!st.spec || typeof st.spec !== 'object') return;
         // only the selection moved → hop; anything else → rebuild from the spec
-        const sansCursor = (sp) => { const c = Object.assign({}, sp); delete c.cursor; return JSON.stringify(c); };
         const key = sansCursor(st.spec);
         if (key !== mirrored) { mirrored = key; ps.restore(st.spec); settled(); }
         else if (typeof st.spec.cursor === 'string' && st.spec.cursor !== ps.cursorAddr()) ps.cursorToAddr(st.spec.cursor);
@@ -3614,7 +3703,7 @@ function setup(root, opts) {
       if (!passive && attached) applyOps(st.ops);
     }, null);
     window.addEventListener('pagehide', () => { if (attached && !passive) { try { navigator.sendBeacon(SESSION_API, new Blob([JSON.stringify({ name: sessionName, detach: clientId })], { type: 'application/json' })); } catch (_) {} } });
-    return { attach: attach, writeBack: writeBack };
+    return { attach: attach, writeBack: writeBack, active: () => (attached && !passive ? clientId : null) };
   }
   // ---- mobile: the palace through a phone-sized aperture ----
   // The same palace and the same session, walked instead of surveyed. A phone
@@ -4659,7 +4748,10 @@ function setup(root, opts) {
     // viewer without onArgs) is rebuilt as before.
     ps.reloadLayout = (id, src) => psReloadLayout(ps, id, src);           // ↻ on a layout pane re-reads its file
     ps.updateContent = (el, path) => {
-      if (!el || el._dead || !el._fv || typeof el._fv.onArgs !== 'function') return false;
+      if (!el || el._dead || !el._fv) return false;
+      // a framed page moving to another url: the frame goes there (or is there already)
+      if (psIsUrl(path) && psIsUrl(el._moment || '') && typeof el._fv.goTo === 'function') { el._moment = path; el._fv.goTo(path.slice(4)); return true; }
+      if (typeof el._fv.onArgs !== 'function') return false;
       if (psNs(el._moment || '') !== psNs(path)) return false;
       el._moment = path;
       el._fv.onArgs(psArgs(path));
@@ -4692,13 +4784,13 @@ function setup(root, opts) {
       let saved = null; try { saved = localStorage.getItem('gmux:' + K + '-standalone') || localStorage.getItem('pane-split:' + K + '-standalone'); } catch (_) {}
       if (!saved) ps.open('/', 'here');                 // fresh → root; otherwise the persisted workspace restores (stateful)
       ps.layoutSources().forEach(({ id, src }) => psFollowLayout(ps, id, src));   // restored layout panes follow their files again
-      psSnaps(ps);
       return;
     }
     // ---- a session: this tab is its one client ----
     document.title = sessionName + ' · gmux';
-    psSnaps(ps);
-    sessionClient(ps, root, sessionName, () => ps.layoutSources().forEach(({ id, src }) => psFollowLayout(ps, id, src))).attach();
+    const client = sessionClient(ps, root, sessionName, () => ps.layoutSources().forEach(({ id, src }) => psFollowLayout(ps, id, src)));
+    psSnaps(ps, (session) => session === sessionName ? client.active() : null);   // the attached client's id, or nothing
+    client.attach();
     return;
   }
   load();

@@ -145,11 +145,13 @@
           ::  /sessions: gmux workspaces as the ship's record, one json grub
           ::  each (see +session-loop and browse.js sessions)
           [%fall %| /sessions empty-dir:loader]
-          ::  /snaps: pictures of the page for tools. A tool writes
-          ::  <id>.json {moment}; the open explorer page (the only thing
-          ::  that can see itself) renders the pane showing that moment and
-          ::  uploads <id>.png beside it; the tool awaits the png and culls
-          ::  both. Calls protocol: the requester keeps the png road.
+          ::  /snaps: pictures of a session for tools. A tool writes
+          ::  <id>.json {session, moment}; the page attached to that
+          ::  session (the only thing that can see it) renders the pane
+          ::  showing that moment, uploads <id>.answer.json saying what it
+          ::  drew, then <id>.png; the tool awaits the png, reads the
+          ::  answer and culls all three. Calls protocol: the requester
+          ::  keeps the png road.
           [%fall %| /snaps empty-dir:loader]
           [%over %& [/ %'html2canvas.min.js'] [[/ %mime] h2c-js]]
           [%over %& [/ %'README.md'] [[/ %mime] man]]

@@ -733,6 +733,10 @@ class Gmux extends HTMLElement {
     this.#refIndex = m;
   }
   #findRef(from, ref) {
+    // `root` is reserved: the workspace's outermost pane, reachable from
+    // anywhere, however deep the layout. A layout cannot shadow it (a pane
+    // written with id "root" gets no ref).
+    if (ref === 'root') return this.#root;
     if (!this.#refIndex) this.#reindexRefs();
     const cands = this.#refIndex.get(ref);
     if (!cands || !cands.length || !from) return null;
@@ -757,7 +761,9 @@ class Gmux extends HTMLElement {
     if (pane.open && typeof pane.open.to === 'string') {
       const to = pane.open.to.trim();
       const t = to.startsWith('#') ? this.#findRef(pane, to.slice(1)) : null;
-      if (t) return { target: t, mode: pane.open.mode === 'tab' ? 'tab' : 'replace' };
+      // the root is only ever a place for NEW tabs: replacing it would swap
+      // out the whole workspace
+      if (t) return { target: t, mode: (pane.open.mode === 'tab' || t === this.#root) ? 'tab' : 'replace' };
     }
     return { target: pane, mode: 'replace' };
   }
@@ -865,14 +871,21 @@ class Gmux extends HTMLElement {
     if (src) { if (entry.div) entry.div.src = src; else entry.src = src; }
     if (was.name) entry.name = was.name;
     const newHolder = entry.div ? entry.div : entry.pane;
-    // carry live content across by address + moment
+    // carry live content across by moment: every old leaf goes in a pool
+    // under its path, and each new leaf claims one showing the same path,
+    // the one at its own address first. A leaf the spec moved to another
+    // slot keeps its viewer rather than rendering again.
     const leaves = (p, fn) => { const e = this.#curEntry(p); if (e && e.div) { leaves(e.div.a, fn); leaves(e.div.b, fn); } else if (e && e.pane) leaves(e.pane, fn); else fn(p); };
-    const roots = newHolder.kind === 'pane' ? [newHolder] : [newHolder.a, newHolder.b];
-    roots.forEach((r) => leaves(r, (np) => {
-      const addr = this.#addrWithin(newHolder, np); if (addr == null) return;
-      const op = this.#descend(oldHolder, addr); if (!op || op.kind !== 'pane') return;
-      const ne = this.#curEntry(np), oe = this.#curEntry(op);
-      if (!ne || !oe || ne.path == null || oe.path == null || ne.path !== oe.path) return;
+    const sides = (h) => h.kind === 'pane' ? [h] : [h.a, h.b];
+    const pool = new Map();
+    sides(oldHolder).forEach((r) => leaves(r, (op) => { const oe = this.#curEntry(op); if (!oe || oe.path == null) return; const l = pool.get(oe.path) || []; l.push(op); pool.set(oe.path, l); }));
+    sides(newHolder).forEach((r) => leaves(r, (np) => {
+      const ne = this.#curEntry(np); if (!ne || ne.path == null) return;
+      const olds = pool.get(ne.path); if (!olds || !olds.length) return;
+      const addr = this.#addrWithin(newHolder, np);
+      const same = addr == null ? null : this.#descend(oldHolder, addr);
+      const at = olds.indexOf(same);
+      const op = olds.splice(at < 0 ? 0 : at, 1)[0];
       const live = op.body.firstChild;
       if (!live || live.tagName === 'SPLIT-VIEW' || live.classList.contains('ps-pane')) return;
       op.body.removeChild(live); np.body.textContent = ''; np.body.appendChild(live); np.cold = false;   // moved (a fresh pane's body holds the empty placeholder; the old pane's destroy finds nothing)
@@ -1791,7 +1804,7 @@ class Gmux extends HTMLElement {
     }));
     pane.activeTab = typeof spec.activeTab === 'number' ? spec.activeTab : 0;
     pane.open = (spec.open && typeof spec.open === 'object') ? spec.open : null;
-    pane.ref = (typeof spec.id === 'string' && spec.id) ? spec.id : null;        // the AUTHOR's id, written in a layout (pane.id is the internal handle)
+    pane.ref = (typeof spec.id === 'string' && spec.id && spec.id !== 'root') ? spec.id : null;   // the AUTHOR's id, written in a layout (pane.id is the internal handle); "root" is reserved
     if (pane.ref) this.#refIndex = null;
     // an older workspace stored one view on the pane: give it to the tab
     // that was active, rather than dropping it
