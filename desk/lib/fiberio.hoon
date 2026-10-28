@@ -2086,15 +2086,26 @@
   ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from
   ?+    name.p.sage  $
       %handle-http-request
+    ::  only the kernel opens a request, and it pokes with no sender.
+    ::  The bunt is unforgeable: the kernel assigns .from itself with
+    ::  relativize-from from the actual source rail, so no grub can
+    ::  arrange the bunt as its own sender. The threat this refuses is
+    ::  a trusted-tier nexus or a shell-approved grub that holds a poke
+    ::  road to this main.sig.
+    ?.  =(*from:fiber:nexus from)  $
     =/  [eyre-id=@ta src=@p req=inbound-request:eyre]
       !<([eyre-id=@ta @p inbound-request:eyre] q.sage)
     ;<  ~  bind:m  (make [%| 0 %& /requests eyre-id] |+[[[/ %http-request] [src req]] ~])
     $
       %handle-http-cancel
+    ?.  =(*from:fiber:nexus from)  $
     =/  eyre-id=@ta  !<(@ta q.sage)
     ;<  ~  bind:m  (cull [%| 0 %& /requests eyre-id])
     $
       %eyre-action
+    ::  relayed with this nexus's own bindings, so only for its own
+    ::  fibers: a sender with no steps up lives under this directory
+    ?.  =(0 p.from)  $
     ;<  ~  bind:m  (send-dart %node / server-road %poke [p.sage q.q.sage])
     $
   ==
