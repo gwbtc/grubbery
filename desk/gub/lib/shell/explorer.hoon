@@ -1,11 +1,28 @@
-::  explorer nexus: the tarball tree browser
+::  lib/shell/explorer: the namespace explorer, a service of the shell.
+::
+::  The explorer is the tree browser and editor: directory listings and
+::  file contents over HTTP at /grubbery/ball, the pane workspace page at
+::  /grubbery/explorer, its stream (sse, follow), the gmux sessions the
+::  ship keeps, snaps, the terminal panes, and the tarball export. The
+::  shell binds the routes and hands each request here (+serve-request);
+::  the page and its assets are served from the shell's own tree.
+::
+::    <shell>/ui/explorer/*         the page (browse.html, browse.js, view.html)
+::                                  and the kit it loads (kit.js, cm.js, ...)
+::    <shell>/explorer/sessions/    gmux workspaces, one json grub each
+::                                  (+session-loop runs under each)
+::    <shell>/explorer/snaps/       pictures of a session for tools
+::    <shell>/ui/requests/{id}      one request, served by +serve-request
+::
+::  Every road is relative to the request grub or climbs to the shell by
+::  its neck, so the service reads and writes the shell's own tree
+::  wherever the shell lives; the namespace it browses is absolute.
 ::
 /<  feather  /lib/feather.hoon
 /<  iso-8601  /lib/iso-8601.hoon
 /<  cs        /lib/code-src.hoon
-/&  man   ../man/explorer/readme.md
-/&  icon  explorer/icon.svg
-/&  gram     explorer/hoon-grammar.json
+/&  icon  /nex/shell/ui/explorer/icon.svg
+/&  gram     /nex/shell/ui/explorer/hoon-grammar.json
 /&  fp-js    /lib/ui/file-preview.js
 /&  fv-js    /lib/ui/file-view.js
 /&  ve-js    /lib/ui/vim-editor.js
@@ -19,19 +36,15 @@
 /&  tv-js    /lib/ui/tree-view.js
 /&  tvr-js   /lib/ui/tree-viewer.js
 /&  ba-js    /lib/ui/badges.js
-::  experimental tmux-style pane splitting — served but unlinked from the
-::  live finder; exercised only via panes.html (see below).
 /&  gmux-js     /lib/ui/gmux.js
 /&  nk-js       /lib/ui/nav-keys.js
-/&  panes-html  explorer/ui/panes.html
-/&  browse-html  explorer/ui/browse.html
-/&  browse-js    explorer/ui/browse.js
-/&  view-html    explorer/ui/view.html
-::  the explorer's own copy: importing the shell's tied the explorer's build
-::  to the shell's files, and every page that embeds the explorer with it
-/&  marked-js  explorer/marked.min.js
-::  snaps: the page renders a pane to a PNG on request (see /snaps below)
-/&  h2c-js     explorer/html2canvas.min.js
+/&  panes-html  /nex/shell/ui/explorer/panes.html
+/&  browse-html  /nex/shell/ui/explorer/browse.html
+/&  browse-js    /nex/shell/ui/explorer/browse.js
+/&  view-html    /nex/shell/ui/explorer/view.html
+/&  marked-js  /nex/shell/ui/explorer/marked.min.js
+::  snaps: the page renders a pane to a PNG on request (see +rows)
+/&  h2c-js     /nex/shell/ui/explorer/html2canvas.min.js
 ::  graph bundle: cytoscape + its dagre layout adapter + dagre itself,
 ::  welded into one served file (graph.js). Layout and rendering are
 ::  prior art here: ranking, crossing minimisation and edge routing are
@@ -57,216 +70,203 @@
 /&  cm-m-md    /lib/cm/markdown.min.js
 /&  cm-m-html  /lib/cm/htmlmixed.min.js
 /&  cm-m-hoon  /lib/cm/hoon-mode.js
-=<  ^-  nexus:nexus
-    |%
-    ++  on-load
-      |=  =ball:tarball
-      ^-  bole:tarball
-      =/  tile=json
-        %-  pairs:enjs:format
-        :~  title+s+'Explorer'
-            info+s+'Browse the tarball'
-            color+s+'#4a9de5'
-            image+s+'/grubbery/tiles/icon/explorer'
-            href+s+'/grubbery/ball'
-        ==
-      ::  editor bundle: codemirror + vim keymap + modes welded into one
-      ::  served file (same pattern as web-test's components.js)
-      =/  cm-wrap  |=(=mime `@`(rap 3 ~[10 q.q.mime 10]))
-      ::  dagre must come first: the cytoscape adapter looks for it
-      =/  graph-bundle=mime
-        :-  /application/javascript
-        %-  as-octs:mimes:html
-        %+  rap  3
-        :~  (cm-wrap dagre-js)
-            (cm-wrap cy-js)
-            (cm-wrap cy-dagre)
-        ==
-      =/  cm-bundle=mime
-        :-  /application/javascript
-        %-  as-octs:mimes:html
-        %+  rap  3
-        :~  (cm-wrap cm-js)
-            (cm-wrap cm-dialog-js)
-            (cm-wrap cm-search-js)
-            (cm-wrap cm-vim)
-            (cm-wrap cm-m-js)
-            (cm-wrap cm-m-css)
-            (cm-wrap cm-m-xml)
-            (cm-wrap cm-m-md)
-            (cm-wrap cm-m-html)
-            (cm-wrap cm-m-hoon)
-        ==
-      ::  cm.css: codemirror's base styling + the dialog addon's (the "/"
-      ::  search and ":" ex-command bars it draws at the bottom of the
-      ::  editor) — same weld-into-one-file reasoning as cm-bundle above.
-      =/  cm-css-bundle=mime
-        :-  /text/css
-        %-  as-octs:mimes:html
-        %+  rap  3
-        :~  (cm-wrap cm-css)
-            (cm-wrap cm-dialog-css)
-        ==
-      ::  kit bundle: the shared ui components + file viewer welded into ONE
-      ::  file, so the browse page makes a single request for all of them —
-      ::  on a pier that serializes requests, ten separate scripts cost ten
-      ::  round trips. Each wrapped in { } so top-level consts don't collide;
-      ::  define/window assignments run globally. The per-file grubs below
-      ::  stay: view.html and FileView's own on-demand loads still use them.
-      ::  123={  125=}  10=newline.
-      =/  wrap  |=(=mime ^-(@ (rap 3 ~[123 10 q.q.mime 10 125 10])))
-      =/  kit-js=mime
-        :-  /application/javascript
-        %-  as-octs:mimes:html
-        %+  rap  3
-        :~  (wrap md-js)
-            (wrap dm2-js)
-            (wrap ft-js)
-            (wrap fg-js)
-            (wrap sv-js)
-            (wrap nk-js)
-            (wrap gmux-js)
-            (wrap tg-js)
-            (wrap tv-js)
-            (wrap ba-js)
-            (wrap marked-js)
-            (wrap fp-js)
-            (wrap fv-js)
-            (wrap ve-js)
-        ==
-      %+  spin:loader  ball
-      :~  (manifest:loader 0)
-          [%over %& [/ %'link.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'explorer'] ['description' s+'Browse the namespace tree']])]]
-          [%over %& [/ %'weir.json'] [[/ %json] weir-json]]
-          [%over %& [/ %'tile.json'] [[/ %json] tile]]
-          [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
-          [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
-          [%fall %| /requests empty-dir:loader]
-          ::  /sessions: gmux workspaces as the ship's record, one json grub
-          ::  each (see +session-loop and browse.js sessions)
-          [%fall %| /sessions empty-dir:loader]
-          ::  /snaps: pictures of a session for tools. A tool writes
-          ::  <id>.json {session, moment}; the page attached to that
-          ::  session (the only thing that can see it) renders the pane
-          ::  showing that moment, uploads <id>.answer.json saying what it
-          ::  drew, then <id>.png; the tool awaits the png, reads the
-          ::  answer and culls all three. Calls protocol: the requester
-          ::  keeps the png road.
-          [%fall %| /snaps empty-dir:loader]
-          [%over %& [/ %'html2canvas.min.js'] [[/ %mime] h2c-js]]
-          [%over %& [/ %'README.md'] [[/ %mime] man]]
-          [%over %& [/ %'hoon-grammar.json'] [[/ %mime] gram]]
-          [%over %& [/ %'file-preview.js'] [[/ %mime] fp-js]]
-          [%over %& [/ %'file-view.js'] [[/ %mime] fv-js]]
-          [%over %& [/ %'vim-editor.js'] [[/ %mime] ve-js]]
-          [%over %& [/ %'vim-editor.json'] [[/ %mime] ve-cfg]]
-          [%over %& [/ %'modal-dialog.js'] [[/ %mime] md-js]]
-          [%over %& [/ %'drop-menu.js'] [[/ %mime] dm2-js]]
-          [%over %& [/ %'file-table.js'] [[/ %mime] ft-js]]
-          [%over %& [/ %'file-grid.js'] [[/ %mime] fg-js]]
-          [%over %& [/ %'split-view.js'] [[/ %mime] sv-js]]
-          [%over %& [/ %'tab-group.js'] [[/ %mime] tg-js]]
-          [%over %& [/ %'tree-view.js'] [[/ %mime] tv-js]]
-          [%over %& [/ %'tree-viewer.js'] [[/ %mime] tvr-js]]
-          [%over %& [/ %'badges.js'] [[/ %mime] ba-js]]
-          [%over %& [/ %'kit.js'] [[/ %mime] kit-js]]
-          [%over %& [/ %'browse.html'] [[/ %mime] browse-html]]
-          [%over %& [/ %'browse.js'] [[/ %mime] browse-js]]
-          [%over %& [/ %'view.html'] [[/ %mime] view-html]]
-          [%over %& [/ %'gmux.js'] [[/ %mime] gmux-js]]
-          [%over %& [/ %'nav-keys.js'] [[/ %mime] nk-js]]
-          [%over %& [/ %'panes.html'] [[/ %mime] panes-html]]
-          [%over %& [/ %'marked.min.js'] [[/ %mime] marked-js]]
-          [%over %& [/ %'graph.js'] [[/ %mime] graph-bundle]]
-          [%over %& [/ %'cm.js'] [[/ %mime] cm-bundle]]
-          [%over %& [/ %'cm.css'] [[/ %mime] cm-css-bundle]]
-      ==
-    ::
-    ++  on-file
-      |=  [=rail:tarball =blot:tarball]
-      ^-  spool:fiber:nexus
-      |=  =prod:fiber:nexus
-      =/  m  (fiber:fiber:nexus ,~)
-      ^-  process:fiber:nexus
-      ?+    rail  stay:m
-          [~ %'main.sig']
-        ;<  ~  bind:m  (rise-wait:io prod "%explorer /main: failed, poke to restart")
-        ~?  dbg  "%explorer /main: binding /grubbery/ball"
-        ;<  ~  bind:m  (bind-http:io [~ /grubbery/ball])
-        ;<  ~  bind:m  (bind-http:io [~ /grubbery/explorer])
-        ~?  dbg  "%explorer /main: ready"
-        (http-dispatch:io %explorer)
-          [[%sessions ~] @]
-        ;<  ~  bind:m  (rise-wait:io prod "%explorer /sessions: failed, poke to restart")
-        session-loop
-          [[%requests ~] @]
-        ;<  ~  bind:m  (rise-wait:io prod "%explorer /requests: failed, poke to restart")
-        =/  eyre-id=@ta  name.rail
-        ;<  [src=@p req=inbound-request:eyre]  bind:m  (get-state-as:io ,[src=@p inbound-request:eyre])
-        ;<  our=@p  bind:m  get-our:io
-        ?.  =(src our)
-          ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
-          (pure:m ~)
-        ~?  dbg  [%explorer-request eyre-id url.request.req]
-        =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
-        ::  /grubbery/explorer/sse: one SSE connection per workspace page; it
-        ::  follows whatever roads the page sends to /grubbery/explorer/follow
-        ::  (see +serve-sse). The page's panes declare what they depend on and
-        ::  the stream reports moves on exactly those roads.
-        ?:  ?=([%grubbery %explorer %sse ~] site)
-          (serve-sse eyre-id req)
-        ?:  ?=([%grubbery %explorer %follow ~] site)
-          (handle-follow eyre-id req)
-        ::  /grubbery/explorer/term: a terminal pane's history read and its
-        ::  keystrokes, session tasks (see +handle-term)
-        ?:  ?=([%grubbery %explorer %term ~] site)
-          (handle-term eyre-id req args)
-        ::  /grubbery/explorer/session: the workspace sessions — list, create,
-        ::  delete, and the attached client's attach / write-back / ops
-        ::  (see +handle-session)
-        ?:  ?=([%grubbery %explorer %session ~] site)
-          (handle-session eyre-id req)
-        ::  /grubbery/explorer[/...]: the standalone pane workspace — same shell,
-        ::  browse.js renders panes full-screen; it fetches data from /grubbery/ball.
-        ?:  ?=([%grubbery %explorer *] site)
-          ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils browse-html))
-          (pure:m ~)
-        =/  raw-path=path
-          ?.  ?=([%grubbery %ball *] site)  ~
-          t.t.site
-
-        ~?  dbg  %explorer-dispatch-start
-        =/  vers  (version-args args)
-        ;<  dir-view=view:nexus  bind:m
-          (peek-versioned raw-path cas.vers asof.vers)
-        ~?  dbg  %explorer-peek-done
-        ?.  ?=([%ball *] dir-view)
-          ::  Not a directory — try parent for file view
-          ?~  raw-path
-            ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
-            (pure:m ~)
-          =/  parent=path  (snip `path`raw-path)
-          ::  a ?case= on a FILE numbers the file, not its directory, so
-          ::  the parent is read in the present. ?asof= is anchor-relative
-          ::  and does apply to both.
-          ;<  par-view=view:nexus  bind:m
-            (peek-versioned parent ~ asof.vers)
-          ?.  ?=([%ball *] par-view)
-            ;<  ~  bind:m  (send-missing eyre-id raw-path args (wants-html req))
-            (pure:m ~)
-          ?:  =('POST' method.request.req)
-            (handle-post eyre-id raw-path ~ ball.par-view req)
-          (handle-get eyre-id raw-path %.n ~ ball.par-view wave.par-view args (wants-html req))
-        ;<  dir-weir=(unit weir:nexus)  bind:m
-          (read-weir-from-parent raw-path)
-        ?:  =('POST' method.request.req)
-          (handle-post eyre-id raw-path dir-weir ball.dir-view req)
-        ~?  dbg  %explorer-handle-get-start
-        (handle-get eyre-id raw-path %.y dir-weir ball.dir-view wave.dir-view args (wants-html req))
-      ==
-    --
-::
 |%
+::  +tile: the launcher tile for the explorer
+::
+++  tile
+  ^-  json
+  %-  pairs:enjs:format
+  :~  title+s+'Explorer'
+      info+s+'Browse the tarball'
+      color+s+'#4a9de5'
+      image+s+'/grubbery/ball/apps/shell.shell/ui/explorer/icon.svg'
+      href+s+'/grubbery/ball'
+  ==
+::  +bundles: the served bundles, one request each: the graph kit, the
+::  editor and its style, and the page kit
+::
+++  bundles
+  ^-  [graph=mime cm=mime cm-css=mime kit=mime]
+  ::  editor bundle: codemirror + vim keymap + modes welded into one
+  ::  served file (same pattern as web-test's components.js)
+  =/  cm-wrap  |=(=mime `@`(rap 3 ~[10 q.q.mime 10]))
+  ::  dagre must come first: the cytoscape adapter looks for it
+  =/  graph-bundle=mime
+    :-  /application/javascript
+    %-  as-octs:mimes:html
+    %+  rap  3
+    :~  (cm-wrap dagre-js)
+        (cm-wrap cy-js)
+        (cm-wrap cy-dagre)
+    ==
+  =/  cm-bundle=mime
+    :-  /application/javascript
+    %-  as-octs:mimes:html
+    %+  rap  3
+    :~  (cm-wrap cm-js)
+        (cm-wrap cm-dialog-js)
+        (cm-wrap cm-search-js)
+        (cm-wrap cm-vim)
+        (cm-wrap cm-m-js)
+        (cm-wrap cm-m-css)
+        (cm-wrap cm-m-xml)
+        (cm-wrap cm-m-md)
+        (cm-wrap cm-m-html)
+        (cm-wrap cm-m-hoon)
+    ==
+  ::  cm.css: codemirror's base styling + the dialog addon's (the "/"
+  ::  search and ":" ex-command bars it draws at the bottom of the
+  ::  editor) — same weld-into-one-file reasoning as cm-bundle above.
+  =/  cm-css-bundle=mime
+    :-  /text/css
+    %-  as-octs:mimes:html
+    %+  rap  3
+    :~  (cm-wrap cm-css)
+        (cm-wrap cm-dialog-css)
+    ==
+  ::  kit bundle: the shared ui components + file viewer welded into ONE
+  ::  file, so the browse page makes a single request for all of them —
+  ::  on a pier that serializes requests, ten separate scripts cost ten
+  ::  round trips. Each wrapped in { } so top-level consts don't collide;
+  ::  define/window assignments run globally. The per-file grubs below
+  ::  stay: view.html and FileView's own on-demand loads still use them.
+  ::  123={  125=}  10=newline.
+  =/  wrap  |=(=mime ^-(@ (rap 3 ~[123 10 q.q.mime 10 125 10])))
+  =/  kit-js=mime
+    :-  /application/javascript
+    %-  as-octs:mimes:html
+    %+  rap  3
+    :~  (wrap md-js)
+        (wrap dm2-js)
+        (wrap ft-js)
+        (wrap fg-js)
+        (wrap sv-js)
+        (wrap nk-js)
+        (wrap gmux-js)
+        (wrap tg-js)
+        (wrap tv-js)
+        (wrap ba-js)
+        (wrap marked-js)
+        (wrap fp-js)
+        (wrap fv-js)
+        (wrap ve-js)
+    ==
+  [graph-bundle cm-bundle cm-css-bundle kit-js]
+::  +rows: what the shell lays out for the explorer: its data under
+::  /explorer and its page under /ui/explorer
+::
+++  rows
+  ^-  (list row:loader)
+  =/  b  bundles
+  :~  ::  /explorer/sessions: gmux workspaces as the ship's record, one json
+      ::  grub each (see +session-loop and browse.js sessions)
+      [%fall %| /explorer empty-dir:loader]
+      [%fall %| /explorer/sessions empty-dir:loader]
+      ::  /explorer/snaps: pictures of a session for tools. A tool writes
+      ::  <id>.json {session, moment}; the page attached to that session
+      ::  (the only thing that can see it) renders the pane showing that
+      ::  moment, uploads <id>.answer.json saying what it drew, then
+      ::  <id>.png; the tool awaits the png, reads the answer and culls all
+      ::  three. Calls protocol: the requester keeps the png road.
+      [%fall %| /explorer/snaps empty-dir:loader]
+      [%fall %| /ui/explorer empty-dir:loader]
+      [%over %& [/ui/explorer %'icon.svg'] [[/ %mime] icon]]
+      [%over %& [/ui/explorer %'html2canvas.min.js'] [[/ %mime] h2c-js]]
+      [%over %& [/ui/explorer %'hoon-grammar.json'] [[/ %mime] gram]]
+      [%over %& [/ui/explorer %'file-preview.js'] [[/ %mime] fp-js]]
+      [%over %& [/ui/explorer %'file-view.js'] [[/ %mime] fv-js]]
+      [%over %& [/ui/explorer %'vim-editor.js'] [[/ %mime] ve-js]]
+      [%over %& [/ui/explorer %'vim-editor.json'] [[/ %mime] ve-cfg]]
+      [%over %& [/ui/explorer %'modal-dialog.js'] [[/ %mime] md-js]]
+      [%over %& [/ui/explorer %'drop-menu.js'] [[/ %mime] dm2-js]]
+      [%over %& [/ui/explorer %'file-table.js'] [[/ %mime] ft-js]]
+      [%over %& [/ui/explorer %'file-grid.js'] [[/ %mime] fg-js]]
+      [%over %& [/ui/explorer %'split-view.js'] [[/ %mime] sv-js]]
+      [%over %& [/ui/explorer %'tab-group.js'] [[/ %mime] tg-js]]
+      [%over %& [/ui/explorer %'tree-view.js'] [[/ %mime] tv-js]]
+      [%over %& [/ui/explorer %'tree-viewer.js'] [[/ %mime] tvr-js]]
+      [%over %& [/ui/explorer %'badges.js'] [[/ %mime] ba-js]]
+      [%over %& [/ui/explorer %'kit.js'] [[/ %mime] kit.b]]
+      [%over %& [/ui/explorer %'browse.html'] [[/ %mime] browse-html]]
+      [%over %& [/ui/explorer %'browse.js'] [[/ %mime] browse-js]]
+      [%over %& [/ui/explorer %'view.html'] [[/ %mime] view-html]]
+      [%over %& [/ui/explorer %'gmux.js'] [[/ %mime] gmux-js]]
+      [%over %& [/ui/explorer %'nav-keys.js'] [[/ %mime] nk-js]]
+      [%over %& [/ui/explorer %'panes.html'] [[/ %mime] panes-html]]
+      [%over %& [/ui/explorer %'marked.min.js'] [[/ %mime] marked-js]]
+      [%over %& [/ui/explorer %'graph.js'] [[/ %mime] graph.b]]
+      [%over %& [/ui/explorer %'cm.js'] [[/ %mime] cm.b]]
+      [%over %& [/ui/explorer %'cm.css'] [[/ %mime] cm-css.b]]
+  ==
+::  +serve-request: one request at /grubbery/ball or /grubbery/explorer,
+::  from the shell's request grub
+::
+++  serve-request
+  |=  =rail:tarball
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  eyre-id=@ta  name.rail
+  ;<  [src=@p req=inbound-request:eyre]  bind:m  (get-state-as:io ,[src=@p inbound-request:eyre])
+  ;<  our=@p  bind:m  get-our:io
+  ?.  =(src our)
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
+    (pure:m ~)
+  ~?  dbg  [%explorer-request eyre-id url.request.req]
+  =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
+  ::  /grubbery/explorer/sse: one SSE connection per workspace page; it
+  ::  follows whatever roads the page sends to /grubbery/explorer/follow
+  ::  (see +serve-sse). The page's panes declare what they depend on and
+  ::  the stream reports moves on exactly those roads.
+  ?:  ?=([%grubbery %explorer %sse ~] site)
+    (serve-sse eyre-id req)
+  ?:  ?=([%grubbery %explorer %follow ~] site)
+    (handle-follow eyre-id req)
+  ::  /grubbery/explorer/term: a terminal pane's history read and its
+  ::  keystrokes, session tasks (see +handle-term)
+  ?:  ?=([%grubbery %explorer %term ~] site)
+    (handle-term eyre-id req args)
+  ::  /grubbery/explorer/session: the workspace sessions — list, create,
+  ::  delete, and the attached client's attach / write-back / ops
+  ::  (see +handle-session)
+  ?:  ?=([%grubbery %explorer %session ~] site)
+    (handle-session eyre-id req)
+  ::  /grubbery/explorer[/...]: the standalone pane workspace — same shell,
+  ::  browse.js renders panes full-screen; it fetches data from /grubbery/ball.
+  ?:  ?=([%grubbery %explorer *] site)
+    ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils browse-html))
+    (pure:m ~)
+  =/  raw-path=path
+    ?.  ?=([%grubbery %ball *] site)  ~
+    t.t.site
+
+  ~?  dbg  %explorer-dispatch-start
+  =/  vers  (version-args args)
+  ;<  dir-view=view:nexus  bind:m
+    (peek-versioned raw-path cas.vers asof.vers)
+  ~?  dbg  %explorer-peek-done
+  ?.  ?=([%ball *] dir-view)
+    ::  Not a directory — try parent for file view
+    ?~  raw-path
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
+      (pure:m ~)
+    =/  parent=path  (snip `path`raw-path)
+    ::  a ?case= on a FILE numbers the file, not its directory, so
+    ::  the parent is read in the present. ?asof= is anchor-relative
+    ::  and does apply to both.
+    ;<  par-view=view:nexus  bind:m
+      (peek-versioned parent ~ asof.vers)
+    ?.  ?=([%ball *] par-view)
+      ;<  ~  bind:m  (send-missing eyre-id raw-path args (wants-html req))
+      (pure:m ~)
+    ?:  =('POST' method.request.req)
+      (handle-post eyre-id raw-path ~ ball.par-view req)
+    (handle-get eyre-id raw-path %.n ~ ball.par-view wave.par-view args (wants-html req))
+  ;<  dir-weir=(unit weir:nexus)  bind:m
+    (read-weir-from-parent raw-path)
+  ?:  =('POST' method.request.req)
+    (handle-post eyre-id raw-path dir-weir ball.dir-view req)
+  ~?  dbg  %explorer-handle-get-start
+  (handle-get eyre-id raw-path %.y dir-weir ball.dir-view wave.dir-view args (wants-html req))
 ::  +dbg: the routine traces print only when this is yes. It lives in this
 ::  helper core, where the nexus core above can see it.
 ::
@@ -351,9 +351,9 @@
       :~  (line '/' 'create, upload, and delete files anywhere — the editor half of the explorer')
       ==
   ==
-::  HTTP response door (road from /explorer.explorer/requests/* to /explorer.explorer/main.sig)
+::  HTTP response door (road from <shell>/ui/requests/* to <shell>/ui/http.sig)
 ::
-++  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])
+++  srv  ~(. http-res:io [%| 1 %& ~ %'http.sig'])
 ::  +send-json: a json body with the given status
 ::
 ++  send-json
@@ -461,7 +461,7 @@
   ::  a stream whose fiber failed sits in its restart wait; a poke there
   ::  would re-run the request on a connection eyre already closed. Say so
   ::  instead: the page reconnects and gets a fresh session.
-  ;<  reqs=road:tarball  bind:m  (ancestor-road:io [/ %explorer] [%| /requests])
+  ;<  reqs=road:tarball  bind:m  (ancestor-road:io [/ %shell] [%| /ui/requests])
   ;<  rv=view:nexus  bind:m  (peek-shallow:io reqs ~)
   =/  banged=?
     ?.  ?=([%ball *] rv)  |
@@ -470,7 +470,7 @@
     &(?=(^ c) ?=(^ bang.u.c))
   ?:  banged
     (send-json eyre-id 410 (pairs:enjs:format ~[['error' s+'session failed; reconnect']]))
-  ;<  =road:tarball  bind:m  (ancestor-road:io [/ %explorer] [%& /requests `@ta`p.u.s])
+  ;<  =road:tarball  bind:m  (ancestor-road:io [/ %shell] [%& /ui/requests `@ta`p.u.s])
   ;<  err=(unit tang)  bind:m  (poke-soft:io road [[/ %json] u.jon])
   ?^  err
     =/  why=@t  (crip (zing (join " | " (turn u.err |=(t=tank ~(ram re t))))))
@@ -567,7 +567,7 @@
   ^-  form:m
   =/  bad  |=([code=@ud why=@t] (send-json eyre-id code (pairs:enjs:format ~[['error' s+why]])))
   ?.  =('POST' method.request.req)
-    ;<  dir=road:tarball  bind:m  (ancestor-road:io [/ %explorer] [%| /sessions])
+    ;<  dir=road:tarball  bind:m  (ancestor-road:io [/ %shell] [%| /explorer/sessions])
     ;<  v=view:nexus  bind:m  (peek-shallow:io dir ~)
     =/  names=(list @ta)
       ?.  ?=([%ball *] v)  ~
@@ -577,7 +577,7 @@
     |-  ^-  form:m
     ?~  names
       (send-json eyre-id 200 (pairs:enjs:format ~[['sessions' a+(flop acc)]]))
-    ;<  road=road:tarball  bind:m  (ancestor-road:io [/ %explorer] [%& /sessions i.names])
+    ;<  road=road:tarball  bind:m  (ancestor-road:io [/ %shell] [%& /explorer/sessions i.names])
     ;<  fv=view:nexus  bind:m  (peek:io road `[/ %json])
     =/  j=(unit json)
       ?.  ?=([%file *] fv)  ~
@@ -602,7 +602,7 @@
   ?~  name  (bad 400 'name required')
   ?.  (valid-session-name u.name)  (bad 400 'a session name is lowercase letters, digits and dashes')
   =/  fname=@ta  (cat 3 u.name '.json')
-  ;<  road=road:tarball  bind:m  (ancestor-road:io [/ %explorer] [%& /sessions fname])
+  ;<  road=road:tarball  bind:m  (ancestor-road:io [/ %shell] [%& /explorer/sessions fname])
   ;<  now=@da  bind:m  get-time:io
   =/  now-ms=json  (time:enjs:format now)
   ?^  (jget u.jon 'create')
@@ -1572,7 +1572,7 @@
   ::
       %'delete-grub'
     =/  filename=@t  (fall (get-key:kv:html-utils 'filename' args) '')
-    ::  cull road: up 3 from /explorer.explorer/requests/[id] to root, then file
+    ::  cull road: an absolute road to the file
     ;<  ~  bind:m  (cull:io [%& %& tree-path filename])
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
@@ -1725,11 +1725,11 @@
     (pure:m ~)
   ::
       %'add-weir-road'
-    ::  load-bearing weirs: a weir on /apps (or on explorer itself) locks
+    ::  load-bearing weirs: a weir on /apps (or on the shell itself) locks
     ::  the very tools that manage weirs — including THIS request fiber,
     ::  which then dies un-self-cleaned and replays its sand on every
     ::  restart (learned the hard way). Flatly refuse.
-    ?:  |(=(/apps tree-path) =(/apps/'explorer.explorer' tree-path))
+    ?:  |(=(/apps tree-path) =(/apps/'shell.shell' tree-path))
       ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'this weir is load-bearing: restricting it would make grubbery painfully difficult to interface with from the outside')])
       (pure:m ~)
     =/  category=@t  (fall (get-key:kv:html-utils 'category' args) '')
@@ -1753,11 +1753,11 @@
       ::  fully closed until roads are added (absent weir = unrestricted)
       ::
       %'make-weir'
-    ::  load-bearing weirs: a weir on /apps (or on explorer itself) locks
+    ::  load-bearing weirs: a weir on /apps (or on the shell itself) locks
     ::  the very tools that manage weirs — including THIS request fiber,
     ::  which then dies un-self-cleaned and replays its sand on every
     ::  restart (learned the hard way). Flatly refuse.
-    ?:  |(=(/apps tree-path) =(/apps/'explorer.explorer' tree-path))
+    ?:  |(=(/apps tree-path) =(/apps/'shell.shell' tree-path))
       ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'this weir is load-bearing: restricting it would make grubbery painfully difficult to interface with from the outside')])
       (pure:m ~)
     =/  new=weir:nexus  [~ ~ ~]
@@ -1766,11 +1766,11 @@
     (pure:m ~)
   ::
       %'del-weir-road'
-    ::  load-bearing weirs: a weir on /apps (or on explorer itself) locks
+    ::  load-bearing weirs: a weir on /apps (or on the shell itself) locks
     ::  the very tools that manage weirs — including THIS request fiber,
     ::  which then dies un-self-cleaned and replays its sand on every
     ::  restart (learned the hard way). Flatly refuse.
-    ?:  |(=(/apps tree-path) =(/apps/'explorer.explorer' tree-path))
+    ?:  |(=(/apps tree-path) =(/apps/'shell.shell' tree-path))
       ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'this weir is load-bearing: restricting it would make grubbery painfully difficult to interface with from the outside')])
       (pure:m ~)
     =/  category=@t  (fall (get-key:kv:html-utils 'category' args) '')
@@ -1791,11 +1791,11 @@
     (pure:m ~)
   ::
       %'clear-weir'
-    ::  load-bearing weirs: a weir on /apps (or on explorer itself) locks
+    ::  load-bearing weirs: a weir on /apps (or on the shell itself) locks
     ::  the very tools that manage weirs — including THIS request fiber,
     ::  which then dies un-self-cleaned and replays its sand on every
     ::  restart (learned the hard way). Flatly refuse.
-    ?:  |(=(/apps tree-path) =(/apps/'explorer.explorer' tree-path))
+    ?:  |(=(/apps tree-path) =(/apps/'shell.shell' tree-path))
       ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'this weir is load-bearing: restricting it would make grubbery painfully difficult to interface with from the outside')])
       (pure:m ~)
     ;<  ~  bind:m  (sand:io [%& %| tree-path] ~)

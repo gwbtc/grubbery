@@ -22,9 +22,9 @@
 (function () {
   'use strict';
 
-  var CM_JS = '/grubbery/ball/apps/explorer.explorer/cm.js';
-  var CM_CSS = '/grubbery/ball/apps/explorer.explorer/cm.css';
-  var CONFIG_URL = '/grubbery/ball/apps/explorer.explorer/vim-editor.json';
+  var CM_JS = '/grubbery/ball/apps/shell.shell/ui/explorer/cm.js';
+  var CM_CSS = '/grubbery/ball/apps/shell.shell/ui/explorer/cm.css';
+  var CONFIG_URL = '/grubbery/ball/apps/shell.shell/ui/explorer/vim-editor.json';
 
   var cssLoaded = false;
   function loadCSS(href) {

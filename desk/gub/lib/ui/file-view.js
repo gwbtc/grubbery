@@ -181,7 +181,7 @@
     return shikiP.then(async function (hl) {
       if (!hl.getLoadedLanguages().includes(lang)) {
         if (lang === 'hoon') {
-          var grammar = await (await fetch('/grubbery/ball/apps/explorer.explorer/hoon-grammar.json')).json();
+          var grammar = await (await fetch('/grubbery/ball/apps/shell.shell/ui/explorer/hoon-grammar.json')).json();
           await hl.loadLanguage(grammar);
         } else {
           await hl.loadLanguage(lang);
@@ -632,7 +632,7 @@
         return;
       }
       if (k === 'md' && !window.marked) {
-        try { await loadScript('/grubbery/ball/apps/explorer.explorer/marked.min.js'); } catch (_) {}
+        try { await loadScript('/grubbery/ball/apps/shell.shell/ui/explorer/marked.min.js'); } catch (_) {}
       }
       if (window.FilePreview && k) {
         FilePreview.render(mimeView, { name: name, text: text, rawUrl: rawUrl, kind: k });

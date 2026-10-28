@@ -36,6 +36,10 @@
 ::  on the kit (tab-group, modal-dialog), and its tools nexus seeded
 ::  from the tool bundle
 /<  mcp            /lib/shell/mcp.hoon
+::  explorer: the namespace browser and editor (lib/shell/explorer), its
+::  page at /grubbery/explorer over the tree at /grubbery/ball, the gmux
+::  sessions under /explorer/sessions, snaps under /explorer/snaps
+/<  explorer       /lib/shell/explorer.hoon
 /&  tool-bundle    /lib/tool-bundle/
 /&  tools-icon     shell/ui/tools/icon.svg
 /&  tools-html     shell/ui/tools/index.html
@@ -55,6 +59,8 @@
       =/  kit-js=mime
         [/application/javascript (as-octs:mimes:html (rap 3 ~[(wrap tg-js) (wrap md-js)]))]
       %+  spin:loader  ball
+      ::  the explorer's rows come after: its /ui/explorer sits under /ui
+      %+  weld
       :~  (manifest:loader 0)
           ::  /ui: everything served over HTTP. http.sig binds the routes and
           ::  spawns a request grub per hit under /ui/requests; the pages and
@@ -170,7 +176,10 @@
           [%over %| /tools (tools-bole:mcp ball tool-bundle)]
           [%fall %| /tiles/tools empty-dir:loader]
           [%fall %& [/tiles/tools %'tile.json'] [[/ %json] tile:mcp]]
+          [%fall %| /tiles/explorer empty-dir:loader]
+          [%fall %& [/tiles/explorer %'tile.json'] [[/ %json] tile:explorer]]
       ==
+      rows:explorer
     ::
     ++  on-file
       |=  [=rail:tarball =blot:tarball]
@@ -188,7 +197,15 @@
         ;<  ~  bind:m  (bind-http:io [~ /grubbery/tiles])
         ;<  ~  bind:m  (bind-http:io [~ /grubbery/inbox])
         ;<  ~  bind:m  (bind-http:io [~ /grubbery/tools])
+        ;<  ~  bind:m  (bind-http:io [~ /grubbery/ball])
+        ;<  ~  bind:m  (bind-http:io [~ /grubbery/explorer])
         (http-dispatch:io %shell)
+          ::  explorer/sessions/<name>.json: a gmux workspace the ship keeps;
+          ::  lib/shell/explorer runs the session's poke loop
+          ::
+          [[%explorer %sessions ~] @]
+        ;<  ~  bind:m  (rise-wait:io prod "%shell explorer session: failed, poke to restart")
+        session-loop:explorer
           ::  notifications/main.sig: the bus's poke loop (register, notify,
           ::  ack, clear); lib/shell/notifications does the work
           ::
@@ -404,6 +421,10 @@
         ::  /grubbery/tools → the MCP endpoint and its page
         ?:  ?=([%grubbery %tools *] site)
           (serve-request:mcp rail)
+        ::  /grubbery/ball[/...] and /grubbery/explorer[/...] → the explorer:
+        ::  the tree and its page
+        ?:  |(?=([%grubbery %ball *] site) ?=([%grubbery %explorer *] site))
+          (serve-request:explorer rail)
         =/  suffix=path  (slag (lent prefix) site)
         ::  POST /apps/grubbery/peers/{create,members,permissions}: the three
         ::  writes the peers panes need. Reads are the explorer's; these are
@@ -843,15 +864,10 @@
   |=  [eyre-id=@ta mount=json]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  fv=view:nexus  bind:m
-    (peek:io [%& %& /apps/'explorer.explorer' %'browse.html'] `[/ %mime])
-  ?.  ?=([%file *] fv)
-    ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'the explorer has no browse.html')])
-    (pure:m ~)
-  =/  page=tape  (trip q.q:!<(mime (need-vase:tarball sang.fv)))
+  =/  page=tape  (trip q.q:browse-html:explorer)
   =/  decl=tape
     "<script>window.EXPLORER_MOUNT = {(trip (en:json:html mount))};</script>\0a"
-  =/  marker=tape  "<script src=\"/grubbery/ball/apps/explorer.explorer/kit.js\""
+  =/  marker=tape  "<script src=\"/grubbery/ball/apps/shell.shell/ui/explorer/kit.js\""
   =/  at=(unit @ud)  (find marker page)
   =/  out=tape
     ?~  at  (weld decl page)

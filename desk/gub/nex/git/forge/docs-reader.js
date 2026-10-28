@@ -210,7 +210,7 @@ var shikiP = null;
 function ensureShiki() {
   if (shikiP) return shikiP;
   shikiP = import('https://esm.sh/shiki@1.24.0').then(function (m) {
-    return fetch('/grubbery/ball/apps/explorer.explorer/hoon-grammar.json')
+    return fetch('/grubbery/ball/apps/shell.shell/ui/explorer/hoon-grammar.json')
       .then(function (r) { return r.json(); })
       .then(function (grammar) {
         return m.createHighlighter({

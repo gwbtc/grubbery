@@ -79,7 +79,6 @@
         ::  the shell: the one bootstrap nexus, the user's interface to the
         ::  kernel. Its home page's local tiles live inside it (/tiles).
         [%fall %| /apps/'shell.shell' [`[`[/ %shell] ~ %.n ~] ~]]
-        [%fall %| /apps/'explorer.explorer' [`[`[/ %explorer] ~ %.n ~] ~]]
         ::
         ::  forge: the UI over git repo instances, housing them at
         ::  /repos inside itself.
@@ -96,7 +95,7 @@
         ::  own root (a %| dir lane). The shell registers only the names USER
         ::  DESKS claim; these shipped names are a fact of the base tree.
         [%fall %| /sys/link/explorer [`[~ ~ %.n ~] ~]]
-        [%fall %& [/sys/link/explorer %'dest.lanes'] [[/ %lanes] ~[`lane:tarball`[%| /apps/'explorer.explorer']]]]
+        [%fall %& [/sys/link/explorer %'dest.lanes'] [[/ %lanes] ~[`lane:tarball`[%| /apps/'shell.shell'/explorer]]]]
         ::  tools: the MCP endpoint's tools nexus is a service of the shell
         ::  (its /tools directory, lib/shell/mcp), so @tools is that.
         [%fall %| /sys/link/tools [`[~ ~ %.n ~] ~]]
