@@ -199,9 +199,12 @@
     function aliasNameOf(r){ var i=r.indexOf('/'); return i===-1?r:r.slice(0,i); }
     function nRoads(o){ return ((o&&o.poke)||[]).length+((o&&o.peek)||[]).length+((o&&o.make)||[]).length; }
     var VERBS={ poke:'poke', peek:'read', make:'create & remove files' };
-    function dangerLevel(r){
+    // a road into another app's tree reaches that app's data and code
+    function crossApp(s,own){ if(!own)return false; var o=String(own).replace(/\/+$/,''); return (s.indexOf('/apps/')===0||s.indexOf('/desks/')===0)&&s!==o&&s.indexOf(o+'/')!==0; }
+    function dangerLevel(r,own){
       var s=String(r).replace(/\/+$/,'');
       if(s===''||s==='/')return 'severe';                 // root — everything
+      if(crossApp(s,own))return 'severe';
       var segs=s.split('/').filter(Boolean);
       if(s==='/sys'||s.indexOf('/sys/')===0){
         if(segs.length===1)return 'severe';               // /sys itself
@@ -209,7 +212,7 @@
       }
       return segs.length<=1?'broad':'';                   // /apps, /code, /docs, a root file…
     }
-    function warnMark(r){ var l=dangerLevel(r); if(!l)return ''; var t=l==='severe'?'high-privilege target':(l==='broad'?'broad — grants a whole top-level tree':'system service — mostly harmless'); return '<span class="warn '+l+'" title="'+t+'">&#9888;</span>'; }
+    function warnMark(r,own){ var l=dangerLevel(r,own); if(!l)return ''; var t=crossApp(String(r).replace(/\/+$/,''),own)?'reaches into another app\u2019s tree':l==='severe'?'high-privilege target':(l==='broad'?'broad — grants a whole top-level tree':'system service — mostly harmless'); return '<span class="warn '+l+'" title="'+t+'">&#9888;</span>'; }
     function fmtDate(s){ if(!s)return ''; var p=s.replace('~','').split('..'), d=(p[0]||'').split('.'), t=(p[1]||'').split('.'); if(d.length<3)return s; var dt=new Date(Date.UTC(+d[0],(+d[1])-1,+d[2],+(t[0]||0),+(t[1]||0),+(t[2]||0))); if(isNaN(dt.getTime()))return s; return dt.toLocaleString(undefined,{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}); }
     var shareState={}, groupsList=[];
     // The slow work runs on OUR schedule, not the user's: the server serves
@@ -280,12 +283,12 @@
       var secs=['poke','peek','make'].map(function(cat){
         var items=a[cat]||[]; if(!items.length)return '';
         return '<div class="cat-lab">may <b>'+esc(VERBS[cat]||cat)+'</b></div>'+items.map(function(it){
-          var road=roadOf(it), why=whyOf(it), opt=optOf(it), lvl=dangerLevel(road), bad=!!unres[road];
+          var road=roadOf(it), why=whyOf(it), opt=optOf(it), lvl=dangerLevel(road,a.app), bad=!!unres[road];
           var key=cat+'|'+road;
           var chk=!bad&&(gset?(pdset&&pdset[key]?!!gset[key]:true):true);
           var live=!bad&&!!liveSet[resolveRef(a.app,road)];
           if(!bad){ if(opt){optN++;if(chk)optC++;} else {reqN++;if(chk)reqC++;} }
-          return '<label class="row'+(bad?' danger-severe':(lvl?' danger-'+lvl:''))+'"'+(why?' title="'+esc(why)+'"':'')+'><input type="checkbox" class="chk" data-cat="'+cat+'" data-opt="'+(opt?'1':'0')+'" data-road="'+esc(road)+'"'+(bad?' disabled':(chk?' checked':''))+'>'+warnMark(road)+'<code>'+esc(road)+'</code>'+(live?'<span class="live" title="currently in force on the weir">live</span>':'')+(bad?'<span class="opt bad">unresolvable</span>':(opt?'<span class="opt">optional</span>':''))+'</label>';
+          return '<label class="row'+(bad?' danger-severe':(lvl?' danger-'+lvl:''))+'"'+(why?' title="'+esc(why)+'"':'')+'><input type="checkbox" class="chk" data-cat="'+cat+'" data-opt="'+(opt?'1':'0')+'" data-road="'+esc(road)+'"'+(bad?' disabled':(chk?' checked':''))+'>'+warnMark(road,a.app)+'<code>'+esc(road)+'</code>'+(live?'<span class="live" title="currently in force on the weir">live</span>':'')+(bad?'<span class="opt bad">unresolvable</span>':(opt?'<span class="opt">optional</span>':''))+'</label>';
         }).join('');
       }).filter(Boolean).join('');
       var badBanner=nBad?'<div class="d-warn">&#9888; '+nBad+' alias reference'+(nBad>1?'s':'')+' can\'t be resolved — the name is unknown or all its options are hidden. Those rows are disabled; unhide the alias or fix the app\'s weir.json to grant them.</div>':'';
@@ -302,7 +305,7 @@
     }
     function overlayHTML(app){
       var w=weirsState[app]; if(!w)return '<div class="d-none">No live weir recorded yet.</div>';
-      var cats=['poke','peek','make'].map(function(cat){ var roads=w[cat]||[]; if(!roads.length)return ''; return '<div class="cat-lab">may <b>'+esc(VERBS[cat]||cat)+'</b></div>'+roads.map(function(r){ return '<div class="row'+(dangerLevel(r.road)?' danger-'+dangerLevel(r.road):'')+'">'+warnMark(r.road)+'<code>'+esc(r.road)+'</code>'+(r.optional?'<span class="opt">optional</span>':'')+'<span class="stat '+esc(r.status)+'">'+esc(r.status)+'</span></div>'; }).join(''); }).filter(Boolean).join('');
+      var cats=['poke','peek','make'].map(function(cat){ var roads=w[cat]||[]; if(!roads.length)return ''; return '<div class="cat-lab">may <b>'+esc(VERBS[cat]||cat)+'</b></div>'+roads.map(function(r){ return '<div class="row'+(dangerLevel(r.road,app)?' danger-'+dangerLevel(r.road,app):'')+'">'+warnMark(r.road,app)+'<code>'+esc(r.road)+'</code>'+(r.optional?'<span class="opt">optional</span>':'')+'<span class="stat '+esc(r.status)+'">'+esc(r.status)+'</span></div>'; }).join(''); }).filter(Boolean).join('');
       return cats||'<div class="d-none">Fully sandboxed — no roads granted.</div>';
     }
     function bindingsHTML(app){
