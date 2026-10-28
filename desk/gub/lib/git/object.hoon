@@ -238,6 +238,7 @@
   =/  sea=bays:bytestream  (from-octs:bytestream data.rob)
   =+  hash-bytes=(hash-bytes hal)
   =/  tes=(list tree-entry)  ~
+  =|  seen=(set @ta)
   |-
   ?:  (is-empty:bytestream sea)
     ::  entries were consed on as read, so flop to the stored order:
@@ -256,7 +257,14 @@
     ~|  "Corrupted tree object: hash not found"  !!
   =+  (scan (trip q.u.tex) ;~(plug tree-mode:parse tree-node:parse))
   =/  ent=tree-entry  [+.- -.- u.hash]
-  $(tes [ent tes])
+  ::  an entry name becomes a ball key and a path segment. Git refuses
+  ::  '.', '..', a '/' in a name, and a name twice in one tree (a file
+  ::  and a directory of one name), and so does this.
+  ?:  |(=('.' name.ent) =('..' name.ent) ?=(^ (find "/" (trip name.ent))))
+    ~|  "Corrupted tree object: {<name.ent>} is not an entry name"  !!
+  ?:  (~(has in seen) name.ent)
+    ~|  "Corrupted tree object: {<name.ent>} is in the tree twice"  !!
+  $(tes [ent tes], seen (~(put in seen) name.ent))
 ++  parse
   |_  hal=hash-algo
   ++  hash
