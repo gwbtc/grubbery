@@ -7120,6 +7120,18 @@
   |=  [eyre-id=@ta req=inbound-request:eyre]
   ^+  this
   =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
+  ::  every owner gate downstream asks only src == our, which the
+  ::  session cookie decides, and a browser sends that cookie on a write
+  ::  from any site. A write that carries the owner's session must come
+  ::  from our own origin. Websocket upgrades would be method GET and
+  ::  so pass this gate unconditionally, but no inbound upgrade path
+  ::  reaches it: the only websockets here are outbound client sockets
+  ::  through iris, poked from our own ship.
+  =/  cross=(unit [mode=(unit @t) site=(unit @t)])  (cross-site-write req)
+  ?^  cross
+    %-  emit-cards
+    %+  give-simple-payload:app:server  eyre-id
+    (cross-origin-forbidden:http-utils u.cross)
   ?+    site
     (forward-http eyre-id req site)
     ::
@@ -7176,6 +7188,42 @@
     ::  needs a fiber: materialize the request grub as before
     (make /sys/eyre [%& /sys/eyre/requests eyre-id] %.n %.n [%| [[/ %http-request] [src.bowl req]] ~])
   ==
+::  +cross-site-write: the fetch metadata of a write from another site
+::  that carries the owner's session, or ~ to let it through. A guest
+::  request gains nothing from another site, and a read changes
+::  nothing. Sec-Fetch-Site same-origin or none passes. With no
+::  Sec-Fetch-Site, an Origin naming our own host passes, and so does
+::  no Origin at all: browsers send one on every cross-site write, so
+::  that is a native client. A moz-extension:// origin passes on its
+::  scheme prefix alone: the check cannot verify that the add-on is
+::  one the owner installed, only that the request came from a
+::  browser extension context rather than a web page. The host is
+::  compared without the scheme, since
+::  a ship behind a TLS proxy sees plain http.
+::
+++  cross-site-write
+  |=  req=inbound-request:eyre
+  ^-  (unit [mode=(unit @t) site=(unit @t)])
+  ?.  authenticated.req  ~
+  ?:  ?=(?(%'GET' %'HEAD' %'OPTIONS') method.request.req)  ~
+  =/  hed=header-list:http  header-list.request.req
+  =/  site=(unit @t)  (get-header:http 'sec-fetch-site' hed)
+  =/  mode=(unit @t)  (get-header:http 'sec-fetch-mode' hed)
+  =/  origin=(unit @t)  (get-header:http 'origin' hed)
+  ?:  &(?=(^ origin) =('moz-extension://' (end [3 16] u.origin)))  ~
+  ?^  site
+    ?:  ?=(?(%'same-origin' %'none') u.site)  ~
+    `[mode site]
+  ?~  origin  ~
+  =/  host=(unit @t)  (get-header:http 'host' hed)
+  =/  o=tape  (trip u.origin)
+  =/  bare=tape
+    ?:  =("https://" (scag 8 o))  (slag 8 o)
+    ?:  =("http://" (scag 7 o))  (slag 7 o)
+    o
+  ?:  &(?=(^ host) =((crip bare) u.host))  ~
+  `[mode site]
+::
 ::  +serve-api-read-sync: answer a /grubbery/api request inline when it
 ::  is a pure read of current state. Returns [~ cards] when handled (the
 ::  response, or an error response), ~ when the request needs an async
