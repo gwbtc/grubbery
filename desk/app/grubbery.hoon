@@ -3593,6 +3593,7 @@
   ?:  ?=(%here -.dart)
     (handle-dart here dart ~ ~)
   =/  [=jump:nexus dest=(unit lane:tarball)]  (dart-to-dest here dart)
+  =?  dest  ?=(^ dest)  `(loopback-lane u.dest)
   ::  %node dart with an unresolvable road — drop at admission.
   ::  Past this point a %node dart always carries a resolved dest.
   ?:  &(?=(%node -.dart) ?=(~ dest))
@@ -3635,6 +3636,32 @@
       %make  :: all modify tree structure
     ==
   ==
+::
+::  +loopback-lane: a lane under /sys/ames/ships/<our>/root names our
+::  own ball. It is rewritten to the local lane before the weir check,
+::  so the dart is judged by the sender's own roads. Sent out through
+::  ames instead, it came back from our own ship and was admitted as
+::  our unweired ship.sig.
+::
+::  The invariant this restores: every dart is judged by its real
+::  local destination before the weir check; an ames-self-lane is
+::  normalized to its real lane at admission.
+::
+::  The rewrite cascades: after it, dest no longer resolves under
+::  /sys/ames/ships/, so the +resolve-remote calls downstream in
+::  %keep, %drop, +dart-peek, and +dart-poke all see a non-ames lane
+::  and take the local path. That cascade is load-bearing: each of
+::  those sites re-derives the lane from dest, and without the
+::  rewrite here they would each stage a remote operation against
+::  our own ship.
+::
+++  loopback-lane
+  |=  =lane:tarball
+  ^-  lane:tarball
+  =/  remote=(unit [@p lane:tarball])  (resolve-remote lane)
+  ?~  remote  lane
+  ?.  =(our.bowl -.u.remote)  lane
+  +.u.remote
 ::
 ::  +resolve-remote: check if a lane is under /sys/ames/ships/ and
 ::  extract the target ship and real (non-ames) dest lane.
