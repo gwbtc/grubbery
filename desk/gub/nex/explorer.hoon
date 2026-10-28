@@ -1163,6 +1163,17 @@
       (peek-at:io [%& %| anchor.u.asof] ~ [%ud cas.u.asof])
     ?.  ?=([%ball *] av)  (pure:m av)
     =/  rel=path  (slag (lent anchor.u.asof) pax)
+    ::  rel may name a GRUB rather than a directory, and +dip answers an
+    ::  empty ball for one -- a grub lives in its parent ball's fil, not
+    ::  as a sub-axal. An empty ball is a SUCCESSFUL listing, so every
+    ::  file opened from inside a version read as an empty directory.
+    ::  Answering "not a ball" sends the caller to the parent, which is
+    ::  how a file at a version is read everywhere else.
+    =/  grub=?
+      ?~  rel  %.n
+      =/  par=ball:tarball  (~(dip of ball.av) (snip `path`rel))
+      ?~(fil.par %.n (~(has by contents.u.fil.par) (rear rel)))
+    ?:  grub  (pure:m [%none ~])
     (pure:m [%ball wave.av (~(dip of ball.av) rel)])
   ?^  cas  (peek-shallow-at:io [%& %| pax] ~ [%ud u.cas])
   (peek-shallow:io [%& %| pax] ~)
