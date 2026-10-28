@@ -7827,11 +7827,18 @@
     ?:  =([/ %ws-connect] p.sage)
       =.  this  (handle-ws-connect here wir !<([key=wire url=@t] q.sage))
       `(enqu-take here ~ ~ %pack wir ~)
+    ::  a socket is its opener's: send and close act only for it
     ?:  =([/ %ws-send] p.sage)
-      =.  this  (handle-ws-send !<([wid=@ud text=@t] q.sage))
+      =/  [wid=@ud text=@t]  !<([wid=@ud text=@t] q.sage)
+      ?.  (ws-owns here wid)
+        `(enqu-take here ~ ~ %pack wir `~[leaf+"websocket {<wid>} is not yours"])
+      =.  this  (handle-ws-send wid text)
       `(enqu-take here ~ ~ %pack wir ~)
     ?:  =([/ %ws-close] p.sage)
-      =.  this  (handle-ws-close !<(@ud q.sage))
+      =/  wid=@ud  !<(@ud q.sage)
+      ?.  (ws-owns here wid)
+        `(enqu-take here ~ ~ %pack wir `~[leaf+"websocket {<wid>} is not yours"])
+      =.  this  (handle-ws-close wid)
       `(enqu-take here ~ ~ %pack wir ~)
     ~
   ::
@@ -8468,6 +8475,16 @@
   ::  drop the row now: if the socket is already dead (runtime restart)
   ::  iris never leaves the path and handle-ws-gone never runs
   (handle-ws-gone wid)
+::
+::  +ws-owns: did .who open socket .wid? The connect side records the
+::  opener on each row.
+::
+++  ws-owns
+  |=  [who=rail:tarball wid=@ud]
+  ^-  ?
+  =/  st=ws-state:nexus  ws-st
+  =/  row=(unit ws-row:nexus)  (~(get by open.st) wid)
+  ?~(row | =(who owner.u.row))
 ::
 ++  handle-ws-gone
   |=  wid=@ud
