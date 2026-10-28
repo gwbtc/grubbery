@@ -33,7 +33,10 @@
   ::  GET /file/... is served inline by +serve-api-read-sync, which gates
   ::  runnable content-types behind +serve-sandbox. There is deliberately
   ::  no fiber-side twin: a second serve arm is a second place for that
-  ::  gate to be forgotten, and this one had already forgotten it.
+  ::  gate to be forgotten. This one did forget it until the gate was
+  ::  moved into the shared +serve-sandbox / +inert-response arms in
+  ::  lib/http-utils.hoon, which this route and the nexus /raw route now
+  ::  both call.
   ::  GET /kids/... — immediate children (files + subdirs)
       [%'GET' %kids]   (serve-kids eyre-id api-path)
   ::  GET /tree/... — recursive tree with marks

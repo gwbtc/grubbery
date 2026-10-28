@@ -1574,7 +1574,13 @@
     ?~  got
       ;<  ~  bind:m  (respond eyre-id rail 404 'no mime form')
       (pure:m ~)
-    ;<  ~  bind:m  (~(send-simple http-res:io (nex-road:io rail [%& ~ %'main.sig'])) eyre-id (mime-response:http-utils u.got))
+    ::  a followed desk's files are its publisher's: one that would run
+    ::  in a browser goes out as inert text, as the kernel's
+    ::  serve-sandbox sends a sandboxed grub's
+    =/  out=simple-payload:http
+      ?:  (runnable-mime:http-utils p.u.got)  (inert-response:http-utils q.u.got)
+      (mime-response:http-utils u.got)
+    ;<  ~  bind:m  (~(send-simple http-res:io (nex-road:io rail [%& ~ %'main.sig'])) eyre-id out)
     (pure:m ~)
   ?:  ?=([%tree ?(%code %data) *] suffix)
     ::  file tree of an axis — its live dir, or /checkout when checked out
