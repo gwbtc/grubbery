@@ -273,6 +273,8 @@
     ::  a frame from a websocket we opened (groundwire eyre pokes these)
     ::
       %websocket-client-message
+    ::  eyre and iris are local, so a frame only ever comes from our ship
+    ?>  =(src our):bowl
     ::  profiling, under +dbg: how long one inbound frame's event took
     =^  cards  state
       (took %ws-frame |.(abet:(handle-ws-frame:hc !<([wid=@ud ws-message:nexus] vase))))
@@ -418,11 +420,14 @@
   ^-  (quip card _this)
   ?+    path  (on-watch:def path)
       [%http-response *]
+    ::  not limited to our ship: eyre watches as the request's identity,
+    ::  which for a request with no session is a guest's
     [~ this]
       ::  iris subscribing to pull outbound frames: this IS the accept
       ::  signal for a websocket we opened (the %accept sign is not
       ::  relied on); the wid's url comes from iris's own table
       [%websocket-client @ ~]
+    ?>  =(src our):bowl
     =^  cards  state  abet:(handle-ws-watch:hc (slav %ud i.t.path))
     [cards this]
       ::  agent-facing response channel: subscribe before poking
