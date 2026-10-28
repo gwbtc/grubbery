@@ -8273,7 +8273,7 @@
   =/  rel=from:fiber:nexus  (relativize-from:nexus sender iris-rail)
   (enqu-take sender ~ ~ %poke rel [[/ %http-response] client-response])
 ::  /sys/iris/ws.ws-state websocket client service (groundwire vere, UIP-125).
-::  Design and lessons: gub/nex/sys/WEBSOCKET.md.
+::  Design and lessons: .grubbery/docs/sys-ws.md.
 ::
 ::  The fiber-facing contract, all at that rail:
 ::    [/ %ws-connect] [key url]    → [/ %ws-open] wid | [/ %ws-fail] tang

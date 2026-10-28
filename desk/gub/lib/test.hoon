@@ -3,7 +3,7 @@
 ::  test files should look like:
 ::
 ::    /<  test  /lib/test.hoon
-::    /<  goals  /lib/goals.hoon
+::    /<  obj  /lib/git/object.hoon
 ::    %-  run-tests:test
 ::    !>
 ::    |%
