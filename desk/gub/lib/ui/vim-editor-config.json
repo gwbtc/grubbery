@@ -1,0 +1,6 @@
+{
+  "mappings": [
+    { "lhs": "jj", "rhs": "<Esc>", "mode": "insert" }
+  ],
+  "options": {}
+}

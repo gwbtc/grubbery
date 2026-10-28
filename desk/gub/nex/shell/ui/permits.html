@@ -1,0 +1,474 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Permissions</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body { font-family: Inter, -apple-system, system-ui, sans-serif; color: #1a1d24; background: #eef1f5; font-size: 14px; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    button { font-family: inherit; cursor: pointer; }
+
+    #app { display: flex; flex-direction: column; height: 100%; }
+
+    #topbar { flex-shrink: 0; height: 52px; display: flex; align-items: center; gap: 14px; padding: 0 16px; background: white; border-bottom: 1px solid #e2e7ee; }
+    #brand { font-weight: 700; font-size: 15px; }
+    #home-link { font-size: 13px; color: #8a94a6; text-decoration: none; padding: 4px 10px; border-radius: 7px; }
+    #home-link:hover { background: #f0f3f7; color: #445; }
+    .warn-card { width: 600px; max-width: 100%; margin: 0 auto 14px; padding: 11px 14px; border-radius: 10px; background: #fdf3e0; border: 1px solid #f0dbb4; color: #8a6516; font-size: 11.5px; line-height: 1.5; }
+    .warn-card ul { margin: 6px 0 0; padding-left: 18px; }
+    .warn-card li { margin-top: 5px; }
+    #collapse { border: none; background: none; font-size: 17px; color: #8a94a6; padding: 4px 6px; border-radius: 7px; }
+    #collapse:hover { background: #f0f3f7; color: #445; }
+    #modes { display: flex; gap: 2px; background: #eef1f5; border-radius: 9px; padding: 3px; }
+    #modes button { border: none; background: none; font-size: 13px; padding: 5px 15px; border-radius: 7px; color: #667; }
+    #modes button.active { background: white; color: #111; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+    .flex { flex: 1; }
+    #pending-badge { font-size: 12px; color: #3a72b0; background: #eef5fd; border: 1px solid #cfe0f3; border-radius: 20px; padding: 3px 11px; }
+    #pending-badge:empty { display: none; }
+    #loading { position: absolute; top: 52px; left: 0; right: 0; height: 2px; z-index: 50; opacity: 0; transition: opacity .25s; background: linear-gradient(90deg, transparent, #4a90d9, transparent); background-size: 40% 100%; background-repeat: no-repeat; animation: slide 1.1s linear infinite; }
+    #loading.on { opacity: 1; }
+    @keyframes slide { 0% { background-position: -40% 0; } 100% { background-position: 140% 0; } }
+
+    #body { flex: 1; display: flex; min-height: 0; }
+    #sidebar { width: 250px; flex-shrink: 0; background: white; border-right: 1px solid #e2e7ee; overflow-y: auto; transition: width .16s, opacity .16s; }
+    #app.collapsed #sidebar { width: 0; opacity: 0; border-right: none; }
+    #main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+    #cards { flex: 1; overflow-y: auto; padding: 20px 24px 40vh; }
+    #cards > * { width: 600px; max-width: 100%; margin-left: auto; margin-right: auto; }
+
+    /* sidebar */
+    .side-lab { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #b0b8c4; padding: 14px 16px 6px; }
+    .side-row { display: flex; align-items: center; gap: 8px; padding: 9px 14px; margin: 0 6px; border-radius: 9px; cursor: pointer; }
+    .side-row:hover { background: #f2f5f9; }
+    .side-row.sel { background: #e6eefa; }
+    .side-name { flex: 1; min-width: 0; font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .side-count { flex-shrink: 0; font-size: 11px; color: #b0b8c4; }
+    .side-empty { padding: 24px 16px; color: #a0a8b4; font-size: 13px; }
+
+    /* chips */
+    .chip { flex-shrink: 0; font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px; font-weight: 600; padding: 2px 8px; border-radius: 6px; }
+    .chip-pending { color: #3a72b0; background: #eaf2fd; }
+    .chip-changed { color: #b3822a; background: #fbf3e2; }
+    .chip-drift { color: #c0392b; background: #fdeef0; }
+    .chip-applied { color: #47597a; background: #eceff5; }
+    .chip-frozen { color: #667; background: #eef1f5; }
+    .chip-denied { color: #8a5a5a; background: #f4ecec; }
+    .chip-menu { color: #b5892e; background: #fbf3e2; }
+
+    /* cards */
+    .card { background: white; border: 1px solid #e2e7ee; border-radius: 14px; overflow: hidden; margin-bottom: 12px; }
+    .card.open { border-color: #cfdcec; box-shadow: 0 3px 14px rgba(40,60,90,0.07); }
+    .card.sel { border-color: #9cc0ea; box-shadow: 0 3px 16px rgba(74,120,190,0.16); }
+    .card-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px; cursor: pointer; }
+    .card-head:hover { background: #fafbfc; }
+    .card-name { font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .card-sub { margin-left: auto; font-size: 12px; color: #9aa4b3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .card-body { padding: 2px 16px 16px; }
+    .card-path { font-size: 11px; color: #a0aab8; font-family: ui-monospace, monospace; word-break: break-all; margin-bottom: 10px; }
+    .card-meta { font-size: 12px; color: #778; margin-bottom: 10px; }
+    .card-meta b { color: #445; }
+    .card-acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+
+    .d-intro { font-size: 13px; color: #667; line-height: 1.5; margin-bottom: 12px; }
+    .cat-lab { font-size: 11px; color: #8a94a6; margin: 14px 0 5px; }
+    .cat-lab b { color: #4a90d9; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
+    .d-none { color: #a0a8b4; font-size: 13px; padding: 10px 0; }
+    .d-warn { font-size: 12.5px; color: #c0392b; background: #fdeef0; border: 1px solid #f3cfca; border-radius: 9px; padding: 8px 11px; margin-bottom: 10px; line-height: 1.45; }
+    .row .opt.bad { color: #c0392b; background: #fdeef0; }
+    .row input:disabled + * , .row input:disabled ~ code { opacity: 0.55; }
+
+    .bulk { display: flex; gap: 16px; margin: 2px 0 8px; }
+    .bulk label { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: #667; cursor: pointer; }
+    .row { display: flex; align-items: center; gap: 9px; padding: 8px 11px; margin-top: 5px; border: 1px solid #e7ebf1; border-radius: 9px; }
+    .row.danger-severe { border-color: #e8a6a0; background: #fdf1f0; }
+    .row.danger-broad { border-color: #e7c49a; background: #fdf6ee; }
+    .row.danger-caution { border-color: #f0d9a0; background: #fdf9ee; }
+    .row input[type=checkbox] { flex-shrink: 0; }
+    .row code { flex: 0 1 auto; min-width: 0; font-size: 12.5px; color: #223; word-break: break-all; }
+    .row .opt { flex-shrink: 0; font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; color: #8a94a6; background: #f2f4f7; border-radius: 6px; padding: 1px 7px; }
+    .row .live { flex-shrink: 0; font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; color: #2e8b57; background: #e9f8f0; border-radius: 6px; padding: 1px 7px; }
+    .stat { flex-shrink: 0; font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; padding: 2px 8px; border-radius: 6px; font-weight: 600; }
+    .stat.active { color: #2e8b57; background: #e9f8f0; }
+    .stat.missing { color: #c0392b; background: #fdeef0; }
+    .stat.unmanaged { color: #b3822a; background: #fbf3e2; }
+    .stat.denied { color: #8a5a5a; background: #f4ecec; }
+    .warn { flex-shrink: 0; font-size: 13px; }
+    .warn.severe { color: #c0392b; }
+    .warn.broad { color: #cf7b1e; }
+    .warn.caution { color: #d6a010; }
+    .ali-pick { display: flex; align-items: center; gap: 9px; padding: 8px 11px; margin-top: 5px; border: 1px solid #e7ebf1; border-radius: 9px; }
+    .ali-pick code { flex-shrink: 0; font-size: 12.5px; color: #4a90d9; font-weight: 600; }
+    .ali-pick .arrow { flex-shrink: 0; color: #b0b8c4; }
+    .ali-pick select { flex: 1 1 auto; min-width: 0; font-family: ui-monospace, monospace; font-size: 11px; padding: 5px 7px; border-radius: 7px; border: 1px solid #dde3ea; }
+    .ali-pick .ali-to { flex: 0 1 auto; min-width: 0; color: #223; font-weight: 400; word-break: break-all; }
+    #legendbar { flex-shrink: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 7px 20px; padding: 8px 16px; background: #f7f9fb; border-bottom: 1px solid #e2e7ee; }
+    #legendbar:empty { display: none; }
+    #legendbar .pair { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; color: #8a94a6; }
+
+    .ali-opt { display: flex; align-items: center; gap: 10px; padding: 9px 12px; margin-top: 5px; border: 1px solid #e7ebf1; border-radius: 9px; }
+    .ali-opt.hid { opacity: 0.5; background: #f6f7f9; }
+    .ali-opt .dot { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; background: transparent; }
+    .ali-opt .dot.on { background: #2e8b57; }
+    .ali-opt code { flex: 0 1 auto; min-width: 0; font-size: 12.5px; color: #223; word-break: break-all; }
+    .ali-opt .desc { flex: 1 1 auto; min-width: 0; font-size: 12px; color: #8a94a6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ali-opt .btn { flex-shrink: 0; margin-left: auto; }
+
+    .btn { font-size: 13px; padding: 7px 15px; border-radius: 9px; border: 1px solid #dde3ea; background: #f8fafc; color: #445; }
+    .btn:hover { background: #eef2f7; }
+    .btn.primary { background: #4a90d9; color: white; border: none; font-weight: 600; box-shadow: 0 1px 2px rgba(74,144,217,0.3); }
+    .btn.primary:hover { background: #3a7fc8; }
+    .btn.danger { color: #c0392b; }
+    .btn.danger:hover { background: #fdecec; border-color: #f0c4b0; }
+    .btn.small { padding: 4px 11px; font-size: 12px; border-radius: 7px; }
+    .share-row { display:flex; align-items:center; gap:10px; margin-top:14px; padding-top:12px; border-top:1px solid #eef1f5; }
+    .share-lab { font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#b0b8c4; }
+    .share-chip { flex-shrink:0; font-size:10px; text-transform:uppercase; letter-spacing:0.3px; font-weight:600; padding:2px 8px; border-radius:6px; }
+    .sh-private { color:#667; background:#eef1f5; }
+    .sh-public { color:#3a72b0; background:#eaf2fd; }
+    .sh-groups-chip { color:#47597a; background:#eceff5; }
+    .sh-edit { margin-left:auto; }
+    .modal-veil { position:fixed; inset:0; background:rgba(26,29,36,.35); display:none; align-items:center; justify-content:center; z-index:50; }
+    .modal-veil.on { display:flex; }
+    .modal { background:white; border:1px solid #e2e7ee; border-radius:14px; box-shadow:0 10px 34px rgba(40,60,90,.18); width:340px; max-width:calc(100vw - 24px); max-height:70vh; overflow:auto; padding:18px; }
+    .modal h3 { margin:0 0 3px; font-size:14px; font-weight:600; }
+    .modal .m-sub { font-size:12px; color:#9aa4b3; line-height:1.45; margin-bottom:12px; }
+    .m-opt { display:flex; align-items:center; gap:10px; padding:9px 12px; margin:0 -4px; border-radius:9px; cursor:pointer; font-size:13px; }
+    .m-opt:hover { background:#f2f5f9; }
+    .m-name { font-size:13px; font-weight:500; }
+    .m-opt input { accent-color:#4a90d9; }
+    .m-none { font-size:13px; color:#a0a8b4; padding:8px 12px; }
+    .m-foot { display:flex; gap:8px; justify-content:flex-end; margin-top:14px; padding-top:12px; border-top:1px solid #eef1f5; }
+      .card.applying { opacity: .55; pointer-events: none; }
+
+    /* mobile: the sidebar overlays #main instead of splitting the row away
+       from the cards, and the topbar sheds its labels so the controls fit */
+    @media (max-width: 640px) {
+      #topbar { gap: 8px; padding: 0 10px; }
+      #brand { display: none; }
+      #home-link { padding: 4px 8px; }
+      #modes button { padding: 5px 11px; font-size: 12px; }
+      #cards { padding: 14px 12px 40vh; }
+      #body { position: relative; }
+      #sidebar { position: absolute; top: 0; bottom: 0; left: 0; width: 82%; max-width: 300px; z-index: 40; box-shadow: 2px 0 16px rgba(40,60,90,.18); }
+      #app.collapsed #sidebar { box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="topbar">
+      <button id="collapse" title="toggle sidebar">&#9776;</button>
+      <span id="brand">Permissions</span>
+      <a id="home-link" href="/apps/grubbery" title="back to home">home</a>
+      <div id="modes">
+        <button data-mode="pending" class="active">Pending</button>
+        <button data-mode="applied">Applied</button>
+        <button data-mode="aliases">Aliases</button>
+      </div>
+      <span class="flex"></span>
+      <span id="pending-badge"></span>
+    </div>
+    <div id="loading"></div>
+    <div id="legendbar"></div>
+    <div id="body">
+      <div id="sidebar"></div>
+      <div id="main"><div id="cards"></div></div>
+    </div>
+  </div>
+  <script>
+    var mode='pending', selected=(new URLSearchParams(location.search).get('app'))||null, editSet={}, dirty=false;
+    var approvedState={}, weirsState={}, aliasMenus={}, asksData=[];
+
+    function esc(s){ var d=document.createElement('div'); d.textContent=(s==null)?'':String(s); return d.innerHTML; }
+    function leafOf(p){
+      // display name: desk-nested apps keep their nested identity —
+      // /apps/<desk>/desk/data/<app> renders as <desk>/<app>, never bare <app>.
+      p=String(p||'');
+      var m=p.match(/^\/apps\/([^\/]+)\/desk\/data\/([^\/]+)$/);
+      if(m)return m[1]+'/'+m[2];
+      var i=p.lastIndexOf('/'); return i===-1?p:p.slice(i+1);
+    }
+    function cssid(p){ return String(p).replace(/[^a-z0-9]/gi,'_'); }
+    function roadOf(it){ return typeof it==='string'?it:(it&&it.road)||''; }
+    function whyOf(it){ return typeof it==='string'?'':(it&&it.why)||''; }
+    function optOf(it){ return typeof it==='object'&&it&&it.optional; }
+    function sameRoads(a,b){ a=(a||[]).map(roadOf).slice().sort(); b=(b||[]).map(roadOf).slice().sort(); if(a.length!==b.length)return false; for(var i=0;i<a.length;i++)if(a[i]!==b[i])return false; return true; }
+    function aliasNameOf(r){ var i=r.indexOf('/'); return i===-1?r:r.slice(0,i); }
+    function nRoads(o){ return ((o&&o.poke)||[]).length+((o&&o.peek)||[]).length+((o&&o.make)||[]).length; }
+    var VERBS={ poke:'poke', peek:'read', make:'create & remove files' };
+    function dangerLevel(r){
+      var s=String(r).replace(/\/+$/,'');
+      if(s===''||s==='/')return 'severe';                 // root — everything
+      var segs=s.split('/').filter(Boolean);
+      if(s==='/sys'||s.indexOf('/sys/')===0){
+        if(segs.length===1)return 'severe';               // /sys itself
+        return /^\/sys\/(eyre|iris|ames|scry)(\/|$)/.test(s)?'severe':'caution';
+      }
+      return segs.length<=1?'broad':'';                   // /apps, /code, /docs, a root file…
+    }
+    function warnMark(r){ var l=dangerLevel(r); if(!l)return ''; var t=l==='severe'?'high-privilege target':(l==='broad'?'broad — grants a whole top-level tree':'system service — mostly harmless'); return '<span class="warn '+l+'" title="'+t+'">&#9888;</span>'; }
+    function fmtDate(s){ if(!s)return ''; var p=s.replace('~','').split('..'), d=(p[0]||'').split('.'), t=(p[1]||'').split('.'); if(d.length<3)return s; var dt=new Date(Date.UTC(+d[0],(+d[1])-1,+d[2],+(t[0]||0),+(t[1]||0),+(t[2]||0))); if(isNaN(dt.getTime()))return s; return dt.toLocaleString(undefined,{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}); }
+    var shareState={}, groupsList=[];
+    // The slow work runs on OUR schedule, not the user's: the server serves
+    // the page and applies actions without rebuilding anything, and this
+    // asks for the rebuild in the background, then reloads when it is done.
+    var refreshing=null;
+    function refresh(full){
+      if(refreshing)return refreshing;
+      refreshing=fetch('/apps/grubbery/permits/refresh',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({full:!!full})})
+        .catch(function(){}).then(function(){ refreshing=null; load(); });
+      return refreshing;
+    }
+    function act(body){
+      // the acted-on card goes quiet until the data comes back
+      var card=body.app?document.querySelector('.card[data-sel="'+body.app+'"]'):null;
+      if(card){ card.classList.add('applying'); Array.prototype.forEach.call(card.querySelectorAll('button,input,select'),function(e){ e.disabled=true; }); }
+      fetch('/apps/grubbery/permits',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)})
+        .then(function(){ return load(); })  // the answer is authoritative: re-render now
+        .then(function(){
+          // the slow work only after the reads are back: the ship runs one
+          // event at a time, and a read queued behind a 6s reboot is a 6s read
+          if(body.action==='approve-weir'&&body.app){ fetch('/apps/grubbery/permits/reload',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({app:body.app})}).catch(function(){}); }
+          refresh(true);
+        })
+        .catch(function(){ if(card){ card.classList.remove('applying'); } });
+    }
+
+    function hasDrift(app){ var w=weirsState[app]; if(!w)return false; return ['poke','peek','make'].some(function(c){ return (w[c]||[]).some(function(r){ return r.status==='missing'||r.status==='unmanaged'; }); }); }
+    // Two independent facets, not one exclusive state:
+    //  pending — the current ask differs from what you approved (a decision
+    //    is waiting). grant — the state of the grant actually in force right
+    //    now (null if never approved). An app can be BOTH: a grant is live
+    //    AND it's asking for something new.
+    function isPending(r){ var ap=r.approved, dec=ap&&ap.declared, a=r.ask; return !ap||!(dec&&sameRoads(a.poke,dec.poke)&&sameRoads(a.peek,dec.peek)&&sameRoads(a.make,dec.make)); }
+    function grantState(r){ var ap=r.approved; if(!ap)return null; if(!nRoads(ap))return 'frozen'; return hasDrift(r.app)?'drift':'applied'; }
+    function appRecords(){ return asksData.map(function(a){ var r={app:a.app,ask:a,approved:approvedState[a.app]}; r.pending=isPending(r); r.grant=grantState(r); return r; }).sort(function(x,y){ return x.app.localeCompare(y.app); }); }
+    function cardChip(r){ return mode==='pending' ? (r.grant?'changed':'pending') : r.grant; }
+
+    // resolve a declared @ref the way the backend does: explicit binding
+    // first, else the sole non-hidden menu option. Plain roads pass through.
+    function resolveRef(app,ref){
+      if(ref.charAt(0)!=='@')return ref;
+      var i=ref.indexOf('/'), n=i<0?ref:ref.slice(0,i), suf=i<0?'':ref.slice(i);
+      var b=(approvedState[app]&&approvedState[app].bindings)||{};
+      var base=b[n];
+      if(!base){ var o=(aliasMenus[n]||[]).filter(function(x){return !x.hidden;}); base=o.length?o[0].path:''; }
+      return base?base+suf:'';
+    }
+    // roads presently in force on the weir (active or unmanaged in the overlay)
+    function liveRoads(app){ var w=weirsState[app]||{}, s={}; ['poke','peek','make'].forEach(function(c){ (w[c]||[]).forEach(function(r){ if(r.status==='active'||r.status==='unmanaged')s[r.road]=true; }); }); return s; }
+    // ---- consent checklist ----
+    function checklistHTML(a){
+      var prior=approvedState[a.app], gset=null, pdset=null;
+      if(prior){ gset={}; ['poke','peek','make'].forEach(function(c){ (prior[c]||[]).forEach(function(it){ gset[c+'|'+roadOf(it)]=true; }); }); }
+      // prior DECLARED set: lets us tell a road you denied (seen before, left
+      // unchecked) from a brand-new ask (never declared → default on).
+      if(prior&&prior.declared){ pdset={}; ['poke','peek','make'].forEach(function(c){ ((prior.declared||{})[c]||[]).forEach(function(it){ pdset[c+'|'+roadOf(it)]=true; }); }); }
+      var binds=(prior&&prior.bindings)||{};
+      var liveSet=liveRoads(a.app);
+      var reqN=0,reqC=0,optN=0,optC=0;
+      var unres={}; (a.unresolved||[]).forEach(function(r){ unres[r]=true; }); var nBad=Object.keys(unres).length;
+      // collect the ambiguous aliases this ask references (one per name),
+      // offering only non-hidden options — the picker must match what
+      // actually resolves at grant time, or hiding would be bypassable.
+      var seen={}, amb=[];
+      ['poke','peek','make'].forEach(function(cat){ (a[cat]||[]).forEach(function(it){ var road=roadOf(it); if(road.charAt(0)==='@'){ var n=aliasNameOf(road), opts=(aliasMenus[n]||[]).filter(function(o){return !o.hidden;}); if(opts.length>1&&!seen[n]){ seen[n]=true; amb.push({name:n,opts:opts}); } } }); });
+      var aliasSec=amb.length?'<div class="cat-lab">resolve <b>aliases</b></div>'+amb.map(function(x){ return '<div class="ali-pick"><code>'+esc(x.name)+'</code><span class="arrow">&#8594;</span><select class="pick" data-alias="'+esc(x.name)+'">'+x.opts.map(function(o){ return '<option value="'+esc(o.path)+'"'+(o.path===binds[x.name]?' selected':'')+'>'+esc(o.path)+'</option>'; }).join('')+'</select></div>'; }).join(''):'';
+      var secs=['poke','peek','make'].map(function(cat){
+        var items=a[cat]||[]; if(!items.length)return '';
+        return '<div class="cat-lab">may <b>'+esc(VERBS[cat]||cat)+'</b></div>'+items.map(function(it){
+          var road=roadOf(it), why=whyOf(it), opt=optOf(it), lvl=dangerLevel(road), bad=!!unres[road];
+          var key=cat+'|'+road;
+          var chk=!bad&&(gset?(pdset&&pdset[key]?!!gset[key]:true):true);
+          var live=!bad&&!!liveSet[resolveRef(a.app,road)];
+          if(!bad){ if(opt){optN++;if(chk)optC++;} else {reqN++;if(chk)reqC++;} }
+          return '<label class="row'+(bad?' danger-severe':(lvl?' danger-'+lvl:''))+'"'+(why?' title="'+esc(why)+'"':'')+'><input type="checkbox" class="chk" data-cat="'+cat+'" data-opt="'+(opt?'1':'0')+'" data-road="'+esc(road)+'"'+(bad?' disabled':(chk?' checked':''))+'>'+warnMark(road)+'<code>'+esc(road)+'</code>'+(live?'<span class="live" title="currently in force on the weir">live</span>':'')+(bad?'<span class="opt bad">unresolvable</span>':(opt?'<span class="opt">optional</span>':''))+'</label>';
+        }).join('');
+      }).filter(Boolean).join('');
+      var badBanner=nBad?'<div class="d-warn">&#9888; '+nBad+' alias reference'+(nBad>1?'s':'')+' can\'t be resolved — the name is unknown or all its options are hidden. Those rows are disabled; unhide the alias or fix the app\'s weir.json to grant them.</div>':'';
+      var bulk=(reqN||optN)?'<div class="bulk">'+
+        (reqN?'<label><input type="checkbox" class="bk-req"'+(reqC===reqN?' checked':'')+'> required</label>':'')+
+        (optN?'<label><input type="checkbox" class="bk-opt"'+(optC===optN?' checked':'')+'> optional</label>':'')+
+        '</div>':'';
+      return '<div class="d-intro">Grant the checked paths. Uncheck any you don\'t want. Uncheck everything to freeze.</div>'+
+        badBanner+
+        aliasSec+
+        '<div class="cat-lab">grant <b>paths</b></div>'+
+        bulk+
+        (secs||'<div class="d-none">nothing declared</div>');
+    }
+    function overlayHTML(app){
+      var w=weirsState[app]; if(!w)return '<div class="d-none">No live weir recorded yet.</div>';
+      var cats=['poke','peek','make'].map(function(cat){ var roads=w[cat]||[]; if(!roads.length)return ''; return '<div class="cat-lab">may <b>'+esc(VERBS[cat]||cat)+'</b></div>'+roads.map(function(r){ return '<div class="row'+(dangerLevel(r.road)?' danger-'+dangerLevel(r.road):'')+'">'+warnMark(r.road)+'<code>'+esc(r.road)+'</code>'+(r.optional?'<span class="opt">optional</span>':'')+'<span class="stat '+esc(r.status)+'">'+esc(r.status)+'</span></div>'; }).join(''); }).filter(Boolean).join('');
+      return cats||'<div class="d-none">Fully sandboxed — no roads granted.</div>';
+    }
+    function bindingsHTML(app){
+      var b=(approvedState[app]&&approvedState[app].bindings)||{};
+      var keys=Object.keys(b); if(!keys.length)return '';
+      return '<div class="cat-lab">aliases</div>'+keys.sort().map(function(n){
+        return '<div class="ali-pick"><code>'+esc(n)+'</code><span class="arrow">&#8594;</span><code class="ali-to">'+esc(b[n])+'</code></div>';
+      }).join('');
+    }
+    function cardSummary(r){
+      if(mode==='pending'){ var n=nRoads(r.ask); return (r.grant?'changed · ':'')+'requests '+n+' path'+(n===1?'':'s'); }
+      if(r.grant==='frozen')return 'frozen — no access';
+      var g=nRoads(r.approved);
+      return g+' applied'+(r.grant==='drift'?' · drift':'');
+    }
+    function cardBody(r){
+      var a=r.ask;
+      var meta=r.approved&&r.approved.at?'<div class="card-meta">last ruled <b>'+esc(fmtDate(r.approved.at))+'</b></div>':'';
+      if(mode==='pending'||editSet[r.app]){
+        var adjust=editSet[r.app]&&mode!=='pending';
+        return '<div class="card-path">'+esc(a.app)+'</div>'+meta+checklistHTML(a)+'<div class="card-acts">'+(adjust?'<button class="btn" data-act="cancel">cancel</button>':'')+'<button class="btn primary" data-act="approve">apply selected</button></div>';
+      }
+      var note=r.pending?'<div class="d-warn">This app has changed its ask — there\'s a pending decision in the Pending tab. Below is the grant still in force.</div>':'';
+      return '<div class="card-path">'+esc(a.app)+'</div>'+meta+note+bindingsHTML(a.app)+overlayHTML(a.app)+'<div class="card-acts"><button class="btn" data-act="adjust">adjust / reapply</button></div>';
+    }
+
+    // ---- render ----
+    function modeRecs(){ var all=appRecords(); return mode==='pending'?all.filter(function(r){return r.pending;}):all.filter(function(r){return r.grant;}); }
+    function renderSidebar(){
+      var sb=document.getElementById('sidebar');
+      if(mode!=='aliases'){
+        var recs=modeRecs();
+        if(!recs.length){ sb.innerHTML='<div class="side-empty">Nothing '+(mode==='pending'?'pending':'applied')+'.</div>'; return; }
+        sb.innerHTML='<div class="side-lab">'+mode+' · '+recs.length+'</div>'+recs.map(function(r){ var c=cardChip(r); return '<div class="side-row'+(r.app===selected?' sel':'')+'" data-sel="'+esc(r.app)+'"><span class="side-name" title="'+esc(r.app)+'">'+esc(leafOf(r.app))+'</span><span class="chip chip-'+c+'">'+c+'</span></div>'; }).join('');
+      } else {
+        var names=Object.keys(aliasMenus).sort();
+        if(!names.length){ sb.innerHTML='<div class="side-empty">No aliases.</div>'; return; }
+        sb.innerHTML='<div class="side-lab">aliases · '+names.length+'</div>'+names.map(function(n){ return '<div class="side-row'+(n===selected?' sel':'')+'" data-sel="'+esc(n)+'"><span class="side-name">'+esc(n)+'</span><span class="side-count">'+(aliasMenus[n]||[]).length+'</span></div>'; }).join('');
+      }
+      Array.prototype.forEach.call(sb.querySelectorAll('.side-row'),function(el){ el.onclick=function(){ pick(el.getAttribute('data-sel'),true); }; });
+    }
+    function renderCards(){
+      var main=document.getElementById('cards');
+      if(mode!=='aliases'){
+        var recs=modeRecs();
+        var warn=mode!=='pending'?'':'<div class="warn-card"><b>Warning</b> — these permissions sandbox an app\'s backend (its ship-side processes). Two things they do not cover:<ul><li><b>The frontend.</b> Opening any HTML file from an app\'s desk in your browser while logged in gives that page full access to your ship through your session — regardless of these settings, and regardless of whether the backend can talk to eyre at all.</li><li><b>Reads, even from the backend.</b> Dotket (.^) is not currently neutralized (WIP): any grub can scry the namespace reachable via dotket, bypassing the read restrictions here.</li></ul></div>';
+        if(!recs.length){ main.innerHTML=warn+'<div class="d-none" style="text-align:center;margin-top:60px">Nothing '+(mode==='pending'?'pending — all caught up.':'applied yet.')+'</div>'; return; }
+        if(selected===null||!recs.some(function(r){return r.app===selected;})){ selected=recs[0].app; }
+        main.innerHTML=warn+recs.map(function(r){ var c=cardChip(r); return '<div class="card open'+(r.app===selected?' sel':'')+'" id="card-'+cssid(r.app)+'" data-sel="'+esc(r.app)+'"><div class="card-head"><span class="card-name">'+esc(leafOf(r.app))+'</span><span class="chip chip-'+c+'">'+c+'</span><span class="card-sub">'+esc(cardSummary(r))+'</span></div><div class="card-body">'+cardBody(r)+'</div></div>'; }).join('');
+        Array.prototype.forEach.call(main.querySelectorAll('.card'),function(c){ wireCard(c); });
+      } else {
+        var names=Object.keys(aliasMenus).sort();
+        if(!names.length){ main.innerHTML='<div class="d-none" style="text-align:center;margin-top:60px">No aliases declared.</div>'; return; }
+        main.innerHTML=names.map(function(n){
+          var opts=aliasMenus[n]||[];
+          var body=opts.map(function(o){
+            var users=Object.keys(approvedState).filter(function(app){ if(!asksData.some(function(a){return a.app===app;}))return false; var b=approvedState[app].bindings; return b&&b[n]===o.path; }).map(leafOf);
+            var dot='<span class="dot'+(users.length?' on':'')+'"'+(users.length?' title="used by '+esc(users.join(', '))+'"':'')+'></span>';
+            return '<div class="ali-opt'+(o.hidden?' hid':'')+'">'+dot+'<code>'+esc(o.path)+'</code><span class="desc">'+esc(o.description||'')+'</span>'+(o.hidden?'<button class="btn small" data-un="'+esc(o.path)+'">unhide</button>':'<button class="btn small danger" data-hide="'+esc(o.path)+'">hide</button>')+'</div>';
+          }).join('');
+          var sh=shareState[n]; if(sh==='public')sh=['/public'];
+          var shLabel;
+          if(sh==null)shLabel='private';
+          else if(sh.indexOf('/public')>=0)shLabel='public'+(sh.length>1?' +'+(sh.length-1):'');
+          else if(sh.length===1)shLabel=sh[0].replace(/^\//,'');
+          else shLabel=sh.length+' groups';
+          var shClass=sh==null?'sh-private':(sh.indexOf('/public')>=0?'sh-public':'sh-groups-chip');
+          var shareRow='<div class="share-row"><span class="share-lab">discovery</span>'
+            +'<span class="share-chip '+shClass+'">'+esc(shLabel)+'</span>'
+            +'<button class="btn small sh-edit" data-share="'+esc(n)+'">edit</button></div>';
+          var intro=opts.length>1?'Several apps advertise this name — you pick which one it resolves to when an app asks.':'A name apps can refer to.';
+          return '<div class="card open'+(n===selected?' sel':'')+'" id="card-'+cssid(n)+'"><div class="card-head" style="cursor:default"><span class="card-name">'+esc(n)+'</span>'+(opts.length>1?'<span class="chip chip-menu">menu · '+opts.length+'</span>':'')+'</div><div class="card-body"><div class="d-intro">'+intro+'</div>'+body+shareRow+'</div></div>';
+        }).join('');
+        Array.prototype.forEach.call(main.querySelectorAll('.sh-edit'),function(b){ b.onclick=function(){ openShareModal(b.getAttribute('data-share')); }; });
+        Array.prototype.forEach.call(main.querySelectorAll('[data-hide]'),function(b){ b.onclick=function(){ var nm=b.closest('.card').querySelector('.card-name').textContent, p=b.getAttribute('data-hide'); if(confirm('Hide '+nm+' → '+p+'?\n\nThe app declares this itself, so this only stops offering it here. You can unhide it later.')) act({action:'alias-suppress',alias:nm,path:p}); }; });
+        Array.prototype.forEach.call(main.querySelectorAll('[data-un]'),function(b){ b.onclick=function(){ var nm=b.closest('.card').querySelector('.card-name').textContent; act({action:'alias-unsuppress',alias:nm,path:b.getAttribute('data-un')}); }; });
+      }
+    }
+    function wireCard(card){
+      if(!card)return; var app=card.getAttribute('data-sel'); var a=asksData.filter(function(x){return x.app===app;})[0]; if(!a)return;
+      var setg=function(o,v){ Array.prototype.forEach.call(card.querySelectorAll('.chk'),function(c){ if((c.getAttribute('data-opt')==='1')===o&&!c.disabled)c.checked=v; }); };
+      var rq=card.querySelector('.bk-req'), op=card.querySelector('.bk-opt');
+      if(rq)rq.onchange=function(){ setg(false,this.checked); };
+      if(op)op.onchange=function(){ setg(true,this.checked); };
+      Array.prototype.forEach.call(card.querySelectorAll('.chk,.pick'),function(e){ e.addEventListener('change',function(){ dirty=true; }); });
+      var ap=card.querySelector('[data-act=approve]'); if(ap)ap.onclick=function(){
+        var granted={poke:[],peek:[],make:[]}, picks={};
+        Array.prototype.forEach.call(card.querySelectorAll('.chk'),function(c){ if(c.checked&&!c.disabled)granted[c.getAttribute('data-cat')].push(c.getAttribute('data-road')); });
+        Array.prototype.forEach.call(card.querySelectorAll('.pick'),function(s){ picks[s.getAttribute('data-alias')]=s.value; });
+        dirty=false; delete editSet[app]; act({action:'approve-weir',app:app,picks:picks,granted:granted});
+      };
+      var ca=card.querySelector('[data-act=cancel]'); if(ca)ca.onclick=function(){ delete editSet[app]; dirty=false; render(); };
+      var adj=card.querySelector('[data-act=adjust]'); if(adj)adj.onclick=function(){ editSet[app]=true; render(); };
+    }
+    function centerCard(id,smooth){
+      var cont=document.getElementById('cards'), el=document.getElementById('card-'+cssid(id));
+      if(!cont||!el)return;
+      var cr=cont.getBoundingClientRect(), er=el.getBoundingClientRect();
+      var top=cont.scrollTop+(er.top-cr.top)-(cont.clientHeight-el.clientHeight)/2;
+      cont.scrollTo({top:Math.max(0,top),behavior:smooth?'smooth':'auto'});
+    }
+    function pick(id,scroll){
+      selected=id;
+      // highlight without rebuilding, so in-progress edits survive
+      Array.prototype.forEach.call(document.querySelectorAll('#cards .card'),function(c){ c.classList.toggle('sel',c.id==='card-'+cssid(id)); });
+      Array.prototype.forEach.call(document.querySelectorAll('#sidebar .side-row'),function(r){ r.classList.toggle('sel',r.getAttribute('data-sel')===id); });
+      if(scroll)centerCard(id,true);
+      // picking from the overlay sidebar on mobile closes it so the card shows
+      if(scroll&&window.matchMedia('(max-width:640px)').matches)document.getElementById('app').classList.add('collapsed');
+    }
+    function render(poll){
+      document.getElementById('pending-badge').textContent=(function(){ var n=appRecords().filter(function(r){return r.pending;}).length; return n?n+' pending':''; })();
+      document.getElementById('legendbar').innerHTML = mode!=='applied' ? '' :
+        '<span class="pair"><span class="stat active">active</span>in force on the weir</span>'+
+        '<span class="pair"><span class="stat denied">denied</span>requested, not granted</span>'+
+        '<span class="pair"><span class="stat missing">missing</span>granted, gone from the weir</span>'+
+        '<span class="pair"><span class="stat unmanaged">unmanaged</span>on the weir, not granted</span>'+
+        '<span class="pair"><span class="chip chip-drift">drift</span>weir differs from the grant (missing or unmanaged)</span>';
+      renderSidebar();
+      if(poll&&dirty&&mode!=='aliases')return;
+      renderCards();
+    }
+    Array.prototype.forEach.call(document.querySelectorAll('#modes button'),function(b){ b.onclick=function(){ mode=b.getAttribute('data-mode'); selected=null; editSet={}; dirty=false; Array.prototype.forEach.call(document.querySelectorAll('#modes button'),function(x){ x.classList.toggle('active',x===b); }); render(); }; });
+    document.getElementById('collapse').onclick=function(){ document.getElementById('app').classList.toggle('collapsed'); };
+    // on a phone the sidebar starts closed — the cards get the full width
+    if(window.matchMedia('(max-width:640px)').matches)document.getElementById('app').classList.add('collapsed');
+
+    var loadingEl=document.getElementById('loading'), firstLoad=true;
+    function load(){
+      if(firstLoad)loadingEl.classList.add('on');
+      return Promise.all([
+        fetch('/apps/grubbery/approved.json').then(function(r){return r.json();}).then(function(d){ approvedState=d||{}; }).catch(function(){}),
+        fetch('/apps/grubbery/weirs.json').then(function(r){return r.json();}).then(function(d){ weirsState=d||{}; }).catch(function(){}),
+        fetch('/apps/grubbery/aliases.json').then(function(r){return r.json();}).then(function(d){ aliasMenus=d||{}; }).catch(function(){}),
+        fetch('/apps/grubbery/asks.json').then(function(r){return r.json();}).then(function(d){ asksData=d||[]; }).catch(function(){}),
+        fetch('/apps/grubbery/share.json').then(function(r){return r.json();}).then(function(d){ shareState=d||{}; }).catch(function(){}),
+        fetch('/apps/grubbery/groups.json').then(function(r){return r.json();}).then(function(d){ groupsList=d||[]; }).catch(function(){})
+      ]).then(function(){ var f=firstLoad; if(firstLoad){ loadingEl.classList.remove('on'); firstLoad=false; refresh(false); } render(true); if(f&&selected){ setTimeout(function(){ centerCard(selected,false); },60); } });
+    }
+    var mv=document.createElement('div'); mv.className='modal-veil';
+    mv.innerHTML='<div class="modal"><h3 id="m-title"></h3><div class="m-sub">Usergroups that can discover this alias from other ships. None checked = private.</div>'
+      +'<div id="m-groups"></div>'
+      +'<div class="m-foot"><button class="btn small" id="m-cancel">cancel</button><button class="btn small primary" id="m-save">save</button></div></div>';
+    document.body.appendChild(mv);
+    var shAlias=null;
+    function openShareModal(n){
+      shAlias=n;
+      document.getElementById('m-title').textContent=n;
+      var sh=shareState[n]; if(sh==='public')sh=['/public'];
+      var gl=document.getElementById('m-groups');
+      gl.innerHTML=groupsList.length?groupsList.map(function(g){
+        var on=Array.isArray(sh)&&sh.indexOf(g)>=0;
+        return '<label class="m-opt"><input type="checkbox" class="m-grp" value="'+esc(g)+'"'+(on?' checked':'')+'><span class="m-name">'+esc(g)+'</span></label>';
+      }).join(''):'<div class="m-none">No usergroups yet — create them in Peers.</div>';
+      mv.classList.add('on');
+    }
+    document.getElementById('m-cancel').onclick=function(){ mv.classList.remove('on'); };
+    mv.onclick=function(e){ if(e.target===mv)mv.classList.remove('on'); };
+    document.getElementById('m-save').onclick=function(){
+      var share=null;
+      var gs=Array.prototype.filter.call(mv.querySelectorAll('.m-grp'),function(c){return c.checked;}).map(function(c){return c.value;});
+      if(gs.length)share=gs;
+      mv.classList.remove('on');
+      act({action:'alias-share',alias:shAlias,share:share});
+    };
+    load();
+  </script>
+</body>
+</html>

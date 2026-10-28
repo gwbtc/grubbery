@@ -53,7 +53,18 @@
   ++  dug   |*([k=@t de=$-(json *) fel=*] (fall (bind (~(get by args) k) de) fel))
   ++  wkdp  (su:dejs:format (perk %mon %tue %wed %thu %fri %sat %sun ~))
   ++  num   |=(k=@t ^-(@ud (dug k ni:dejs:format 0)))
-  ++  mins  |=(k=@t `@dr`(mul (num k) ~m1))
+  ::  a time-of-day arg is either minutes after midnight (480) or a
+  ::  clock string ("08:00")
+  ++  mins
+    |=  k=@t
+    ^-  @dr
+    =/  j=(unit json)  (~(get by args) k)
+    ?:  ?=([~ %s *] j)
+      =/  hm=(unit [h=@ud m=@ud])
+        (rush p.u.j ;~(plug dem ;~(pfix col dem)))
+      ?~  hm  ~s0
+      (add (mul h.u.hm ~h1) (mul m.u.hm ~m1))
+    (mul (num k) ~m1)
   ++  str   |=(k=@t ^-(@t (dug k so:dejs:format '')))
   ++  wkds  |=(k=@t ^-((list wkd) (dug k (ar:dejs:format wkdp) ~)))
   ++  nums  |=(k=@t ^-((list @ud) (dug k (ar:dejs:format ni:dejs:format) ~)))

@@ -1,0 +1,233 @@
+::  lib/git/action: types for the serial git command lane.
+::
+::    Defines the parsed +git-command a repo accepts, and the stateful
+::    +action-state its action grub holds — a queue of pending commands, the
+::    one active job (with its intermediate state, so a multi-step op can
+::    resume after a restart), and a log of completed commands. The verb
+::    grammars (built on /lib/git/cmd) and the dispatch to git operations get
+::    layered on top of these types later.
+::
+/<  cmd  /lib/git/cmd.hoon
+|%
++$  branch  @t
+::  +git-command: a parsed git verb + its parameters. One serial lane runs
+::  these one at a time — a repo has a single working tree/index/HEAD, so
+::  git operations must not interleave.
+::
++$  git-command
+  $%  [%add paths=(list @t)]              ::  paths=~ means add all
+      [%commit message=@t paths=(list path)]
+      [%push where=(unit branch)]         ::  ~ = current branch
+      [%pull ~]                           ::  fetch + check out the tracked ref
+      [%checkout =branch]
+      [%branch =branch]                   ::  create at HEAD
+      [%branch-delete =branch]
+      [%stash ~]
+      [%stash-pop ~]
+      [%stash-drop ~]              ::  discard the top stash, tree untouched
+      [%stash-list ~]
+      [%invalid raw=@t]                    ::  didn't parse — for the log only
+  ==
+::  +job: a queued or running command. `raw` is the string as typed and is
+::  the ONLY record of what it is: the parsed +git-command is a function
+::  argument, handed to the dispatcher and discarded, never stored. State
+::  that holds a parsed command is coupled to the grammar, so every change
+::  to +git-command invalidated every repo's stored queue and log.
+::  `step`/`data` carry intermediate state so a slow multi-step op (fetch,
+::  push) survives a restart; the command itself is re-parsed from `raw`
+::  when it runs, which also means a grammar fix rescues queued commands.
+::
++$  job
+  $:  id=@ud
+      raw=@t
+      step=@tas
+      data=json
+  ==
+::  +outcome: how a finished command ended.
+::
++$  outcome  $%([%ok msg=@t] [%error msg=@t])
+::  +done: a finished command. History, and untyped for the same reason.
+::
++$  done  [id=@ud raw=@t =outcome at=@da]
+::  +action-state: the whole lane. queue is submission-ordered; log is
+::  newest-first; next-id hands out monotonic job ids.
+::
++$  action-state
+  $:  queue=(list job)
+      active=(unit job)
+      log=(list done)
+      next-id=@ud
+  ==
+::  +read-action-state: the ONE place a stored action grub is decoded.
+::
+::    Four callers each coerced the noun themselves -- the mark's grab,
+::    three +get-state-as in nex/git/repo, and an !< in nex/git/forge --
+::    so tolerance added to any one of them was no tolerance at all, and
+::    a hard mold in the fiber path crash-looped and banged the grub.
+::
+::    A queue and a log of past commands are both disposable: if the
+::    stored noun does not match the current type, start empty. History
+::    is not worth banging the forge over. Nothing else in the repo is
+::    reconstructed from this grub.
+::
+++  read-action-state
+  |=  n=*
+  ^-  action-state
+  (fall ((soft action-state) n) *action-state)
+::
+::  ── json (for the UI / MCP to read the lane's state) ──
+::
+++  command-to-json
+  |=  c=git-command
+  ^-  json
+  =/  pair  |=([k=@t v=json] [k v])
+  %-  pairs:enjs:format
+  ?-  -.c
+    %add            ~[(pair 'verb' s+'add') (pair 'paths' a+(turn paths.c |=(p=@t s+p)))]
+    %commit         ~[(pair 'verb' s+'commit') (pair 'message' s+message.c) (pair 'paths' a+(turn paths.c |=(p=path s+(spat p))))]
+    %push           ~[(pair 'verb' s+'push') (pair 'branch' ?~(where.c ~ s+u.where.c))]
+    %pull           ~[(pair 'verb' s+'pull')]
+    %checkout       ~[(pair 'verb' s+'checkout') (pair 'branch' s+branch.c)]
+    %branch         ~[(pair 'verb' s+'branch') (pair 'branch' s+branch.c)]
+    %branch-delete  ~[(pair 'verb' s+'branch-delete') (pair 'branch' s+branch.c)]
+    %stash          ~[(pair 'verb' s+'stash')]
+    %stash-pop      ~[(pair 'verb' s+'stash-pop')]
+    %stash-drop     ~[(pair 'verb' s+'stash-drop')]
+    %stash-list     ~[(pair 'verb' s+'stash-list')]
+    %invalid        ~[(pair 'verb' s+'invalid') (pair 'raw' s+raw.c)]
+  ==
+++  job-to-json
+  |=  j=job
+  ^-  json
+  %-  pairs:enjs:format
+  :~  ['id' (numb:enjs:format id.j)]
+      ['raw' s+raw.j]
+      ['step' s+step.j]
+      ['data' data.j]
+  ==
+++  done-to-json
+  |=  d=done
+  ^-  json
+  %-  pairs:enjs:format
+  :~  ['id' (numb:enjs:format id.d)]
+      ['raw' s+raw.d]
+      ['ok' b+?=(%ok -.outcome.d)]
+      ['message' s+msg.outcome.d]
+      ['at' s+(scot %da at.d)]
+  ==
+++  state-to-json
+  |=  s=action-state
+  ^-  json
+  %-  pairs:enjs:format
+  :~  ['queue' a+(turn queue.s job-to-json)]
+      ['active' ?~(active.s ~ (job-to-json u.active.s))]
+      ['log' a+(turn log.s done-to-json)]
+  ==
+::
+::  ── command parsing (string → git-command) ──
+::
+::    Verb grammars built on /lib/git/cmd's combinators. rush requires the
+::    whole string to parse, so compound verbs (stash pop) are posed before
+::    their prefixes (stash), and the most-specific option form first.
+::
+++  parse-command
+  |=  txt=@t
+  ^-  (unit git-command)
+  ::  TWO passes, and the order matters. `pose` commits to the first
+  ::  alternative that parses AT THAT POSITION, and `rush` then demands the
+  ::  whole string: so a lenient rule cannot be a later alternative of the
+  ::  strict one — the strict rule succeeds on the first word of a bare
+  ::  multi-word message, leaves the rest dangling, and the parse dies
+  ::  before any fallback is tried. Hence a whole second attempt, run only
+  ::  when the strict grammar declined the string outright.
+  ::
+  ::  Split off a `-- <paths>` pathspec before either pass. It cannot be
+  ::  a grammar alternative: +val-rest runs to end-of-line by design, so
+  ::  a loose -m would read `--` and the paths as message text.
+  ::
+  =/  [cmd=@t paths=(list path)]  (split-pathspec:parse:cmd txt)
+  =/  parsed=(unit git-command)
+    =/  strict=(unit git-command)  (parse-strict cmd)
+    ?^  strict  strict
+    (parse-loose cmd)
+  ?~  parsed  ~
+  ?~  paths  parsed
+  ::  Only commit scopes itself to paths. `add` already takes its paths
+  ::  positionally, and a pathspec on anything else is a mistake worth
+  ::  naming rather than ignoring.
+  ?.  ?=(%commit -.u.parsed)
+    `[%invalid txt]
+  `u.parsed(paths paths)
+::  +parse-strict: the real grammar. Quote a message and this is what reads it.
+::
+++  parse-strict
+  |=  txt=@t
+  ^-  (unit git-command)
+  =/  tok      (cook crip (plus ;~(less ace prn)))   ::  a non-space token
+  =/  txt-val  val-t:parse:cmd                        ::  'quoted' or bare text
+  %+  rush  txt
+  ;~  pose
+    ::  stash — compound forms first so "stash" doesn't shadow them
+    (cold [%stash-pop ~] ;~(plug (jest 'stash') (plus ace) (jest 'pop')))
+    (cold [%stash-list ~] ;~(plug (jest 'stash') (plus ace) (jest 'list')))
+    (cold [%stash-drop ~] ;~(plug (jest 'stash') (plus ace) (jest 'drop')))
+    (cold [%stash ~] (jest 'stash'))
+    (cold [%pull ~] (jest 'pull'))
+    ::  commit -m "msg" [-m "more" ...] | --message "msg". Git's
+    ::  convention: each -m is a paragraph, joined by a blank line, so the
+    ::  first is the subject and the rest the body. A quoted value may
+    ::  also span lines itself.
+    %+  cook
+      |=  ms=(list @t)
+      ^-  git-command
+      [%commit (rap 3 (join (crip "\0a\0a") ms)) ~]
+    ;~  pfix  (jest 'commit')  (plus ace)
+      %+  most  (plus ace)
+      ;~  pose
+        ;~(pfix ;~(plug hep (just 'm') (plus ace)) txt-val)
+        ;~(pfix (jest '--message') ;~(pose ;~(pfix tis txt-val) ;~(pfix (plus ace) txt-val)))
+      ==
+    ==
+    ::  add [path ...]  (no paths = add all)
+    %+  cook  |=(ps=(list @t) [%add ps])
+    ;~  pfix  (jest 'add')
+      ;~(pose ;~(pfix (plus ace) (most (plus ace) tok)) (easy ~))
+    ==
+    ::  push [branch]
+    %+  cook  |=(w=(unit @t) [%push w])
+    ;~  pfix  (jest 'push')
+      ;~(pose ;~(pfix (plus ace) (cook some tok)) (easy ~))
+    ==
+    ::  checkout <branch>
+    %+  cook  |=(b=@t [%checkout b])
+    ;~(pfix (jest 'checkout') (plus ace) tok)
+    ::  branch <name> | branch -d <name>
+    ;~  pfix  (jest 'branch')  (plus ace)
+      ;~  pose
+        %+  cook  |=(b=@t [%branch-delete b])
+        ;~(pfix ;~(plug hep (just 'd') (plus ace)) tok)
+        (cook |=(b=@t [%branch b]) tok)
+      ==
+    ==
+  ==
+::  +parse-loose: the second pass — a commit message that was never quoted.
+::
+::    `commit -m some words here` is not git (git makes you quote it), but it
+::    is what a human types, and the strict grammar answered it with
+::    `unrecognized command` and no hint about quotes. Here -m takes the rest
+::    of the line verbatim. Only reached when the strict pass returned ~, so
+::    repeated -m still means paragraphs and nothing already accepted moves.
+::
+++  parse-loose
+  |=  txt=@t
+  ^-  (unit git-command)
+  =/  rest  val-rest:parse:cmd
+  %+  rush  txt
+  %+  cook  |=(m=@t `git-command`[%commit m ~])
+  ;~  pfix  (jest 'commit')  (plus ace)
+    ;~  pose
+      ;~(pfix ;~(plug hep (just 'm') (plus ace)) rest)
+      ;~(pfix (jest '--message') ;~(pose ;~(pfix tis rest) ;~(pfix (plus ace) rest)))
+    ==
+  ==
+--

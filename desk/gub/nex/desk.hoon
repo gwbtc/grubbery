@@ -1,58 +1,127 @@
-::  desk nexus: sync code from a remote source with checkpoint safety
+::  desk nexus: sync code from a remote source with snapshot safety
 ::
-::  config.json holds source as JSON string:
-::    "~nec/apps/counter"    (remote ship)
-::    "/some/local/path"     (local namespace)
+::  source.json holds source as JSON string — a path pointing DIRECTLY
+::  at a code directory to mirror, anywhere in the namespace:
+::    "~nec/apps/counter/desk/code"                (remote ship)
+::    "/apps/foo.git_repo/data/tree/code"          (a checked-out repo)
+::  The desk mirrors whatever dir you point it at into its /desk/code;
+::  it assumes NOTHING about the source's internal shape.
 ::
-::  Updates are version-gated: the desk only re-syncs when the
-::  source's version.ud is higher than the local version. Code can
-::  change freely on the source — the desk won't update until the
-::  publisher bumps the version.
+::  Updates are version-gated: the source's code dir holds a version
+::  file (any file named version.* whose mark renders to text). The
+::  desk re-syncs when its content changes; the text is opaque, used
+::  only as an opaque tag. Code can change freely on the source —
+::  the desk won't update until the publisher bumps the version.
 ::
 ::  Layout — host/guest split:
-::    config.json     source config            (host, root-governed)
-::    version.ud      release version          (host)
+::    source.json     source config            (host, root-governed)
+::    version.*       release version          (host)
 ::    main.sig        HTTP UI                  (host)
 ::    /requests/      HTTP request grubs       (host)
 ::    /desk/code/     %code nexus synced from source — governs the
-::                    guest world and nothing else
-::    /desk/bill.json nexus entry manifest synced from source —
-::                    declares which nexuses to create in /desk/data
-::                    on first install (only when /desk/data is empty)
+::                    guest world and nothing else. Carries the code
+::                    plus bill.json, which declares which nexuses to
+::                    create in /desk/data on first install (only when
+::                    empty). bill.json is the ONLY desk-level file;
+::                    everything a nexus says about itself (alias, weir,
+::                    tile, icon) is per-nexus, declared in its own
+::                    on-load and read by the shell's desk-data descent.
 ::    /desk/data/     working data for the installed desk
 ::
 ::  The host layer resolves marcs from the root code namespace; the
 ::  guest resolves against /desk/code. Guests distribute every marc
 ::  they use — content-addressing dedupes shared marcs for free.
 ::
-::  Checkpoints live entirely in the born history. Before each code
-::  update the fold hists of /data and /code (plus version.ud) are
-::  firmed and tagged with the outgoing version — the fold pace lobe
-::  IS the merkle root of the subtree at that instant. One hash per
-::  axis per version; no manifest files.
+::  Snapshots are world-level and live in the born history. Each is a
+::  firm of BOTH /code and /data, tagged with a monotonic counter N
+::  (snapshot.ud) — the fold pace lobe IS the merkle root of the subtree
+::  at that instant. The initial snapshot is taken once; thereafter a
+::  version change snapshots the current world before the new code lands.
 ::
-::  Restore materializes any historical /data x /code pair:
-::  /code is nullified first (world stops — /data goes inert),
-::  then /data loads, then /code loads and everything comes alive.
+::  Compose Live (do-compose) is the only thing besides source-sync that
+::  mutates live: it snapshots first, then builds a new live world by
+::  choosing code from {live | snapshot N | none} and data from
+::  {live | snapshot M} — nullify code, load data, load code.
 ::
-/&  man  ../man/desk/readme.md
+/&  man       ../man/desk/readme.md
+/&  desk-html  desk/ui/index.html
+/&  desk-js    desk/ui/app.js
+/&  desk-css   desk/ui/style.css
+::  shared classic helper (window.FilePreview) — loaded before app.js
+/&  fp-js      /lib/ui/file-preview.js
+::  shared <split-view> web component — resizable files sidebar
+/&  splitview-js  /lib/ui/split-view.js
 =<  ^-  nexus:nexus
     |%
 ++  on-load
   |=  =ball:tarball
   ^-  bole:tarball
   =/  code-dir=bole:tarball  [`[`[/ %code] ~ %.n ~] ~]
+  ::  inert-dir: a neck-less directory sealed with a [~ ~ ~] (permit-nothing)
+  ::  weir — files sit peekable, governed by nothing, able to reach nothing.
+  =/  inert-dir=bole:tarball  [`[~ `[~ ~ ~] %.n ~] ~]
   %+  spin:loader  ball
   :~  (manifest:loader 0)
-      [%fall %& [/ %'config.json'] [[/ %json] (config-to-json *desk-config)]]
-      [%fall %& [/ %'version.ud'] [[/ %ud] 0]]
+      [%fall %& [/ %'source.json'] [[/ %json] (source-to-json *source-config)]]
+      ::  root version.json: which source version we are FOLLOWING. Seeded
+      ::  null — "not synced yet"; the first pull writes the real version
+      ::  (copied from the source's /code/version.json). Never seed a fake
+      ::  number: a fresh follower must read as behind so it actually pulls.
+      [%fall %& [/ %'version.json'] [[/ %json] ~]]
       [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
+      ::  ask.json: the desk-level consent ask — the union of every
+      ::  /desk/data child's weir.json, one entry per child, tagged by
+      ::  app. Derived, rebuilt wholesale by +aggregate-asks. This is the
+      ::  single opaque unit the shell will gate, and what the UI reads.
+      ::  Born empty; +aggregate-asks fills it after each sync.
+      [%fall %& [/ %'ask.json'] [[/ %json] [%a ~]]]
+      ::  asks.sig: poke to (re)compute ask.json on demand (the UI
+      ::  refresh button). apply-bill calls the same +aggregate-asks
+      ::  automatically after every sync, so this is the manual path to
+      ::  an action other parts trigger on their own.
+      [%fall %& [/ %'asks.sig'] [[/ %sig] ~]]
+      ::  share.usergroups: the OPENING state — the set of usergroups this
+      ::  desk grants peek on /desk/code. Poke it {add|remove: <group>};
+      ::  it re-registers the grants. Born empty (open to nobody).
+      [%fall %& [/ %'share.usergroups'] [[/ %usergroups] *(set path)]]
+      ::  checkout.desk_snap: which world snapshot (snapshot N) is
+      ::  materialized into /checkout, or ~ for live only. Poke it {n: N}
+      ::  to check that snapshot out (both axes); poke null to clear.
+      ::  Persists across loads (%fall): a checkout survives a desk reload,
+      ::  so the pointer stays in sync with /checkout's (also persisted) contents.
+      [%fall %& [/ %'checkout.desk_snap'] [[/desk %snap] *(unit @ud)]]
+      ::  snapshot.ud: monotonic snapshot counter. Only ever increments
+      ::  (never reused, even after clears), so it is the stable identity
+      ::  of a world snapshot — both axes are tagged `snapshot N`.
+      [%fall %& [/ %'snapshot.ud'] [[/ %ud] 0]]
       [%fall %| /requests empty-dir:loader]
       [%fall %| /desk empty-dir:loader]
       [%fall %| /desk/code code-dir]
       [%fall %| /desk/data empty-dir:loader]
+      ::  /checkout is an inert inspection worktree for one snapshot. It is
+      ::  rebuilt wholesale by the checkout handler (cull + file-level write)
+      ::  and PERSISTS across loads (%fall) — a desk reload leaves an active
+      ::  checkout untouched.
+      ::
+      ::  BOTH /checkout/code and /checkout/data are INERT — neck-stripped,
+      ::  permit-nothing dirs. Checkout is pure inspection: we only ever want
+      ::  to LOOK at a snapshot's raw files, never compile code or activate a
+      ::  nexus. An app-mark data grub whose marc isn't compiled here lands as
+      ::  a boom (the runtime stores the raw noun on validation failure rather
+      ::  than crashing it) — browsable, not fatal.
+      [%fall %| /checkout empty-dir:loader]
+      [%fall %| /checkout/code inert-dir]
+      [%fall %| /checkout/data inert-dir]
       [%over %& [/ %'README.md'] [[/ %mime] man]]
-  ==
+      ::  the UI shell — external static files under /ui, served by
+      ::  handle-get (URLs stay flat; only the namespace groups them).
+      [%fall %| /ui empty-dir:loader]
+      [%over %& [/ui %'index.html'] [[/ %mime] desk-html]]
+      [%over %& [/ui %'app.js'] [[/ %mime] desk-js]]
+      [%over %& [/ui %'style.css'] [[/ %mime] desk-css]]
+      [%over %& [/ui %'file-preview.js'] [[/ %mime] fp-js]]
+      [%over %& [/ui %'split-view.js'] [[/ %mime] splitview-js]]
+    ==
 ::
 ++  on-file
   |=  [=rail:tarball =blot:tarball]
@@ -61,104 +130,208 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  process:fiber:nexus
   ?+    rail  stay:m
-      ::  config.json: watch remote source, sync code on updates
+      ::  source.json: watch remote source, sync code on updates
       ::
-      [~ %'config.json']
+      [~ %'source.json']
     ;<  ~  bind:m  (rise-wait:io prod "%desk config: failed")
-    ;<  ~  bind:m  reg-register:io
     ;<  here=rail:tarball  bind:m  get-here-abs:io
-    =/  nex-dir=path  path.here
+    ;<  ~  bind:m  (reg-register-at:io here)
     |-
-    ;<  config-json=json  bind:m  (get-state-as:io ,json)
-    =/  config=desk-config  (json-to-config config-json)
-    ;<  ~  bind:m
-      %-  reg-how:io
-      ?:  &(public.config ?=(~ source.config))
-        :-  /public
-        :+  ~  ~
-        %-  sy
-        :~  [%& %& nex-dir %'version.ud']
-            [%& %| (weld nex-dir /desk/code)]
-            [%& %& (weld nex-dir /desk) %'bill.json']
-        ==
-      [/public *weir:nexus]
-    ?~  source.config
-      ::  no source configured, wait for poke
-      ~&  >  %desk-no-source
+    ;<  src-json=json  bind:m  (get-state-as:io ,json)
+    =/  config=source-config  (json-to-source src-json)
+    ?~  config
+      ::  standalone — no source.json, wait for a poke to start following
+      ~?  dbg  %desk-no-source
       ;<  =sage:tarball  bind:m  take-poke:io
       =/  new-json=json  !<(json q.sage)
       ;<  ~  bind:m  (replace:io new-json)
       $
-    ::  subscribe to source's version.ud
-    =/  source-road=road:tarball  (parse-source u.source.config)
-    =/  ver-road=road:tarball  (version-road source-road)
-    ~&  >  [%desk-subscribing u.source.config]
-    ;<  init=wave:nexus  bind:m  (keep:io /ver ver-road `[/ %ud])
-    ~&  >  [%desk-subscribed u.source.config]
-    ::  install: sync the source's release (pinned, never live),
-    ::  apply init on first install (empty /desk/data), and
-    ::  checkpoint the installed world under its version — the
-    ::  version watcher only fires on version CHANGES, and an
-    ::  install of the source's current version isn't one.
-    ;<  ~  bind:m  (sync-release source-road rail)
-    ;<  ~  bind:m  (apply-bill rail)
-    ;<  ver=(unit @ud)  bind:m
-      (peek-as:io (nex-road:io rail [%& / %'version.ud']) ,@ud)
+    ::  follow the source's CODE version — version.json INSIDE its /desk/code,
+    ::  the authored content version (never null), NOT the source's own root
+    ::  version.json (its private follow-state, none of our business). The
+    ::  road is KNOWN, so watch its EXACT road even before it exists.
+    =/  code-path=path           (parse-path code.u.config)
+    =/  code-road=road:tarball   [%& %| code-path]
+    =/  ver-road=road:tarball    [%& %& code-path %'version.json']
+    =/  ver-name=@ta             %'version.json'
+    ~?  dbg  [%desk-subscribing code.u.config]
+    ;<  ~  bind:m  (await-source /ver ver-road code.u.config)
+    ~?  dbg  [%desk-subscribed code.u.config]
+    ::  the runtime restarts EVERY fiber on a nexus reload, so this handler
+    ::  re-enters constantly. Pull on start only when actually BEHIND: our
+    ::  root version.json (null until a real sync) differs from the source's
+    ::  /code/version.json. A fresh install is null, so it is always behind
+    ::  and pulls; otherwise a reload re-mirrors nothing. A version change in
+    ::  the loop below always pulls too.
+    ;<  behind=?  bind:m  (source-behind ver-road rail)
     ;<  ~  bind:m
-      (do-checkpoint rail (sy ~['checkpoint' (version-tag (fall ver 0))]))
+      ?.  behind  (pure:m ~)
+      (sync-release ver-road code-road ver-name rail)
     |-
     ;<  res=news-or-poke  bind:m  (take-news-or-poke /ver)
     ?-  -.res
         %news
-      ~&  >  %desk-update-received
-      ::  checkpoint outgoing state, then sync. Plain 'checkpoint'
-      ::  tag — version tags are the version.ud watcher's job.
-      ;<  ~  bind:m  (do-checkpoint rail (sy ~['checkpoint']))
-      ;<  ~  bind:m  (sync-release source-road rail)
+      ~?  dbg  %desk-update-received
+      ::  snapshot the world, then pull the new release
+      ;<  ~  bind:m  (do-snapshot rail)
+      ;<  ~  bind:m  (sync-release ver-road code-road ver-name rail)
       $
         %poke
       ::  config change: replace state, drop sub, restart
       =/  new-json=json  !<(json q.sage.res)
-      ~&  >  [%desk-config-change new-json]
+      ~?  dbg  [%source-config-change new-json]
       ;<  ~  bind:m  (replace:io new-json)
       ;<  ~  bind:m  (drop:io /ver ver-road)
       ^$
     ==
-      ::  version.ud: every version change checkpoints the world.
-      ::  Runs on publisher and subscriber alike — a release IS a
-      ::  checkpoint, tagged with the version it inaugurates.
+      ::  share.usergroups: the OPENING state. Poke {add|remove: <group>}
+      ::  to open/close this desk to a usergroup — it re-registers the
+      ::  grants (peek on /desk/code + version.json for each open group).
       ::
-      [~ %'version.ud']
-    ;<  ~  bind:m  (rise-wait:io prod "%desk version: failed")
-    ::  checkpoint the current version at rise: gives every desk a
-    ::  v0 checkpoint at birth (idempotent re-firm on later rises)
-    ;<  ver0=(unit @ud)  bind:m
-      (peek-as:io (nex-road:io rail [%& / %'version.ud']) ,@ud)
-    ;<  ~  bind:m
-      (do-checkpoint rail (sy ~['checkpoint' (version-tag (fall ver0 0))]))
-    ;<  init=wave:nexus  bind:m
-      (keep:io /self (nex-road:io rail [%& / %'version.ud']) `[/ %ud])
+      [~ %'share.usergroups']
+    ;<  ~  bind:m  (rise-wait:io prod "%desk share: failed")
+    ;<  here=rail:tarball  bind:m  get-here-abs:io
+    ;<  ~  bind:m  (reg-register-at:io here)
     |-
-    ;<  res=news-or-poke  bind:m  (take-news-or-poke /self)
-    ?-  -.res
-        %poke  $
-        %news
-      ;<  ver=(unit @ud)  bind:m
-        (peek-as:io (nex-road:io rail [%& / %'version.ud']) ,@ud)
-      ;<  ~  bind:m
-        (do-checkpoint rail (sy ~['checkpoint' (version-tag (fall ver 0))]))
+    ;<  cur=(set path)  bind:m  (get-state-as:io ,(set path))
+    ;<  =sage:tarball  bind:m  take-poke:io
+    =/  jon=json  !<(json q.sage)
+    =/  new=(set path)
+      ?.  ?=([%o *] jon)  cur
+      =/  add=(unit json)  (~(get by p.jon) 'add')
+      =/  rem=(unit json)  (~(get by p.jon) 'remove')
+      ?:  ?=([~ %s *] add)
+        =/  g=(unit path)  (rush p.u.add stap)
+        ?~(g cur (~(put in cur) u.g))
+      ?:  ?=([~ %s *] rem)
+        =/  g=(unit path)  (rush p.u.rem stap)
+        ?~(g cur (~(del in cur) u.g))
+      cur
+    ;<  ~  bind:m  (replace:io new)
+    ::  re-assert the registration before granting. The registry lives in a
+    ::  grub this nexus does not own, so a registration can be gone without
+    ::  this fiber ever knowing — and a %how from an unregistered rail is
+    ::  REFUSED with a printf and nothing else, which makes the share appear
+    ::  to succeed while granting nobody anything. Registering is idempotent
+    ::  and costs one poke, so assert it on the path that depends on it
+    ::  rather than only once at rise.
+    ::
+    ::  SOFT, because a guard must not be able to break what it guards. As a
+    ::  hard poke this killed the fiber between +replace and +apply-share:
+    ::  the share set was committed, the shell listed the desk as shared, and
+    ::  no grant was ever applied — a worse failure than the one it prevents,
+    ::  and silent in exactly the same way.
+    ;<  err=(unit tang)  bind:m  (reg-register-at-soft:io here)
+    ::  say so if it was refused. The grant that follows will then be refused
+    ::  too, with a printf on the registry's side that this fiber never sees,
+    ::  so this line is the only place the desk itself can report it.
+    ~?  >>>  ?=(^ err)  [%desk-share-not-registered path.here]
+    ;<  ~  bind:m  (apply-share path.here ~(tap in cur) ~(tap in new))
+    $
+      ::  asks.sig: (re)compute the desk-level ask.json from the
+      ::  children's weir.json asks. Recomputes once at rise (so a reload
+      ::  refreshes it) and on every poke — the UI button pokes this.
+      ::  apply-bill calls the same +aggregate-asks after each sync.
+      ::
+      [~ %'asks.sig']
+    ;<  ~  bind:m  (rise-wait:io prod "%desk asks: failed")
+    |-
+    ;<  ~  bind:m  (aggregate-asks rail)
+    ;<  =sage:tarball  bind:m  take-poke:io
+    $
+      ::  checkout.desk_snap: materialize a whole WORLD snapshot
+      ::  (snapshot N) into /checkout/code + /checkout/data — both
+      ::  inert — for inspection. Poke {n: N} to check it out; poke null
+      ::  to clear back to live. State is the checked-out N.
+      ::
+      [~ %'checkout.desk_snap']
+    ;<  ~  bind:m  (rise-wait:io prod "%desk checkout: failed")
+    |-
+    ;<  =sage:tarball  bind:m  take-poke:io
+    =/  jon=json  !<(json q.sage)
+    =/  want=(unit @ud)
+      ?.  ?=([%o *] jon)  ~
+      (json-num (~(get by p.jon) 'n'))
+    ::  clear /checkout, then lay the requested snapshot (if any) into it
+    ;<  ~  bind:m  (cull-dir rail /checkout/code)
+    ;<  ~  bind:m  (cull-dir rail /checkout/data)
+    ?~  want
+      ~?  dbg  %desk-checkout-clear
+      ;<  *  bind:m  (cull-soft:io (nex-road:io rail [%& /checkout %'necks.json']))
+      ;<  ~  bind:m  (replace:io `(unit @ud)`~)
       $
-    ==
+    ~?  dbg  [%desk-checkout n=u.want]
+    ::  peek the whole /desk subtree as of snapshot N (files come rooted
+    ::  at /desk, e.g. /code/foo, /data/bar) and lay it into /checkout —
+    ::  reconstructing /checkout/code and /checkout/data wholesale.
+    ;<  files=(unit (list bfile))  bind:m  (snap-files rail u.want)
+    ?~  files
+      ;<  ~  bind:m  (replace:io `(unit @ud)`~)
+      $
+    ::  /checkout is inert inspection: nothing is compiled here, so app-mark
+    ::  data grubs have no marc and land as booms (the runtime stores the raw
+    ::  noun on validation failure rather than crashing) — browsable, not fatal.
+    ;<  ~  bind:m  (write-files rail /checkout u.files)
+    ::  sidecar the snapshot's necks (stripped from the inert tree) so the
+    ::  checkout file view can still badge nexus dirs. Paths are axis-relative.
+    ;<  necks=(list [=path =neck:tarball])  bind:m  (snap-necks rail u.want)
+    =/  necks-of
+      |=  axis=@ta
+      ^-  (list json)
+      %+  murn  necks
+      |=  [p=path n=neck:tarball]
+      ?.  ?=(^ p)  ~
+      ?.  =(axis i.p)  ~
+      `(pairs:enjs:format ~[['path' s+(spat t.p)] ['neck' s+(spat (snoc path.n name.n))]])
+    ;<  ~  bind:m
+      %+  put:io  (nex-road:io rail [%& /checkout %'necks.json'])
+      :-  [/ %json]
+      (pairs:enjs:format ~[['code' a+(necks-of %code)] ['data' a+(necks-of %data)]])
+    ;<  ~  bind:m  (replace:io `(unit @ud)`want)
+    $
       ::  main.sig: HTTP endpoint for desk management UI
       ::
       [~ %'main.sig']
     ;<  ~  bind:m  (rise-wait:io prod "%desk /main: failed")
+    ::  repair a neck-less /desk/code before anything reads it
+    ;<  ~  bind:m  (ensure-code-nexus rail)
     ;<  here=rail:tarball  bind:m  get-here-abs:io
     ::  Bind /grubbery/desk/<slug> — dot-free (eyre mangles dotted
     ::  segments) and short: the nexus dir name minus its suffix.
     ::  Public exposure is the config fiber's job.
     ;<  ~  bind:m  (bind-http:io [~ /grubbery/desk/[(desk-slug path.here)]])
-    (http-dispatch:io %desk)
+    ::  main.sig is the desk's action multiplexer: it dispatches eyre's
+    ::  HTTP pokes (spawning /requests grubs — the +http-dispatch cases)
+    ::  AND direct action pokes ({"action": ...} json), so the desk is
+    ::  drivable by poke, not only through eyre.
+    =/  server-road=road:tarball  [%& %& /sys/eyre %'main.server-state']
+    |-
+    ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
+    ?+    name.p.sage  $
+        %handle-http-request
+      =/  [eyre-id=@ta src=@p req=inbound-request:eyre]
+        !<([@ta @p inbound-request:eyre] q.sage)
+      ;<  ~  bind:m
+        (make:io [%| 0 %& /requests eyre-id] |+[[[/ %http-request] [src req]] ~])
+      $
+        %handle-http-cancel
+      =/  eyre-id=@ta  !<(@ta q.sage)
+      ;<  ~  bind:m  (cull:io [%| 0 %& /requests eyre-id])
+      $
+        %eyre-action
+      ;<  ~  bind:m  (send-dart:io %node / server-road %poke [p.sage q.q.sage])
+      $
+        %json
+      ::  direct action poke: {"action": "fetch"} pulls from source now
+      ::  (no version bump needed). Extend with more actions as needed.
+      =/  jon=json  !<(json q.sage)
+      =/  action=@t  (~(dog jo:json-utils jon) /action so:dejs:format)
+      ?:  =('fetch' action)
+        ;<  ~  bind:m  (do-fetch rail)
+        $
+      ~&  >>>  ["%desk /main: unknown action" action]
+      $
+    ==
       ::  /requests/*: individual HTTP request handlers
       ::
       [[%requests ~] @]
@@ -173,18 +346,64 @@
     =/  nex-path=path  (snip path.here)  :: /foo/requests -> /foo
     =/  prefix=path  /grubbery/desk/[(desk-slug nex-path)]
     =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
-    =/  suffix=path  (slag (lent prefix) site)
+    ::  drop empty segments so a trailing slash (/test/) reads as the
+    ::  page route (~), not a file named ''.
+    =/  suffix=path
+      %+  skip  (slag (lent prefix) site)
+      |=(seg=@ta =('' seg))
+    ::  canonical page URL ends in '/' so the shell's relative asset
+    ::  links (style.css, app.js) resolve under the slug dir. Redirect
+    ::  the bare form once; the slashed form serves index.html.
+    =/  raw=tape  (trip url.request.req)
+    =/  cut=tape  (scag (fall (find "?" raw) (lent raw)) raw)
+    =/  slashed=?  &(?=(^ cut) =('/' `@`(rear cut)))
+    ?:  ?&(=('GET' method.request.req) ?=(~ suffix) !slashed)
+      =/  main-road  (nex-road:io rail [%& ~ %'main.sig'])
+      =/  loc=@t  (crip (weld (spud prefix) "/"))
+      ;<  ~  bind:m  (~(send-header http-res:io main-road) eyre-id [301 ~[['location' loc]]])
+      ;<  ~  bind:m  (~(send-data http-res:io main-road) eyre-id ~)
+      (pure:m ~)
     ?:  =('POST' method.request.req)
       (handle-post eyre-id suffix req rail)
-    (handle-get eyre-id suffix rail)
+    (handle-get eyre-id suffix args rail)
+      ::  version.*: on every version change, bootstrap the data nexuses
+      ::  the new bill declares (idempotent), and take the baseline
+      ::  snapshot if the counter is still 0 (a no-op otherwise). We own
+      ::  the version file, not snapshot.ud, so do-snapshot's `over` of the
+      ::  counter is an ordinary external write — no self-news loop.
+      ::
+      [~ @]
+    =/  nam=@ta  name.rail
+    ?.  =('version.' (end [3 8] nam))  stay:m
+    ;<  ~  bind:m  (rise-wait:io prod "%desk version: failed")
+    ;<  init=wave:nexus  bind:m
+      (keep:io /self (nex-road:io rail [%& / nam]) ~)
+    |-
+    ::  act only on a REAL version. A null root version.json is the "not
+    ::  synced yet" marker — nothing to bill or snapshot until the first
+    ::  pull writes it. apply-bill + initial-snapshot are both idempotent,
+    ::  so re-running them on each real change is safe.
+    ;<  ver=(unit @t)  bind:m  (own-version rail)
+    ;<  ~  bind:m
+      ?~  ver  (pure:m ~)
+      ;<  ~  bind:m  (apply-bill rail)
+      (initial-snapshot rail)
+    ;<  *  bind:m  (take-news-or-poke /self)
+    $
   ==
 --
 ::
 |%
-+$  desk-config
-  $:  source=(unit @t)
-      public=?
-  ==
+::  +dbg: the routine traces print only when this is yes. It lives in this
+::  helper core, where the nexus core above can see it.
+::
+++  dbg  ^-(? |)
+::  source.json: optional. ~ = a standalone desk (follows nothing). If
+::  present, `code` is the road to the source's code directory (pulled into
+::  /desk/code). The version road is DERIVED — <code>/version.json, the
+::  authored content version — so it is never stored separately.
+::
++$  source-config  (unit [code=@t])
 ::
 +$  news-or-poke
   $%  [%news =wave:nexus]
@@ -195,26 +414,68 @@
 +$  bfile  [pax=path name=@ta =sang:tarball]
 ::  born hist metadata, as returned by born:io
 ::
-+$  binfo  (list [=cass:clay tags=(set @t) tomb=?])
++$  binfo  (list binfo-entry)
++$  binfo-entry  [=cass:clay tags=(set @t) tomb=?]
 ::
-++  config-to-json
-  |=  config=desk-config
+::  the OPENING state (which usergroups may peek the code) lives in the
+::  share.usergroups grub, not here.
+::
+++  source-to-json
+  |=  config=source-config
   ^-  json
-  %-  pairs:enjs:format
-  :~  ['source' ?~(source.config ~ s+u.source.config)]
-      ['public' b+public.config]
-  ==
+  ?~  config  ~
+  (pairs:enjs:format ~[['code' s+code.u.config]])
 ::
-++  json-to-config
+++  json-to-source
   |=  =json
-  ^-  desk-config
-  ?.  ?=(%o -.json)  *desk-config
-  =/  src  (~(get by p.json) 'source')
-  =/  pub  (~(get by p.json) 'public')
-  :*  ?~(src ~ ?:(?=([~ %s *] src) `p.u.src ~))
-      ?~(pub %.n ?:(?=([~ %b *] pub) p.u.pub %.n))
-  ==
+  ^-  source-config
+  ::  match the whole json as an object — `-.json` on a ~ (null, the
+  ::  unconfigured seed) would fault.
+  ?.  ?=([%o *] json)  ~
+  =/  codp  (~(get by p.json) 'code')
+  ?.  ?=([~ %s *] codp)  ~
+  ?:  =('' p.u.codp)  ~
+  `[p.u.codp]
 ::
+::  +apply-share: register the follow weir with every group in the new
+::  share list, and clear it from groups that were dropped
+::
+::    The weir grants exactly what a follower needs to pull: the
+::    version file, the code tree, and the bill.
+::
+++  apply-share
+  |=  [nex-dir=path old=(list path) new=(list path)]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ::  what a follower needs to pull: peek the code tree and the version
+  ::  file (stable name — version.json). Stable roads, granted once — no
+  ::  re-apply when the code or version content changes.
+  =/  grant=weir:nexus
+    :+  ~  ~
+    %-  sy
+    :~  [%& %| (weld nex-dir /desk/code)]
+        [%& %& nex-dir %'version.json']
+    ==
+  ::  groups to clear: any dropped from the share list, plus /public
+  ::  always — a fresh fiber cannot know what a prior life granted,
+  ::  so the discovery group's state is asserted on every application
+  ::  rather than diffed.
+  =/  clear=(list path)
+    =|  seen=(set path)
+    =/  base=(list path)  (weld old `(list path)`~[/public])
+    |-  ^-  (list path)
+    ?~  base  ~
+    ?:  ?|((~(has in seen) i.base) ?=(^ (find ~[i.base] new)))
+      $(base t.base)
+    [i.base $(base t.base, seen (~(put in seen) i.base))]
+  =/  jobs=(list [grp=path w=weir:nexus])
+    %+  weld
+      (turn clear |=(g=path [g *weir:nexus]))
+    (turn new |=(g=path [g grant]))
+  |-  ^-  form:m
+  ?~  jobs  (pure:m ~)
+  ;<  ~  bind:m  (reg-how:io [grp.i.jobs w.i.jobs])
+  $(jobs t.jobs)
 ::  desk-slug: URL name for a desk nexus — its dir name minus the
 ::  dot-suffix ('test.desk' -> 'test'). Dots are avoided in eyre
 ::  bindings: eyre parses them as file extensions during matching.
@@ -228,101 +489,334 @@
   ?~  dix  (crip nam)
   (crip (scag u.dix nam))
 ::
+::  +await-source: establish the version subscription, retrying with backoff.
+::
+::    +keep on a REMOTE road waits on the publisher and has no deadline of its
+::    own, so a follower whose publisher is unreachable parks forever: nothing
+::    subscribed, /desk/code empty, no instance created, and not one line
+::    logged. Observed on a test ship, which sat that way until source.json was
+::    poked by hand — the desk had no way back on its own.
+::
+::    It RETRIES rather than failing. A publisher that is down now is usually up
+::    later, and a follower should pick the code up when it returns without
+::    anyone having to notice it was stuck. Backoff doubles from a minute to an
+::    hour, so a publisher that stays down costs one request an hour instead of
+::    a spin, and the wait rides behn rather than a busy loop.
+::
+++  await-source
+  |=  [=wire rod=road:tarball src=@t]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  lull=@dr  ~m1
+  |-  ^-  form:m
+  ;<  sub=(unit wave:nexus)  bind:m  (keep-soft:io wire rod ~ ~m2)
+  ?^  sub  (pure:m ~)
+  ~&  >>  [%desk-source-unreachable src retry-in=lull]
+  ;<  now=@da  bind:m  get-time:io
+  ;<  ~  bind:m  (send-wait:io (add now lull))
+  $(lull ?:((gte lull ~h1) ~h1 (mul 2 lull)))
+::
+::  parse-path: resolve a source string to an absolute namespace path,
+::  routing a ~ship/... prefix through /sys/ames for cross-ship peeks.
+::
+++  parse-path
+  |=  src=@t
+  ^-  path
+  ?.  =('~' (end 3 src))  (stab src)
+  =/  txt=tape  (trip src)
+  =/  ship-end=@  (need (find "/" txt))
+  =/  target=@p  (slav %p (crip (scag ship-end txt)))
+  =/  source-path=path  (stab (crip (slag ship-end txt)))
+  (weld /sys/ames/ships/[(scot %p target)]/root source-path)
+::  parse-source: a source string as a directory road
+::
 ++  parse-source
   |=  src=@t
   ^-  road:tarball
-  ?:  =('~' (end 3 src))
-    =/  txt=tape  (trip src)
-    =/  ship-end=@  (need (find "/" txt))
-    =/  target=@p  (slav %p (crip (scag ship-end txt)))
-    =/  source-path=path  (stab (crip (slag ship-end txt)))
-    [%& %| (weld /sys/ames/ships/[(scot %p target)]/root source-path)]
-  [%& %| (stab src)]
+  [%& %| (parse-path src)]
 ::
-::  version-road: source's version.ud road from base source road
+::  sync-release: mirror the source's CURRENT tree when its version
+::  number changes. The version file is only a change signal — we never
+::  read the source at a historical revision (a source need not firm its
+::  folds, and a git-tree source rewrites its history on every checkout,
+::  so any pinned revision can vanish). Reproducibility/restore is a
+::  LOCAL concern: this desk snapshots its OWN world after each sync
+::  (do-snapshot), and do-restore reads THIS desk's own history. Also
+::  mirrors the source's version file, raw, under its own name.
 ::
-++  version-road
-  |=  source-road=road:tarball
-  ^-  road:tarball
-  ?.  ?=([%& %| *] source-road)  ~|(%desk-unexpected-road-shape !!)
-  [%& %& p.p.source-road %'version.ud']
-::  source-dir-road: a directory under the source desk
+::  source-behind: is the source's version different from our mirror?
+::  A cheap single-file peek — the gate that keeps a reload from
+::  re-mirroring the whole source tree when we are already current.
 ::
-++  source-dir-road
-  |=  [source-road=road:tarball dir=path]
-  ^-  road:tarball
-  ?.  ?=([%& %| *] source-road)  ~|(%desk-unexpected-road-shape !!)
-  [%& %| (weld p.p.source-road dir)]
-::  source-file-road: a file under the source desk
-::
-++  source-file-road
-  |=  [source-road=road:tarball dir=path name=@ta]
-  ^-  road:tarball
-  ?.  ?=([%& %| *] source-road)  ~|(%desk-unexpected-road-shape !!)
-  [%& %& (weld p.p.source-road dir) name]
-::  sync-release: mirror the source's RELEASE, never its live tree.
-::  The source's version.ud revision pins the release instant — its
-::  cass carries the da when version N was written, and the source's
-::  watcher checkpointed (firmed) the folds in that same event chain.
-::  Syncing the folds at that da makes drafts unreachable and every
-::  sync reproducible. Also writes the local version.ud to match.
+++  source-behind
+  |=  [ver-road=road:tarball =rail:tarball]
+  =/  m  (fiber:fiber:nexus ,?)
+  ^-  form:m
+  ;<  sv=view:nexus  bind:m  (peek:io ver-road ~)
+  ?.  ?=([%file *] sv)  (pure:m %.n)
+  =/  src-ver=(unit @t)  (version-text sang.sv)
+  ;<  own=(unit @t)  bind:m  (own-version rail)
+  (pure:m !=(src-ver own))
 ::
 ++  sync-release
-  |=  [source-road=road:tarball =rail:tarball]
+  |=  [ver-road=road:tarball code-road=road:tarball ver-name=@ta =rail:tarball]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  ver-view=view:nexus  bind:m
-    (peek:io (version-road source-road) `[/ %ud])
+  ::  read the source's version file (the release token) at its known road
+  ;<  ver-view=view:nexus  bind:m  (peek:io ver-road ~)
   ?.  ?=([%file *] ver-view)
     ~&  >>  %desk-no-version-at-source
     (pure:m ~)
-  =/  ver=@ud  !<(@ud (need-vase:tarball sang.ver-view))
-  =/  at=@da   da.cass.ver-view
-  ~&  >  [%desk-sync-release ver=ver]
-  ;<  ~  bind:m
-    (sync-dir (source-dir-road source-road /desk/code) rail /desk/code `[%da at])
-  ;<  bill-view=view:nexus  bind:m
-    (peek-at:io (source-file-road source-road /desk %'bill.json') `[/ %json] [%da at])
-  ;<  ~  bind:m
-    ?.  ?=([%file *] bill-view)  (pure:m ~)
-    =/  bill-json=json  !<(json (need-vase:tarball sang.bill-view))
-    (over:io (nex-road:io rail [%& /desk %'bill.json']) [[/ %json] bill-json])
+  ~?  dbg  [%desk-sync-release ver=(version-text sang.ver-view)]
+  ::  pull the source's code tree wholesale into our /desk/code
+  ;<  ~  bind:m  (sync-dir code-road rail /desk/code ~)
+  ::  Mirroring is not enough on its own. +sync-dir PRESERVES the
+  ::  destination's neck, so a /desk/code that is a plain directory stays
+  ::  one — and a dir without the [/ %code] neck is not a code namespace,
+  ::  so grubbery never runs +build-code over it. Nothing compiles what we
+  ::  just wrote, +resolve-built keeps finding nothing, and every instance
+  ::  the bill declares holds its "no built nexus %<app>--app" BANG
+  ::  through release after release.
+  ::
+  ::  Measured end to end (2026-09-15). On a real subscriber lattice took
+  ::  a version bump, mirrored the new tree, reported itself up to date on
+  ::  its desk page, and its route still hung — it came back only when the
+  ::  desk nexus was reloaded by hand so the repair below could run. Then
+  ::  reproduced on a test ship: with the neck absent, a sync left the
+  ::  instance banged; a rise fixed it in one pass.
+  ::
+  ::  +ensure-code-nexus IS that repair, and it was only ever called on
+  ::  rise — which a subscriber does not do by itself. Call it here too,
+  ::  where a release actually arrives. On a healthy desk it is one peek
+  ::  that returns at once (the neck already matches), so this costs a
+  ::  sync nothing; on a wedged one it fixes the neck and restarts the
+  ::  instances that could never build.
+  ;<  ~  bind:m  (ensure-code-nexus rail)
+  ::  mirror the source's version file locally, under its own name, so
+  ::  followers of THIS desk watch our republished version
+  =/  content=bask:tarball
+    [p.sang.ver-view (sang-noun:tarball sang.ver-view)]
   ;<  exists=?  bind:m
-    (peek-exists:io (nex-road:io rail [%& / %'version.ud']))
+    (peek-exists:io (nex-road:io rail [%& / ver-name]))
   ?.  exists
-    (make:io (nex-road:io rail [%& / %'version.ud']) |+[[[/ %ud] ver] ~])
-  (over:io (nex-road:io rail [%& / %'version.ud']) [[/ %ud] ver])
+    (make:io (nex-road:io rail [%& / ver-name]) |+[content ~])
+  (over:io (nex-road:io rail [%& / ver-name]) content)
 ::
-::  apply-bill: on first install only — if /desk/data is empty,
-::  read bill.json and create nexus entries in /desk/data.
+::  apply-bill: ensure every nexus the bill declares exists in /desk/data.
+::  Idempotent and runs on every install AND version bump — it MAKES the
+::  entries that aren't there and SKIPS the ones that are, so a bumped
+::  bill adds its new nexuses and re-runs never collide.
+::
+::  TODO: a desk should ship only the marks it owns. The retired wallet
+::  repo carried a mar/ full of copies of kernel marks (json, mime, hoon,
+::  eyre-action, ...); landing those in a desk's code namespace re-keys
+::  every grub under them against the desk's copy, nearest-first, and a
+::  stale copy diverges from the kernel's silently. The sync should refuse
+::  (or at least warn on) a /mar entry whose source also exists in root
+::  /code, and the hatchery carries only mar/wallet for this reason.
 ::
 ++  apply-bill
   |=  =rail:tarball
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  cur=(unit (list bfile))  bind:m  (fetch-dir rail /desk/data ~)
-  ?.  =(~ (fall cur ~))  (pure:m ~)
   ;<  bill=(unit json)  bind:m
-    (peek-as:io (nex-road:io rail [%& /desk %'bill.json']) ,json)
+    (peek-as:io (nex-road:io rail [%& /desk/code %'bill.json']) ,json)
+  ::  bill.json may live as a json grub OR a plain mime text file in the
+  ::  desk's code tree — accept both: if the json read isn't an object,
+  ::  re-read raw and parse the payload as json text.
+  ;<  bill=(unit json)  bind:m
+    ?:  &(?=(^ bill) ?=([%o *] u.bill))
+      (pure:(fiber:fiber:nexus ,(unit json)) bill)
+    ;<  mim=(unit mime)  bind:(fiber:fiber:nexus ,(unit json))
+      (peek-as:io (nex-road:io rail [%& /desk/code %'bill.json']) ,mime)
+    %-  pure:(fiber:fiber:nexus ,(unit json))
+    ?~  mim  ~
+    (de:json:html q.q.u.mim)
   ?~  bill
-    ~&  >  %desk-no-bill
+    ~?  dbg  %desk-no-bill
     (pure:m ~)
-  ?.  ?=(%o -.u.bill)
+  ?.  ?=([%o *] u.bill)
     ~&  >>>  %desk-bill-not-object
     (pure:m ~)
+  ::  A bill entry is "<instance name>": "<code path>", both strings. so:dejs
+  ::  CRASHES on any other shape, and a crash here loses the WHOLE bill — every
+  ::  valid entry along with the bad one — so the desk ends up with no instance,
+  ::  no consent ask, manifest.json at version 0, and nothing in the log,
+  ::  because a crashed fiber rolls its event back. It reads as a slow clone.
+  ::
+  ::  Report the unreadable key and install the entries that ARE readable. A
+  ::  bill that carries a key this version does not understand — a leftover, or
+  ::  one written for a newer desk.hoon — must not take the install down with it.
   =/  entries=(list [@t @t])
-    (turn ~(tap by p.u.bill) |=([k=@t v=json] [k (so:dejs:format v)]))
-  ~&  >  [%desk-bill (lent entries)]
+    %+  murn  ~(tap by p.u.bill)
+    |=  [k=@t v=json]
+    ^-  (unit [@t @t])
+    ?.  ?=([%s *] v)
+      ~&  >>>  [%desk-bill-entry-unreadable k]
+      ~
+    `[k p.v]
+  ~?  dbg  [%desk-bill (lent entries)]
+  =|  made-any=?
   |-
-  ?~  entries  (pure:m ~)
+  ?~  entries
+    ::  refresh the desk-level ask now that the children are settled — the
+    ::  same action asks.sig triggers by hand. Always, since a sync can
+    ::  change a child's weir.json without adding a new child.
+    ;<  ~  bind:m  (aggregate-asks rail)
+    ::  nudge the shell: new apps exist — sweep now so their followers
+    ::  spawn and their asks notify immediately. Soft: a missing shell
+    ::  must not fail the install.
+    ?.  made-any  (pure:m ~)
+    ;<  *  bind:m
+      (poke-soft:io [%& %& /apps/'shell.shell' %'sweep.sig'] [[/ %sig] ~])
+    (pure:m ~)
   =/  nam=@ta  -.i.entries
   =/  cod=path  (stab +.i.entries)
   =/  neck=rail:tarball  [(snip cod) (rear cod)]
   =/  data-road=road:tarball  (nex-road:io rail [%| /desk/data/[nam]])
-  =/  =bole:tarball  [`[`neck ~ %.n ~] ~]
-  ~&  >  [%desk-bill-entry nam neck]
+  ::  truly idempotent (as the doc promises): apply-bill fires from BOTH
+  ::  the sync fiber and the version watcher on install — whichever runs
+  ::  second must skip an instance the first already made, not collide.
+  ;<  has=?  bind:m  (peek-exists:io data-road)
+  ?:  has  $(entries t.entries)
+  ::  created sandboxed: an empty weir [~ ~ ~] (permit nothing) rather than
+  ::  ~ (no filter / wide open). The nexus still materializes its own tree
+  ::  (that rides the make, not a weir-gated dart), but stays runtime-inert
+  ::  — it can reach nothing until its weir.json is approved in the shell.
+  =/  =bole:tarball  [`[`neck `[~ ~ ~] %.n ~] ~]
+  ~?  dbg  [%desk-bill-entry nam neck]
   ;<  ~  bind:m  (make:io data-road &+bole)
+  =.  made-any  %.y
   $(entries t.entries)
+::
+::  +aggregate-asks: union every /desk/data child's weir.json ask into a
+::  single desk-level ask.json — a list of {app, poke, peek, make}, one
+::  entry per child that declares a weir. The consolidated, child-tagged
+::  unit the shell will gate as one opaque desk-level consent, and the
+::  source the UI viewer reads. Idempotent: reads the children, rewrites
+::  ask.json wholesale. The reaches in each child's weir.json are already
+::  absolute, so they pass through verbatim under their app tag.
+::
+++  aggregate-asks
+  |=  =rail:tarball
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  dv=view:nexus  bind:m
+    (peek:io (nex-road:io rail [%| /desk/data]) ~)
+  =/  kids=(list @ta)
+    ?.  ?=([%ball *] dv)  ~
+    ~(tap in ~(key by dir.ball.dv))
+  =|  acc=(list json)
+  |-  ^-  form:m
+  ?~  kids
+    (put:io (nex-road:io rail [%& / %'ask.json']) [[/ %json] [%a (flop acc)]])
+  =/  child=@ta  i.kids
+  ;<  wv=view:nexus  bind:m
+    (peek:io (nex-road:io rail [%& /desk/data/[child] %'weir.json']) `[/ %json])
+  ?.  ?=([%file *] wv)  $(kids t.kids)
+  =/  jon=(unit json)  (mole |.(!<(json (need-vase:tarball sang.wv))))
+  ?~  jon  $(kids t.kids)
+  ?.  ?=(%o -.u.jon)  $(kids t.kids)
+  =/  ask=json
+    %-  pairs:enjs:format
+    :~  ['app' s+child]
+        ['poke' (fall (~(get by p.u.jon) 'poke') [%a ~])]
+        ['peek' (fall (~(get by p.u.jon) 'peek') [%a ~])]
+        ['make' (fall (~(get by p.u.jon) 'make') [%a ~])]
+    ==
+  $(kids t.kids, acc [ask acc])
+::
+::  +ensure-code-nexus: /desk/code must BE a code nexus, not merely exist.
+::
+::  The load row is `[%fall %| /desk/code code-dir]`, and a %fall row keeps
+::  whatever is already there — governance included. So a desk whose
+::  /desk/code was created as a plain directory (by an older kernel, or by
+::  hand) keeps a neck-less code dir forever: the .hoon files land with the
+::  right blots, nothing compiles them, apply-bill finds no built nexus, and
+::  the app never rises. Reloads do not fix it, and neither does a pull —
+::  +sync-dir deliberately PRESERVES the destination's neck so an overwrite
+::  cannot strip what on-load established.
+::
+::  Nothing reported it either: the desk page compares file trees, finds
+::  them identical, and says "nothing to pull" while the instance sits
+::  banged with "no code nexus at <desk>/desk/code/nex/<app>". Seen on a
+::  real subscriber (2026-09-15) with lattice and auspex wedged that way.
+::
+::  So assert it on every rise AND after every sync (+sync-release calls
+::  this once the mirror has landed, because a subscriber never rises on
+::  its own): read the dir, and if its neck is not
+::  [/ %code], re-fold the SAME contents under the right one. Contents are
+::  untouched (this is the neck-only case of what +sync-dir does with a
+::  freshly pulled tree), and it is a no-op on a healthy desk.
+++  ensure-code-nexus
+  |=  =rail:tarball
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  code-road=road:tarball  (nex-road:io rail [%| /desk/code])
+  ;<  cur=view:nexus  bind:m  (peek:io code-road ~)
+  ?.  ?=([%ball *] cur)  (pure:m ~)
+  =/  nek=(unit neck:tarball)  ?~(fil.ball.cur ~ neck.u.fil.ball.cur)
+  ?:  =(nek `[/ %code])  (pure:m ~)
+  ~&  >>  [%desk-code-nexus-repaired path.rail]
+  =/  bol=bole:tarball  (ball-to-bole:tarball ball.cur)
+  =/  root=pulp:tarball  (fall fil.bol `pulp:tarball`[~ ~ %.n ~])
+  =.  bol  bol(fil `root(neck `[/ %code]))
+  ;<  ~  bind:m  (over-fold:io code-road bol)
+  ::  Governance alone is not the whole repair. An instance that rose while
+  ::  the dir was neck-less holds a BANG — "no built nexus %<app>--app" —
+  ::  recorded when its code could not compile, and nothing re-evaluates
+  ::  that on its own. +apply-bill cannot: it MAKES instances that are
+  ::  missing and skips ones that exist, and these exist. So the desk's
+  ::  code compiles, the desk page says up to date, and the app still 404s
+  ::  (or hangs, where a dead ball-era instance holds its route).
+  ::
+  ::  Measured on a real subscriber: after the governance repair shipped,
+  ::  auspex and lattice both compiled and both stayed dead until each
+  ::  instance was reloaded by hand — and the permits page offers a reload
+  ::  only as a side effect of approving a grant, so an already-approved
+  ::  app has no button at all. Nobody unaided finds the explorer's
+  ::  "Reload nexus".
+  ::
+  ::  So reload what the bill declares, right here, on the same rise that
+  ::  fixed the neck. Runs ONLY on the repair path (a healthy desk returned
+  ::  above), so this is not a reload storm: it is the one restart the
+  ::  affected instances never got.
+  (reload-billed rail)
+::  +reload-billed: reload every instance this desk's bill declares.
+::  Mirrors +apply-bill's read of bill.json (json grub or mime text, and a
+::  key this version cannot read is reported, not fatal) but reloads the
+::  /desk/data children instead of making them. Soft per entry: one
+::  instance that refuses to come back must not strand the others.
+++  reload-billed
+  |=  =rail:tarball
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  bill=(unit json)  bind:m
+    (peek-as:io (nex-road:io rail [%& /desk/code %'bill.json']) ,json)
+  ;<  bill=(unit json)  bind:m
+    ?:  &(?=(^ bill) ?=([%o *] u.bill))
+      (pure:(fiber:fiber:nexus ,(unit json)) bill)
+    ;<  mim=(unit mime)  bind:(fiber:fiber:nexus ,(unit json))
+      (peek-as:io (nex-road:io rail [%& /desk/code %'bill.json']) ,mime)
+    %-  pure:(fiber:fiber:nexus ,(unit json))
+    ?~  mim  ~
+    (de:json:html q.q.u.mim)
+  ?~  bill  (pure:m ~)
+  ?.  ?=([%o *] u.bill)  (pure:m ~)
+  =/  names=(list @ta)
+    %+  murn  ~(tap by p.u.bill)
+    |=  [k=@t v=json]
+    ^-  (unit @ta)
+    ?.(?=([%s *] v) ~ `k)
+  |-
+  ?~  names  (pure:m ~)
+  =/  data-road=road:tarball  (nex-road:io rail [%| /desk/data/[i.names]])
+  ;<  has=?  bind:m  (peek-exists:io data-road)
+  ?.  has  $(names t.names)
+  ~&  >>  [%desk-instance-reloaded i.names]
+  ;<  err=(unit tang)  bind:m  (reload-soft:io data-road)
+  ~?  >>>  ?=(^ err)  [%desk-instance-reload-failed i.names]
+  $(names t.names)
 ::
 ++  sync-dir
   |=  [source-dir=road:tarball =rail:tarball dir=path cas=(unit case:nexus)]
@@ -334,31 +828,192 @@
   ?.  ?=([%ball *] view)
     ~&  >>  [%desk-nothing-at-source dir]
     (pure:m ~)
-  =/  files=(list bfile)  (ball-to-files ball.view)
-  ~&  >  [%desk-sync-files dir (lent files)]
-  (write-files rail dir files)
+  ~?  dbg  [%desk-sync-dir dir]
+  ::  overwrite the whole source subtree in ONE event with over-fold (the
+  ::  %over analog for directories) — a per-file write triggers a full
+  ::  build-code for every file (a rebuild storm on a /code dir). git
+  ::  delivers .hoon as mime; code-bole rewrites those to %hoon blots so
+  ::  build-code sees them. preserve the dest dir's own neck (code vs
+  ::  inert) so the overwrite doesn't strip what on-load established.
+  =/  bol=bole:tarball  (code-bole ball.view)
+  ;<  cur=view:nexus  bind:m  (peek:io (nex-road:io rail [%| dir]) ~)
+  =/  nek
+    ?.  ?=([%ball *] cur)  ~
+    ?~(fil.ball.cur ~ neck.u.fil.ball.cur)
+  =/  root=pulp:tarball  (fall fil.bol `pulp:tarball`[~ ~ %.n ~])
+  =.  bol  bol(fil `root(neck nek))
+  (over-fold:io (nex-road:io rail [%| dir]) bol)
 ::
-::  do-checkpoint: firm the fold hists of /data and /code plus
-::  version.ud, tagged with the outgoing version. The fold pace
-::  lobe is the merkle root of the whole subtree — three firms
-::  checkpoint the entire world.
+::  do-snapshot: capture a WORLD snapshot — firm both /data and /code
+::  together and tag both with `snapshot N`, where N is the monotonic
+::  snapshot counter (the snapshot's stable identity). An optional
+::  freeform note rides alongside. Content-addressed, so an axis that
+::  didn't change dedupes to a no-op firm. The counter is the only label
+::  — no version-derived tagging. Every live-mutating action snapshots
+::  first, so this is the universal "save the world" primitive.
 ::
-++  do-checkpoint
-  |=  [=rail:tarball tags=(set @t)]
+::  wipe-history: tombstone every firmed revision of the /desk fold
+::  except the live top — a clean slate before the baseline snapshot.
+::
+++  wipe-history
+  |=  =rail:tarball
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ~&  >  [%desk-checkpoint tags=tags]
-  ;<  ~  bind:m  (checkpoint:io (nex-road:io rail [%| /desk/data]))
-  ;<  ~  bind:m  (tag:io (nex-road:io rail [%| /desk/data]) ~ tags)
-  ;<  ~  bind:m  (checkpoint:io (nex-road:io rail [%| /desk/code]))
-  ;<  ~  bind:m  (tag:io (nex-road:io rail [%| /desk/code]) ~ tags)
-  ;<  ~  bind:m  (checkpoint:io (nex-road:io rail [%& / %'version.ud']))
-  (tag:io (nex-road:io rail [%& / %'version.ud']) ~ tags)
+  ;<  hist=(each binfo tang)  bind:m  (born:io (nex-road:io rail [%| /desk]))
+  ?:  ?=(%| -.hist)  (pure:m ~)
+  =/  uds=(list @ud)  (turn p.hist |=([=cass:clay *] ud.cass))
+  =/  top=@ud  (roll uds max)
+  =/  targets=(list @ud)  (skip uds |=(u=@ud =(u top)))
+  |-  ^-  form:m
+  ?~  targets  (pure:m ~)
+  ;<  ~  bind:m  (lose:io (nex-road:io rail [%| /desk]) [%numb `i.targets `i.targets])
+  $(targets t.targets)
+::  initial-snapshot: take the baseline snapshot iff none exist yet (the
+::  counter is still 0). Wipes any prior /desk history first — resetting
+::  the counter throws the history away, so snapshot 0 is a clean slate.
+::  Idempotent across restarts.
 ::
-++  version-tag
-  |=  ver=@ud
-  ^-  @t
-  (crip "v{(a-co:co ver)}")
+++  initial-snapshot
+  |=  =rail:tarball
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  n=(unit @ud)  bind:m
+    (peek-as:io (nex-road:io rail [%& / %'snapshot.ud']) ,@ud)
+  ?.  =(0 (fall n 0))  (pure:m ~)
+  ;<  ~  bind:m  (wipe-history rail)
+  (do-snapshot rail)
+::
+++  do-snapshot
+  |=  =rail:tarball
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  n=(unit @ud)  bind:m
+    (peek-as:io (nex-road:io rail [%& / %'snapshot.ud']) ,@ud)
+  =/  num=@ud  (fall n 0)
+  ::  one firm of /desk captures the whole world — snapshotting a path
+  ::  recursively firms everything beneath it, so /desk/code and
+  ::  /desk/data ride along. One revision, one number.
+  ;<  ~  bind:m  (checkpoint:io (nex-road:io rail [%| /desk]) ~)
+  ::  a firm of UNCHANGED content dedupes to the existing top revision —
+  ::  which, if the world hasn't moved since the last snapshot, is already
+  ::  a snapshot (carries a numeric tag). Capturing the same world twice is
+  ::  the SAME snapshot: no relabel, no counter bump. Only a genuinely new
+  ::  top (fresh, untagged) earns a new number.
+  ;<  hist=(each binfo tang)  bind:m  (born:io (nex-road:io rail [%| /desk]))
+  ?:  (top-is-snap hist)
+    ~?  dbg  %desk-snapshot-unchanged
+    (pure:m ~)
+  ~?  dbg  [%desk-snapshot num=num]
+  ::  stamp the world's current version as a `version: <contents>` label —
+  ::  a convention, not identity. The `version: ` prefix keeps it non-numeric
+  ::  so it never shadows the numeric identity tag (+num-tag / +snap-cass).
+  ;<  ver=(unit @t)  bind:m  (own-version rail)
+  =/  tags=(set @t)
+    =/  base=(set @t)  (sy ~[(scot %ud num)])
+    ?~  ver  base
+    ?:  =('' u.ver)  base
+    (~(put in base) (cat 3 'version: ' u.ver))
+  ;<  ~  bind:m  (tag:io (nex-road:io rail [%| /desk]) ~ tags)
+  ::  tag with the current counter, then bump — snapshots are 0-based
+  (over:io (nex-road:io rail [%& / %'snapshot.ud']) [[/ %ud] +(num)])
+::  top-is-snap: does the newest /desk revision already carry a numeric
+::  (identity) tag — i.e. is the current world already a snapshot?
+::
+++  top-is-snap
+  |=  hist=(each binfo tang)
+  ^-  ?
+  ?:  ?=(%| -.hist)  %.n
+  =/  top=(unit binfo-entry)
+    %+  roll  `binfo`p.hist
+    |=  [e=binfo-entry a=(unit binfo-entry)]
+    ?~  a  `e
+    ?:((gth ud.cass.e ud.cass.u.a) `e a)
+  ?~  top  %.n
+  ?&  !tomb.u.top
+      ?=(^ (skim ~(tap in tags.u.top) num-tag))
+  ==
+::
+::  +version-text: render a version file's content as text, by mark.
+::  ~ for marks with no text rendering.
+::
+::  +file-text: render any file's stored form as text for the viewer.
+::  Tries the common text shapes in turn; ~ for genuinely binary files
+::  (their noun is a cell, so none of the atom/list molds match).
+::
+++  file-text
+  |=  =sang:tarball
+  ^-  (unit @t)
+  ::  sang-noun returns the raw stored noun even for a boom, so we can
+  ::  re-interpret it with the CURRENT marks (molds in this context)
+  ::  rather than the revision's — a file that failed to build against
+  ::  its old bins still renders here.
+  =/  nun  (sang-noun:tarball sang)
+  =/  c  ((soft @t) nun)
+  ?^  c  `u.c
+  =/  t  ((soft tape) nun)
+  ?^  t  `(crip u.t)
+  =/  w  ((soft wain) nun)
+  ?^  w  `(of-wain:format u.w)
+  =/  j  ((soft json) nun)
+  ?^  j  `(en:json:html u.j)
+  ~
+::
+++  quay-get
+  |=  [args=quay:eyre k=@t]
+  ^-  (unit @t)
+  =/  l  (skim args |=([p=@t q=@t] =(p k)))
+  ?~(l ~ `q.i.l)
+::
+++  version-text
+  |=  =sang:tarball
+  ^-  (unit @t)
+  ?:  (is-boom:tarball sang)  ~
+  =/  nun  (sang-noun:tarball sang)
+  ::  the version file is json. it reaches us as a %json grub (its noun
+  ::  is already json) or, checked out from git, as a %mime file (raw
+  ::  bytes to parse) — the same content in two representations. normalize
+  ::  to json, then read the 'version' property, or accept a bare value.
+  =/  j=(unit json)
+    ?:  =([~ %json] p.sang)  ((soft json) nun)
+    ?.  =([~ %mime] p.sang)  ~
+    =/  mim  ((soft mime) nun)
+    ?~(mim ~ (de:json:html q.q.u.mim))
+  ?~  j  ~
+  ::  a null version file is the "not synced yet" marker — no version.
+  ?~  u.j  ~
+  =/  v=(unit json)
+    ?:(?=([%o *] u.j) (~(get by p.u.j) 'version') `u.j)
+  ?~  v  ~
+  ?+  -.u.v  ~
+    %s  `p.u.v
+    %n  `p.u.v
+  ==
+::  +pick-version-name: the version file among a dir's file names —
+::  any name starting version. — alphabetical first if several
+::
+++  pick-version-name
+  |=  names=(list @ta)
+  ^-  (unit @ta)
+  =/  vs=(list @ta)
+    (skim names |=(n=@ta =('version.' (end [3 8] n))))
+  ?~  vs  ~
+  `(snag 0 (sort vs aor))
+::  +own-version: discover this desk's own version file and read it
+::
+++  own-version
+  |=  =rail:tarball
+  =/  m  (fiber:fiber:nexus ,(unit @t))
+  ^-  form:m
+  ;<  =view:nexus  bind:m  (peek:io (nex-road:io rail [%| /]) ~)
+  ?.  ?=([%ball *] view)  (pure:m ~)
+  ?~  fil.ball.view  (pure:m ~)
+  =/  cs  contents.u.fil.ball.view
+  =/  nam=(unit @ta)
+    (pick-version-name (turn ~(tap by cs) |=([n=@ta *] n)))
+  ?~  nam  (pure:m ~)
+  =/  ct  (~(get by cs) u.nam)
+  ?~  ct  (pure:m ~)
+  (pure:m (version-text sang.u.ct))
 ::
 ::  ball-to-files: lift files out of a ball with relative paths
 ::
@@ -390,8 +1045,191 @@
     (peek-at:io (nex-road:io rail [%| dir]) ~ u.cas)
   ?.  ?=([%ball *] view)  (pure:m ~)
   (pure:m `(ball-to-files ball.view))
+::  +checkout-cass: the revision currently checked out (~ = live only)
 ::
+++  checkout-snap
+  |=  =rail:tarball
+  =/  m  (fiber:fiber:nexus ,(unit @ud))
+  ^-  form:m
+  ;<  co=(unit (unit @ud))  bind:m
+    (peek-as:io (nex-road:io rail [%& / %'checkout.desk_snap']) ,(unit @ud))
+  (pure:m ?~(co ~ u.co))
+::  +axis-dir: which directory to READ for an axis — its live dir, or
+::  /checkout/<axis> when a world snapshot is checked out.
+::
+++  axis-dir
+  |=  [=rail:tarball axis=?(%code %data) live=?]
+  ^-  path
+  ?:  live  ?:(?=(%code axis) /desk/code /desk/data)
+  ?:(?=(%code axis) /checkout/code /checkout/data)
+::  +locate-file: find one bfile by full path within an axis dir
+::
+++  locate-file
+  |=  [=rail:tarball dir=path cas=(unit case:nexus) full=path]
+  =/  m  (fiber:fiber:nexus ,(unit bfile))
+  ^-  form:m
+  ;<  files=(unit (list bfile))  bind:m  (fetch-dir rail dir cas)
+  ?~  files  (pure:m ~)
+  |-  ^-  form:m
+  ?~  u.files  (pure:m ~)
+  ?:  =(full (snoc pax.i.u.files name.i.u.files))  (pure:m `i.u.files)
+  $(u.files t.u.files)
+::  +mime-of: a file's mark-converted mime form (~ if no mime tube)
+::
+++  mime-of
+  |=  [=rail:tarball dir=path cas=(unit case:nexus) f=bfile]
+  =/  m  (fiber:fiber:nexus ,(unit mime))
+  ^-  form:m
+  =/  froad=road:tarball  (nex-road:io rail [%& (weld dir pax.f) name.f])
+  ;<  mv=view:nexus  bind:m
+    ?~  cas  (peek:io froad `[/ %mime])
+    (peek-at:io froad `[/ %mime] u.cas)
+  =/  via-tube=(unit mime)
+    ?.  ?=([%file *] mv)  ~
+    =/  res  (mule |.(!<(mime (need-vase:tarball sang.mv))))
+    ?:(?=(%| -.res) ~ `p.res)
+  ?^  via-tube  (pure:m via-tube)
+  ::  the mark's ++mime tube failed (e.g. absent from the revision's
+  ::  bins). But if the file's stored noun already IS a mime, use it
+  ::  directly — the present interpretation, no old mark needed.
+  (pure:m ((soft mime) (sang-noun:tarball sang.f)))
+::
+::  snap-cass: the /desk fold revision tagged `snapshot N`
+::
+++  snap-cass
+  |=  [hist=(each binfo tang) n=@ud]
+  ^-  (unit cass:clay)
+  ?:  ?=(%| -.hist)  ~
+  =/  tag=@t  (scot %ud n)
+  |-  ^-  (unit cass:clay)
+  ?~  p.hist  ~
+  ?:  (~(has in tags.i.p.hist) tag)  `cass.i.p.hist
+  $(p.hist t.p.hist)
+::  snap-tags: the full tag set on the /desk revision for snapshot N (~ if
+::  absent). Includes the numeric identity tag; +user-tags strips that.
+::
+++  snap-tags
+  |=  [hist=(each binfo tang) n=@ud]
+  ^-  (unit (set @t))
+  ?:  ?=(%| -.hist)  ~
+  =/  tag=@t  (scot %ud n)
+  |-  ^-  (unit (set @t))
+  ?~  p.hist  ~
+  ?:  (~(has in tags.i.p.hist) tag)  `tags.i.p.hist
+  $(p.hist t.p.hist)
+::  num-tag: a purely-numeric tag is a snapshot's structural identity, not
+::  a user label — those are reserved so they can't shadow +snap-cass.
+::
+++  num-tag
+  |=  t=@t
+  ^-  ?
+  ?=(^ (rush t dem))
+::  user-tags: the freeform labels on a snapshot (all non-numeric tags),
+::  sorted for stable display.
+::
+++  user-tags
+  |=  tags=(set @t)
+  ^-  (list @t)
+  (sort (skip ~(tap in tags) num-tag) aor)
+::
+::  snap-cass-of: the /desk fold revision for world snapshot N
+::
+++  snap-cass-of
+  |=  [=rail:tarball n=@ud]
+  =/  m  (fiber:fiber:nexus ,(unit cass:clay))
+  ^-  form:m
+  ;<  hist=(each binfo tang)  bind:m  (born:io (nex-road:io rail [%| /desk]))
+  (pure:m (snap-cass hist n))
+::  snap-files: the whole /desk subtree as of snapshot N — files with
+::  paths rooted at /desk (e.g. /code/lib/foo.hoon, /data/bar). Peek
+::  /desk (not the subdir) at the case: resolve-case is per-hist, so
+::  only /desk's own hist carries N.
+::
+++  snap-files
+  |=  [=rail:tarball n=@ud]
+  =/  m  (fiber:fiber:nexus ,(unit (list bfile)))
+  ^-  form:m
+  ;<  cs=(unit cass:clay)  bind:m  (snap-cass-of rail n)
+  ?~  cs  (pure:m ~)
+  (fetch-dir rail /desk `[%ud ud.u.cs])
+::  snap-necks: the governed-nexus necks of world snapshot N, read from
+::  the /desk ball at that revision BEFORE the inert-checkout write strips
+::  them. Paths are rooted at /desk (e.g. /data/foo, /code/bar). Written
+::  out as the /checkout/necks.json sidecar so the checkout file view can
+::  badge nexus dirs even though the checked-out tree itself is neck-less.
+::
+++  snap-necks
+  |=  [=rail:tarball n=@ud]
+  =/  m  (fiber:fiber:nexus ,(list [=path =neck:tarball]))
+  ^-  form:m
+  ;<  cs=(unit cass:clay)  bind:m  (snap-cass-of rail n)
+  ?~  cs  (pure:m ~)
+  ;<  =view:nexus  bind:m
+    (peek-at:io (nex-road:io rail [%| /desk]) ~ [%ud ud.u.cs])
+  ?.  ?=([%ball *] view)  (pure:m ~)
+  (pure:m (ball-necks ball.view /))
+::  snap-nums: every world snapshot number present in the /desk history
+::
+++  snap-nums
+  |=  hist=(each binfo tang)
+  ^-  (list @ud)
+  ?:  ?=(%| -.hist)  ~
+  %+  murn  p.hist
+  |=  [=cass:clay tags=(set @t) tomb=?]
+  ^-  (unit @ud)
+  ?:  tomb  ~
+  =/  ns=(list @ud)  (murn ~(tap in tags) |=(t=@t (rush t dem)))
+  ?~(ns ~ `i.ns)
+::  clear-snap: tombstone world snapshot N (one /desk fold revision)
+::
+++  clear-snap
+  |=  [=rail:tarball n=@ud]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  cs=(unit cass:clay)  bind:m  (snap-cass-of rail n)
+  ?~  cs  (pure:m ~)
+  (lose:io (nex-road:io rail [%| /desk]) [%numb `ud.u.cs `ud.u.cs])
+::  set-snap-tag: add (put=%.y) or remove (put=%.n) one freeform label on
+::  snapshot N. Reads the revision's current tag set and rewrites it whole
+::  — %tags is replace-semantics — so the numeric identity tag rides along
+::  untouched.
+::
+++  set-snap-tag
+  |=  [=rail:tarball n=@ud label=@t put=?]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  hist=(each binfo tang)  bind:m  (born:io (nex-road:io rail [%| /desk]))
+  =/  cs=(unit cass:clay)  (snap-cass hist n)
+  ?~  cs  (pure:m ~)
+  =/  cur=(set @t)  (fall (snap-tags hist n) ~)
+  =/  new=(set @t)  ?:(put (~(put in cur) label) (~(del in cur) label))
+  (tag:io (nex-road:io rail [%| /desk]) `[%ud ud.u.cs] new)
 ::  write-files: over a list of bfiles into a dir
+::
+::  +prune-extra: delete files under `dir` that source no longer provides,
+::  so a sync makes our tree IDENTICAL to source rather than a superset.
+::  `files` is source's file list; anything present in our tree but absent
+::  from it is a stale orphan and gets culled. This is what makes Fetch (and
+::  the version-bump sync) a true copy-and-replace, not an additive merge.
+::
+++  prune-extra
+  |=  [=rail:tarball dir=path files=(list bfile)]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  keep=(set path)
+    (silt (turn files |=(f=bfile `path`(snoc pax.f name.f))))
+  ;<  =view:nexus  bind:m  (peek:io (nex-road:io rail [%| dir]) ~)
+  ?.  ?=([%ball *] view)  (pure:m ~)
+  =/  extra=(list path)
+    %+  skim
+      (turn (ball-to-files ball.view) |=(f=bfile `path`(snoc pax.f name.f)))
+    |=(p=path !(~(has in keep) p))
+  ~?  dbg  [%desk-prune dir count=(lent extra)]
+  |-
+  ?~  extra  (pure:m ~)
+  ;<  *  bind:m
+    (cull-soft:io (nex-road:io rail [%& (weld dir (snip i.extra)) (rear i.extra)]))
+  $(extra t.extra)
 ::
 ++  write-files
   |=  [=rail:tarball dir=path files=(list bfile)]
@@ -403,10 +1241,80 @@
     ~&  >>  [%desk-skip-boom pax.i.files name.i.files]
     $(files t.files)
   ;<  ~  bind:m
-    %+  over:io
-      (nex-road:io rail [%& (weld dir pax.i.files) name.i.files])
-    [p.sang.i.files (sang-noun:tarball sang.i.files)]
+    %+  over:io  (nex-road:io rail [%& (weld dir pax.i.files) name.i.files])
+    (code-bask name.i.files sang.i.files (lien pax.i.files is-bundle-dir))
   $(files t.files)
+::  code-bole: a source tree (raw git mime) prepared as one bole for a
+::  bulk make into a /code dir — every .hoon mime file rewritten to a
+::  %hoon blot (build-code ignores a mime .hoon), the rest untouched.
+::
+::  Except under a BUNDLE: a directory named bundle or *-bundle is source
+::  that is DATA to the nexus that /&-imports it (a tool bundle seeded
+::  into a tools nexus's own /code), not code of this namespace. The
+::  kernel's clay sync keeps those as mime (+is-bundle-dir there); a
+::  followed desk must too, or the bundle compiles here against the wrong
+::  subject and the /& directory import, which gathers only mimes, comes
+::  out empty — every agent in the desk then has no tools.
+::
+++  code-bole
+  |=  b=ball:tarball
+  ^-  bole:tarball
+  (hoonify-bole (ball-to-bole:tarball b) %.n)
+::
+++  is-bundle-dir
+  |=  seg=@ta
+  ^-  ?
+  =/  t=tape  (trip seg)
+  =/  len=@ud  (lent t)
+  ?|  =("bundle" t)
+      &((gth len 7) =("-bundle" (slag (sub len 7) t)))
+  ==
+::
+++  hoonify-bole
+  |=  [bol=bole:tarball bundled=?]
+  ^-  bole:tarball
+  =?  fil.bol  &(!bundled ?=(^ fil.bol))
+    =/  p=pulp:tarball  u.fil.bol
+    =.  contents.p
+      %-  ~(urn by contents.p)
+      |=  [name=@ta [=bask:tarball gain=?]]
+      [(hoonify-bask name bask) gain]
+    `p
+  =/  kids=(map @ta bole:tarball)
+    %-  ~(urn by dir.bol)
+    |=([k=@ta kid=bole:tarball] (hoonify-bole kid |(bundled (is-bundle-dir k))))
+  bol(dir kids)
+::
+++  hoonify-bask
+  |=  [name=@ta =bask:tarball]
+  ^-  bask:tarball
+  =/  t=tape  (trip name)
+  ?.  ?&  (gth (lent t) 5)
+          =(".hoon" (slag (sub (lent t) 5) t))
+          =([/ %mime] p.bask)
+      ==
+    bask
+  =/  mim=(unit mime)  ((soft mime) q.bask)
+  ?~  mim  bask
+  [[/ %hoon] `@t`(crip (trip q.q.u.mim))]
+::  code-bask: a .hoon file must land as a %hoon blot or the code
+::  namespace won't compile it — a git-tree source delivers everything as
+::  raw mime, and a mime .hoon is invisible to build-code. Everything else
+::  passes through unchanged.
+::
+++  code-bask
+  |=  [name=@ta =sang:tarball bundled=?]
+  ^-  bask:tarball
+  =/  t=tape  (trip name)
+  ?.  ?&  !bundled
+          (gth (lent t) 5)
+          =(".hoon" (slag (sub (lent t) 5) t))
+          !=([/ %hoon] p.sang)
+      ==
+    [p.sang (sang-noun:tarball sang)]
+  =/  mim=(unit mime)  (mole |.(!<(mime (need-vase:tarball sang))))
+  ?~  mim  [p.sang (sang-noun:tarball sang)]
+  [[/ %hoon] `@t`(crip (trip q.q.u.mim))]
 ::
 ::  cull-dir: remove all current files under a dir (dir survives)
 ::
@@ -422,60 +1330,97 @@
     (cull-soft:io (nex-road:io rail [%& (weld dir pax.i.files) name.i.files]))
   $(files t.files)
 ::
-::  do-restore: materialize a historical /data x /code pair.
-::  Fetches everything into memory first — no mutation until both
-::  targets are resolved. Then: nullify /code (world stops), load
-::  /data, load /code (world starts).
+::  live-sub-bole: the current /desk/<axis> subtree as a BOLE — neck-
+::  PRESERVING (ball-to-bole keeps every neck/weir), unlike ball-to-files.
 ::
-++  do-restore
+++  live-sub-bole
+  |=  [=rail:tarball axis=@ta]
+  =/  m  (fiber:fiber:nexus ,bole:tarball)
+  ^-  form:m
+  ;<  =view:nexus  bind:m  (peek:io (nex-road:io rail [%| /desk/[axis]]) ~)
+  ?.  ?=([%ball *] view)  (pure:m *bole:tarball)
+  (pure:m (ball-to-bole:tarball ball.view))
+::  snap-sub-bole: the /desk/<axis> subtree at world snapshot N as a BOLE,
+::  neck-PRESERVING. Peek /desk deep (resolve-case is per-hist, so N only
+::  resolves on /desk's own hist), then descend to /<axis>. Empty bole if
+::  the snapshot or its subtree is absent.
+::
+++  snap-sub-bole
+  |=  [=rail:tarball axis=@ta n=@ud]
+  =/  m  (fiber:fiber:nexus ,bole:tarball)
+  ^-  form:m
+  ;<  cs=(unit cass:clay)  bind:m  (snap-cass-of rail n)
+  ?~  cs  (pure:m *bole:tarball)
+  ;<  =view:nexus  bind:m
+    (peek-at:io (nex-road:io rail [%| /desk]) ~ [%ud ud.u.cs])
+  ?.  ?=([%ball *] view)  (pure:m *bole:tarball)
+  (pure:m (ball-to-bole:tarball (~(dip ba:tarball ball.view) [axis ~])))
+::  do-compose: build a new LIVE world by choosing where code and data
+::  come from, independently. code from {live | snapshot N | none};
+::  data from {live | snapshot M}. Snapshots the current world first (so
+::  nothing is lost), then rebuilds /desk WHOLE — a single cull + make of
+::  the assembled [code data] bole, so both axes reload together and there
+::  is no code-before-data ordering to get wrong. Every subtree rides as a
+::  neck-PRESERVING bole, so data sub-nexuses land GOVERNED, not as dead
+::  files, and /desk/code keeps its [/ %code] neck.
+::
+++  do-compose
   |=  [eyre-id=@ta body=@t =rail:tarball]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   =/  jon=(unit json)  (de:json:html body)
-  =/  want-data=(unit @ud)
-    ?.  &(?=(^ jon) ?=(%o -.u.jon))  ~
-    (json-num (~(get by p.u.jon) 'data'))
-  =/  want-code=(unit @ud)
-    ?.  &(?=(^ jon) ?=(%o -.u.jon))  ~
-    (json-num (~(get by p.u.jon) 'code'))
-  ?:  &(?=(~ want-data) ?=(~ want-code))
-    ;<  ~  bind:m  (respond eyre-id rail 400 'nothing to restore')
+  ?.  &(?=(^ jon) ?=([%o *] u.jon))
+    ;<  ~  bind:m  (respond eyre-id rail 400 'bad body')
     (pure:m ~)
-  ~&  >  [%desk-restore data=want-data code=want-code]
-  ::  the numbers are fold REVISIONS (the ud of the hist entry)
-  ;<  data-files=(unit (list bfile))  bind:m
-    =/  m  (fiber:fiber:nexus ,(unit (list bfile)))
-    ?~  want-data  (pure:m ~)
-    (fetch-dir rail /desk/data `[%ud u.want-data])
-  ;<  code-files=(unit (list bfile))  bind:m
-    =/  m  (fiber:fiber:nexus ,(unit (list bfile)))
-    ?~  want-code
-      ::  keeping current code: snapshot live contents
-      ;<  cur=(unit (list bfile))  bind:m  (fetch-dir rail /desk/code ~)
-      (pure:m `(fall cur ~))
-    (fetch-dir rail /desk/code `[%ud u.want-code])
-  ?:  ?|  &(?=(^ want-data) ?=(~ data-files))
-          ?=(~ code-files)
-      ==
-    ;<  ~  bind:m  (respond eyre-id rail 404 'unknown checkpoint revision')
-    (pure:m ~)
-  ::  1. nullify /desk/code — /desk/data goes inert
-  ;<  ~  bind:m  (cull-dir rail /desk/code)
-  ::  2. load /desk/data while the world is stopped
-  ;<  ~  bind:m
-    ?~  data-files  (pure:m ~)
-    ;<  ~  bind:m  (cull-dir rail /desk/data)
-    (write-files rail /desk/data u.data-files)
-  ::  3. load /desk/code — everything comes alive against the new data
-  ;<  ~  bind:m  (write-files rail /desk/code (need code-files))
-  ~&  >  %desk-restore-done
-  (redirect eyre-id rail)
+  =/  code-src=?(%live %none [%snap @ud])
+    =/  c  (~(get by p.u.jon) 'code')
+    ?:  ?=([~ %s %none] c)  %none
+    ?:  ?=([~ %n *] c)  [%snap (rash p.u.c dem)]
+    %live
+  =/  data-src=?(%live [%snap @ud])
+    =/  d  (~(get by p.u.jon) 'data')
+    ?:  ?=([~ %n *] d)  [%snap (rash p.u.d dem)]
+    %live
+  ~?  dbg  [%desk-compose code=code-src data=data-src]
+  ::  snapshot the current world first — this recomposition is recoverable
+  ;<  ~  bind:m  (do-snapshot rail)
+  ::  resolve each axis as a neck-preserving bole. %none code = a fresh,
+  ::  empty /code nexus (keeps its neck so it's inert but well-formed).
+  ;<  code-bole=bole:tarball  bind:m
+    ?-  code-src
+      %live      (live-sub-bole rail %code)
+      %none      (pure:(fiber:fiber:nexus ,bole:tarball) [`[`[/ %code] ~ %.n ~] ~])
+      [%snap *]  (snap-sub-bole rail %code +.code-src)
+    ==
+  ;<  data-bole=bole:tarball  bind:m
+    ?-  data-src
+      %live      (live-sub-bole rail %data)
+      [%snap *]  (snap-sub-bole rail %data +.data-src)
+    ==
+  ::  assemble the whole /desk: a plain container holding the two subtrees
+  =/  desk-bole=bole:tarball
+    :-  `[~ ~ %.n ~]
+    %-  malt
+    ^-  (list [@ta bole:tarball])
+    ~[[%code code-bole] [%data data-bole]]
+  ::  rebuild /desk in one shot — cull (snapshots live on the fold hist, so
+  ::  they survive) then make the assembled bole, reloading both axes at once
+  ;<  ~  bind:m  (cull:io (nex-road:io rail [%| /desk]))
+  ;<  ~  bind:m  (make:io (nex-road:io rail [%| /desk]) &+desk-bole)
+  ~?  dbg  %desk-compose-done
+  (respond eyre-id rail 200 'composed')
 ::
 ++  json-num
   |=  j=(unit json)
   ^-  (unit @ud)
   ?.  ?=([~ %n *] j)  ~
   `(rash p.u.j dem)
+::
+++  json-str
+  |=  j=(unit json)
+  ^-  (unit @t)
+  ?.  ?=([~ %s *] j)  ~
+  `p.u.j
 ::
 ++  take-news-or-poke
   |=  news-wire=wire
@@ -492,6 +1437,11 @@
       [%skip ~]
     [%done %news wave.u.in]
       [~ %poke * *]
+    ::  a behn wake is a poke too. One can arrive here after +await-source
+    ::  returns — a deadline that fired at the instant it was cancelled has
+    ::  its wake still in flight — and taking it as a source-config change
+    ::  feeds a timer path to !<(json ...) and kills the fiber.
+    ?:  =([/ %timer-wake] p.sage.u.in)  [%skip ~]
     [%done %poke sage.u.in]
   ==
 ::
@@ -506,20 +1456,137 @@
   [[code ~] `(as-octs:mimes:html msg)]
 ::
 ++  handle-get
-  |=  [eyre-id=@ta suffix=path =rail:tarball]
+  |=  [eyre-id=@ta suffix=path args=quay:eyre =rail:tarball]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ?:  ?=([%tree ?(%code %data) *] suffix)
-    ::  file tree of an axis — current, or at a historical revision
-    =/  dir=path  ?:(?=(%code i.t.suffix) /desk/code /desk/data)
-    =/  cas=(unit case:nexus)
-      ?~  t.t.suffix  ~
-      =/  n=(unit @ud)  (rush i.t.t.suffix dem)
-      ?~(n ~ `[%ud u.n])
-    ;<  files=(unit (list bfile))  bind:m  (fetch-dir rail dir cas)
-    ?~  files
-      ;<  ~  bind:m  (respond eyre-id rail 404 'no tree at that revision')
+  ?:  ?=([%cat ?(%code %data) *] suffix)
+    ::  one file's content (?path=/lib/foo.hoon), read from the axis'
+    ::  live dir or /checkout when a revision is checked out. Converts
+    ::  via the file's mark to a mime: text types come back as text;
+    ::  others expose their content-type so the UI can <img> them.
+    =/  dir=path  (axis-dir rail i.t.suffix =('live' (fall (quay-get args 'mode') 'live')))
+    =/  want=(unit @t)  (quay-get args 'path')
+    ?~  want
+      ;<  ~  bind:m  (respond eyre-id rail 400 'path required')
       (pure:m ~)
+    =/  full=path  (stab u.want)
+    ;<  hit=(unit bfile)  bind:m  (locate-file rail dir ~ full)
+    ?~  hit
+      ;<  ~  bind:m  (respond eyre-id rail 404 'no such file')
+      (pure:m ~)
+    ;<  got=(unit mime)  bind:m  (mime-of rail dir ~ u.hit)
+    ::  spud a mite -> "/text/x-hoon"; drop the leading slash
+    =/  ctype=@t  ?~(got '' (crip (slag 1 (spud p.u.got))))
+    =/  head=@ta  ?~(got %$ ?~(p.u.got %$ i.p.u.got))
+    ::  svg is image/* but genuinely text — expose its source so the UI can
+    ::  offer a Source|Preview toggle (and render the svg from that text).
+    =/  texty=?
+      ?&  ?|(=(%text head) =(%application head) =('image/svg+xml' ctype))
+          !=('application/octet-stream' ctype)
+      ==
+    =/  blotp=tape  (spud (snoc path.p.sang.u.hit name.p.sang.u.hit))
+    ::  empty render == nothing to show; drop to ~ so the reason below fires
+    ::  (never a blank pane, but a clear message rather than a raw noun).
+    =/  text=(unit @t)
+      =/  r=(unit @t)
+        ?~  got  (file-text sang.u.hit)
+        ?:(texty `q.q.u.got ~)
+      ?~(r ~ ?:(=('' u.r) ~ r))
+    ::  inert checkout has no compiled marcs, so app data can't render under
+    ::  its own mark — say so plainly.
+    =/  checkout=?  !=('live' (fall (quay-get args 'mode') 'live'))
+    ::  when nothing renders, say exactly why (shown verbatim in the UI)
+    =/  reason=@t
+      ?:  ?=(%| -.q.sang.u.hit)
+        ::  in the inert checkout a boom just means "no marc compiled here" —
+        ::  not a real build failure. Say so plainly instead of a scary trace.
+        ?:  checkout
+          %-  crip
+          ;:  weld
+            "mark "  blotp
+            " isn't built here — /checkout is inert (no marcs compiled), so "
+            "app data can't render under its own mark. This view is for "
+            "inspecting raw state only. To build this snapshot into a running "
+            "world and render its data, use Compose Live in the Snapshots tab."
+          ==
+        ::  live boom: the stored noun failed to build under its blot. The
+        ::  failure carries the compiler's error trace — surface it.
+        =/  bm=boom:tarball  p.q.sang.u.hit
+        =/  trace=@t
+          %-  of-wain:format
+          %+  turn  (flop tang.bm)
+          |=(=tank (crip ~(ram re tank)))
+        %-  crip
+        ;:  weld
+          "blot "  blotp
+          " failed to build (boom) — the stored noun did not validate against its blot:\0a"
+          (trip trace)
+        ==
+      ?~  got
+        ?:  checkout
+          %-  crip
+          ;:  weld
+            "mark "  blotp
+            " isn't built here — /checkout is inert (no marcs compiled), so "
+            "app data can't render under its own mark. This view is for "
+            "inspecting raw state only. To build this snapshot into a running "
+            "world and render its data, use Compose Live in the Snapshots tab."
+          ==
+        =/  nun  (sang-noun:tarball sang.u.hit)
+        %-  crip
+        ;:  weld
+          "blot "  blotp
+          " has no ++mime grow tube, and its stored noun "
+          ?:  ?=(@ nun)
+            (weld "is a bare " (weld (scow %ud (met 3 nun)) "-byte atom"))
+          "is a cell"
+          " — not decodable as cord, tape, wain, or json"
+        ==
+      %-  crip
+      ;:  weld
+        "content-type "  (trip ctype)  ", "  (scow %ud p.q.u.got)
+        " bytes — a non-text, non-image type with no inline renderer"
+      ==
+    =/  =json
+      %-  pairs:enjs:format
+      :~  ['path' s+(spat full)]
+          ['blot' s+(spat (snoc path.p.sang.u.hit name.p.sang.u.hit))]
+          ['type' ?~(got ~ s+ctype)]
+          ['text' ?~(text ~ s+u.text)]
+          ['reason' ?~(text s+reason ~)]
+      ==
+    =/  bod=octs  (as-octs:mimes:html (en:json:html json))
+    ;<  ~  bind:m  (~(send-simple http-res:io (nex-road:io rail [%& ~ %'main.sig'])) eyre-id (mime-response:http-utils [/application/json bod]))
+    (pure:m ~)
+  ?:  ?=([%raw ?(%code %data) *] suffix)
+    ::  raw bytes of one file, in its mark's mime form — for <img> etc.
+    =/  dir=path  (axis-dir rail i.t.suffix =('live' (fall (quay-get args 'mode') 'live')))
+    =/  want=(unit @t)  (quay-get args 'path')
+    ?~  want
+      ;<  ~  bind:m  (respond eyre-id rail 400 'path required')
+      (pure:m ~)
+    =/  full=path  (stab u.want)
+    ;<  hit=(unit bfile)  bind:m  (locate-file rail dir ~ full)
+    ?~  hit
+      ;<  ~  bind:m  (respond eyre-id rail 404 'no such file')
+      (pure:m ~)
+    ;<  got=(unit mime)  bind:m  (mime-of rail dir ~ u.hit)
+    ?~  got
+      ;<  ~  bind:m  (respond eyre-id rail 404 'no mime form')
+      (pure:m ~)
+    ;<  ~  bind:m  (~(send-simple http-res:io (nex-road:io rail [%& ~ %'main.sig'])) eyre-id (mime-response:http-utils u.got))
+    (pure:m ~)
+  ?:  ?=([%tree ?(%code %data) *] suffix)
+    ::  file tree of an axis — its live dir, or /checkout when checked out
+    =/  live=?  =('live' (fall (quay-get args 'mode') 'live'))
+    =/  dir=path  (axis-dir rail i.t.suffix live)
+    ;<  files=(unit (list bfile))  bind:m  (fetch-dir rail dir ~)
+    ?~  files
+      ;<  ~  bind:m  (respond eyre-id rail 404 'no tree')
+      (pure:m ~)
+    ::  nexus-dir necks: live keeps its governance (walk the ball); the
+    ::  inert checkout tree has them stripped, so read the sidecar instead.
+    ;<  necks=(list json)  bind:m  (tree-necks rail dir `@t`i.t.suffix live)
     =/  =json
       %-  pairs:enjs:format
       :~  :-  'files'
@@ -531,54 +1598,227 @@
               ['name' s+name.f]
               ['blot' s+(spat (snoc path.p.sang.f name.p.sang.f))]
           ==
+          ['necks' a+necks]
       ==
     =/  bod=octs  (as-octs:mimes:html (en:json:html json))
     ;<  ~  bind:m  (~(send-simple http-res:io (nex-road:io rail [%& ~ %'main.sig'])) eyre-id (mime-response:http-utils [/application/json bod]))
     (pure:m ~)
-  ?:  =(/state suffix)
-    ::  data endpoint: config, version, and both checkpoint lists
-    ;<  config-json=(unit json)  bind:m
-      (peek-as:io (nex-road:io rail [%& / %'config.json']) ,json)
-    ;<  ver=(unit @ud)  bind:m
-      (peek-as:io (nex-road:io rail [%& / %'version.ud']) ,@ud)
-    ;<  code-born=(each binfo tang)  bind:m
-      (born:io (nex-road:io rail [%| /desk/code]))
-    ;<  data-born=(each binfo tang)  bind:m
-      (born:io (nex-road:io rail [%| /desk/data]))
+  ?:  =(/source-diff suffix)
+    ::  incoming endpoint: how far ahead the source is from our head. Peeks
+    ::  the source's /code tree and our mirrored /desk/code, flattens both,
+    ::  and reports per-file add/modify/remove — exactly what Fetch Latest
+    ::  would pull — plus the source vs own version tokens.
+    ;<  src-json=(unit json)  bind:m
+      (peek-as:io (nex-road:io rail [%& / %'source.json']) ,json)
+    =/  config=source-config
+      ?~(src-json ~ (json-to-source u.src-json))
+    ?~  config
+      =/  =json
+        (pairs:enjs:format ~[['hasSource' b+|] ['sourceVersion' ~] ['ownVersion' ~] ['changes' [%a ~]]])
+      =/  bod=octs  (as-octs:mimes:html (en:json:html json))
+      ;<  ~  bind:m
+        (~(send-simple http-res:io (nex-road:io rail [%& ~ %'main.sig'])) eyre-id (mime-response:http-utils [/application/json bod]))
+      (pure:m ~)
+    =/  code-path=path           (parse-path code.u.config)
+    =/  code-road=road:tarball   [%& %| code-path]
+    =/  ver-road=road:tarball    [%& %& code-path %'version.json']
+    ;<  src-view=view:nexus  bind:m  (peek:io code-road ~)
+    ;<  our-view=view:nexus  bind:m  (peek:io (nex-road:io rail [%| /desk/code]) ~)
+    =/  src-flat=(map path @)
+      ?.(?=([%ball *] src-view) ~ (flat-ball ball.src-view /))
+    =/  our-flat=(map path @)
+      ?.(?=([%ball *] our-view) ~ (flat-ball ball.our-view /))
+    =/  changes=(list [=path status=@t])  (diff-flats src-flat our-flat)
+    ;<  sv=view:nexus  bind:m  (peek:io ver-road ~)
+    =/  src-ver=(unit @t)  ?.(?=([%file *] sv) ~ (version-text sang.sv))
+    ;<  own=(unit @t)  bind:m  (own-version rail)
     =/  =json
       %-  pairs:enjs:format
-      :~  ['config' (fall config-json [%o ~])]
-          ['version' (numb:enjs:format (fall ver 0))]
-          ['code' (binfo-to-json code-born)]
-          ['data' (binfo-to-json data-born)]
+      :~  ['hasSource' b+&]
+          ['sourceVersion' ?~(src-ver ~ s+u.src-ver)]
+          ['ownVersion' ?~(own ~ s+u.own)]
+          :-  'changes'
+          :-  %a
+          %+  turn  changes
+          |=  [=path status=@t]
+          (pairs:enjs:format ~[['path' s+(spat path)] ['status' s+status]])
+      ==
+    =/  bod=octs  (as-octs:mimes:html (en:json:html json))
+    ;<  ~  bind:m
+      (~(send-simple http-res:io (nex-road:io rail [%& ~ %'main.sig'])) eyre-id (mime-response:http-utils [/application/json bod]))
+    (pure:m ~)
+  ?:  =(/state suffix)
+    ::  data endpoint: source, version, the world snapshot list, sharing,
+    ::  and which snapshot (if any) is checked out
+    ;<  src-json=(unit json)  bind:m
+      (peek-as:io (nex-road:io rail [%& / %'source.json']) ,json)
+    ;<  ver=(unit @t)  bind:m  (own-version rail)
+    ::  the world snapshot list is the /desk fold's tagged history
+    ;<  desk-born=(each binfo tang)  bind:m
+      (born:io (nex-road:io rail [%| /desk]))
+    ;<  share=(unit (set path))  bind:m
+      (peek-as:io (nex-road:io rail [%& / %'share.usergroups']) ,(set path))
+    ;<  co=(unit @ud)  bind:m  (checkout-snap rail)
+    =/  =json
+      %-  pairs:enjs:format
+      :~  ['source' (fall src-json ~)]
+          ['version' ?~(ver ~ s+u.ver)]
+          ['snapshots' (snaps-to-json desk-born)]
+          ['share' a+(turn ~(tap in (fall share ~)) |=(g=path s+(spat g)))]
+          ['checkout' ?~(co ~ (numb:enjs:format u.co))]
+          ::  live differs from the top snapshot — a fresh Snapshot Now would
+          ::  actually capture something (else it dedupes to a no-op)
+          ['dirty' b+!(top-is-snap desk-born)]
       ==
     =/  bod=octs  (as-octs:mimes:html (en:json:html json))
     ;<  ~  bind:m  (~(send-simple http-res:io (nex-road:io rail [%& ~ %'main.sig'])) eyre-id (mime-response:http-utils [/application/json bod]))
     (pure:m ~)
-  ::  static shell — the page populates itself from /state
-  =/  bod=octs  (as-octs:mimes:html (crip (en-xml:html render-page)))
-  ;<  ~  bind:m  (~(send-simple http-res:io (nex-road:io rail [%& ~ %'main.sig'])) eyre-id (mime-response:http-utils [/text/html bod]))
+  ::  everything else is a static asset from /ui — the shell (index.html)
+  ::  for the page route, or style.css / app.js by name.
+  =/  filename=@ta  ?~(suffix 'index.html' i.suffix)
+  ;<  fv=view:nexus  bind:m
+    (peek:io (nex-road:io rail [%& /ui filename]) `[/ %mime])
+  ?.  ?=([%file *] fv)
+    (respond eyre-id rail 404 'Not found')
+  =/  =mime  !<(mime (need-vase:tarball sang.fv))
+  ;<  ~  bind:m
+    (~(send-simple http-res:io (nex-road:io rail [%& ~ %'main.sig'])) eyre-id (mime-response:http-utils mime))
   (pure:m ~)
 ::
-::  binfo-to-json: one fold's checkpoint history — only firmed,
-::  tagged, live revisions are checkpoints worth listing.
+::  snaps-to-json: the world snapshot list from an axis's born — each
+::  `snapshot N` tag becomes {n, da}, newest first.
 ::
-++  binfo-to-json
+++  snaps-to-json
   |=  res=(each binfo tang)
   ^-  json
   :-  %a
   ?:  ?=(%| -.res)  ~
-  %+  murn  p.res
-  |=  [=cass:clay tags=(set @t) tomb=?]
-  ^-  (unit json)
-  ?:  tomb  ~
-  ?:  =(~ tags)  ~
-  :-  ~
+  =/  snaps=(list [n=@ud da=@da tags=(list @t)])
+    %+  murn  p.res
+    |=  [=cass:clay tags=(set @t) tomb=?]
+    ^-  (unit [n=@ud da=@da tags=(list @t)])
+    ?:  tomb  ~
+    =/  ns=(list @ud)  (murn ~(tap in tags) |=(t=@t (rush t dem)))
+    ?~(ns ~ `[i.ns da.cass (user-tags tags)])
+  %+  turn  (sort snaps |=([a=[n=@ud *] b=[n=@ud *]] (gth n.a n.b)))
+  |=  [n=@ud da=@da tags=(list @t)]
   %-  pairs:enjs:format
-  :~  ['ud' (numb:enjs:format ud.cass)]
-      ['da' (time:enjs:format da.cass)]
-      ['tags' a+(turn ~(tap in tags) |=(t=@t s+t))]
+  :~  ['n' (numb:enjs:format n)]
+      ['da' (time:enjs:format da)]
+      ['tags' a+(turn tags |=(t=@t s+t))]
   ==
+::
+::  +tree-necks: the nexus-dir necks for a file view, as a json array of
+::  {path, neck}. Live keeps governance (walk the ball); the inert checkout
+::  tree has necks stripped, so read them from the /checkout/necks.json
+::  sidecar written at checkout time.
+::
+++  tree-necks
+  |=  [=rail:tarball dir=path axis=@t live=?]
+  =/  m  (fiber:fiber:nexus ,(list json))
+  ^-  form:m
+  ?:  live
+    ;<  dv=view:nexus  bind:m  (peek:io (nex-road:io rail [%| dir]) ~)
+    %-  pure:m
+    ?.  ?=([%ball *] dv)  ~
+    %+  turn  (ball-necks ball.dv /)
+    |=  [p=path n=neck:tarball]
+    (pairs:enjs:format ~[['path' s+(spat p)] ['neck' s+(spat (snoc path.n name.n))]])
+  ;<  nj=(unit json)  bind:m
+    (peek-as:io (nex-road:io rail [%& /checkout %'necks.json']) ,json)
+  %-  pure:m
+  ?~  nj  ~
+  ?.  ?=(%o -.u.nj)  ~
+  =/  ax=(unit json)  (~(get by p.u.nj) axis)
+  ?.(?=([~ %a *] ax) ~ p.u.ax)
+::  +ball-necks: walk a peeked ball, collecting every SUBDIR that carries
+::  a neck (i.e. is a governed nexus) as [its path, its neck]. Used to
+::  badge nexus directories in the live file view.
+::
+++  ball-necks
+  |=  [bal=ball:tarball here=path]
+  ^-  (list [=path =neck:tarball])
+  %-  zing
+  %+  turn  ~(tap by dir.bal)
+  |=  [nam=@ta kid=ball:tarball]
+  =/  sub=path  (snoc here nam)
+  =/  self=(list [=path =neck:tarball])
+    ?~  fil.kid  ~
+    ?~  neck.u.fil.kid  ~
+    ~[[sub u.neck.u.fil.kid]]
+  (weld self (ball-necks kid sub))
+::  +content-key: a storage-mark-independent identity for one file's
+::  content. A git-tree source stores everything as /mime, while our
+::  /desk/code re-marks by extension (.hoon -> /hoon, whose noun is the
+::  bare source @t = the same bytes as the mime q.q). So normalize: for
+::  a /mime grub use its octs bytes; otherwise the stored noun (a text
+::  mark's @t already equals those bytes; cells jam to a stable atom).
+::  Same content -> same key, regardless of blot.
+::
+++  content-key
+  |=  =sang:tarball
+  ^-  @
+  ?:  =([/ %mime] p.sang)
+    =/  res=(unit mime)  (mole |.(!<(mime (need-vase:tarball sang))))
+    ?~(res 0 q.q.u.res)
+  =/  nun=*  (sang-noun:tarball sang)
+  ?@(nun nun (jam nun))
+::  +flat-ball: walk a peeked ball into a flat path -> content-key map,
+::  so two trees can be compared by path + content across storage marks.
+::
+++  flat-ball
+  |=  [bal=ball:tarball here=path]
+  ^-  (map path @)
+  =/  files=(map path @)
+    ?~  fil.bal  ~
+    %-  ~(gas by *(map path @))
+    %+  turn  ~(tap by contents.u.fil.bal)
+    |=  [nam=@ta =sang:tarball gain=? bang=(unit tang)]
+    [(snoc here nam) (content-key sang)]
+  %+  roll  ~(tap by dir.bal)
+  |=  [[nam=@ta kid=ball:tarball] acc=_files]
+  (~(uni by acc) (flat-ball kid (snoc here nam)))
+::  +diff-flats: source vs our head, per file. add = in source not ours,
+::  remove = in ours not source, modify = present in both but content
+::  differs. Unchanged files are dropped.
+::
+++  diff-flats
+  |=  [src=(map path @) our=(map path @)]
+  ^-  (list [pax=path status=@t])
+  =/  keys=(list path)
+    ~(tap in (~(uni in ~(key by src)) ~(key by our)))
+  %+  murn  keys
+  |=  pax=path
+  ^-  (unit [pax=path status=@t])
+  =/  s=(unit @)  (~(get by src) pax)
+  =/  o=(unit @)  (~(get by our) pax)
+  ?~  s  ?~(o ~ `[pax 'remove'])
+  ?~  o  `[pax 'add']
+  ?:(=(u.s u.o) ~ `[pax 'modify'])
+::
+::  +do-fetch: pull the source's current code now, unconditionally (no
+::  version gate). Content-addressed — only real changes write, and
+::  changed nexus code reloads naturally. Both the main.sig action poke
+::  and the HTTP fetch-latest call this.
+::
+++  do-fetch
+  |=  =rail:tarball
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  src-json=(unit json)  bind:m
+    (peek-as:io (nex-road:io rail [%& / %'source.json']) ,json)
+  =/  config=source-config
+    ?~(src-json ~ (json-to-source u.src-json))
+  ?~  config
+    ~&  >>  %desk-fetch-no-source
+    (pure:m ~)
+  =/  code-path=path           (parse-path code.u.config)
+  =/  code-road=road:tarball   [%& %| code-path]
+  =/  ver-road=road:tarball    [%& %& code-path %'version.json']
+  =/  ver-name=@ta             %'version.json'
+  ~?  dbg  [%desk-do-fetch code.u.config]
+  ;<  ~  bind:m  (do-snapshot rail)
+  (sync-release ver-road code-road ver-name rail)
 ::
 ++  handle-post
   |=  [eyre-id=@ta suffix=path req=inbound-request:eyre =rail:tarball]
@@ -592,108 +1832,115 @@
     (pure:m ~)
   ::
       [%set-source ~]
-    ::  poke config.json — the config fiber picks this up
-    ;<  cur-json=(unit json)  bind:m  (peek-as:io (nex-road:io rail [%& / %'config.json']) ,json)
-    =/  cur=desk-config  ?~(cur-json *desk-config (json-to-config u.cur-json))
-    =/  new-config=desk-config  cur(source ?:(=('' body) ~ `body))
+    ::  set (or clear) the desk's source. Body is {code} to follow, or
+    ::  {}/null to go standalone. Normalized through the source-config
+    ::  contract before it lands.
+    =/  jon=json  (fall (de:json:html body) ~)
+    =/  clean=json  (source-to-json (json-to-source jon))
+    ~?  dbg  [%desk-set-source clean]
     ;<  ~  bind:m
-      (poke:io (nex-road:io rail [%& / %'config.json']) [[/ %json] (config-to-json new-config)])
-    (redirect eyre-id rail)
+      (poke:io (nex-road:io rail [%& / %'source.json']) [[/ %json] clean])
+    (respond eyre-id rail 200 'ok')
   ::
-      [%restore ~]
-    (do-restore eyre-id body rail)
+      [%compose ~]
+    (do-compose eyre-id body rail)
   ::
-      [%publish ~]
-    ::  toggle public exposure. Pokes config.json — the config fiber
-    ::  replaces its state and re-applies the registry weir.
-    ;<  cur-json=(unit json)  bind:m  (peek-as:io (nex-road:io rail [%& / %'config.json']) ,json)
-    =/  cur=desk-config  ?~(cur-json *desk-config (json-to-config u.cur-json))
-    ?:  &(!public.cur ?=(^ source.cur))
-      ;<  ~  bind:m  (respond eyre-id rail 400 'cannot publish while subscribed to a source')
+      [%share ~]
+    ::  open/close a usergroup. Body is the command json
+    ::  {add|remove: <group-path>} — forwarded straight to the
+    ::  share.usergroups grub, which stamps its state and re-grants.
+    =/  cmd=(unit json)  (de:json:html body)
+    ?~  cmd
+      ;<  ~  bind:m  (respond eyre-id rail 400 'bad share command')
       (pure:m ~)
-    =/  new-config=desk-config  cur(public !public.cur)
-    ~&  >  [%desk-publish public=public.new-config]
+    ~?  dbg  [%desk-share u.cmd]
     ;<  ~  bind:m
-      (poke:io (nex-road:io rail [%& / %'config.json']) [[/ %json] (config-to-json new-config)])
-    (respond eyre-id rail 200 ?:(public.new-config 'published' 'unpublished'))
+      (poke:io (nex-road:io rail [%& / %'share.usergroups']) [[/ %json] u.cmd])
+    (respond eyre-id rail 200 'ok')
+  ::
+      [%checkout ~]
+    ::  drive the checkout grub. Body {n: N} checks that world snapshot
+    ::  out into /checkout; {} (or null) clears back to live.
+    =/  cmd=(unit json)  (de:json:html body)
+    ?~  cmd
+      ;<  ~  bind:m  (respond eyre-id rail 400 'bad checkout command')
+      (pure:m ~)
+    ~?  dbg  [%desk-checkout-poke u.cmd]
+    ;<  ~  bind:m
+      (poke:io (nex-road:io rail [%& / %'checkout.desk_snap']) [[/ %json] u.cmd])
+    (respond eyre-id rail 200 'ok')
   ::
       [%fetch-latest ~]
-    ::  pull the source's current code and version now. Idempotent:
-    ::  content-addressed writes no-op when nothing changed, so this
-    ::  only creates history when the source actually differs. Also
-    ::  the revive lever after clear-contents.
-    ;<  config-json=(unit json)  bind:m
-      (peek-as:io (nex-road:io rail [%& / %'config.json']) ,json)
-    =/  config=desk-config
-      ?~(config-json *desk-config (json-to-config u.config-json))
-    ?~  source.config
-      ;<  ~  bind:m  (respond eyre-id rail 400 'no source configured')
-      (pure:m ~)
-    =/  source-road=road:tarball  (parse-source u.source.config)
-    ~&  >  [%desk-fetch-latest u.source.config]
-    ::  protect current state, then pull
-    ;<  ~  bind:m  (do-checkpoint rail (sy ~['checkpoint']))
-    ;<  ~  bind:m  (sync-release source-road rail)
-    ;<  ver=(unit @ud)  bind:m
-      (peek-as:io (nex-road:io rail [%& / %'version.ud']) ,@ud)
-    ;<  ~  bind:m
-      (do-checkpoint rail (sy ~['checkpoint' (version-tag (fall ver 0))]))
+    ::  pull the source's current code now — same unconditional pull the
+    ::  main.sig {"action":"fetch"} poke runs.
+    ;<  ~  bind:m  (do-fetch rail)
     (respond eyre-id rail 200 'fetched')
   ::
-      [%checkpoint ~]
-    ::  manual checkpoint: firm the current fold state of one axis,
-    ::  tagged 'checkpoint' plus an optional user label
-    =/  jon=(unit json)  (de:json:html body)
-    ?.  &(?=(^ jon) ?=(%o -.u.jon))
-      ;<  ~  bind:m  (respond eyre-id rail 400 'bad body')
-      (pure:m ~)
-    =/  axis  (~(get by p.u.jon) 'axis')
-    ?.  ?=([~ %s *] axis)
-      ;<  ~  bind:m  (respond eyre-id rail 400 'need axis')
-      (pure:m ~)
-    =/  label=(unit @t)
-      =/  l  (~(get by p.u.jon) 'label')
-      ?:(?=([~ %s *] l) ?:(=('' p.u.l) ~ `p.u.l) ~)
-    =/  dir=path  ?:(=('code' p.u.axis) /desk/code /desk/data)
-    =/  tags=(set @t)
-      (sy ?~(label ~['checkpoint'] ~['checkpoint' u.label]))
-    ~&  >  [%desk-manual-checkpoint dir=dir label=label]
-    ;<  ~  bind:m  (checkpoint:io (nex-road:io rail [%| dir]))
-    ;<  ~  bind:m  (tag:io (nex-road:io rail [%| dir]) ~ tags)
-    (respond eyre-id rail 200 'checkpointed')
-  ::
-      [%clear-contents ~]
-    ::  cull every file under an axis. Clearing /desk/code is the
-    ::  stop-the-world lever: the guest goes inert until code is
-    ::  materialized back in.
-    =/  jon=(unit json)  (de:json:html body)
-    =/  axis
-      ?.  &(?=(^ jon) ?=(%o -.u.jon))  ~
-      (~(get by p.u.jon) 'axis')
-    ?.  ?=([~ %s *] axis)
-      ;<  ~  bind:m  (respond eyre-id rail 400 'need axis')
-      (pure:m ~)
-    =/  dir=path  ?:(=('code' p.u.axis) /desk/code /desk/data)
-    ~&  >  [%desk-clear-contents dir=dir]
-    ;<  ~  bind:m  (cull-dir rail dir)
-    (respond eyre-id rail 200 'cleared')
+      [%snapshot ~]
+    ::  take a world snapshot now (both axes together)
+    ;<  ~  bind:m  (do-snapshot rail)
+    (respond eyre-id rail 200 'snapshotted')
   ::
       [%clear ~]
-    ::  tombstone a checkpoint: drop the fold hist entry (tags and
-    ::  silo refs go with it). The runtime refuses the live top.
+    ::  drop world snapshot N — tombstone the fold entry tagged
+    ::  `snapshot N` on BOTH axes. The runtime refuses the live top.
     =/  jon=(unit json)  (de:json:html body)
-    ?.  &(?=(^ jon) ?=(%o -.u.jon))
-      ;<  ~  bind:m  (respond eyre-id rail 400 'bad body')
+    =/  n=(unit @ud)
+      ?.  &(?=(^ jon) ?=([%o *] u.jon))  ~
+      (json-num (~(get by p.u.jon) 'n'))
+    ?~  n
+      ;<  ~  bind:m  (respond eyre-id rail 400 'need n')
       (pure:m ~)
-    =/  axis  (~(get by p.u.jon) 'axis')
-    =/  ud=(unit @ud)  (json-num (~(get by p.u.jon) 'ud'))
-    ?.  &(?=([~ %s *] axis) ?=(^ ud))
-      ;<  ~  bind:m  (respond eyre-id rail 400 'need axis and ud')
-      (pure:m ~)
-    =/  dir=path  ?:(=('code' p.u.axis) /desk/code /desk/data)
-    ~&  >  [%desk-clear dir=dir ud=u.ud]
-    ;<  ~  bind:m  (lose:io (nex-road:io rail [%| dir]) [%numb `u.ud `u.ud])
+    ~?  dbg  [%desk-clear n=u.n]
+    ;<  ~  bind:m  (clear-snap rail u.n)
     (respond eyre-id rail 200 'cleared')
+  ::
+      [%clear-until ~]
+    ::  bulk drop: every snapshot, or every one at/below N (inclusive).
+    ::  The latest snapshot is always spared — it is the live top.
+    =/  jon=(unit json)  (de:json:html body)
+    =/  before=(unit @ud)
+      ?.  &(?=(^ jon) ?=([%o *] u.jon))  ~
+      (json-num (~(get by p.u.jon) 'before'))
+    ;<  hist=(each binfo tang)  bind:m  (born:io (nex-road:io rail [%| /desk]))
+    =/  nums=(list @ud)  (snap-nums hist)
+    =/  top=@ud  (roll nums max)
+    =/  targets=(list @ud)
+      %+  skim  nums
+      |=(n=@ud &(!=(n top) ?|(?=(~ before) (lte n u.before))))
+    ~?  dbg  [%desk-clear-until before=before count=(lent targets)]
+    |-  ^-  form:m
+    ?~  targets  (respond eyre-id rail 200 'cleared')
+    ;<  ~  bind:m  (clear-snap rail i.targets)
+    $(targets t.targets)
+  ::
+      [%tag-add ~]
+    ::  add a freeform label to snapshot N. Numeric labels are reserved
+    ::  (they are snapshot identity), so those are refused.
+    =/  jon=(unit json)  (de:json:html body)
+    ?.  &(?=(^ jon) ?=([%o *] u.jon))
+      (respond eyre-id rail 400 'bad body')
+    =/  n=(unit @ud)     (json-num (~(get by p.u.jon) 'n'))
+    =/  label=(unit @t)  (json-str (~(get by p.u.jon) 'tag'))
+    ?~  n      (respond eyre-id rail 400 'need n')
+    ?~  label  (respond eyre-id rail 400 'need tag')
+    ?:  =('' u.label)  (respond eyre-id rail 400 'empty tag')
+    ?:  (num-tag u.label)
+      (respond eyre-id rail 400 'numeric tags are reserved')
+    ;<  ~  bind:m  (set-snap-tag rail u.n u.label %.y)
+    (respond eyre-id rail 200 'tagged')
+  ::
+      [%tag-del ~]
+    ::  remove a freeform label from snapshot N.
+    =/  jon=(unit json)  (de:json:html body)
+    ?.  &(?=(^ jon) ?=([%o *] u.jon))
+      (respond eyre-id rail 400 'bad body')
+    =/  n=(unit @ud)     (json-num (~(get by p.u.jon) 'n'))
+    =/  label=(unit @t)  (json-str (~(get by p.u.jon) 'tag'))
+    ?~  n      (respond eyre-id rail 400 'need n')
+    ?~  label  (respond eyre-id rail 400 'need tag')
+    ;<  ~  bind:m  (set-snap-tag rail u.n u.label %.n)
+    (respond eyre-id rail 200 'untagged')
   ==
 ::
 ++  redirect
@@ -705,212 +1952,4 @@
   ;<  ~  bind:m  (~(send-header http-res:io main-road) eyre-id hed)
   ;<  ~  bind:m  (~(send-data http-res:io main-road) eyre-id ~)
   (pure:m ~)
-::
-::
-::  HTML rendering
-::
-++  render-page
-  ^-  manx
-  ;html
-    ;head
-      ;title: Desk
-      ;meta(charset "utf-8");
-      ;meta(name "viewport", content "width=device-width, initial-scale=1");
-      ;style
-        ;+  ;/  page-css
-      ==
-    ==
-    ;body
-      ;h1: Desk
-      ;div(class "section")
-        ;h2: Source
-        ;div(class "config-form")
-          ;input#source-input(type "text", placeholder "~ship/path or /local/path");
-          ;button(class "btn btn-grn", onclick "setSource()"): Set Source
-          ;button#fetch-btn(class "btn", onclick "fetchLatest()"): Fetch Latest
-          ;button#publish-btn(class "btn", onclick "togglePublish()"): ...
-        ==
-        ;div(class "status")
-          ;span(class "label"): Status:
-          ;span#status: ...
-        ==
-        ;div(class "status")
-          ;span(class "label"): Version:
-          ;span#version: ...
-        ==
-      ==
-      ;div(class "section")
-        ;h2: Code Checkpoints
-        ;div#code-ckpts
-          ;div(class "muted"): loading...
-        ==
-        ;div(class "config-form")
-          ;input#code-label(type "text", placeholder "label (optional)");
-          ;button(class "btn btn-grn", onclick "checkpointNow('code')"): Checkpoint Now
-          ;button(class "btn btn-red", onclick "clearContents('code')"): Clear Contents
-        ==
-        ;div#code-tree(class "tree");
-      ==
-      ;div(class "section")
-        ;h2: Data Checkpoints
-        ;div#data-ckpts
-          ;div(class "muted"): loading...
-        ==
-        ;div(class "config-form")
-          ;input#data-label(type "text", placeholder "label (optional)");
-          ;button(class "btn btn-grn", onclick "checkpointNow('data')"): Checkpoint Now
-        ==
-        ;div#data-tree(class "tree");
-      ==
-      ;script
-        ;+  ;/  page-js
-      ==
-    ==
-  ==
-::
-++  page-css
-  ^-  tape
-  ;:  weld
-    "* \{ margin:0; padding:0; box-sizing:border-box; }"
-    "body \{ font-family:monospace; max-width:600px; margin:0 auto; padding:1.5rem; background:#fafafa; color:#111; font-size:14px; }"
-    "h1 \{ font-size:1.3rem; margin-bottom:1rem; }"
-    "h2 \{ font-size:1rem; margin-bottom:.5rem; }"
-    ".section \{ background:#fff; border:1px solid #ddd; border-radius:6px; padding:.75rem; margin-bottom:.75rem; }"
-    ".config-form \{ display:flex; gap:.5rem; margin-bottom:.5rem; }"
-    ".config-form input \{ font-family:monospace; font-size:16px; padding:.3rem .5rem; border:1px solid #ccc; border-radius:4px; flex:1; min-width:0; }"
-    ".status \{ font-size:.85rem; margin-bottom:.25rem; }"
-    ".status .label \{ font-weight:bold; margin-right:.5rem; }"
-    ".btn \{ font-family:monospace; font-size:.8rem; padding:.3rem .75rem; border:1px solid #ccc; border-radius:4px; background:#fff; cursor:pointer; }"
-    ".btn:hover \{ background:#eee; }"
-    ".btn-grn \{ color:#2a2; border-color:#2a2; }"
-    ".btn-grn:hover \{ background:#dfd; }"
-    ".btn-red \{ color:#c22; border-color:#c22; margin-left:.4rem; }"
-    ".btn-red:hover \{ background:#fdd; }"
-    ".btn-grn \{ margin-left:.4rem; }"
-    ".tree \{ margin-top:.75rem; padding-top:.5rem; border-top:1px solid #ddd; }"
-    ".tree-hdr \{ font-size:.75rem; font-weight:bold; color:#666; margin-bottom:.25rem; }"
-    ".tree-hdr a \{ color:#26c; margin-left:.5rem; font-weight:normal; }"
-    ".tree-row \{ display:flex; justify-content:space-between; font-size:.8rem; padding:.1rem 0; }"
-    ".muted \{ color:#999; font-size:.85rem; }"
-    ".row \{ display:flex; justify-content:space-between; align-items:center; gap:.5rem; font-size:.85rem; padding:.25rem 0; border-bottom:1px solid #eee; }"
-    ".row:last-child \{ border-bottom:none; }"
-    ".row-label \{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }"
-    ".btns \{ white-space:nowrap; flex-shrink:0; }"
-    ".btns .btn \{ padding:.15rem .45rem; font-size:.7rem; margin-left:.3rem; }"
-  ==
-::
-++  page-js
-  ^-  tape
-  ;:  weld
-    "var BASE=window.location.pathname;"
-    "if(!BASE.endsWith('/'))BASE+='/';"
-    "function setSource()\{"
-    "  var src=document.getElementById('source-input').value.trim();"
-    "  fetch(BASE+'set-source',\{method:'POST',body:src}).then(function()\{load()});"
-    "}"
-    "function materialize(axis,ud)\{"
-    "  if(!confirm('Materialize '+axis+' at revision '+ud+'?'))return;"
-    "  var body=\{};body[axis]=ud;"
-    "  fetch(BASE+'restore',\{method:'POST',body:JSON.stringify(body)})"
-    "    .then(function()\{load()});"
-    "}"
-    "function clearCkpt(axis,ud)\{"
-    "  if(!confirm('Clear '+axis+' checkpoint at revision '+ud+'? This frees its storage.'))return;"
-    "  fetch(BASE+'clear',\{method:'POST',body:JSON.stringify(\{axis:axis,ud:ud})})"
-    "    .then(function()\{load()});"
-    "}"
-    "function togglePublish()\{"
-    "  fetch(BASE+'publish',\{method:'POST'}).then(function()\{load()});"
-    "}"
-    "function fetchLatest()\{"
-    "  fetch(BASE+'fetch-latest',\{method:'POST'})"
-    "    .then(function(r)\{if(!r.ok)r.text().then(alert);load()});"
-    "}"
-    "function clearContents(axis)\{"
-    "  if(!confirm('Clear ALL current '+axis+' contents? '+(axis==='code'?'The desk goes inert until code is materialized back.':'Current data is removed.')+' Checkpointed history is untouched.'))return;"
-    "  fetch(BASE+'clear-contents',\{method:'POST',body:JSON.stringify(\{axis:axis})})"
-    "    .then(function()\{load()});"
-    "}"
-    "function checkpointNow(axis)\{"
-    "  var label=document.getElementById(axis+'-label').value.trim();"
-    "  fetch(BASE+'checkpoint',\{method:'POST',body:JSON.stringify(\{axis:axis,label:label})})"
-    "    .then(function()\{document.getElementById(axis+'-label').value='';load()});"
-    "}"
-    "function ckptLabel(tags)\{"
-    "  var out=tags.filter(function(t)\{return t!=='checkpoint'});"
-    "  return out.length?out.join(' '):null;"
-    "}"
-    "function renderList(el,rows,axis)\{"
-    "  el.innerHTML='';"
-    "  if(!rows.length)\{el.innerHTML='<div class=muted>no checkpoints yet</div>';return;}"
-    "  rows.slice().reverse().forEach(function(r)\{"
-    "    var div=document.createElement('div');div.className='row';"
-    "    var v=ckptLabel(r.tags);"
-    "    var when=new Date(r.da).toLocaleString();"
-    "    var label=(v?v+' \\u00b7 ':'')+'rev '+r.ud+' \\u00b7 '+when;"
-    "    var span=document.createElement('span');span.textContent=label;"
-    "    span.className='row-label';"
-    "    var btns=document.createElement('span');btns.className='btns';"
-    "    var mat=document.createElement('button');"
-    "    mat.className='btn btn-grn';mat.textContent='Materialize';"
-    "    mat.onclick=function()\{materialize(axis,r.ud)};"
-    "    var pre=document.createElement('button');"
-    "    pre.className='btn';pre.textContent='Preview';"
-    "    pre.onclick=function()\{loadTree(axis,r.ud)};"
-    "    var clr=document.createElement('button');"
-    "    clr.className='btn btn-red';clr.textContent='Clear';"
-    "    clr.onclick=function()\{clearCkpt(axis,r.ud)};"
-    "    btns.appendChild(pre);btns.appendChild(mat);btns.appendChild(clr);"
-    "    div.appendChild(span);div.appendChild(btns);el.appendChild(div);"
-    "  });"
-    "}"
-    "function loadTree(axis,ud)\{"
-    "  var url=BASE+'tree/'+axis+(ud==null?'':'/'+ud);"
-    "  fetch(url).then(function(r)\{return r.json()}).then(function(t)\{"
-    "    renderTree(document.getElementById(axis+'-tree'),axis,t.files,ud);"
-    "  });"
-    "}"
-    "function renderTree(el,axis,files,ud)\{"
-    "  el.innerHTML='';"
-    "  var hdr=document.createElement('div');hdr.className='tree-hdr';"
-    "  hdr.textContent=ud==null?'current files':'files at rev '+ud+' (preview) ';"
-    "  if(ud!=null)\{"
-    "    var back=document.createElement('a');back.href='#';back.textContent='back to current';"
-    "    back.onclick=function(e)\{e.preventDefault();loadTree(axis,null)};"
-    "    hdr.appendChild(back);"
-    "  }"
-    "  el.appendChild(hdr);"
-    "  if(!files.length)\{"
-    "    var mt=document.createElement('div');mt.className='muted';"
-    "    mt.textContent='(empty)';el.appendChild(mt);return;"
-    "  }"
-    "  files.sort(function(a,b)\{return (a.path+a.name)<(b.path+b.name)?-1:1});"
-    "  files.forEach(function(f)\{"
-    "    var div=document.createElement('div');div.className='tree-row';"
-    "    var full=(f.path==='/'?'':f.path)+'/'+f.name;"
-    "    var nm=document.createElement('span');nm.textContent=full;"
-    "    var bl=document.createElement('span');bl.className='muted';bl.textContent=f.blot;"
-    "    div.appendChild(nm);div.appendChild(bl);el.appendChild(div);"
-    "  });"
-    "}"
-    "function load()\{"
-    "  fetch(BASE+'state').then(function(r)\{return r.json()}).then(function(s)\{"
-    "    document.getElementById('source-input').value=s.config.source||'';"
-    "    document.getElementById('status').textContent="
-    "      (s.config.source?'subscribed':'not configured')+"
-    "      (s.config.public?' \\u00b7 published':' \\u00b7 private');"
-    "    document.getElementById('publish-btn').textContent="
-    "      s.config.public?'Unpublish':'Publish';"
-    "    document.getElementById('publish-btn').style.display="
-    "      s.config.source?'none':'';"
-    "    document.getElementById('fetch-btn').style.display="
-    "      s.config.source?'':'none';"
-    "    document.getElementById('version').textContent=s.version;"
-    "    renderList(document.getElementById('code-ckpts'),s.code,'code');"
-    "    renderList(document.getElementById('data-ckpts'),s.data,'data');"
-    "    loadTree('code',null);loadTree('data',null);"
-    "  });"
-    "}"
-    "load();"
-  ==
 --

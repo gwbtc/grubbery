@@ -39,7 +39,7 @@
 ::    %code — built can be [%vase vase] → store as noun, re-vale
 ::  Unaffected: %made/%gone/%pack/%sand/%load/%lost/%gain/%held (just
 ::  wire+tang), %fell (wire), %news (wave), %here (pant), %veto (dart),
-::  %font (bend), %kept (set bend).
+::  %kept (set bend).
 ::
 
 /-  push
@@ -64,6 +64,8 @@
   =/  m  (fiber ,~)
   ^-  form:m
   |=  input
+  ~|  %real-input-to-oneshot-step
+  ?>  =(~ in)
   [darts q.state %done ~]
 ::
 ++  send-dart
@@ -88,6 +90,8 @@
   =/  m  (fiber ,vase)
   ^-  form:m
   |=  input
+  ~|  %real-input-to-oneshot-step
+  ?>  =(~ in)
   [~ q.state %done state]
 ::
 ++  get-state-as
@@ -95,6 +99,8 @@
   =/  m  (fiber ,a)
   ^-  form:m
   |=  input
+  ~|  %real-input-to-oneshot-step
+  ?>  =(~ in)
   [~ q.state %done ;;(a q.state)]
 ::
 ++  gut-state-as
@@ -103,6 +109,8 @@
   =/  m  (fiber ,a)
   ^-  form:m
   |=  input
+  ~|  %real-input-to-oneshot-step
+  ?>  =(~ in)
   =/  res  (mule |.(;;(a q.state)))
   ?-  -.res
     %&  [~ q.state %done p.res]
@@ -115,6 +123,8 @@
   ^-  form:m
   |=  input
   ^-  output:m
+  ~|  %real-input-to-oneshot-step
+  ?>  =(~ in)
   [~ new %done ~]
 ::
 ++  transform
@@ -123,15 +133,9 @@
   ^-  form:m
   |=  input
   ^-  output:m
+  ~|  %real-input-to-oneshot-step
+  ?>  =(~ in)
   [~ q:(f state) %done ~]
-::  Wait for any input and return it for manual switching
-::
-++  get-input
-  =/  m  (fiber ,(unit intake))
-  ^-  form:m
-  |=  input
-  [~ q.state %done in]
-::
 ++  find-in-here
   |=  [=here:nexus target=(unit neck:tarball)]
   ^-  (unit @ud)
@@ -340,15 +344,39 @@
   =/  m  (fiber ,~)
   ^-  form:m
   ;<  =wire  bind:m  (nonce /make)
-  ;<  ~  bind:m  (send-dart %node wire road %make %.n make)
+  ;<  ~  bind:m  (send-dart %node wire road %make %.n %.n make)
+  (take-made wire)
+::  +over-fold: overwrite a directory subtree from a bole in ONE event —
+::  the %over analog for directories. It force-makes, so it REPLACES an
+::  existing dir (applying the bole via the kernel's load-ball-changes)
+::  instead of failing "already exists" like +make. One build, not one
+::  per file. Set the bole root's neck if you want the dir's neck kept.
+::
+++  over-fold
+  |=  [=road:tarball bole=bole:tarball]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /make)
+  ;<  ~  bind:m  (send-dart %node wire road %make %.y %.n &+bole)
+  (take-made wire)
+::  +make-gained: make born with gain set — retention on from the
+::  first event. No make-then-gain window for a fast process's
+::  self-clean to slip through.
+::
+++  make-gained
+  |=  [=road:tarball =make:nexus]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /make)
+  ;<  ~  bind:m  (send-dart %node wire road %make %.n %.y make)
   (take-made wire)
 ::
-++  make-soft
+++  make-gained-soft
   |=  [=road:tarball =make:nexus]
   =/  m  (fiber ,(unit tang))
   ^-  form:m
   ;<  =wire  bind:m  (nonce /make)
-  ;<  ~  bind:m  (send-dart %node wire road %make %.n make)
+  ;<  ~  bind:m  (send-dart %node wire road %make %.n %.y make)
   |=  input
   :+  ~  q.state
   ?+  in  [%skip ~]
@@ -361,17 +389,61 @@
     [%done err.u.in]
   ==
 ::
+++  make-soft
+  |=  [=road:tarball =make:nexus]
+  =/  m  (fiber ,(unit tang))
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /make)
+  ;<  ~  bind:m  (send-dart %node wire road %make %.n %.n make)
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %made * *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    [%done err.u.in]
+  ==
+::
+::  +poke: poke a road, local or remote. Crashes on nack.
+::
 ++  poke
   |=  [=road:tarball =bask:tarball]
   =/  m  (fiber ,~)
   ^-  form:m
-  ;<  =wire  bind:m  (nonce /poke)
-  ;<  ~  bind:m  (send-dart %node wire road %poke bask)
-  (take-pack wire)
-::  +poke-soft: poke with timeout, never crashes
+  ?~  (road-to-remote road)
+    ;<  =wire  bind:m  (nonce /poke)
+    ;<  ~  bind:m  (send-dart %node wire road %poke bask)
+    (take-pack wire)
+  ;<  err=(unit tang)  bind:m  (poke-soft road bask)
+  ?~  err  (pure:m ~)
+  ~|(%remote-poke-failed (mean u.err))
+::  +poke-soft: poke a road, local or remote — ~ on ack, `tang on nack
+::  OR on veto. Never crashes.
 ::
-::    Returns ~ on success, (unit tang) on nack or timeout.
-::    Sets a 5s timer; on nack or timeout returns the error.
+::    A veto used to %fail here, which made "never crashes" untrue for the
+::    one failure a caller cannot predict, and left this asymmetric with
+::    +peek-soft, whose whole reason to exist is that it answers a veto
+::    with a value. The asymmetry was a trap: three callers in this repo
+::    reach for poke-soft precisely to survive a refusal, and one of them
+::    (+apply-bill's shell nudge) says so in a comment - "Soft: a missing
+::    shell must not fail the install" - while a PRESENT shell behind a
+::    weir that refuses would have failed it.
+::
+::    A veto and a nack are both "the poke did not land, here is why", and
+::    the return type already says that. Callers that want a refusal to be
+::    fatal have +poke.
+::
+::    Carries no deadline of its own: local pokes are covered by the
+::    termination guarantee, and a remote pack arrives when the network
+::    delivers it. A caller unwilling to wait wraps this in
+::    +with-timeout.
+::
+::    Completion is a framework %pack on our wire, whether the target was
+::    local or on another ship — a cross-ship poke's pack comes back over
+::    the network and is re-injected as a %pack by +process-pack.
 ::
 ++  poke-soft
   |=  [=road:tarball =bask:tarball]
@@ -379,19 +451,19 @@
   ^-  form:m
   ;<  =wire  bind:m  (nonce /poke)
   ;<  ~  bind:m  (send-dart %node wire road %poke bask)
-  ;<  now=@da  bind:m  get-time
-  ;<  ~  bind:m  (set-timer wire (add now ~s5))
+  ::  local OR remote: the consumption result arrives as a %pack on our
+  ::  wire. A cross-ship poke's pack comes back over the network and is
+  ::  re-injected as a %pack by +process-pack — no local/remote fork.
   |=  input:fiber:nexus
   :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
+      [~ %veto *]
+    [%done `(veto-error dart.u.in)]
       [~ %pack * *]
     ?.  =(wire wire.u.in)  [%skip ~]
     ?~  err.u.in  [%done ~]
     [%done `u.err.u.in]
-      [~ %poke * *]
-    ?.  =([/ %timer-wake] p.sage.u.in)  [%skip ~]
-    [%done `~[leaf+"poke timed out after 5s"]]
   ==
 ::  +take-held: wait for a %held response on a wire
 ::
@@ -417,12 +489,12 @@
 ::  firm the fold hist (whose pace lobe is the subtree merkle root).
 ::
 ++  checkpoint
-  |=  =road:tarball
+  |=  [=road:tarball tags=(set @t)]
   =/  m  (fiber ,~)
   ^-  form:m
   ;<  =wire  bind:m  (nonce /firm)
   ;<  ~  bind:m
-    (send-dart %node wire road %firm ~)
+    (send-dart %node wire road %firm tags)
   (take-held wire)
 ::  +tag: set tags on a hist entry (file or fold, per road)
 ::
@@ -432,7 +504,7 @@
   ^-  form:m
   ;<  =wire  bind:m  (nonce /tag)
   ;<  ~  bind:m
-    (send-dart %node wire road %tag cas tags)
+    (send-dart %node wire road %tags cas tags)
   (take-held wire)
 ::
 ++  peek
@@ -442,6 +514,24 @@
   ;<  =wire  bind:m  (nonce /peek)
   ;<  ~  bind:m  (send-dart %node wire road %peek blot ~ %.y)
   (take-peek wire)
+::  Veto-tolerant peek: a peek whose destination may be outside our weir.
+::  On veto it yields ~ instead of crashing — for scans that reach for
+::  something they might legitimately not be permitted to see.
+::
+++  peek-soft
+  |=  [=road:tarball blot=(unit blot:tarball)]
+  =/  m  (fiber ,(unit view:nexus))
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /peek)
+  ;<  ~  bind:m  (send-dart %node wire road %peek blot ~ %.y)
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]  [%done ~]
+      [~ %peek * *]
+    ?.(=(wire wire.u.in) [%skip ~] [%done `view.u.in])
+  ==
 ::
 ::  Peek a file and extract its value as a typed noun.
 ::  Crashes if file not found or wrong type.
@@ -463,6 +553,16 @@
   ^-  form:m
   ;<  =wire  bind:m  (nonce /peek)
   ;<  ~  bind:m  (send-dart %node wire road %peek blot ~ %.n)
+  (take-peek wire)
+::
+::  Shallow peek at a historical version: this level only, no recursion
+::
+++  peek-shallow-at
+  |=  [=road:tarball blot=(unit blot:tarball) =case:nexus]
+  =/  m  (fiber ,view:nexus)
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /peek)
+  ;<  ~  bind:m  (send-dart %node wire road %peek blot `case %.n)
   (take-peek wire)
 ::
 ::  Peek at a historical version of a file
@@ -541,8 +641,11 @@
   :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
+      ::  soft: a vetoed cull returns the veto as an error, it does
+      ::  NOT crash the caller (that is what +cull is for) — the
+      ::  poke-soft precedent
       [~ %veto *]
-    [%fail (veto-error dart.u.in)]
+    [%done `(veto-error dart.u.in)]
       [~ %gone * *]
     ?.  =(wire wire.u.in)
       [%skip ~]
@@ -670,7 +773,7 @@
   =/  m  (fiber ,~)
   ^-  form:m
   ;<  =wire  bind:m  (nonce /make)
-  ;<  ~  bind:m  (send-dart %node wire road %make %.y |+[bask ~])
+  ;<  ~  bind:m  (send-dart %node wire road %make %.y %.n |+[bask ~])
   (take-made wire)
 ::  +over-as: overwrite with a blot override — the runtime tubes
 ::  the given bask to the target blot and validates at destination.
@@ -680,8 +783,29 @@
   =/  m  (fiber ,~)
   ^-  form:m
   ;<  =wire  bind:m  (nonce /make)
-  ;<  ~  bind:m  (send-dart %node wire road %make %.y |+[bask `blot])
+  ;<  ~  bind:m  (send-dart %node wire road %make %.y %.n |+[bask `blot])
   (take-made wire)
+::  +over-as-soft: over-as that hands the failure back — a bad tube or
+::  vale at the destination comes back as `tang for the caller to
+::  present, instead of crashing the fiber. An editor's save path.
+::
+++  over-as-soft
+  |=  [=road:tarball =bask:tarball =blot:tarball]
+  =/  m  (fiber ,(unit tang))
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /make)
+  ;<  ~  bind:m  (send-dart %node wire road %make %.y %.n |+[bask `blot])
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %made * *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    [%done err.u.in]
+  ==
 ::
 ::  +put: overwrite if exists, create if not
 ::
@@ -713,6 +837,32 @@
       [%done ~]
     [%fail %load-failed u.err.u.in]
   ==
+::  +reload-soft: +reload that ANSWERS with its failure instead of taking
+::  the caller down — the +cull-soft / +poke-soft precedent. ~ on success,
+::  `tang on a veto or a failed load.
+::
+::  For a caller reloading several nexuses in a row (the desk repairing the
+::  instances its bill declares), the hard form is wrong: one instance that
+::  refuses to come back would crash the fiber and strand every instance
+::  after it in the list, which is the opposite of a repair.
+::
+++  reload-soft
+  |=  =road:tarball
+  =/  m  (fiber ,(unit tang))
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /load)
+  ;<  ~  bind:m  (send-dart %node wire road %load ~)
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%done `(veto-error dart.u.in)]
+      [~ %load * *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    [%done err.u.in]
+  ==
 ::  Subscription operations: keep, drop
 ::
 ++  keep
@@ -721,6 +871,28 @@
   ^-  form:m
   ;<  ~  bind:m  (send-dart %node wire road %keep blot)
   (take-bond wire)
+::
+::  +keep-soft: +keep with a deadline. ~ if the subscription was not
+::  established within `lull`.
+::
+::    +keep waits on +take-bond with nothing to end the wait. For a LOCAL road
+::    that is fine — the termination guarantee covers it. For a REMOTE one the
+::    wait is on a peer, and a follower whose publisher is unreachable parks
+::    forever: nothing subscribed, no error, no retry. Callers following a
+::    remote source need to be able to give up and try again.
+::
+++  keep-soft
+  |=  [=wire =road:tarball blot=(unit blot:tarball) lull=@dr]
+  =/  m  (fiber ,(unit wave:nexus))
+  ^-  form:m
+  ;<  ~  bind:m  (send-dart %node wire road %keep blot)
+  ;<  now=@da  bind:m  get-time
+  =/  dead=^wire  (weld wire /keep-deadline)
+  ;<  ~  bind:m  (set-timer dead (add now lull))
+  ;<  res=news-or-wake  bind:m  (take-news-or-wake-on wire dead)
+  ?:  ?=(%wake -.res)  (pure:m ~)
+  ;<  ~  bind:m  (cancel-timer dead)
+  (pure:m `wave.res)
 ::
 ++  drop
   |=  [=wire =road:tarball]
@@ -782,6 +954,96 @@
     ?.  =([/ mark] p.sage.u.in)  [%skip ~]
     [%done !<(mold q.sage.u.in)]
   ==
+::  Remote-scry farm operations, via the /sys/scry service.
+::
+::  Requests are ordinary pokes to the service grub, so weirs gate
+::  them like any /sys reach: a sandboxed grub (whose weir does not
+::  grant /sys) is vetoed by default, and no special-case gating
+::  exists anywhere. gall consumes the resulting %grow/%tomb/%cull
+::  cards directly and signs nothing back, so all three complete
+::  fire-and-forget on the service %pack.
+::
+::  +grow: publish a page at spur in this ship's remote-scry farm.
+::
+++  grow
+  |=  [=spur =page]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (poke &+&+[/sys/scry %'main.sig'] [[/ %scry-grow] [`path`spur page]])
+::  +tomb: tombstone revision case of a published spur. The bound
+::  content is replaced by its hash; the binding stays. gall honors
+::  only %ud cases, so the revision rides bare.
+::
+++  tomb
+  |=  [case=@ud =spur]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (poke &+&+[/sys/scry %'main.sig'] [[/ %scry-tomb] [case `path`spur]])
+::  +cull-farm: retract EVERY case bound at a published spur.
+::
+::  NOT +cull. +cull above deletes a node from the nexus TREE; this
+::  deletes bindings from gall's scry FARM, a different namespace.
+::
+::  Use this, not +tomb, to unpublish: gall assigns key+1 on every
+::  %grow at an already-bound spur, so a regrown spur answers at
+::  several cases and tombing one leaves the rest readable.
+::
+::  NOT idempotent, and this is the one sharp edge: gall keeps the
+::  emptied binding after a cull, and the follow-up top-case read
+::  misses uncatchably (see +farm-top in the agent). Gate a second
+::  cull of the same spur on whatever record says the thing still
+::  exists. A spur that was never grown is a silent no-op.
+::
+++  cull-farm
+  |=  =spur
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (poke &+&+[/sys/scry %'main.sig'] [[/ %scry-cull] `path`spur])
+::  +keen: read a path from a remote ship's farm via remote scry.
+::
+::  Returns the remote's answer as a (unit page): `[mark noun]` is
+::  the content bound at the path, ~ means the remote bound nothing.
+::  ames verifies the publisher's signature before it reaches us, and
+::  the answer hydrates through the %keen-response mark like any poke
+::  (signed but arbitrary content: consumers validate the page's noun
+::  against their own expected shape before trusting its structure).
+::  Carries no deadline of its own — ames holds
+::  the request until the remote answers, which may be never. A
+::  caller unwilling to wait wraps this in +with-timeout, and yawns
+::  the request it abandoned.
+::
+::  The answer arrives as an ordinary %keen-response poke-back from
+::  the /sys/scry service (the iris idiom), correlated by our wire.
+::
+++  keen
+  |=  [=ship =path]
+  =/  m  (fiber ,(unit page))
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /keen)
+  ;<  ~  bind:m
+    (poke &+&+[/sys/scry %'main.sig'] [[/ %scry-keen] [ship `^path`path wire]])
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %poke * *]
+    ?.  =([/ %keen-response] p.sage.u.in)  [%skip ~]
+    =/  [ret=^wire pag=(unit page)]  !<([^wire (unit page)] q.sage.u.in)
+    ?.  =(wire ret)  [%skip ~]
+    [%done pag]
+  ==
+::  +yawn: cancel this grub's outstanding +keens for [ship path].
+::  Precise: the service records each keen's wire and cancels by
+::  duct, so other grubs waiting on the same spar (the longpoll
+::  pattern) keep waiting. Fire-and-forget.
+::
+++  yawn
+  |=  [=ship =path]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (poke &+&+[/sys/scry %'main.sig'] [[/ %scry-yawn] [ship `^path`path]])
 ::  Clay convenience helpers
 ::
 ++  clay-case
@@ -815,13 +1077,15 @@
   ^-  form:m
   (poke &+&+[/sys/clay %'main.clay-state'] [[/ %new-desk] dek])
 ::  Write/delete files in a Clay desk via /sys/clay/ runtime service.
-::  No vases — the runtime clams through marks on the destination desk.
+::  Every file goes in as a mime, exactly like a Unix |commit: the
+::  kernel wraps it as a %mime cage and Clay tube-converts to the mark
+::  named by the path's last segment. ~ deletes the path.
 ::
 ++  clay-info
-  |=  [dek=desk changes=(list [path ?([%ins @tas *] [%del ~])])]
+  |=  [dek=desk files=(list [path (unit mime)])]
   =/  m  (fiber ,~)
   ^-  form:m
-  (poke &+&+[/sys/clay %'main.clay-state'] [[/ %clay-info] [dek changes]])
+  (poke &+&+[/sys/clay %'main.clay-state'] [[/ %clay-info] [dek files]])
 ::  Send a belt to a dill session via /sys/dill/ runtime service
 ::
 ++  send-belt
@@ -829,6 +1093,16 @@
   =/  m  (fiber ,~)
   ^-  form:m
   (poke &+&+[/sys/dill %'main.sig'] [[/ %dill-belt] [session belt]])
+::  Open, shut or resize a dill session via /sys/dill/ runtime service.
+::  Opening makes /sys/dill/sessions/<session> and views it from then
+::  on; shutting leaves the grub and its history.
+::
+++  send-dill-task
+  |=  [session=@tas task=session-task:dill]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ?>  ?=(?(%open %shut %blew) -.task)
+  (poke &+&+[/sys/dill %'main.sig'] [[/ %dill-task] [session task]])
 ::  +get-code: peek the code (bins) slice at a road
 ::
 ++  get-code
@@ -899,26 +1173,6 @@
     ?.  ?=(%& -.res.u.in)
       [%skip ~]
     [%done p.res.u.in]
-  ==
-::  +get-font: find code responsible for a node
-::  ~: blocked (weir), [~ ~]: definitively none, [~ ~ bend]: found
-::
-++  get-font
-  |=  =road:tarball
-  =/  m  (fiber ,(unit (unit bend:tarball)))
-  ^-  form:m
-  ;<  =wire  bind:m  (nonce /font)
-  ;<  ~  bind:m  (send-dart %node wire road %font ~)
-  |=  input
-  :+  ~  q.state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %veto *]
-    [%fail (veto-error dart.u.in)]
-      [~ %font * *]
-    ?.  =(wire wire.u.in)
-      [%skip ~]
-    [%done res.u.in]
   ==
 ::  +get-marc: look up a compiled marc from bins
 ::
@@ -1116,38 +1370,75 @@
   ?:  gone  $
   ;<  ~  bind:m  (lick-spit name %res [status rbody])
   $
-::
 ::  Gall agent operations (via /sys/gall/ runtime service)
 ::
 ++  gall-poke
   |=  [=dock =page]
   =/  m  (fiber ,~)
   ^-  form:m
+  ;<  =wire  bind:m  (nonce /gall-poke)
   ;<  ~  bind:m
-    (poke &+&+[/sys/gall %'main.sig'] [[/ %gall-poke] [dock page]])
+    (send-dart %node wire &+&+[/sys/gall %'main.sig'] %poke [[/ %gall-poke] [dock page]])
+  ::  the /sys/gall grub consumes our request first (%pack on our wire),
+  ::  then the gall agent's ack comes back as a wire-keyed [/ %poke-ack].
+  ;<  ~  bind:m  (take-pack wire)
   |=  input
   :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
-      [~ %pack *]
-    ?~  err.u.in  [%done ~]
-    [%fail %poke-failed u.err.u.in]
+      [~ %poke * *]
+    ?.  =([/ %poke-ack] p.sage.u.in)  [%skip ~]
+    =/  [w=^wire err=(unit tang)]  !<([^wire (unit tang)] q.sage.u.in)
+    ?.  =(wire w)  [%skip ~]
+    ?~  err  [%done ~]
+    [%fail %poke-failed u.err]
   ==
-::  Timer helpers — poke /sys/behn/main.timer-state, receive timer-wake back
+::  +road-to-remote: parse a /sys/ames/ships/ road into the target ship
+::  and the real lane on that ship, mirroring the runtime's
+::  +resolve-remote. ~ for local roads.
+::
+++  road-to-remote
+  |=  =road:tarball
+  ^-  (unit [target=@p dest=lane:tarball])
+  ?.  ?=(%& -.road)  ~
+  =/  pax=path
+    ?-(-.p.road %& path.p.p.road, %| p.p.road)
+  ?.  ?=([%sys %ames %ships @ %root *] pax)  ~
+  =/  target=(unit @p)  (slaw %p i.t.t.t.pax)
+  ?~  target  ~
+  =/  real=path  t.t.t.t.t.pax
+  :-  ~  :-  u.target
+  ?-(-.p.road %& [%& real name.p.p.road], %| [%| real])
+::  Timer helpers — poke /sys/behn/main.behn-state, receive timer-wake back
 ::
 ++  set-timer
   |=  [=wire until=@da]
   =/  m  (fiber ,~)
   ^-  form:m
-  (poke &+&+[/sys/behn %'main.timer-state'] [[/ %timer-set] `[^wire @da]`[wire until]])
+  (poke &+&+[/sys/behn %'main.behn-state'] [[/ %timer-set] `[^wire @da]`[wire until]])
+::
+::  +cancel-timer: cancel a timer set with +set-timer on the same wire.
+::  No-op if it already fired — a wake for it may still be in flight,
+::  so intakes must scope wakes by wire regardless.
+::
+++  cancel-timer
+  |=  =wire
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (poke &+&+[/sys/behn %'main.behn-state'] [[/ %timer-rest] `^wire`wire])
 ::
 ++  send-wait
   |=  until=@da
   =/  m  (fiber ,~)
   ^-  form:m
-  (set-timer /wait/(scot %da until) until)
+  ::  STABLE wire: a restarted fiber's next sleep replaces its old
+  ::  behn-state entry instead of accumulating one orphan timer per
+  ::  restart (the reboot fetch-herd bug). behn-state rests the
+  ::  superseded arvo timer and drops stale in-flight wakes, so any
+  ::  delivered /wait wake is the current one.
+  (set-timer /wait until)
 ::
 ++  take-wake
   |=  until=(unit @da)
@@ -1163,7 +1454,9 @@
     ?.  =([/ %timer-wake] p.sage.u.in)
       [%skip ~]
     =/  wak=path  !<(path q.sage.u.in)
-    ?.  |(?=(~ until) ?&(?=([%wait @ ~] wak) =(u.until (slav %da i.t.wak))))
+    ::  behn-state validates wakes against its state, so no da check
+    ::  here; [%wait @ ~] still matches old-format in-flight wakes
+    ?.  ?=([%wait *] wak)
       [%skip ~]
     [%done ~]
   ==
@@ -1181,39 +1474,131 @@
   ^-  form:m
   ;<  now=@da  bind:m  get-time
   (wait (add now for))
+::  +with-timeout: run any fiber computation against a deadline.
+::  Returns `value on completion, ~ on timeout — the caller decides
+::  what a timeout means; this arm has no policy of its own.
+::
+::  The timer is scoped to /timeout/[wire] and checked against the
+::  wire a wake carries in its sage, so another timer's wake can never
+::  satisfy it (the stray-wake loop that got poke-soft's timer deleted
+::  in 3c1c61b). The wire is caller-supplied and durable: a restarted
+::  fiber re-runs the same code with the same wire, so its new timer
+::  REPLACES the abandoned one (set-on-same-wire semantics) instead of
+::  orphaning it. Nested timeouts need distinct wires — the caller
+::  writes both levels, so that's theirs to ensure. On completion —
+::  value or failure — the timer is cancelled.
+::
+::  The interception must survive the computation's own stepping:
+::  on %cont the continuation is re-wrapped so every subsequent input
+::  still passes through the timeout check first (strandio's
+::  +set-timeout idiom).
+::
+++  with-timeout
+  |*  result=mold
+  =/  m   (fiber ,(unit result))
+  =/  mr  (fiber ,result)
+  |=  [=wire time=@dr computation=form:mr]
+  ^-  form:m
+  =.  wire  (weld /timeout wire)
+  ;<  now=@da  bind:m  get-time
+  ;<  ~        bind:m  (set-timer wire (add now time))
+  |=  input
+  ^-  output:m
+  ::  our own deadline fired before the computation finished
+  ?:  ?&  ?=([~ %poke * *] in)
+          =([/ %timer-wake] p.sage.u.in)
+          =(wire !<(^wire q.sage.u.in))
+      ==
+    [~ q.state %done ~]
+  =/  c-res=output:mr  (computation +<)
+  ?:  ?=(%cont -.next.c-res)
+    [darts.c-res state.c-res %cont ..$(computation self.next.c-res)]
+  ?:  ?=(%done -.next.c-res)
+    =/  fin=form:m
+      ;<  ~  bind:m  (cancel-timer wire)
+      (pure:m `value.next.c-res)
+    [darts.c-res state.c-res %cont fin]
+  ?:  ?=(%fail -.next.c-res)
+    =/  err=tang  err.next.c-res
+    =/  fin=form:m
+      ;<  ~  bind:m  (cancel-timer wire)
+      |=  input
+      [~ q.state %fail err]
+    [darts.c-res state.c-res %cont fin]
+  :+  darts.c-res  state.c-res
+  ?-  -.next.c-res
+    %wait  [%wait ~]
+    %skip  [%skip ~]
+  ==
 ::  Convenience accessors
+::
+::  Bowl reads (+get-our/+get-time/+get-entropy) poke /sys/bowl.sig and
+::  get back TWO inputs in either order: the %pack ack of the poke and
+::  the response poke. Both must be consumed. The old matchers only
+::  drained a pack that arrived FIRST; a response-first ordering left
+::  the ack stray, skipping past every wire-scoped matcher into the
+::  terminal — invisible while +idle ate strays, a crash-nack per call
+::  under honest +stay. +take-bowl consumes exactly one of each.
+::
+++  take-bowl
+  |*  a=mold
+  |=  =blot:tarball
+  =/  m  (fiber ,a)
+  ^-  form:m
+  ;<  got=(each a ~)  bind:m
+    =/  mi  (fiber ,(each a ~))
+    ^-  form:mi
+    |=  input
+    :+  ~  q.state
+    ?+  in  [%skip ~]
+        ~  [%wait ~]
+        [~ %veto *]
+      [%fail (veto-error dart.u.in)]
+        [~ %pack *]
+      [%done %| ~]
+        [~ %poke * *]
+      ?.  =(blot p.sage.u.in)  [%skip ~]
+      [%done %& !<(a q.sage.u.in)]
+    ==
+  ?:  ?=(%| -.got)
+    ::  ack first: now take the response
+    =/  mr  (fiber ,a)
+    ^-  form:mr
+    |=  input
+    :+  ~  q.state
+    ?+  in  [%skip ~]
+        ~  [%wait ~]
+        [~ %poke * *]
+      ?.  =(blot p.sage.u.in)  [%skip ~]
+      [%done !<(a q.sage.u.in)]
+    ==
+  ::  response first: drain the trailing ack (ours — a fiber is
+  ::  sequential, so no other un-acked dart of ours is outstanding)
+  ;<  ~  bind:m
+    =/  md  (fiber ,~)
+    ^-  form:md
+    |=  input
+    :+  ~  q.state
+    ?+  in  [%skip ~]
+        ~  [%wait ~]
+        [~ %pack *]
+      [%done ~]
+    ==
+  (pure:m p.got)
 ::
 ++  get-our
   =/  m  (fiber ,ship)
   ^-  form:m
   ;<  =wire  bind:m  (nonce /sys/our)
   ;<  ~  bind:m  (send-dart %node wire &+&+[/sys %'bowl.sig'] %poke [[/ %bowl-req] %our])
-  |=  input
-  :+  ~  q.state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %pack *]
-    [%wait ~]
-      [~ %poke * *]
-    ?.  =([/ %ship] p.sage.u.in)  [%skip ~]
-    [%done !<(ship q.sage.u.in)]
-  ==
+  ((take-bowl ship) [/ %ship])
 ::
 ++  get-time
   =/  m  (fiber ,@da)
   ^-  form:m
   ;<  =wire  bind:m  (nonce /sys/now)
   ;<  ~  bind:m  (send-dart %node wire &+&+[/sys %'bowl.sig'] %poke [[/ %bowl-req] %now])
-  |=  input
-  :+  ~  q.state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %pack *]
-    [%wait ~]
-      [~ %poke * *]
-    ?.  =([/ %time] p.sage.u.in)  [%skip ~]
-    [%done !<(@da q.sage.u.in)]
-  ==
+  ((take-bowl @da) [/ %time])
 ::  get-entropy uses raw send-dart with a static /sys/eny wire to avoid
 ::  recursion: poke → nonce → get-entropy → poke. Static wire is safe
 ::  because stale entropy is still valid entropy.
@@ -1222,16 +1607,7 @@
   =/  m  (fiber ,@uvJ)
   ^-  form:m
   ;<  ~  bind:m  (send-dart %node /sys/eny &+&+[/sys %'bowl.sig'] %poke [[/ %bowl-req] %eny])
-  |=  input
-  :+  ~  q.state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %pack *]
-    [%wait ~]
-      [~ %poke * *]
-    ?.  =([/ %entropy] p.sage.u.in)  [%skip ~]
-    [%done !<(@uvJ q.sage.u.in)]
-  ==
+  ((take-bowl @uvJ) [/ %entropy])
 ::
 ++  nonce
   |=  base=wire
@@ -1301,6 +1677,83 @@
       [%fail leaf+"http-request-cancelled" ~]
     [%done resp]
   ==
+::  websocket client, at /sys/iris/ws.ws-state (a weir must allow the
+::  poke). A socket is a wid; frames arrive as pokes [/ %ws-frame]
+::  [wid msg] on the fiber's rail and are picked up by +take-ws-frame.
+::  Text frames only for now. Sockets die with a runtime restart and
+::  no poke says so: a fiber blocked in +take-ws-frame owns its own
+::  timeout/reconnect policy. On a runtime without websocket support
+::  +ws-connect returns ~ (the tang is printed) instead of the desk
+::  failing to build. Shape of a client:
+::
+::    ;<  wid=(unit @ud)  bind:m  (ws-connect:io url)
+::    ?~  wid  (pure:m ~)
+::    ;<  ~  bind:m  (ws-send:io u.wid '["REQ", ...]')
+::    |-
+::    ;<  frame=(unit @t)  bind:m  (take-ws-frame:io u.wid)
+::    ?~  frame  ...reconnect...
+::    ...handle u.frame...
+::    $
+::
+::  +ws-connect: open a socket under `key`; `wid once live, ~ on
+::  reject/drop. Like set-timer's wire: a fiber may hold one socket per
+::  key, and connecting again on a key closes the socket it had there —
+::  so a respun fiber just connects again and gets a clean one.
+++  ws-connect
+  |=  [key=wire url=@t]
+  =/  m  (fiber ,(unit @ud))
+  ^-  form:m
+  ;<  ~  bind:m  (poke &+&+[/sys/iris %'ws.ws-state'] [[/ %ws-connect] [key url]])
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]  [%fail (veto-error dart.u.in)]
+      [~ %poke * *]
+    ?:  =([/ %ws-open] p.sage.u.in)  [%done `!<(@ud q.sage.u.in)]
+    ?:  =([/ %ws-fail] p.sage.u.in)
+      ~&  >>>  [%ws-connect-failed !<(tang q.sage.u.in)]
+      [%done ~]
+    [%skip ~]
+  ==
+::  +ws-send: one text frame down an open socket
+++  ws-send
+  |=  [wid=@ud text=@t]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (poke &+&+[/sys/iris %'ws.ws-state'] [[/ %ws-send] [wid text]])
+::  +ws-close: close it. The %ws-closed poke follows once iris leaves.
+++  ws-close
+  |=  wid=@ud
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (poke &+&+[/sys/iris %'ws.ws-state'] [[/ %ws-close] wid])
+::  +take-ws-frame: the next text frame on `wid` as a cord; ~ when the
+::  socket closes. Any other poke (an interrupt, say) is skipped, so a
+::  caller that wants cancellation composes its own intake.
+++  take-ws-frame
+  |=  wid=@ud
+  =/  m  (fiber ,(unit @t))
+  ^-  form:m
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]  [%fail (veto-error dart.u.in)]
+      [~ %poke * *]
+    ::  a frame or close for another socket is dropped (%wait), not
+    ::  skipped: %skip retains the input and re-offers it on every later
+    ::  step, and nobody else can want a socket this fiber owns
+    ?:  =([/ %ws-closed] p.sage.u.in)
+      ?.  =(wid !<(@ud q.sage.u.in))  [%wait ~]
+      [%done ~]
+    ?.  =([/ %ws-frame] p.sage.u.in)  [%skip ~]
+    =/  [w=@ud msg=ws-message:nexus]  !<([@ud ws-message:nexus] q.sage.u.in)
+    ?.  =(w wid)  [%wait ~]
+    ?~  message.msg  [%wait ~]
+    =/  bytes=octs  u.message.msg
+    [%done `q.bytes]
+  ==
 ::
 ++  extract-body
   |=  =client-response:iris
@@ -1322,6 +1775,35 @@
 ::  Sends via /sys/push/ runtime service.
 ::
 ++  push-road  `road:tarball`[%& %& /sys/push %'main.push-state']
+::
+::  Notification service helpers — the human-addressed message bus
+::  (the shell's /notifications, named so in /sys/link). Register once (a registrant
+::  covers its directory subtree), then notify; payload jobj is
+::  opaque (title/body/url are conventions). The service owns
+::  delivery (push) and ack tracking.
+::
+::  The bus is found by NAME: a caller needs peek on /sys/link/ in its
+::  weir, and the poke on @notifications/main.sig, as for any name.
+::
+++  register-app
+  |=  name=@t
+  =/  m  (fiber ,~)
+  ^-  form:m
+  %^  poke-link  '@notifications'  [%& / %'main.sig']
+  :-  [/ %json]
+  (pairs:enjs:format ~[['action' s+'register'] ['name' s+name]])
+::
+++  notify
+  |=  [push=? metadata=json]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  %^  poke-link  '@notifications'  [%& / %'main.sig']
+  :-  [/ %json]
+  %-  pairs:enjs:format
+  :~  ['action' s+'notify']
+      ['push' s+?:(push 'true' 'false')]
+      ['metadata' metadata]
+  ==
 ::
 ++  send-push
   |=  =push-send:push
@@ -1351,8 +1833,10 @@
   =/  m  (fiber ,(unit tang))
   ^-  form:m
   ;<  our=@p  bind:m  get-our
+  ;<  =wire  bind:m  (nonce /gall-poke)
   ;<  ~  bind:m
-    (poke &+&+[/sys/gall %'main.sig'] [[/ %gall-poke] [[our dude] page]])
+    (send-dart %node wire &+&+[/sys/gall %'main.sig'] %poke [[/ %gall-poke] [[our dude] page]])
+  ;<  ~  bind:m  (take-pack wire)
   |=  input
   :+  ~  q.state
   ?+  in  [%skip ~]
@@ -1361,7 +1845,9 @@
     [%fail (veto-error dart.u.in)]
       [~ %poke * *]
     ?.  =([/ %poke-ack] p.sage.u.in)  [%skip ~]
-    [%done !<((unit tang) q.sage.u.in)]
+    =/  [w=^wire err=(unit tang)]  !<([^wire (unit tang)] q.sage.u.in)
+    ?.  =(wire w)  [%skip ~]
+    [%done err]
   ==
 ::  +take-news-or-wake: wait for subscription news or timer wake
 ::
@@ -1371,6 +1857,33 @@
 +$  news-or-wake
   $%  [%news =wave:nexus]
       [%wake ~]
+  ==
+::
+::  +take-news-or-wake-on: +take-news-or-wake, but a wake counts only if it is
+::  OUR timer's. +take-news-or-wake accepts any [/ %timer-wake] poke; a wake
+::  from a cancelled deadline can still be in flight (see +cancel-timer), and
+::  a fiber that arms one deadline after another would take the previous
+::  one's late wake as the new one's and report a timeout that never
+::  happened. A wake's payload is the wire it was set on, so match on that.
+::
+++  take-news-or-wake-on
+  |=  [news-wire=wire timer-wire=wire]
+  =/  m  (fiber ,news-or-wake)
+  ^-  form:m
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %news * *]
+    ?.  =(news-wire wire.u.in)
+      [%skip ~]
+    [%done %news wave.u.in]
+      [~ %poke * *]
+    ?.  =([/ %timer-wake] p.sage.u.in)
+      [%skip ~]
+    ?.  =(timer-wire (fall (mole |.(!<(path q.sage.u.in))) /))
+      [%skip ~]
+    [%done %wake ~]
   ==
 ::
 ++  take-news-or-wake
@@ -1474,6 +1987,37 @@
   ^-  form:m
   ;<  here=rail:tarball  bind:m  get-here-abs
   (eyre-poke [%bind binding here])
+::  +bind-http-self: bind requests to THIS grub, letting the kernel use the
+::  poke's source rail. Avoids get-here-abs — so a nexus serving its own UI
+::  needs no walk to root (no peek /). Use this unless you're binding a route
+::  on behalf of some other grub.
+::
+++  bind-http-self
+  |=  =binding:eyre
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ::  veto-tolerant: a jailed app (fresh install, weir not yet approved)
+  ::  gets its eyre poke vetoed at rise. Crashing here would park the
+  ::  whole fiber; instead log it and continue — the fiber lands in its
+  ::  normal request loop, and the approval reload re-runs this bind
+  ::  with grants in hand.
+  ::  fixed wire, no nonce: nonce needs entropy (a /sys/bowl.sig poke)
+  ::  which is itself vetoed in jail — the crash would land before the
+  ::  tolerant take below. One bind per fiber; no collision.
+  =/  =wire  /bind-self
+  ;<  ~  bind:m  (send-dart %node wire server-road %poke [[/ %eyre-action] [%bind-self binding]])
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+    ::  refused in jail: expected, and silent. The approval reload
+    ::  re-runs this bind.
+      [~ %veto *]
+    [%done ~]
+      [~ %pack * *]
+    ?.  =(wire wire.u.in)  [%skip ~]
+    [%done ~]
+  ==
 ::  +unbind-http: remove a binding
 ::
 ++  unbind-http
@@ -1489,9 +2033,13 @@
   =/  m  (fiber ,~)
   ^-  form:m
   (poke server-road [[/ %eyre-action] act])
-::  HTTP response helpers, parameterized on dispatcher road.
-::  Sends route through the dispatcher (main.sig) so the server fiber
-::  sees from=main.sig for cancel-back on orphaned connections.
+::  HTTP response helpers. Sends poke server-road directly: the
+::  /sys/eyre intercept consumes %send in the sending event, so the
+::  dispatcher relay (main.sig) only added an eval cycle plus a second
+::  validation of the response. Nothing consumes from=main.sig (cancel
+::  routing is conns -> %handle-http-cancel -> dispatcher cull), and
+::  the dispatcher's %eyre-action branch stays for direct pokes. The
+::  door sample is retained so existing call sites compile unchanged.
 ::  Usage: =/  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])
 ::         (send-simple:srv eyre-id payload)
 ::
@@ -1501,7 +2049,7 @@
     |=  [eyre-id=@ta =eyre-update:nexus]
     =/  m  (fiber ,~)
     ^-  form:m
-    (poke main [[/ %eyre-action] `eyre-action:nexus`[%send eyre-id eyre-update]])
+    (poke server-road [[/ %eyre-action] `eyre-action:nexus`[%send eyre-id eyre-update]])
   ::
   ++  send-simple
     |=  [eyre-id=@ta =simple-payload:http]
@@ -1540,12 +2088,10 @@
       %handle-http-request
     =/  [eyre-id=@ta src=@p req=inbound-request:eyre]
       !<([eyre-id=@ta @p inbound-request:eyre] q.sage)
-    ~&  >  [label %dispatch eyre-id url.request.req]
     ;<  ~  bind:m  (make [%| 0 %& /requests eyre-id] |+[[[/ %http-request] [src req]] ~])
     $
       %handle-http-cancel
     =/  eyre-id=@ta  !<(@ta q.sage)
-    ~&  >  [label %cancel eyre-id]
     ;<  ~  bind:m  (cull [%| 0 %& /requests eyre-id])
     $
       %eyre-action
@@ -1581,10 +2127,193 @@
   ^-  form:m
   ;<  here=rail:tarball  bind:m  get-here-abs
   (reg-poke [%register here path.here])
+::  +reg-register-at: register a caller-supplied rail (e.g. from its grant
+::  via here-abs:sh) instead of walking to root — lets a granted app
+::  register with no peek /. Niladic +reg-register stays for callers that
+::  want the trustless walk.
+++  reg-register-at
+  |=  here=rail:tarball
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (reg-poke [%register here path.here])
 ::
 ++  reg-how
   |=  [group=path =weir:nexus]
   =/  m  (fiber ,~)
   ^-  form:m
   (reg-poke [%how group weir])
+::  The same three, soft. Registering with the usergroup machinery is an
+::  OPTIONAL road for most apps: refuse it and the app keeps every local
+::  feature and loses only the ability to publish itself for cross-ship
+::  reads. That promise is what these make keepable: the hard versions
+::  %fail the fiber on a veto, and a %fail annuls the failing INVOCATION
+::  — its state and darts — and leaves the fiber failed. Prior
+::  invocations stand (a write awaited through put:io is one), so this
+::  is not an event rollback; it is a fiber that dies at an optional
+::  step and never does the work after it.
+::
+::  Observed: an app proved its key road, poked itself %set-caps, wrote
+::  /caps, and then ran rise work that called +reg-register-at, which
+::  was vetoed. The fiber failed there, so the app never reached the
+::  state it reports from, and reported "not granted the key road" on a
+::  ship where that road WAS granted — the veto was for a road it had
+::  never declared, and nothing named it.
+::
+++  reg-poke-soft
+  |=  act=registry-action:nexus
+  =/  m  (fiber ,(unit tang))
+  ^-  form:m
+  (poke-soft reg-road [reg-blot act])
+::
+++  reg-register-at-soft
+  |=  here=rail:tarball
+  =/  m  (fiber ,(unit tang))
+  ^-  form:m
+  (reg-poke-soft [%register here path.here])
+::
+++  reg-how-soft
+  |=  [group=path =weir:nexus]
+  =/  m  (fiber ,(unit tang))
+  ^-  form:m
+  (reg-poke-soft [%how group weir])
+::  Discovery (/sys/link) helpers.
+::
+::  An app is addressed by NAME, not by where it is installed: a name
+::  resolves through /sys/link/<name>/dest.lanes, the list of app roots
+::  claiming it, earliest claimant first (the shell keeps the list). A
+::  caller that needs another app's grub asks for the name and appends
+::  the grub's place under that app, so a move from /apps/x to a desk
+::  changes nothing for its callers. Reads are peeks, so the caller's
+::  weir must grant peek on /sys/link/ (local) or on the publisher's
+::  ships prefix (remote). ~ means no claimant.
+::
+::  +link-segs: '@chat/v1' or 'chat/v1' -> /chat/v1
+::
+++  link-segs
+  |=  name=@t
+  ^-  path
+  =/  t=tape  (trip name)
+  =?  t  &(?=(^ t) =('@' i.t))  t.t
+  (stab (crip ['/' t]))
+::  +link-road: the dest.lanes grub for a name
+::
+++  link-road
+  |=  name=@t
+  ^-  road:tarball
+  [%& %& (weld /sys/link (link-segs name)) %'dest.lanes']
+::  +link-lanes: every root claiming a name, earliest first; ~ if none
+::
+++  link-lanes
+  |=  name=@t
+  =/  m  (fiber ,(list lane:tarball))
+  ^-  form:m
+  ;<  got=(unit (list lane:tarball))  bind:m
+    (peek-as (link-road name) ,(list lane:tarball))
+  (pure:m (fall got ~))
+::  +resolve-link: the default root for a name — the earliest claimant
+::
+++  resolve-link
+  |=  name=@t
+  =/  m  (fiber ,(unit lane:tarball))
+  ^-  form:m
+  ;<  lanes=(list lane:tarball)  bind:m  (link-lanes name)
+  (pure:m ?~(lanes ~ `i.lanes))
+::  +resolve-link-at: a place under the app that claims a name, as a
+::  road: (resolve-link-at '@anthropic' [%& / %'main.sig']) is the
+::  anthropic nexus's main.sig wherever that nexus lives. A file
+::  resolves only under a directory root (every claimant is one).
+::
+++  resolve-link-at
+  |=  [name=@t at=lane:tarball]
+  =/  m  (fiber ,(unit road:tarball))
+  ^-  form:m
+  ;<  root=(unit lane:tarball)  bind:m  (resolve-link name)
+  ?~  root  (pure:m ~)
+  ?.  ?=(%| -.u.root)  (pure:m ~)
+  %-  pure:m
+  :-  ~
+  ?-  -.at
+    %&  [%& %& (weld p.u.root path.p.at) name.p.at]
+    %|  [%& %| (weld p.u.root p.at)]
+  ==
+::  +link-lanes-on: a name's claimants on ANOTHER ship, each prefixed
+::  with that ship's place in our tree, so the result is addressable
+::  here as it stands. The publisher grants the read through usergroups.
+::
+++  link-lanes-on
+  |=  [=ship name=@t]
+  =/  m  (fiber ,(list lane:tarball))
+  ^-  form:m
+  ;<  =view:nexus  bind:m  (peek-remote (link-road name) ship ~)
+  ?.  ?=([%file *] view)  (pure:m ~)
+  =/  got=(unit (list lane:tarball))
+    (mole |.(!<((list lane:tarball) (need-vase:tarball sang.view))))
+  ?~  got  (pure:m ~)
+  =/  prefix=path  /sys/ames/ships/[(scot %p ship)]/root
+  %-  pure:m
+  %+  turn  u.got
+  |=  l=lane:tarball
+  ?-  -.l
+    %&  [%& (weld prefix path.p.l) name.p.l]
+    %|  [%| (weld prefix p.l)]
+  ==
+::  +resolve-link-on: the default root for a name on another ship
+::
+++  resolve-link-on
+  |=  [=ship name=@t]
+  =/  m  (fiber ,(unit lane:tarball))
+  ^-  form:m
+  ;<  lanes=(list lane:tarball)  bind:m  (link-lanes-on ship name)
+  (pure:m ?~(lanes ~ `i.lanes))
+::  +no-link: the failure a name with no claimant raises. A caller
+::  handles it as it handles a veto: the place it named is not there.
+::
+++  no-link
+  |=  name=@t
+  ^-  tang
+  ~[leaf+"link: no claimant for {(trip name)}"]
+::  The verbs by name. Each resolves the name, then acts at the place
+::  under the claimant's root, and fails the fiber with +no-link when
+::  nothing claims the name. Nothing here asks the kernel for anything
+::  special: the caller's weir must grant peek on /sys/link/<name>/
+::  and the act itself on the resolved road, and the shell resolves
+::  the same @name in the caller's weir.json ask at approval, so the
+::  two agree as long as the registry does.
+::
+++  poke-link
+  |=  [name=@t at=lane:tarball =bask:tarball]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  road=(unit road:tarball)  bind:m  (resolve-link-at name at)
+  ?~  road  |=(input [~ q.state %fail (no-link name)])
+  (poke u.road bask)
+::
+++  peek-link
+  |=  [name=@t at=lane:tarball blot=(unit blot:tarball)]
+  =/  m  (fiber ,view:nexus)
+  ^-  form:m
+  ;<  road=(unit road:tarball)  bind:m  (resolve-link-at name at)
+  ?~  road  |=(input [~ q.state %fail (no-link name)])
+  (peek u.road blot)
+::
+++  make-link
+  |=  [name=@t at=lane:tarball mak=make:nexus]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  road=(unit road:tarball)  bind:m  (resolve-link-at name at)
+  ?~  road  |=(input [~ q.state %fail (no-link name)])
+  (make u.road mak)
+::  +keep-link: keep a place by name. Also keeps the name's registry
+::  grub, on /link/<wire>, so the caller is told when the claimant
+::  changes: on news there, drop `wire` and call +keep-link again,
+::  which keeps the new place. Returns the target's initial wave.
+::
+++  keep-link
+  |=  [=wire name=@t at=lane:tarball blot=(unit blot:tarball)]
+  =/  m  (fiber ,wave:nexus)
+  ^-  form:m
+  ;<  road=(unit road:tarball)  bind:m  (resolve-link-at name at)
+  ?~  road  |=(input [~ q.state %fail (no-link name)])
+  ;<  *  bind:m  (keep (weld /link wire) (link-road name) ~)
+  (keep wire u.road blot)
 --

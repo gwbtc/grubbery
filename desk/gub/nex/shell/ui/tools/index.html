@@ -1,0 +1,70 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tools</title>
+<link rel="icon" type="image/svg+xml" href="/grubbery/tools/icon.svg">
+<link rel="stylesheet" href="/grubbery/tools/style.css">
+</head>
+<body>
+<header>
+  <img id="brand-icon" src="/grubbery/tools/icon.svg" alt="">
+  <h1>Tools</h1>
+  <span class="sub">a tools nexus, by where it lives</span>
+  <form id="at-form" class="at">
+    <span class="muted">at</span>
+    <input id="at" class="mono" spellcheck="false" autocomplete="off" placeholder="/apps/mcp.mcp/tools">
+    <button class="small" type="submit">Go</button>
+  </form>
+  <span id="counts"></span>
+  <button id="refresh" class="small" title="re-read this tools nexus">Refresh</button>
+</header>
+<main>
+  <tab-group id="tabs" persist="mcp-tab">
+
+    <section tab-label="Tools" class="panel grow">
+      <div class="panel-head">
+        <h2>Tools</h2>
+        <span id="tools-count" class="muted"></span>
+        <span class="grow"></span>
+        <input id="tools-filter" placeholder="filter by name or description" spellcheck="false" autocomplete="off">
+      </div>
+      <p class="explain" id="tools-explain">
+        The tools of one tools nexus: the one at the path above, whose code
+        namespace is <code>&lt;path&gt;/code/lib/tools</code>. A tool is one
+        Hoon file compiled to a <code>tool</code>; its name is its file name
+        with hyphens as underscores. Click one for its schema, source, and a
+        form to run it. Any nexus can mount a tools nexus of its own; this page
+        shows whichever one its URL names, <code>/grubbery/tools/&lt;path&gt;</code>.
+      </p>
+      <div id="tools" class="scroll"></div>
+    </section>
+
+    <section tab-label="Runs" class="panel grow">
+      <div class="panel-head">
+        <h2>Runs</h2>
+        <span id="runs-count" class="muted"></span>
+        <span class="grow"></span>
+      </div>
+      <p class="explain">
+        Every tool call in flight in this tools nexus, one grub each under its <code>runs/</code>.
+        A run's fiber executes the handler and writes the result into its own
+        grub; the caller reads it and culls the grub. What stays here is what
+        no caller has collected.
+      </p>
+      <div id="runs" class="scroll"></div>
+    </section>
+
+  </tab-group>
+</main>
+<modal-dialog id="tool-modal">
+  <div id="tool-modal-body"></div>
+</modal-dialog>
+<modal-dialog id="run-modal">
+  <div id="run-modal-body"></div>
+</modal-dialog>
+<script type="module" src="/grubbery/tools/components.js"></script>
+<script src="/grubbery/tools/app.js"></script>
+</body>
+</html>

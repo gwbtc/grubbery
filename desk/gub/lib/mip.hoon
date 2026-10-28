@@ -1,4 +1,5 @@
 |%
+::  self-edit test: touched by the grubbery clanker, via the forge, round two
 ++  mip                                                 ::  map of maps
   |$  [kex key value]
   (map kex (map key value))

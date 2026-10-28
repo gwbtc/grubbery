@@ -221,13 +221,24 @@
     |=  [[@da refs=(set ref)] acc=(set ref)]
     (~(uni in acc) refs)
   =/  left=(list [@da (set ref)])  (tap:on-order (lot:on-order o ~ `from))
-  |-
-  ?~  left  hits
-  =/  rs=(list ref)  ~(tap in +.i.left)
-  |-
-  ?~  rs  ^$(left t.left)
-  =?  hits  (gte r.span.i.rs from)  (~(put in hits) i.rs)
-  $(rs t.rs)
+  =.  hits
+    |-  ^-  (set ref)
+    ?~  left  hits
+    =/  rs=(list ref)  ~(tap in +.i.left)
+    |-
+    ?~  rs  ^$(left t.left)
+    =?  hits  (gte r.span.i.rs from)  (~(put in hits) i.rs)
+    $(rs t.rs)
+  ::  exact overlap: spans are [l r) — r is exclusive, an event
+  ::  ending at from is over — and windows are [from to). keep
+  ::  zero-length instants sitting exactly on from.
+  %-  ~(gas in *(set ref))
+  %+  skim  ~(tap in hits)
+  |=  r=ref
+  ?&  (lth l.span.r to)
+      ?|  (gth r.span.r from)
+          &(=(l.span.r r.span.r) (gte r.span.r from))
+  ==  ==
 ::  +all-day: does this event render in date-space (no zone)?
 ::
 ++  all-day  |=(e=event ?=(?(%allday %date) -.e))

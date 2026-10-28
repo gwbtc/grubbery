@@ -291,6 +291,128 @@
     (all-blobs get-tree (snoc here name.ent) u.sub)
   ~[[(snoc here name.ent) hash.ent]]
 ::
+::  +write-pack: a version-2 packfile holding the given objects. Every
+::  entry is a whole object (no deltas), compressed as zlib stored
+::  blocks, so the writer needs no deflate: the receiver inflates it like
+::  any other pack. Trailer is the SHA-1 of everything before it.
+::
+++  write-pack
+  |=  objs=(list raw-object)
+  ^-  octs
+  =/  sea=bays:bytestream  *bays:bytestream
+  =.  sea  (append-octs:bytestream sea (as-octt:bytestream "PACK"))
+  =.  sea  (append-octs:bytestream sea [4 (rev 3 4 2)])
+  =.  sea  (append-octs:bytestream sea [4 (rev 3 4 (lent objs))])
+  =.  sea
+    %+  roll  objs
+    |=  [rob=raw-object s=_sea]
+    =.  s  (append-octs:bytestream s (pack-entry-header type.rob size.rob))
+    (append-octs:bytestream s (zlib-stored data.rob))
+  =/  sum=@ux  (hash-octs-sha-1 (to-octs:bytestream sea))
+  (to-octs:bytestream (append-hash sea %sha-1 sum))
+::
+::  +pack-entry-header: the varint object header of a pack entry. Low
+::  nibble of the first byte and seven bits per byte after, LSB first;
+::  the type sits in bits 4-6 of the first byte; 0x80 continues.
+::
+++  pack-entry-header
+  |=  [type=object-type size=@ud]
+  ^-  octs
+  =/  tnum=@  ?-(type %commit 1, %tree 2, %blob 3, %tag 4)
+  =/  first=@  (con (lsh [0 4] tnum) (dis size 0xf))
+  =/  rest=@ud  (rsh [0 4] size)
+  ?:  =(0 rest)  [1 first]
+  =/  bytes=(list @)  ~[(con first 0x80)]
+  |-
+  =/  b=@  (dis rest 0x7f)
+  =/  more=@ud  (rsh [0 7] rest)
+  ?:  =(0 more)
+    =/  all=(list @)  (flop [b bytes])
+    [(lent all) (rep 3 all)]
+  $(bytes [(con b 0x80) bytes], rest more)
+::
+::  +zlib-stored: a zlib stream with no compression: the two-byte
+::  header, stored blocks of at most 65535 bytes, and the adler32.
+::
+++  zlib-stored
+  |=  data=octs
+  ^-  octs
+  =/  sea=bays:bytestream  *bays:bytestream
+  =.  sea  (append-octs:bytestream sea [2 0x178])
+  =/  pos=@ud  0
+  =.  sea
+    |-  ^-  bays:bytestream
+    =/  left=@ud  (sub p.data pos)
+    =/  len=@ud  (min left 65.535)
+    =/  last=?  (lte left 65.535)
+    =.  sea  (append-byte:bytestream sea ?:(last 0x1 0x0))
+    =.  sea  (append-octs:bytestream sea [2 len])
+    =.  sea  (append-octs:bytestream sea [2 (mix len 0xffff)])
+    =.  sea  (append-octs:bytestream sea [len (cut 3 [pos len] q.data)])
+    ?:  last  sea
+    $(pos (add pos len))
+  =.  sea  (append-octs:bytestream sea [4 (rev 3 4 (adler32:adler:checksum data))])
+  (to-octs:bytestream sea)
+::
+::  +build-push-request: the body of POST /git-receive-pack. One
+::  command line, old and new tip for the ref with capabilities after
+::  the NUL, a flush, then the pack.
+::
+++  build-push-request
+  |=  [old=hash new=hash refname=tape caps=(list @t) pack=octs]
+  ^-  octs
+  ::  built as octs, not a tape: the NUL between the ref and the
+  ::  capabilities has no width in a cord and would vanish under +crip
+  =/  line=octs
+    %-  can-octs:bytestream
+    :~  (as-octt:bytestream (print-hash-sha-1 old))
+        [1 ' ']
+        (as-octt:bytestream (print-hash-sha-1 new))
+        [1 ' ']
+        (as-octt:bytestream refname)
+        [1 0x0]
+        (as-octt:bytestream (join ' ' (turn caps trip)))
+        [1 0xa]
+    ==
+  =/  len=octs  (as-octt:bytestream (print-hex-pad (add 4 p.line) 4))
+  (can-octs:bytestream ~[len line [4 '0000'] pack])
+::
+::  +parse-push-response: the report-status reply. ~ when the server
+::  unpacked and updated the ref; otherwise the lines it sent.
+::
+++  parse-push-response
+  |=  body=octs
+  ^-  (unit tape)
+  =/  all=(list tape)  (report-lines body)
+  =/  unpacked=?  (lien all |=(l=tape =("unpack ok" (scag 9 l))))
+  =/  refused=?  (lien all |=(l=tape =("ng " (scag 3 l))))
+  ?:  &(unpacked !refused)  ~
+  `(join ' ' all)
+::
+::  +report-lines: every pkt-line payload in a report-status reply, with
+::  side-band demuxed: GitHub wraps the report in channel 1 even when it
+::  was not asked for, so a channel-1 payload is itself a run of
+::  pkt-lines; channels 2 and 3 are text to keep as they are.
+::
+++  report-lines
+  |=  body=octs
+  ^-  (list tape)
+  =/  pos=@ud  0
+  =|  lines=(list tape)
+  |-
+  ?:  (gth (add pos 4) p.body)  (flop lines)
+  =^  pkt=(unit octs)  pos  (read-pkt pos body)
+  ?~  pkt  $
+  ?:  =(0 p.u.pkt)  $
+  =/  chan=@  (cut 3 [0 1] q.u.pkt)
+  ?:  =(1 chan)
+    =/  inner=octs  [(dec p.u.pkt) (rsh [3 1] q.u.pkt)]
+    $(lines (weld (flop (report-lines inner)) lines))
+  =/  text=octs  ?:(|(=(2 chan) =(3 chan)) [(dec p.u.pkt) (rsh [3 1] q.u.pkt)] u.pkt)
+  =/  line=tape  (trip q.text)
+  =?  line  &(!=(~ line) =((rear line) 10))  (snip `tape`line)
+  $(lines [line lines])
+::
 ::  Helpers
 ::
 ++  read-pkt

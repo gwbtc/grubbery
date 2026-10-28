@@ -15,12 +15,14 @@
   |=  [eyre-id=@ta src=@p req=inbound-request:eyre site=path args=quay:eyre]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  our=@p  bind:m  get-our:io
-  ?.  =(src our)
-    (send-error eyre-id 403 'Forbidden')
+  ::  No src == our check. Authority was decided in +route-http from the
+  ::  asker's own position (+asker-rail) before this request grub existed,
+  ::  and it cannot be re-decided here: a request grub lives at
+  ::  /sys/eyre/requests, so these darts originate under eyre's authority,
+  ::  not the asker's. A blanket 403 here makes every foreign weir dead
+  ::  code.
   ?>  ?=([%grubbery %api *] site)
   =/  rest=path  t.t.site
-  ~&  >  [%ball-api-dispatch method.request.req ?~(rest %~ i.rest)]
   ::  Route by first segment: file, kids, tree, tar, dir
   ?~  rest
     (send-error eyre-id 400 'Missing endpoint: file, kids, tree, tar, dir')
@@ -28,8 +30,10 @@
   =/  api-path=path  t.rest
   ?+    [method.request.req endpoint]
       (send-error eyre-id 405 'Method Not Allowed')
-  ::  GET /file/... — peek file, convert to mime
-      [%'GET' %file]   (serve-file-peek eyre-id api-path args)
+  ::  GET /file/... is served inline by +serve-api-read-sync, which gates
+  ::  runnable content-types behind +serve-sandbox. There is deliberately
+  ::  no fiber-side twin: a second serve arm is a second place for that
+  ::  gate to be forgotten, and this one had already forgotten it.
   ::  GET /kids/... — immediate children (files + subdirs)
       [%'GET' %kids]   (serve-kids eyre-id api-path)
   ::  GET /tree/... — recursive tree with marks
@@ -110,7 +114,6 @@
     ;<  ~  bind:m  (send-error eyre-id 400 'No tube for mark conversion')
     (pure:m ~)
   =/  result=(each vase tang)
-    ~>  %bout.[1 %convert-apply-tube]
     (mule |.((u.tube q.sage)))
   ?:  ?=(%| -.result)
     ;<  ~  bind:m  (send-error eyre-id 500 'Mark conversion failed')
@@ -133,31 +136,6 @@
   ?.  ?=([%ball *] root-view)
     (pure:m ~)
   (pure:m `ball.root-view)
-::  +serve-file-peek: GET /file — peek grub, convert to mime
-::
-++  serve-file-peek
-  |=  [eyre-id=@ta api-path=path args=(list [key=@t value=@t])]
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  ?~  api-path
-    (send-error eyre-id 400 'File path required')
-  ;<  root=(unit ball:tarball)  bind:m  peek-root
-  ?~  root
-    (send-error eyre-id 500 'Peek failed')
-  =/  parent=path  (snip `path`api-path)
-  =/  name=@ta  (rear api-path)
-  =/  parent-ball=ball:tarball  (~(dip ba:tarball u.root) parent)
-  =/  content-data=(unit [=sang:tarball gain=? bang=(unit tang)])
-    ?~  fil.parent-ball  ~
-    (~(get by contents.u.fil.parent-ball) name)
-  ?~  content-data
-    (send-error eyre-id 404 'Not found')
-  =/  =sage:tarball  (need-sage:tarball sang.u.content-data)
-  =/  blot-param=(unit @t)  (get-key:kv:html-utils 'blot' args)
-  ;<  converted=(unit sage:tarball)  bind:m  (maybe-convert eyre-id sage blot-param)
-  ?~  converted  (pure:m ~)
-  ;<  =mime  bind:m  (sage-to-mime:io u.converted)
-  (send-mime eyre-id mime)
 ::  +serve-kids: GET /kids — immediate children (files + subdirs)
 ::
 ++  serve-kids
@@ -381,7 +359,7 @@
   =/  full-path=path  (weld tree-path file-parent)
   ::  Build mime cage and try mark conversion
   =/  file-mime=mime
-    :_  (as-octs:mimes:html body.file-part)
+    :_  body.file-part
     (fall type.file-part /application/octet-stream)
   =/  mime-sage=sage:tarball  [[/ %mime] !>(file-mime)]
   =/  ext=(unit @ta)  (parse-extension:tarball file-name)

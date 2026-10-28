@@ -1,10 +1,21 @@
 ::  ships: a set of ship identities
 ::  text format: space-separated @p values, e.g. "~zod ~bus ~nec"
+::  json: an array of @p strings, both ways
 ::
 |_  ships=(set @p)
 ++  grab
   |%
   ++  noun  ,(set @p)
+  ++  json
+    |=  jon=^json
+    ^-  (set @p)
+    ?.  ?=([%a *] jon)  ~
+    %-  ~(gas in *(set @p))
+    %+  murn  p.jon
+    |=  j=^json
+    ^-  (unit @p)
+    ?.  ?=([%s *] j)  ~
+    (slaw %p p.j)
   ++  mime
     |=  [=mite len=@ud tex=@t]
     ^-  (set @p)
@@ -23,6 +34,9 @@
 ++  grow
   |%
   ++  noun  ships
+  ++  json
+    ^-  ^json
+    a+(turn (sort ~(tap in ships) aor) |=(s=@p s+(scot %p s)))
   ++  mime
     ^-  ^mime
     =/  parts=(list tape)  (turn ~(tap in ships) |=(s=@p (trip (scot %p s))))

@@ -1,16 +1,35 @@
 ::  Root nexus — hardcoded in app/grubbery.hoon, not loaded from code namespace.
 ::
 /+  nexus, tarball, loader, io=fiberio, ball-api, http-utils, server
-=/  app-weir=(unit weir:tarball)
-  `[make=~ poke=(sy ~[[%& %| /]]) peek=(sy ~[[%& %| /]])]
-=/  git-desk-config
+::  /apps is the trusted system tier: every instance defaults to ~ (no
+::  weir, unrestricted). The weir apparatus exists for the untrusted
+::  userspace tier — desk-installed apps default closed ([~ ~ ~]) and
+::  earn each road through weir.json + shell approval. Built-ins,
+::  including the shell (the capability broker that sands everyone
+::  else), just run open here.
+::  git-repo-config: config for a /git/repo instance — clones + checks
+::  out a github repo. poll drives the periodic re-fetch.
+=/  git-repo-config
   |=  [repo=@t ref=@t]
   ^-  json
   %-  pairs:enjs:format
   :~  ['repo' s+repo]
       ['ref' s+ref]
-      ['public' b+%.n]
-      ['poll' n+'360']
+      ['token' s+'']
+      ['poll' n+'15']
+  ==
+::  desk-source-config: config for a /desk instance — subscribes to a
+::  code dir already in the namespace (here, a git_repo's checked-out
+::  tree) and deploys it. source is that dir's absolute path.
+=/  desk-source-config
+  |=  source=@t
+  ^-  json
+  %-  pairs:enjs:format
+  :~  ['source' s+source]
+      ['share' a+~]
+      ::  full version-file name — lets the desk watch its road before
+      ::  the source (a git_repo) has checked out. See desk.hoon.
+      ['version' s+'version.json']
   ==
 ^-  nexus:nexus
 |%
@@ -20,7 +39,13 @@
   %+  spin:loader  ball
     :~  (manifest:loader 0)
         [%load %| / / same-fold:loader]
-        [%fall %| /apps [`[~ ~ %.n ~] ~]]
+        ::  /apps is the trusted tier and MUST stay unweired: a weir here
+        ::  locks the whole system including every tool that could remove
+        ::  it (learned the hard way). Each load forcibly resets /apps'
+        ::  own fil to the open default — an invariant, not healing.
+        ::  Children untouched (%load extracts the old subtree and
+        ::  transforms only the top fil).
+        [%load %| /apps /apps |=(b=bole:tarball b(fil `[~ ~ %.n ~]))]
         [%fall %| /docs [`[~ ~ %.n ~] ~]]
         ::  /sys/eyre: HTTP server state + request fibers
         ::
@@ -30,39 +55,61 @@
         ::  /sys/behn: timer service
         ::
         [%fall %| /sys/behn [`[~ ~ %.n ~] ~]]
-        [%fall %& [/sys/behn %'main.timer-state'] [[/ %timer-state] *timer-state:nexus]]
+        [%fall %& [/sys/behn %'main.behn-state'] [[/ %behn-state] *behn-state:nexus]]
         ::  /sys/iris: HTTP client service
         ::
         [%fall %| /sys/iris [`[~ ~ %.n ~] ~]]
         [%fall %& [/sys/iris %'main.iris-state'] [[/ %iris-state] *iris-state:nexus]]
+        ::  websocket client table (groundwire runtime only); same vane
+        [%fall %& [/sys/iris %'ws.ws-state'] [[/ %ws-state] *ws-state:nexus]]
         ::  /sys/clay: desk sync service (state + desks/ subdir)
         ::
         [%fall %& [/sys/clay %'main.clay-state'] [[/ %clay-state] *clay-state:nexus]]
         [%fall %| /sys/clay/desks [`[~ ~ %.n ~] ~]]
+        ::  /sys/link: discovery registry (dest.lanes per @name)
+        ::
+        [%fall %| /sys/link [`[~ ~ %.n ~] ~]]
         ::  /sys/scry: scry service
         ::
         [%fall %| /sys/scry [`[~ ~ %.n ~] ~]]
         [%fall %& [/sys/scry %'main.sig'] [[/ %sig] ~]]
+        [%fall %& [/sys/scry %'main.scry-state'] [[/ %scry-state] *scry-state:nexus]]
         ::  child nexuses
         ::
-        [%fall %| /apps/'tiles.tiles' [`[`[/ %tiles] app-weir %.n ~] ~]]
-        [%fall %| /apps/'counter.counter' [`[`[/ %counter] app-weir %.n ~] ~]]
+        ::  the shell: the one bootstrap nexus, the user's interface to the
+        ::  kernel. Its home page's local tiles live inside it (/tiles).
+        [%fall %| /apps/'shell.shell' [`[`[/ %shell] ~ %.n ~] ~]]
         [%fall %| /apps/'explorer.explorer' [`[`[/ %explorer] ~ %.n ~] ~]]
-        [%fall %| /apps/'mcp.mcp' [`[`[/ %mcp] ~ %.n ~] ~]]
-        [%fall %| /apps/'peers.peers' [`[`[/ %peers] app-weir %.n ~] ~]]
-        [%fall %| /apps/'calendar.calendar' [`[`[/ %calendar] app-weir %.n ~] ~]]
         ::
-        [%fall %| /apps/'wallet.git_desk' [`[`[/git %desk] app-weir %.n ~] ~]]
-        [%fall %& [/apps/'wallet.git_desk' %'config.json'] [[/ %json] (git-desk-config 'niblyx-malnus/wallet-nexus' 'main')]]
+        ::  forge: the UI over git repo instances, housing them at
+        ::  /repos inside itself.
+        [%fall %| /apps/'forge.git_forge' [`[`[/git %forge] ~ %.n ~] ~]]
         ::
-        [%fall %| /apps/'contacts.git_desk' [`[`[/git %desk] app-weir %.n ~] ~]]
-        [%fall %& [/apps/'contacts.git_desk' %'config.json'] [[/ %json] (git-desk-config 'niblyx-malnus/contacts-nexus' 'main')]]
+        ::  contacts + wallet seeds DISABLED: desks are managed by the
+        ::  shell's sync-defaults pipeline now.
         ::
-        [%fall %| /apps/'obelisk.obelisk_app' [`[`[/obelisk %app] app-weir %.n ~] ~]]
-        [%fall %| /apps/'test.web-test' [`[`[/ %web-test] app-weir %.n ~] ~]]
-        [%fall %| /apps/'test.guestbook' [`[`[/ %guestbook] app-weir %.n ~] ~]]
-        [%fall %| /apps/'test.desk' [`[`[/ %desk] app-weir %.n ~] ~]]
-        [%fall %| /apps/'itinerary.git_desk' [`[`[/git %desk] app-weir %.n ~] ~]]
+        [%fall %| /apps/'github.github' [`[`[/ %github] ~ %.n ~] ~]]
+        ::  /sys/link built-in names: the apps that ship with grubbery claim
+        ::  their discovery names HERE, next to where the apps are declared, so
+        ::  @github/@forge/… resolve the instant the tree loads — no shell scan,
+        ::  no approval, no first-boot race. Each dest.lanes points at the app's
+        ::  own root (a %| dir lane). The shell registers only the names USER
+        ::  DESKS claim; these shipped names are a fact of the base tree.
+        [%fall %| /sys/link/explorer [`[~ ~ %.n ~] ~]]
+        [%fall %& [/sys/link/explorer %'dest.lanes'] [[/ %lanes] ~[`lane:tarball`[%| /apps/'explorer.explorer']]]]
+        ::  tools: the MCP endpoint's tools nexus is a service of the shell
+        ::  (its /tools directory, lib/shell/mcp), so @tools is that.
+        [%fall %| /sys/link/tools [`[~ ~ %.n ~] ~]]
+        [%fall %& [/sys/link/tools %'dest.lanes'] [[/ %lanes] ~[`lane:tarball`[%| /apps/'shell.shell'/tools]]]]
+        ::  notifications: the inbox is a service of the shell (its
+        ::  /notifications directory); the name points into it, so
+        ::  @notifications/main.sig is the shell's notifications/main.sig.
+        [%fall %| /sys/link/notifications [`[~ ~ %.n ~] ~]]
+        [%fall %& [/sys/link/notifications %'dest.lanes'] [[/ %lanes] ~[`lane:tarball`[%| /apps/'shell.shell'/notifications]]]]
+        [%fall %| /sys/link/forge [`[~ ~ %.n ~] ~]]
+        [%fall %& [/sys/link/forge %'dest.lanes'] [[/ %lanes] ~[`lane:tarball`[%| /apps/'forge.git_forge']]]]
+        [%fall %| /sys/link/github [`[~ ~ %.n ~] ~]]
+        [%fall %& [/sys/link/github %'dest.lanes'] [[/ %lanes] ~[`lane:tarball`[%| /apps/'github.github']]]]
     ==
 ::
 ++  on-file

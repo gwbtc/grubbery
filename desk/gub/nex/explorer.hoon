@@ -1,9 +1,62 @@
-::  explorer nexus: tarball tree browser
+::  explorer nexus: the tarball tree browser
 ::
 /<  feather  /lib/feather.hoon
 /<  iso-8601  /lib/iso-8601.hoon
+/<  cs        /lib/code-src.hoon
 /&  man   ../man/explorer/readme.md
 /&  icon  explorer/icon.svg
+/&  gram     explorer/hoon-grammar.json
+/&  fp-js    /lib/ui/file-preview.js
+/&  fv-js    /lib/ui/file-view.js
+/&  ve-js    /lib/ui/vim-editor.js
+/&  ve-cfg   /lib/ui/vim-editor-config.json
+/&  md-js    /lib/ui/modal-dialog.js
+/&  dm2-js   /lib/ui/drop-menu.js
+/&  ft-js    /lib/ui/file-table.js
+/&  fg-js    /lib/ui/file-grid.js
+/&  sv-js    /lib/ui/split-view.js
+/&  tg-js    /lib/ui/tab-group.js
+/&  tv-js    /lib/ui/tree-view.js
+/&  tvr-js   /lib/ui/tree-viewer.js
+/&  ba-js    /lib/ui/badges.js
+::  experimental tmux-style pane splitting — served but unlinked from the
+::  live finder; exercised only via panes.html (see below).
+/&  gmux-js     /lib/ui/gmux.js
+/&  nk-js       /lib/ui/nav-keys.js
+/&  panes-html  explorer/ui/panes.html
+/&  browse-html  explorer/ui/browse.html
+/&  browse-js    explorer/ui/browse.js
+/&  view-html    explorer/ui/view.html
+::  the explorer's own copy: importing the shell's tied the explorer's build
+::  to the shell's files, and every page that embeds the explorer with it
+/&  marked-js  explorer/marked.min.js
+::  snaps: the page renders a pane to a PNG on request (see /snaps below)
+/&  h2c-js     explorer/html2canvas.min.js
+::  graph bundle: cytoscape + its dagre layout adapter + dagre itself,
+::  welded into one served file (graph.js). Layout and rendering are
+::  prior art here: ranking, crossing minimisation and edge routing are
+::  not things to hand-roll once a graph stops being a straight line.
+/&  cy-js      /lib/graph/cytoscape.min.js
+/&  cy-dagre   /lib/graph/cytoscape-dagre.js
+/&  dagre-js   /lib/graph/dagre.min.js
+/&  cm-js      /lib/cm/codemirror.min.js
+/&  cm-css     /lib/cm/codemirror.min.css
+::  the dialog addon: vim's own "/" search and ":" ex-command prompts call
+::  cm.openDialog when it exists, falling back to a blocking window.prompt()
+::  when it doesn't — this addon is what makes openDialog exist.
+/&  cm-dialog-js   /lib/cm/dialog.js
+/&  cm-dialog-css  /lib/cm/dialog.css
+::  the searchcursor addon: vim's "/" and "?" search commands call
+::  cm.getSearchCursor to actually find matches — without it the search
+::  resolves and runs but silently finds nothing.
+/&  cm-search-js   /lib/cm/searchcursor.js
+/&  cm-vim     /lib/cm/vim.min.js
+/&  cm-m-js    /lib/cm/javascript.min.js
+/&  cm-m-css   /lib/cm/css.min.js
+/&  cm-m-xml   /lib/cm/xml.min.js
+/&  cm-m-md    /lib/cm/markdown.min.js
+/&  cm-m-html  /lib/cm/htmlmixed.min.js
+/&  cm-m-hoon  /lib/cm/hoon-mode.js
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -17,13 +70,116 @@
             image+s+'/grubbery/tiles/icon/explorer'
             href+s+'/grubbery/ball'
         ==
+      ::  editor bundle: codemirror + vim keymap + modes welded into one
+      ::  served file (same pattern as web-test's components.js)
+      =/  cm-wrap  |=(=mime `@`(rap 3 ~[10 q.q.mime 10]))
+      ::  dagre must come first: the cytoscape adapter looks for it
+      =/  graph-bundle=mime
+        :-  /application/javascript
+        %-  as-octs:mimes:html
+        %+  rap  3
+        :~  (cm-wrap dagre-js)
+            (cm-wrap cy-js)
+            (cm-wrap cy-dagre)
+        ==
+      =/  cm-bundle=mime
+        :-  /application/javascript
+        %-  as-octs:mimes:html
+        %+  rap  3
+        :~  (cm-wrap cm-js)
+            (cm-wrap cm-dialog-js)
+            (cm-wrap cm-search-js)
+            (cm-wrap cm-vim)
+            (cm-wrap cm-m-js)
+            (cm-wrap cm-m-css)
+            (cm-wrap cm-m-xml)
+            (cm-wrap cm-m-md)
+            (cm-wrap cm-m-html)
+            (cm-wrap cm-m-hoon)
+        ==
+      ::  cm.css: codemirror's base styling + the dialog addon's (the "/"
+      ::  search and ":" ex-command bars it draws at the bottom of the
+      ::  editor) — same weld-into-one-file reasoning as cm-bundle above.
+      =/  cm-css-bundle=mime
+        :-  /text/css
+        %-  as-octs:mimes:html
+        %+  rap  3
+        :~  (cm-wrap cm-css)
+            (cm-wrap cm-dialog-css)
+        ==
+      ::  kit bundle: the shared ui components + file viewer welded into ONE
+      ::  file, so the browse page makes a single request for all of them —
+      ::  on a pier that serializes requests, ten separate scripts cost ten
+      ::  round trips. Each wrapped in { } so top-level consts don't collide;
+      ::  define/window assignments run globally. The per-file grubs below
+      ::  stay: view.html and FileView's own on-demand loads still use them.
+      ::  123={  125=}  10=newline.
+      =/  wrap  |=(=mime ^-(@ (rap 3 ~[123 10 q.q.mime 10 125 10])))
+      =/  kit-js=mime
+        :-  /application/javascript
+        %-  as-octs:mimes:html
+        %+  rap  3
+        :~  (wrap md-js)
+            (wrap dm2-js)
+            (wrap ft-js)
+            (wrap fg-js)
+            (wrap sv-js)
+            (wrap nk-js)
+            (wrap gmux-js)
+            (wrap tg-js)
+            (wrap tv-js)
+            (wrap ba-js)
+            (wrap marked-js)
+            (wrap fp-js)
+            (wrap fv-js)
+            (wrap ve-js)
+        ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
+          [%over %& [/ %'link.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'explorer'] ['description' s+'Browse the namespace tree']])]]
+          [%over %& [/ %'weir.json'] [[/ %json] weir-json]]
           [%over %& [/ %'tile.json'] [[/ %json] tile]]
           [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %| /requests empty-dir:loader]
+          ::  /sessions: gmux workspaces as the ship's record, one json grub
+          ::  each (see +session-loop and browse.js sessions)
+          [%fall %| /sessions empty-dir:loader]
+          ::  /snaps: pictures of a session for tools. A tool writes
+          ::  <id>.json {session, moment}; the page attached to that
+          ::  session (the only thing that can see it) renders the pane
+          ::  showing that moment, uploads <id>.answer.json saying what it
+          ::  drew, then <id>.png; the tool awaits the png, reads the
+          ::  answer and culls all three. Calls protocol: the requester
+          ::  keeps the png road.
+          [%fall %| /snaps empty-dir:loader]
+          [%over %& [/ %'html2canvas.min.js'] [[/ %mime] h2c-js]]
           [%over %& [/ %'README.md'] [[/ %mime] man]]
+          [%over %& [/ %'hoon-grammar.json'] [[/ %mime] gram]]
+          [%over %& [/ %'file-preview.js'] [[/ %mime] fp-js]]
+          [%over %& [/ %'file-view.js'] [[/ %mime] fv-js]]
+          [%over %& [/ %'vim-editor.js'] [[/ %mime] ve-js]]
+          [%over %& [/ %'vim-editor.json'] [[/ %mime] ve-cfg]]
+          [%over %& [/ %'modal-dialog.js'] [[/ %mime] md-js]]
+          [%over %& [/ %'drop-menu.js'] [[/ %mime] dm2-js]]
+          [%over %& [/ %'file-table.js'] [[/ %mime] ft-js]]
+          [%over %& [/ %'file-grid.js'] [[/ %mime] fg-js]]
+          [%over %& [/ %'split-view.js'] [[/ %mime] sv-js]]
+          [%over %& [/ %'tab-group.js'] [[/ %mime] tg-js]]
+          [%over %& [/ %'tree-view.js'] [[/ %mime] tv-js]]
+          [%over %& [/ %'tree-viewer.js'] [[/ %mime] tvr-js]]
+          [%over %& [/ %'badges.js'] [[/ %mime] ba-js]]
+          [%over %& [/ %'kit.js'] [[/ %mime] kit-js]]
+          [%over %& [/ %'browse.html'] [[/ %mime] browse-html]]
+          [%over %& [/ %'browse.js'] [[/ %mime] browse-js]]
+          [%over %& [/ %'view.html'] [[/ %mime] view-html]]
+          [%over %& [/ %'gmux.js'] [[/ %mime] gmux-js]]
+          [%over %& [/ %'nav-keys.js'] [[/ %mime] nk-js]]
+          [%over %& [/ %'panes.html'] [[/ %mime] panes-html]]
+          [%over %& [/ %'marked.min.js'] [[/ %mime] marked-js]]
+          [%over %& [/ %'graph.js'] [[/ %mime] graph-bundle]]
+          [%over %& [/ %'cm.js'] [[/ %mime] cm-bundle]]
+          [%over %& [/ %'cm.css'] [[/ %mime] cm-css-bundle]]
       ==
     ::
     ++  on-file
@@ -35,11 +191,14 @@
       ?+    rail  stay:m
           [~ %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%explorer /main: failed, poke to restart")
-        ~&  >  "%explorer /main: binding /grubbery/ball and /grubbery/split"
+        ~?  dbg  "%explorer /main: binding /grubbery/ball"
         ;<  ~  bind:m  (bind-http:io [~ /grubbery/ball])
-        ;<  ~  bind:m  (bind-http:io [~ /grubbery/split])
-        ~&  >  "%explorer /main: ready"
+        ;<  ~  bind:m  (bind-http:io [~ /grubbery/explorer])
+        ~?  dbg  "%explorer /main: ready"
         (http-dispatch:io %explorer)
+          [[%sessions ~] @]
+        ;<  ~  bind:m  (rise-wait:io prod "%explorer /sessions: failed, poke to restart")
+        session-loop
           [[%requests ~] @]
         ;<  ~  bind:m  (rise-wait:io prod "%explorer /requests: failed, poke to restart")
         =/  eyre-id=@ta  name.rail
@@ -48,52 +207,815 @@
         ?.  =(src our)
           ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
           (pure:m ~)
-        ~&  >  [%explorer-request eyre-id url.request.req]
+        ~?  dbg  [%explorer-request eyre-id url.request.req]
         =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
-        ?:  ?=([%grubbery %split *] site)
-          =/  bod=octs  (manx-to-octs:server render-split)
-          ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/html bod]))
+        ::  /grubbery/explorer/sse: one SSE connection per workspace page; it
+        ::  follows whatever roads the page sends to /grubbery/explorer/follow
+        ::  (see +serve-sse). The page's panes declare what they depend on and
+        ::  the stream reports moves on exactly those roads.
+        ?:  ?=([%grubbery %explorer %sse ~] site)
+          (serve-sse eyre-id req)
+        ?:  ?=([%grubbery %explorer %follow ~] site)
+          (handle-follow eyre-id req)
+        ::  /grubbery/explorer/term: a terminal pane's history read and its
+        ::  keystrokes, session tasks (see +handle-term)
+        ?:  ?=([%grubbery %explorer %term ~] site)
+          (handle-term eyre-id req args)
+        ::  /grubbery/explorer/session: the workspace sessions — list, create,
+        ::  delete, and the attached client's attach / write-back / ops
+        ::  (see +handle-session)
+        ?:  ?=([%grubbery %explorer %session ~] site)
+          (handle-session eyre-id req)
+        ::  /grubbery/explorer[/...]: the standalone pane workspace — same shell,
+        ::  browse.js renders panes full-screen; it fetches data from /grubbery/ball.
+        ?:  ?=([%grubbery %explorer *] site)
+          ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils browse-html))
           (pure:m ~)
         =/  raw-path=path
           ?.  ?=([%grubbery %ball *] site)  ~
           t.t.site
 
-        ?:  ?=([%stream ~] raw-path)
-          =/  watch-path=path
-            =/  p=(unit @t)  (get-key:kv:html-utils 'path' args)
-            ?~  p  ~
-            (stab u.p)
-          (handle-stream eyre-id req watch-path)
-        ~&  >  %explorer-dispatch-start
-        ;<  dir-view=view:nexus  bind:m  (peek-shallow:io [%& %| raw-path] ~)
-        ~&  >  %explorer-peek-done
+        ~?  dbg  %explorer-dispatch-start
+        =/  vers  (version-args args)
+        ;<  dir-view=view:nexus  bind:m
+          (peek-versioned raw-path cas.vers asof.vers)
+        ~?  dbg  %explorer-peek-done
         ?.  ?=([%ball *] dir-view)
           ::  Not a directory — try parent for file view
           ?~  raw-path
             ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
             (pure:m ~)
           =/  parent=path  (snip `path`raw-path)
-          ;<  par-view=view:nexus  bind:m  (peek-shallow:io [%& %| parent] ~)
+          ::  a ?case= on a FILE numbers the file, not its directory, so
+          ::  the parent is read in the present. ?asof= is anchor-relative
+          ::  and does apply to both.
+          ;<  par-view=view:nexus  bind:m
+            (peek-versioned parent ~ asof.vers)
           ?.  ?=([%ball *] par-view)
-            ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
+            ;<  ~  bind:m  (send-missing eyre-id raw-path args (wants-html req))
             (pure:m ~)
           ?:  =('POST' method.request.req)
             (handle-post eyre-id raw-path ~ ball.par-view req)
-          (handle-get eyre-id raw-path %.n ~ ball.par-view wave.par-view args)
+          (handle-get eyre-id raw-path %.n ~ ball.par-view wave.par-view args (wants-html req))
         ;<  dir-weir=(unit weir:nexus)  bind:m
           (read-weir-from-parent raw-path)
         ?:  =('POST' method.request.req)
           (handle-post eyre-id raw-path dir-weir ball.dir-view req)
-        ~&  >  %explorer-handle-get-start
-        (handle-get eyre-id raw-path %.y dir-weir ball.dir-view wave.dir-view args)
+        ~?  dbg  %explorer-handle-get-start
+        (handle-get eyre-id raw-path %.y dir-weir ball.dir-view wave.dir-view args (wants-html req))
       ==
     --
 ::
 |%
+::  +dbg: the routine traces print only when this is yes. It lives in this
+::  helper core, where the nexus core above can see it.
+::
+++  dbg  ^-(? |)
+::  +kid-info: what the listing learns about a subdirectory — its neck
+::  (as a rail), the source file of that neck's nexus, its fiber bang
+::
++$  kid-info  [neck=(unit rail:tarball) neck-url=(unit tape) bang=(unit tang)]
+::  +view-file: the grub a directory carries to declare its views: how the
+::  paths under it open in the explorer. {viewers, title, icon}: `viewers`
+::  is the url of an endpoint the app serves (asked per path, see
+::  browse.js viewerFor), `title` and `icon` the chrome of an explorer
+::  rooted at or under it. The explorer rooted anywhere finds the nearest
+::  view.json at or above its root (+find-view), nothing registers.
+++  view-file  %'view.json'
+::  +find-view: walk up from `dir` to the namespace root for the nearest
+::  directory carrying a view.json; its directory and contents, or ~.
+++  find-view
+  |=  dir=path
+  =/  m  (fiber:fiber:nexus ,(unit [at=path decl=json]))
+  ^-  form:m
+  |-  ^-  form:m
+  ;<  v=view:nexus  bind:m  (peek:io [%& %& dir view-file] `[/ %json])
+  ?:  &(?=([%file *] v) !(is-boom:tarball sang.v))
+    =/  res  (mule |.(!<(json (need-vase:tarball sang.v))))
+    ?:  &(?=(%& -.res) ?=([%o *] p.res))  (pure:m `[dir p.res])
+    ?~  dir  (pure:m ~)
+    $(dir (snip `path`dir))
+  ?~  dir  (pure:m ~)
+  $(dir (snip `path`dir))
+::  +pant-of: the directories from `from` (exclusive) down to `dir`
+::  (inclusive), each with its neck: the path as the kernel's pant:nexus
+::  spells it, so a view rule can switch on the nexuses along the way,
+::  not only on names. ~ when dir is not under from.
+++  pant-of
+  |=  [from=path dir=path]
+  =/  m  (fiber:fiber:nexus ,(unit (list [dir=@ta neck=(unit rail:tarball)])))
+  ^-  form:m
+  ?.  =(from (scag (lent from) dir))  (pure:m ~)
+  =/  rest=path  (slag (lent from) dir)
+  =/  at=path  from
+  =|  out=(list [dir=@ta neck=(unit rail:tarball)])
+  |-  ^-  form:m
+  ?~  rest  (pure:m `(flop out))
+  =/  here=path  (snoc at i.rest)
+  ;<  v=view:nexus  bind:m  (peek-shallow:io [%& %| here] ~)
+  =/  neck=(unit rail:tarball)
+    ?.  ?=([%ball *] v)  ~
+    ?~  fil.ball.v  ~
+    neck.u.fil.ball.v
+  $(rest t.rest, at here, out [[i.rest neck] out])
+++  pant-json
+  |=  pant=(list [dir=@ta neck=(unit rail:tarball)])
+  ^-  json
+  :-  %a
+  %+  turn  pant
+  |=  [dir=@ta neck=(unit rail:tarball)]
+  ^-  json
+  :-  %a
+  :~  s+`@t`dir
+      ?~(neck ~ s+(crip (spud (rail-to-path:tarball u.neck))))
+  ==
+::  +weir-json: the roads explorer reaches. peek / is honest here — a
+::  namespace browser reads arbitrary paths anywhere in the tree.
+::
+++  weir-json
+  ^-  json
+  =/  line  |=([r=@t w=@t] `json`(pairs:enjs:format ~[['road' s+r] ['why' s+w]]))
+  %-  pairs:enjs:format
+  :~  :-  'poke'
+      :-  %a
+      :~  (line '/sys/bowl.sig' 'read the current time and our ship — get-time / get-our')
+          (line '/sys/eyre/' 'bind /grubbery/ball and send page responses')
+          (line '/sys/dill/main.sig' 'type into a dill session, open and shut sessions, tell dill a terminal pane\'s size')
+      ==
+      :-  'peek'
+      :-  %a
+      :~  (line '/' 'browse the whole namespace — reading any path is what an explorer does')
+      ==
+      :-  'make'
+      :-  %a
+      :~  (line '/' 'create, upload, and delete files anywhere — the editor half of the explorer')
+      ==
+  ==
 ::  HTTP response door (road from /explorer.explorer/requests/* to /explorer.explorer/main.sig)
 ::
 ++  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])
+::  +send-json: a json body with the given status
+::
+++  send-json
+  |=  [eyre-id=@ta status=@ud jon=json]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  bod=octs  (as-octs:mimes:html (en:json:html jon))
+  (send-simple:srv eyre-id [[status ~[['content-type' 'application/json']]] `bod])
+::  +send-missing: 404 for a path with nothing at it. Browsers get the
+::  static file shell (which asks ?info=1 and hears kind=missing); the
+::  ?info=1 ask itself gets that json; tools and fetches get plain text.
+::
+++  send-missing
+  |=  [eyre-id=@ta pax=path args=(list [key=@t value=@t]) html-ok=?]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ?:  ?=(^ (get-key:kv:html-utils 'info' args))
+    %^  send-json  eyre-id  404
+    %-  pairs:enjs:format
+    :~  ['kind' s+'missing']
+        ['name' s+?~(pax '' (rear pax))]
+        ['path' s+(crip ?~(pax "/" (trip (spat pax))))]
+    ==
+  ?.  html-ok
+    (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
+  (send-simple:srv eyre-id [[404 ~[['content-type' 'text/html']]] `q.view-html])
+::
+::  The workspace stream. GET /grubbery/explorer/sse opens one SSE
+::  connection for a page; its first event is `session <id>`. The page
+::  then POSTs its whole interest set to /grubbery/explorer/follow as
+::  {s: <id>, roads: [{road, body?}]} whenever its panes change, and the
+::  stream converges to it: roads that left are dropped, roads that
+::  arrived are kept (an `old <path>` per file they hold now), the rest
+::  are untouched. A followed road that moves emits `new|upd|del <abs
+::  path>`, with the file as json data only for roads followed with
+::  body:true; otherwise the event is the notification alone and the
+::  pane refetches what it renders. The POST reaches the stream as a
+::  poke on its own request grub; a closed connection culls that grub
+::  and its keeps with it, so there is no session state to sweep.
+::
+::  A follow is one of three shapes, chosen by the page per road:
+::    file or dir, names   → new|upd|del <path> per file that moved
+::    file or dir, body    → the same, with the file as json data
+::    dir, fold            → one `upd <dir>` when the dir's OWN node moved
+::                           (a direct child made, culled or rewritten);
+::                           deeper moves stay silent. What a listing wants,
+::                           at a cost that does not grow with the subtree.
++$  follow  [=road:tarball body=? fold=? prev=wave:nexus]
++$  sse-in
+  $%  [%news =wire =wave:nexus]
+      [%follow set=json]
+      [%wake ~]
+  ==
+::
+++  serve-sse
+  |=  [eyre-id=@ta req=inbound-request:eyre]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ?.  (is-sse-request:http-utils req)
+    (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Requires Accept: text/event-stream')])
+  ;<  ~  bind:m  (send-header:srv eyre-id sse-header:http-utils)
+  ;<  ~  bind:m  (sse-send eyre-id ~ 'session' ~[eyre-id])
+  ;<  ~  bind:m  sse-alive-timer
+  =|  seq=@ud
+  =|  follows=(map @ud follow)
+  =|  keys=(map @t @ud)
+  |-  ^-  form:m
+  ;<  in=sse-in  bind:m  take-sse-in
+  ?-    -.in
+      %wake
+    ;<  ~  bind:m  (send-data:srv eyre-id `sse-keep-alive:http-utils)
+    ;<  ~  bind:m  sse-alive-timer
+    $
+  ::
+      %follow
+    =/  want=(map @t [body=? fold=?])  (parse-follow set.in)
+    ;<  [df=(map @ud follow) dk=(map @t @ud)]  bind:m  (sse-drop follows keys want)
+    ;<  [ns=@ud nf=(map @ud follow) nk=(map @t @ud)]  bind:m  (sse-add eyre-id seq df dk want)
+    $(seq ns, follows nf, keys nk)
+  ::
+      %news
+    ?.  ?=([%f @ ~] wire.in)  $
+    =/  n=@ud  (slav %ud i.t.wire.in)
+    =/  f=(unit follow)  (~(get by follows) n)
+    ?~  f  $
+    ;<  ~  bind:m
+      ?:  fold.u.f  (sse-fold eyre-id road.u.f prev.u.f wave.in)
+      (sse-wave eyre-id road.u.f body.u.f prev.u.f wave.in)
+    $(follows (~(put by follows) n u.f(prev wave.in)))
+  ==
+::  +handle-follow: POST {s, roads} → poke the session's stream grub
+::
+++  handle-follow
+  |=  [eyre-id=@ta req=inbound-request:eyre]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  jon=(unit json)
+    ?~  body.request.req  ~
+    (de:json:html q.u.body.request.req)
+  ?.  ?=([~ %o *] jon)
+    (send-json eyre-id 400 (pairs:enjs:format ~[['error' s+'json object body required']]))
+  =/  s=(unit json)  (~(get by p.u.jon) 's')
+  ?.  ?=([~ %s *] s)
+    (send-json eyre-id 400 (pairs:enjs:format ~[['error' s+'s (session id) required']]))
+  ::  a stream whose fiber failed sits in its restart wait; a poke there
+  ::  would re-run the request on a connection eyre already closed. Say so
+  ::  instead: the page reconnects and gets a fresh session.
+  ;<  reqs=road:tarball  bind:m  (ancestor-road:io [/ %explorer] [%| /requests])
+  ;<  rv=view:nexus  bind:m  (peek-shallow:io reqs ~)
+  =/  banged=?
+    ?.  ?=([%ball *] rv)  |
+    ?~  fil.ball.rv  |
+    =/  c  (~(get by contents.u.fil.ball.rv) `@ta`p.u.s)
+    &(?=(^ c) ?=(^ bang.u.c))
+  ?:  banged
+    (send-json eyre-id 410 (pairs:enjs:format ~[['error' s+'session failed; reconnect']]))
+  ;<  =road:tarball  bind:m  (ancestor-road:io [/ %explorer] [%& /requests `@ta`p.u.s])
+  ;<  err=(unit tang)  bind:m  (poke-soft:io road [[/ %json] u.jon])
+  ?^  err
+    =/  why=@t  (crip (zing (join " | " (turn u.err |=(t=tank ~(ram re t))))))
+    %^  send-json  eyre-id  404
+    (pairs:enjs:format ~[['error' s+'no such session'] ['why' s+why] ['road' s+(road-to-cord:tarball road)]])
+  (send-json eyre-id 200 (pairs:enjs:format ~[['ok' b+%.y]]))
+::  Workspace sessions. A gmux workspace is a SESSION: a json grub under
+::  /sessions, {spec, ver, seq, client, ops, layout, updated}, the ship's
+::  record of it. One client is attached at a time (attaching takes over);
+::  it alone computes layout (gmux is JS), so it applies the ops anyone
+::  sends — a tab's own, an agent's — and writes the resulting spec back
+::  with the ids of the ops it applied. A write-back from a client that is
+::  not the attached one is dropped here and reported as 409 by the http
+::  layer, which is how a taken-over tab learns it is passive.
+::
+::  pokes (json): {attach: id} · {detach: id} · {op: {type, …}} ·
+::  {client: id, spec, applied: [ids]}; `now` (ms) rides along from the
+::  http layer so the step stays pure and lands in the same event as the
+::  poke (the ack is the signal that the grub is current).
+::
+++  session-loop
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  |-  ^-  form:m
+  ;<  =sage:tarball  bind:m  take-poke:io
+  ?.  =([/ %json] p.sage)  $
+  =/  in  (mule |.(!<(json q.sage)))
+  ?:  ?=(%| -.in)  $
+  ;<  st=json  bind:m  (get-state-as:io ,json)
+  =/  new=(unit json)  (session-step st p.in)
+  ?~  new  $
+  ;<  ~  bind:m  (replace:io u.new)
+  $
+::  +session-step: the session after one poke, or ~ for a poke that
+::  changes nothing (a write-back from a client that is not attached)
+::
+++  session-step
+  |=  [st=json in=json]
+  ^-  (unit json)
+  ?.  ?=([%o *] in)  ~
+  =/  spec=json         (fall (jget st 'spec') ~)
+  =/  ver=@ud           (jnum st 'ver' 0)
+  =/  seq=@ud           (jnum st 'seq' 0)
+  =/  client=json       (fall (jget st 'client') ~)
+  =/  ops=(list json)   (jarr st 'ops')
+  =/  layout=json       (fall (jget st 'layout') ~)
+  =/  now=json          (fall (jget in 'now') (fall (jget st 'updated') ~))
+  =/  client-id=(unit @t)  (jstr client 'id')
+  =/  build
+    |=  [spec=json client=json ops=(list json) seq=@ud]
+    ^-  json
+    %-  pairs:enjs:format
+    :~  ['spec' spec]
+        ['ver' (numb:enjs:format +(ver))]
+        ['seq' (numb:enjs:format seq)]
+        ['client' client]
+        ['ops' a+ops]
+        ['layout' layout]
+        ['updated' now]
+    ==
+  =/  attach=(unit @t)  (jstr in 'attach')
+  ?^  attach
+    `(build spec (pairs:enjs:format ~[['id' s+u.attach] ['since' now]]) ops seq)
+  =/  detach=(unit @t)  (jstr in 'detach')
+  ?^  detach
+    ?.  =(detach client-id)  ~
+    `(build spec ~ ops seq)
+  =/  op=(unit json)  (jget in 'op')
+  ?^  op
+    ?.  ?=([~ %o *] op)  ~
+    =/  tagged=json  [%o (~(put by p.u.op) 'id' (numb:enjs:format +(seq)))]
+    `(build spec client (snoc ops tagged) +(seq))
+  =/  who=(unit @t)  (jstr in 'client')
+  ?~  who  ~
+  ?.  =(who client-id)  ~
+  =/  new-spec=json  (fall (jget in 'spec') spec)
+  =/  applied=(list @ud)
+    %+  murn  (jarr in 'applied')
+    |=(j=json ?.(?=([%n *] j) ~ (rush p.j dem)))
+  =/  left=(list json)
+    %+  skip  ops
+    |=(o=json ?=(^ (find ~[(jnum o 'id' 0)] applied)))
+  `(build new-spec client left seq)
+::  +handle-session: GET lists the sessions ({sessions: [{name, client,
+::  updated, ver, layout}]}); POST {name, create: true, spec?, layout?}
+::  makes one, {name, delete: true} culls one, anything else is poked to
+::  the session (attach, detach, op, write-back) and answered with the
+::  session as it then is — 409 when the sender names a client that is
+::  not the attached one.
+::
+++  handle-session
+  |=  [eyre-id=@ta req=inbound-request:eyre]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  bad  |=([code=@ud why=@t] (send-json eyre-id code (pairs:enjs:format ~[['error' s+why]])))
+  ?.  =('POST' method.request.req)
+    ;<  dir=road:tarball  bind:m  (ancestor-road:io [/ %explorer] [%| /sessions])
+    ;<  v=view:nexus  bind:m  (peek-shallow:io dir ~)
+    =/  names=(list @ta)
+      ?.  ?=([%ball *] v)  ~
+      ?~  fil.ball.v  ~
+      ~(tap in ~(key by contents.u.fil.ball.v))
+    =|  acc=(list json)
+    |-  ^-  form:m
+    ?~  names
+      (send-json eyre-id 200 (pairs:enjs:format ~[['sessions' a+(flop acc)]]))
+    ;<  road=road:tarball  bind:m  (ancestor-road:io [/ %explorer] [%& /sessions i.names])
+    ;<  fv=view:nexus  bind:m  (peek:io road `[/ %json])
+    =/  j=(unit json)
+      ?.  ?=([%file *] fv)  ~
+      =/  r  (mule |.(!<(json (need-vase:tarball sang.fv))))
+      ?:(?=(%| -.r) ~ `p.r)
+    ?~  j  $(names t.names)
+    =/  nm=@t  (session-name i.names)
+    =/  row=json
+      %-  pairs:enjs:format
+      :~  ['name' s+nm]
+          ['client' (fall (jget u.j 'client') ~)]
+          ['updated' (fall (jget u.j 'updated') ~)]
+          ['ver' (fall (jget u.j 'ver') ~)]
+          ['layout' (fall (jget u.j 'layout') ~)]
+      ==
+    $(names t.names, acc [row acc])
+  =/  jon=(unit json)
+    ?~  body.request.req  ~
+    (de:json:html q.u.body.request.req)
+  ?.  ?=([~ %o *] jon)  (bad 400 'json object body required')
+  =/  name=(unit @t)  (jstr u.jon 'name')
+  ?~  name  (bad 400 'name required')
+  ?.  (valid-session-name u.name)  (bad 400 'a session name is lowercase letters, digits and dashes')
+  =/  fname=@ta  (cat 3 u.name '.json')
+  ;<  road=road:tarball  bind:m  (ancestor-road:io [/ %explorer] [%& /sessions fname])
+  ;<  now=@da  bind:m  get-time:io
+  =/  now-ms=json  (time:enjs:format now)
+  ?^  (jget u.jon 'create')
+    ;<  v=view:nexus  bind:m  (peek:io road ~)
+    ?:  ?=([%file *] v)  (bad 409 'a session by that name exists')
+    =/  init=json
+      %-  pairs:enjs:format
+      :~  ['spec' (fall (jget u.jon 'spec') ~)]
+          ['ver' (numb:enjs:format 1)]
+          ['seq' (numb:enjs:format 0)]
+          ['client' ~]
+          ['ops' a+~]
+          ['layout' (fall (jget u.jon 'layout') ~)]
+          ['updated' now-ms]
+      ==
+    ;<  ~  bind:m  (make:io road |+[[[/ %json] init] ~])
+    (send-json eyre-id 200 init)
+  ?^  (jget u.jon 'delete')
+    ;<  ~  bind:m  (cull:io road)
+    (send-json eyre-id 200 (pairs:enjs:format ~[['ok' b+&]]))
+  =/  stamped=json  [%o (~(put by p.u.jon) 'now' now-ms)]
+  ;<  err=(unit tang)  bind:m  (poke-soft:io road [[/ %json] stamped])
+  ?^  err  (bad 404 'no such session')
+  ;<  v=view:nexus  bind:m  (peek:io road `[/ %json])
+  ?.  ?=([%file *] v)  (bad 404 'no such session')
+  =/  r  (mule |.(!<(json (need-vase:tarball sang.v))))
+  ?:  ?=(%| -.r)  (bad 500 'session unreadable')
+  =/  mine=(unit @t)  (jstr u.jon 'client')
+  =/  held=(unit @t)  (jstr (fall (jget p.r 'client') ~) 'id')
+  ?:  &(?=(^ mine) !=(mine held))  (send-json eyre-id 409 p.r)
+  (send-json eyre-id 200 p.r)
+++  valid-session-name
+  |=  n=@t
+  ^-  ?
+  ?=(^ (rush n ;~(plug low (star ;~(pose low nud hep)))))
+++  session-name
+  |=  f=@ta
+  ^-  @t
+  =/  t=tape  (trip f)
+  =/  len=@ud  (lent t)
+  ?.  &((gth len 5) =(".json" (slag (sub len 5) t)))  f
+  (crip (scag (sub len 5) t))
+::  json field helpers
+++  jget  |=([j=json k=@t] ^-((unit json) ?.(?=([%o *] j) ~ (~(get by p.j) k))))
+++  jstr  |=([j=json k=@t] ^-((unit @t) =/(v (jget j k) ?.(?=([~ %s *] v) ~ `p.u.v))))
+++  jarr  |=([j=json k=@t] ^-((list json) =/(v (jget j k) ?.(?=([~ %a *] v) ~ p.u.v))))
+++  jnum  |=([j=json k=@t d=@ud] ^-(@ud =/(v (jget j k) ?.(?=([~ %n *] v) d (fall (rush p.u.v dem) d)))))
+::  +handle-term: what a terminal pane needs of a dill session (see
+::  browse.js psTerminal). GET ?session=&last=&from= answers the
+::  session's blit history as json, {cur, versions: [{ud, da, blits}]}:
+::  from `from` on, else the last `last` (default 200) — and, on that
+::  first read, the slog entries from the same span of time ({logs:
+::  [{ud, da, told}]}), so a pane opening on a session shows what
+::  happened before it looked. POST {session, belt} types into the
+::  session; {session, open: true} opens one on hood's dojo, as webterm
+::  does; {session, shut: true} shuts it; {session, blew: {w, h}} tells
+::  dill the pane's size. The default session is the empty name.
+::
+++  handle-term
+  |=  [eyre-id=@ta req=inbound-request:eyre args=quay:eyre]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ?:  =('POST' method.request.req)
+    (term-post eyre-id req)
+  =/  ses=@ta  `@ta`(fall (get-key:kv:html-utils 'session' args) '')
+  =/  from=(unit @ud)
+    =/  f=(unit @t)  (get-key:kv:html-utils 'from' args)
+    ?~(f ~ (rush u.f dem))
+  =/  last=@ud
+    =/  l=(unit @t)  (get-key:kv:html-utils 'last' args)
+    ?~(l 200 (fall (rush u.l dem) 200))
+  =/  ses-road=road:tarball  [%& %& /sys/dill/sessions ses]
+  ;<  =view:nexus  bind:m  (peek:io ses-road ~)
+  ?.  ?=([%file *] view)
+    (send-json eyre-id 404 (pairs:enjs:format ~[['error' s+'no such session']]))
+  =/  cur=@ud  ud.cass.view
+  =/  lo=@ud  ?^(from u.from ?:((lth cur last) 1 +((sub cur last))))
+  =/  num  numb:enjs:format
+  ?:  (gth lo cur)
+    (send-json eyre-id 200 (pairs:enjs:format ~[['cur' (num cur)] ['versions' a+~] ['logs' a+~]]))
+  ;<  res=(each (list [=cass:clay =sage:tarball]) tang)  bind:m
+    (peep:io ses-road [%numb `lo `cur])
+  ?:  ?=(%| -.res)
+    (send-json eyre-id 500 (pairs:enjs:format ~[['error' s+'history read failed']]))
+  ;<  blit-tube=(unit tube:clay)  bind:m
+    (get-tube:io [%& %| /code] [[/ %dill-blit] [/ %json]])
+  ::  oldest first; the json of a version that fails to convert is null
+  =/  versions=(list [=cass:clay =sage:tarball])
+    (sort p.res |=([a=[=cass:clay *] b=[=cass:clay *]] (lth ud.cass.a ud.cass.b)))
+  =/  vers-json=json
+    :-  %a
+    %+  turn  versions
+    |=  [=cass:clay =sage:tarball]
+    ^-  json
+    =/  blits=json
+      ?~  blit-tube  ~
+      =/  r  (mule |.(!<(json (u.blit-tube q.sage))))
+      ?:(?=(%| -.r) ~ p.r)
+    (pairs:enjs:format ~[['ud' (num ud.cass)] ['da' (time:enjs:format da.cass)] ['blits' blits]])
+  ::  the slog entries from the oldest version on (first read only)
+  ;<  logs-json=json  bind:m
+    =/  ml  (fiber:fiber:nexus ,json)
+    ?:  |(?=(^ from) ?=(~ versions))  (pure:ml a+~)
+    ;<  now=@da  bind:ml  get-time:io
+    =/  lo-da=@da  da.cass.i.versions
+    =/  logs-road=road:tarball  [%& %& /sys/dill %'logs.dill-told']
+    ;<  lres=(each (list [=cass:clay =sage:tarball]) tang)  bind:ml
+      (peep:io logs-road [%date `lo-da `now])
+    ?:  ?=(%| -.lres)  (pure:ml a+~)
+    ;<  told-tube=(unit tube:clay)  bind:ml
+      (get-tube:io [%& %| /code] [[/ %dill-told] [/ %json]])
+    ?~  told-tube  (pure:ml a+~)
+    =/  logs=(list [=cass:clay =sage:tarball])
+      (sort p.lres |=([a=[=cass:clay *] b=[=cass:clay *]] (lth ud.cass.a ud.cass.b)))
+    %-  pure:ml
+    :-  %a
+    %+  murn  logs
+    |=  [=cass:clay =sage:tarball]
+    ^-  (unit json)
+    =/  r  (mule |.(!<(json (u.told-tube q.sage))))
+    ?:  ?=(%| -.r)  ~
+    `(pairs:enjs:format ~[['ud' (num ud.cass)] ['da' (time:enjs:format da.cass)] ['told' p.r]])
+  %^  send-json  eyre-id  200
+  (pairs:enjs:format ~[['cur' (num cur)] ['versions' vers-json] ['logs' logs-json]])
+::  +term-post: a keystroke or a session task from a terminal pane
+::
+++  term-post
+  |=  [eyre-id=@ta req=inbound-request:eyre]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  bad  |=(why=@t (send-json eyre-id 400 (pairs:enjs:format ~[['error' s+why]])))
+  =/  ok  (send-json eyre-id 200 (pairs:enjs:format ~[['ok' b+%.y]]))
+  =/  jon=(unit json)
+    ?~  body.request.req  ~
+    (de:json:html q.u.body.request.req)
+  ?.  ?=([~ %o *] jon)  (bad 'json object body required')
+  =/  ses=@ta
+    =/  s=(unit json)  (~(get by p.u.jon) 'session')
+    ?.(?=([~ %s *] s) '' `@ta`p.u.s)
+  =/  belt=(unit json)  (~(get by p.u.jon) 'belt')
+  ?^  belt
+    =/  b=(unit belt:dill)  (json-to-belt u.belt)
+    ?~  b  (bad 'not a belt')
+    ;<  ~  bind:m  (send-belt:io ses u.b)
+    ok
+  ?^  (~(get by p.u.jon) 'open')
+    ?:  =('' ses)  (bad 'the default session is already open')
+    ;<  our=@p  bind:m  get-our:io
+    ;<  ~  bind:m  (send-dill-task:io ses [%open %hood ~[[our %dojo]]])
+    ok
+  ?^  (~(get by p.u.jon) 'shut')
+    ?:  =('' ses)  (bad 'the default session cannot be shut')
+    ;<  ~  bind:m  (send-dill-task:io ses [%shut ~])
+    ok
+  =/  blew=(unit json)  (~(get by p.u.jon) 'blew')
+  ?^  blew
+    =/  r  (mule |.(((ot:dejs:format ~[w+ni:dejs:format h+ni:dejs:format]) u.blew)))
+    ?:  ?=(%| -.r)  (bad 'blew wants {w, h}')
+    ;<  ~  bind:m  (send-dill-task:io ses [%blew p.r])
+    ok
+  (bad 'belt, open, shut or blew')
+::  +json-to-belt: a keystroke as the pane spells it (webterm's shapes):
+::  a one-character string, "ret" "bac" "del", {txt: "…"}, {aro: "u"},
+::  {hit: {x, y}}, {mod: {mod: "ctl"|"met"|"hyp", key: <a bolt>}}
+::
+++  json-to-belt
+  |=  jon=json
+  ^-  (unit belt:dill)
+  ?.  ?=([%o *] jon)
+    =/  b=(unit bolt:dill)  (json-to-bolt jon)
+    ?~(b ~ `u.b)
+  =/  txt=(unit json)  (~(get by p.jon) 'txt')
+  ?^  txt
+    ?.  ?=([~ %s *] txt)  ~
+    `[%txt (tuba (trip p.u.txt))]
+  =/  mod=(unit json)  (~(get by p.jon) 'mod')
+  ?^  mod
+    ?.  ?=([~ %o *] mod)  ~
+    =/  which=(unit json)  (~(get by p.u.mod) 'mod')
+    =/  key=(unit json)  (~(get by p.u.mod) 'key')
+    ?.  &(?=([~ %s *] which) ?=(^ key))  ~
+    ?.  ?=(?(%ctl %met %hyp) p.u.which)  ~
+    =/  k=(unit bolt:dill)  (json-to-bolt u.key)
+    ?~  k  ~
+    `[%mod p.u.which u.k]
+  =/  b=(unit bolt:dill)  (json-to-bolt jon)
+  ?~(b ~ `u.b)
+++  json-to-bolt
+  |=  jon=json
+  ^-  (unit bolt:dill)
+  ?+    jon  ~
+      [%s *]
+    ?:  =('ret' p.jon)  `[%ret ~]
+    ?:  =('bac' p.jon)  `[%bac ~]
+    ?:  =('del' p.jon)  `[%del ~]
+    =/  cs=(list @c)  (tuba (trip p.jon))
+    ?.  ?=([@ ~] cs)  ~
+    `i.cs
+  ::
+      [%o *]
+    =/  aro=(unit json)  (~(get by p.jon) 'aro')
+    ?^  aro
+      ?.  ?=([~ %s *] aro)  ~
+      ?.  ?=(?(%d %l %r %u) p.u.aro)  ~
+      `[%aro p.u.aro]
+    =/  hit=(unit json)  (~(get by p.jon) 'hit')
+    ?~  hit  ~
+    =/  r  (mule |.(((ot:dejs:format ~[x+ni:dejs:format y+ni:dejs:format]) u.hit)))
+    ?:  ?=(%| -.r)  ~
+    `[%hit p.r]
+  ==
+::  +take-sse-in: what the stream waits on — news on any wire, the
+::  follow poke (a json bask), or the keep-alive timer
+::
+++  take-sse-in
+  =/  m  (fiber:fiber:nexus ,sse-in)
+  ^-  form:m
+  |=  input:fiber:nexus
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %news * *]
+    [%done %news wire.u.in wave.u.in]
+      [~ %poke * *]
+    ?:  =([/ %timer-wake] p.sage.u.in)  [%done %wake ~]
+    ?.  =([/ %json] p.sage.u.in)  [%skip ~]
+    =/  res  (mule |.(!<(json q.sage.u.in)))
+    ?.  ?=(%& -.res)  [%skip ~]
+    [%done %follow p.res]
+  ==
+::
+++  sse-alive-timer
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  now=@da  bind:m  get-time:io
+  (send-wait:io (add now ~s30))
+::
+++  sse-send
+  |=  [eyre-id=@ta id=(unit @t) name=@t data=wain]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  ev=sse-event:http-utils  [id `name data]
+  (send-data:srv eyre-id `(sse-encode:http-utils ~[ev]))
+::  +parse-follow: the interest set as road cord → [wants body, fold only]
+::
+++  parse-follow
+  |=  jon=json
+  ^-  (map @t [body=? fold=?])
+  ?.  ?=([%o *] jon)  ~
+  =/  roads=(unit json)  (~(get by p.jon) 'roads')
+  ?.  ?=([~ %a *] roads)  ~
+  %-  ~(gas by *(map @t [body=? fold=?]))
+  %+  murn  p.u.roads
+  |=  j=json
+  ^-  (unit [@t [? ?]])
+  ?.  ?=([%o *] j)  ~
+  =/  r=(unit json)  (~(get by p.j) 'road')
+  ?.  ?=([~ %s *] r)  ~
+  =/  b=(unit json)  (~(get by p.j) 'body')
+  =/  f=(unit json)  (~(get by p.j) 'fold')
+  `[p.u.r ?=([~ %b %.y] b) ?=([~ %b %.y] f)]
+::  +sse-drop: drop the follows whose key is not in `want`
+::
+++  sse-drop
+  |=  [follows=(map @ud follow) keys=(map @t @ud) want=(map @t [body=? fold=?])]
+  =/  m  (fiber:fiber:nexus ,[(map @ud follow) (map @t @ud)])
+  ^-  form:m
+  =/  gone=(list [key=@t n=@ud])
+    (skip ~(tap by keys) |=([key=@t n=@ud] (~(has by want) key)))
+  |-  ^-  form:m
+  ?~  gone  (pure:m [follows keys])
+  =/  f=(unit follow)  (~(get by follows) n.i.gone)
+  ;<  ~  bind:m
+    ?~  f  (pure:(fiber:fiber:nexus ,~) ~)
+    (drop:io /f/(scot %ud n.i.gone) road.u.f)
+  %=  $
+    gone     t.gone
+    follows  (~(del by follows) n.i.gone)
+    keys     (~(del by keys) key.i.gone)
+  ==
+::  +sse-add: keep the roads in `want` not yet followed; each new follow
+::  replays `old` for what it holds now. A road that cannot be kept
+::  within 5s is skipped, not fatal.
+::
+++  sse-add
+  |=  [eyre-id=@ta seq=@ud follows=(map @ud follow) keys=(map @t @ud) want=(map @t [body=? fold=?])]
+  =/  m  (fiber:fiber:nexus ,[@ud (map @ud follow) (map @t @ud)])
+  ^-  form:m
+  =/  new=(list [key=@t body=? fold=?])
+    (skip ~(tap by want) |=([key=@t body=? fold=?] (~(has by keys) key)))
+  |-  ^-  form:m
+  ?~  new  (pure:m [seq follows keys])
+  =/  n=@ud  seq
+  =/  =road:tarball  (cord-to-road:tarball key.i.new)
+  ;<  init=(unit wave:nexus)  bind:m  (keep-soft:io /f/(scot %ud n) road ~ ~s5)
+  ?~  init  $(new t.new, seq +(seq))
+  ::  no replay of what the road holds now: the pane fetched that itself
+  ::  when it rendered, and a dir road can hold thousands of files
+  %=  $
+    new      t.new
+    seq      +(seq)
+    follows  (~(put by follows) n [road body.i.new fold.i.new u.init])
+    keys     (~(put by keys) key.i.new n)
+  ==
+::  +sse-fold: a fold follow — one `upd <dir>` when the dir's LISTING
+::  differs between the two waves: a direct file added, removed or
+::  rewritten, or a subdirectory added or removed. Nothing when only
+::  deeper things moved.
+::
+::  The dir's fold revision is deliberately not compared. It bumps for a
+::  move anywhere beneath the dir, and a listing re-fetched on every
+::  deep move is a loop for any dir that holds this explorer's own
+::  requests/ (each re-fetch makes a request grub, which bumps the fold,
+::  which re-fetches): following / or /apps used to spin the ship on
+::  exactly that. A subdirectory's inner changes are its own pane's
+::  business. What this costs: in a listing, a subdirectory's modified
+::  time and its bang flag are as of the last fetch (a direct change, or
+::  ↻, refreshes them); neither is worth a listing per deep event.
+::
+++  sse-fold
+  |=  [eyre-id=@ta =road:tarball prev=wave:nexus new=wave:nexus]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  files-prev=(map @ta cass:clay)  ?~(fil.prev ~ file.u.fil.prev)
+  =/  files-new=(map @ta cass:clay)   ?~(fil.new ~ file.u.fil.new)
+  ?:  ?&  =(files-prev files-new)
+          =(~(key by dir.prev) ~(key by dir.new))
+      ==
+    (pure:m ~)
+  ::  a dir spells with its trailing slash, as the page followed it
+  =/  dir=@t  (road-to-cord:tarball road)
+  =?  dir  !=('/' dir)  (cat 3 dir '/')
+  (sse-send eyre-id ~ (crip "upd {(trip dir)}") ~)
+::  +sse-wave: emit the files that differ between two waves of a followed
+::  road, as ONE chunk. new/upd/del come from the waves alone (a lane in
+::  the new wave but not the old is new, in both upd, only in the old
+::  del): nothing is peeked unless the follow wants bodies, and then only
+::  files that still exist, sent as json when they convert.
+::
+++  sse-wave
+  |=  [eyre-id=@ta =road:tarball body=? prev=wave:nexus new=wave:nexus]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ?>  ?=(%& -.road)
+  =/  base=path  ?:(?=(%& -.p.road) path.p.p.road p.p.road)
+  =/  has
+    |=  [w=wave:nexus =rail:tarball]
+    ^-  ?
+    =/  node=(unit [fold=cass:clay file=(map @ta cass:clay)])  (~(get of w) path.rail)
+    &(?=(^ node) (~(has by file.u.node) name.rail))
+  =/  changes=(list [=lane:tarball =cass:clay])  ~(tap by (diff-wave:nexus prev new))
+  =|  events=(list sse-event:http-utils)
+  |-  ^-  form:m
+  ?~  changes
+    ?~  events  (pure:m ~)
+    (send-data:srv eyre-id `(sse-encode:http-utils (flop events)))
+  ?:  ?=(%| -.lane.i.changes)  $(changes t.changes)
+  =/  =rail:tarball  p.lane.i.changes
+  =/  abs=path  (snoc (weld base path.rail) name.rail)
+  =/  now=?  (has new rail)
+  =/  kind=@t  ?.(now 'del' ?:((has prev rail) 'upd' 'new'))
+  =/  name=@t  (crip "{(trip kind)} {(trip (spat abs))}")
+  =/  id=(unit @t)  `(scot %ud ud.cass.i.changes)
+  ?.  &(body now)
+    $(changes t.changes, events [[id `name ~] events])
+  ;<  data=wain  bind:m  (sse-body [%& %& (weld base path.rail) name.rail])
+  $(changes t.changes, events [[id `name data] events])
+::  +sse-body: a followed file as json lines, or ~ when it is not there,
+::  boomed, or does not convert. The peek is raw and the conversion runs
+::  under mule here: a peek that asks the kernel to convert crashes the
+::  whole fiber when the tube does, and one bad grub must not kill the
+::  stream every other pane rides on.
+::
+++  sse-body
+  |=  =road:tarball
+  =/  m  (fiber:fiber:nexus ,wain)
+  ^-  form:m
+  ;<  v=view:nexus  bind:m  (peek:io road ~)
+  ?.  &(?=([%file *] v) !(is-boom:tarball sang.v))  (pure:m ~)
+  =/  =sage:tarball  (need-sage:tarball sang.v)
+  ;<  vaz=(unit vase)  bind:m
+    ?:  =([/ %json] p.sage)  (pure:(fiber:fiber:nexus ,(unit vase)) `q.sage)
+    ;<  tube=(unit tube:clay)  bind:(fiber:fiber:nexus ,(unit vase))  (get-tube:io [%& %| /code] [p.sage [/ %json]])
+    ?~  tube  (pure:(fiber:fiber:nexus ,(unit vase)) ~)
+    =/  res  (mule |.((u.tube q.sage)))
+    (pure:(fiber:fiber:nexus ,(unit vase)) ?:(?=(%& -.res) `p.res ~))
+  ?~  vaz  (pure:m ~)
+  =/  res  (mule |.(!<(json u.vaz)))
+  ?.  ?=(%& -.res)  (pure:m ~)
+  (pure:m (to-wain:format (en:json:html p.res)))
+::
+++  wants-html
+  |=  req=inbound-request:eyre
+  ^-  ?
+  =/  acc=(unit @t)  (get-header:http 'accept' header-list.request.req)
+  ?~  acc  %.n
+  ?=(^ (find "text/html" (trip u.acc)))
+::
+::  +texty-mite: is this mime type sensibly shown/edited as text?
+::
+++  texty-mite
+  |=  =mite
+  ^-  ?
+  ?~  mite  %.y
+  ?:  =(%text i.mite)  %.y
+  ?:  =(/application/json mite)  %.y
+  ?:  =(/application/javascript mite)  %.y
+  ?:  =(/application/xml mite)  %.y
+  ?:  =(~[%image %'svg+xml'] mite)  %.y
+  ?:  =(/inode/symlink mite)  %.y
+  %.n
 ::  Weir lives in the parent's dir-map, not in the directory's own lump
+::
 ++  read-weir-from-parent
   |=  pax=path
   =/  m  (fiber:fiber:nexus ,(unit weir:nexus))
@@ -120,6 +1042,143 @@
     ?~  seg  $(chars t.chars)
     $(chars t.chars, seg ~, out [(crip seg) out])
   $(chars t.chars, seg (snoc seg i.chars))
+::  +safe-seg-char: the character set New Folder/New Nexus names may use.
+::  Deliberately conservative — real dir/nexus/mark names in this codebase
+::  are all within this set, and a 400 here is far better than passing an
+::  unvalidated byte (a literal '/' especially) into Clay's path machinery.
+::
+++  safe-seg-char
+  |=  c=@
+  ^-  ?
+  ?|  &((gte c 'a') (lte c 'z'))
+      &((gte c '0') (lte c '9'))
+      =(c '-')  =(c '.')  =(c '~')  =(c '_')
+  ==
+::  +resolve-rel-path: resolve a typed name like "sub/dir" or "../sibling"
+::  against `base`, the directory it was typed into — same semantics as a
+::  normal relative filesystem path: "." is a no-op, ".." pops one segment
+::  off the accumulator (wherever it appears, not just leading), each real
+::  segment is validated char-by-char before being appended. Never crashes
+::  on bad input — returns [%| reason] instead.
+::
+++  resolve-rel-path
+  |=  [base=path rel=@t]
+  ^-  (each path @t)
+  =/  segs=(list @t)  (split-fas rel)
+  =/  acc=path  base
+  |-  ^-  (each path @t)
+  ?~  segs  [%& acc]
+  ?:  =('.' i.segs)  $(segs t.segs)
+  ?:  =('..' i.segs)
+    ?~  acc  [%| 'cannot go above root']
+    $(segs t.segs, acc (snip `path`acc))
+  ?.  (levy (trip i.segs) safe-seg-char)
+    [%| 'invalid characters in path segment (use a-z 0-9 . - _ ~)']
+  $(segs t.segs, acc (snoc acc i.segs))
+::  +ud-arg: a version number as a URL carries it.
+::
+::    slaw %ud and dem:ag both want hoon's dotted form (1.000), and a
+::    url carries the plain number. Every version >= 1000 therefore
+::    parsed as ~ -- and a ~ case means "now", so the request silently
+::    served the PRESENT under a past label. dim:ag is the bare-digit
+::    parser; dots are stripped first so both spellings work.
+::
+++  ud-arg
+  |=  t=@t
+  ^-  (unit @ud)
+  (rush (crip (skip (trip t) |=(a=@tD =('.' a)))) dim:ag)
+::  +version-args: the ?case= / ?asof= a request is reading at.
+::
+::    ?case=N    -- this path at its own version N
+::    ?asof=P:N  -- this path as it stood inside version N of P
+::
+++  version-args
+  |=  args=(list [key=@t value=@t])
+  ^-  [cas=(unit @ud) asof=(unit [anchor=path cas=@ud])]
+  =/  c=(unit @ud)
+    =/  k  (get-key:kv:html-utils 'case' args)
+    ?~(k ~ (ud-arg u.k))
+  =/  a=(unit [anchor=path cas=@ud])
+    =/  k  (get-key:kv:html-utils 'asof' args)
+    ?~  k  ~
+    =/  txt=tape  (trip u.k)
+    =/  idx=(unit @ud)  (find ":" txt)
+    ?~  idx  ~
+    =/  n=(unit @ud)  (ud-arg (crip (slag +(u.idx) txt)))
+    ?~  n  ~
+    `[(stab (crip (scag u.idx txt))) u.n]
+  [c a]
+::  +act-road: the road a version/policy action targets.
+::
+::    A fold entry and a grub entry are different histories, and
+::    handle-post is reached for both, so the caller says which.
+::
+++  act-road
+  |=  [pax=path is-dir=?]
+  ^-  road:tarball
+  ?:  is-dir  [%& %| pax]
+  ?~  pax  [%& %| pax]
+  ::  snip loses the element type without the cast
+  [%& %& (snip `path`pax) (rear pax)]
+::  +tag-set: "draft release v2" -> {'draft' 'release' 'v2'}
+::
+++  tag-set
+  |=  t=@t
+  ^-  (set @t)
+  %-  ~(gas in *(set @t))
+  %+  murn  (split-fas-space t)
+  |=(a=@t ?:(=('' a) ~ `a))
+::
+++  split-fas-space
+  |=  t=@t
+  ^-  (list @t)
+  =/  parts=(list tape)  (scan-space (trip t))
+  (turn parts crip)
+::
+++  scan-space
+  |=  a=tape
+  ^-  (list tape)
+  =|  out=(list tape)
+  =|  cur=tape
+  |-
+  ?~  a  (flop ?~(cur out [(flop cur) out]))
+  ?:  =(' ' i.a)
+    $(a t.a, cur ~, out ?~(cur out [(flop cur) out]))
+  $(a t.a, cur [i.a cur])
+::  +peek-versioned: the ball to render this path from.
+::
+::    A listing that ignores the version shows the PRESENT files under a
+::    past heading, and every one of them is a link that does not resolve
+::    at that version. So the listing is read at the version too.
+::
+::    ?asof= cannot be a shallow peek: the anchor's version names its
+::    whole subtree, so the anchor is read deep and walked down to here.
+::
+++  peek-versioned
+  |=  [pax=path cas=(unit @ud) asof=(unit [anchor=path cas=@ud])]
+  =/  m  (fiber:fiber:nexus ,view:nexus)
+  ^-  form:m
+  ?^  asof
+    ?.  =(anchor.u.asof (scag (lent anchor.u.asof) pax))
+      (pure:m [%ball *wave:nexus *ball:tarball])
+    ;<  av=view:nexus  bind:m
+      (peek-at:io [%& %| anchor.u.asof] ~ [%ud cas.u.asof])
+    ?.  ?=([%ball *] av)  (pure:m av)
+    =/  rel=path  (slag (lent anchor.u.asof) pax)
+    ::  rel may name a GRUB rather than a directory, and +dip answers an
+    ::  empty ball for one -- a grub lives in its parent ball's fil, not
+    ::  as a sub-axal. An empty ball is a SUCCESSFUL listing, so every
+    ::  file opened from inside a version read as an empty directory.
+    ::  Answering "not a ball" sends the caller to the parent, which is
+    ::  how a file at a version is read everywhere else.
+    =/  grub=?
+      ?~  rel  %.n
+      =/  par=ball:tarball  (~(dip of ball.av) (snip `path`rel))
+      ?~(fil.par %.n (~(has by contents.u.fil.par) (rear rel)))
+    ?:  grub  (pure:m [%none ~])
+    (pure:m [%ball wave.av (~(dip of ball.av) rel)])
+  ?^  cas  (peek-shallow-at:io [%& %| pax] ~ [%ud u.cas])
+  (peek-shallow:io [%& %| pax] ~)
 ::  +parse-road-input: parse "../../foo/bar" into a proper road
 ::  Counts leading "../" as relative steps, remainder as the lane.
 ::
@@ -142,63 +1201,290 @@
 ::  Handle GET requests
 ::
 ++  handle-get
-  |=  [eyre-id=@ta tree-path=path is-dir=? dir-weir=(unit weir:nexus) ball=ball:tarball ball-wave=wave:nexus args=(list [key=@t value=@t])]
+  |=  [eyre-id=@ta tree-path=path is-dir=? dir-weir=(unit weir:nexus) ball=ball:tarball ball-wave=wave:nexus args=(list [key=@t value=@t]) html-ok=?]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ~&  >  [%explorer-peek tree-path]
+  ~?  dbg  [%explorer-peek tree-path]
   =/  download-param=(unit @t)  (get-key:kv:html-utils 'download' args)
+  ::  ?pant=1&from=<dir>: this path's directories from `from` down, each
+  ::  with its neck (a view endpoint is asked with it, see +pant-of)
+  ?:  =(`'1' (get-key:kv:html-utils 'pant' args))
+    =/  from=path
+      (fall (rush (fall (get-key:kv:html-utils 'from' args) '/') stap) /)
+    =/  dir=path  ?:(is-dir tree-path (snip `path`tree-path))
+    ;<  pant=(unit (list [dir=@ta neck=(unit rail:tarball)]))  bind:m  (pant-of from dir)
+    ;<  ~  bind:m  (send-json eyre-id 200 (pairs:enjs:format ~[['pant' ?~(pant ~ (pant-json u.pant))]]))
+    (pure:m ~)
   ?:  is-dir
+    ::  ?view=1: the view declaration that governs this directory: the
+    ::  nearest view.json at or above it, with the directory carrying it
+    ?:  =(`'1' (get-key:kv:html-utils 'view' args))
+      ;<  found=(unit [at=path decl=json])  bind:m  (find-view tree-path)
+      =/  jon=json
+        ?~  found  [%o ~]
+        ?.  ?=([%o *] decl.u.found)  [%o ~]
+        [%o (~(put by p.decl.u.found) 'at' s+(crip (spud at.u.found)))]
+      ;<  ~  bind:m  (send-json eyre-id 200 jon)
+      (pure:m ~)
     ?:  ?&(?=(^ download-param) =(u.download-param 'tar'))
       (serve-tarball eyre-id tree-path ball)
-    ~&  >  %explorer-get-time
+    ::  ?tree=1: the WHOLE subtree under this dir as one nested JSON
+    ::  document, names only — one deep peek, one response. The sidebar
+    ::  tree is built from this, never from per-directory round trips.
+    ?:  ?=(^ (get-key:kv:html-utils 'tree' args))
+      ;<  deep=view:nexus  bind:m  (peek:io [%& %| tree-path] ~)
+      ?.  ?=([%ball *] deep)
+        ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
+        (pure:m ~)
+      ;<  ~  bind:m  (send-json eyre-id 200 (tree-json ball.deep))
+      (pure:m ~)
+    ::  browsers get the static browse app immediately — it fetches
+    ::  ?list=1 itself. Everything below (time, conversions, font) is
+    ::  only needed to BUILD the listing.
+    ?:  &(html-ok ?=(~ (get-key:kv:html-utils 'list' args)))
+      ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils browse-html))
+      (pure:m ~)
+    ~?  dbg  %explorer-get-time
     ;<  now=@da  bind:m  get-time:io
-    ~&  >  %explorer-get-conversions
+    ~?  dbg  %explorer-get-conversions
     ;<  conversions=(map bars:tarball tube:clay)  bind:m
       (get-blot-conversions-shallow:io ball)
-    ~&  >  %explorer-get-conversions-done
-    ~&  >  %explorer-get-font
-    ;<  font=(unit (unit bend:tarball))  bind:m
-      (get-font:io [%& %| tree-path])
-    ~&  >  %explorer-get-font-done
-    ;<  here=rail:tarball  bind:m  get-here-abs:io
-    =/  code-namespace=(unit path)
-      ?~  font  ~
-      ?~  u.font  ~
-      =/  ns=(unit lane:tarball)
-        (lane-from-bend:tarball [%& here] u.u.font)
-      ?~  ns  ~
-      ?.  ?=(%| -.u.ns)  ~
-      `p.u.ns
-    ::  ~>(%bout.[1 %explorer-render-dir] ...)
-    =/  page=manx  (render-dir tree-path ball ball-wave now conversions code-namespace dir-weir)
-    ::  ~>(%bout.[1 %explorer-manx-to-octs] ...)
-    =/  bod=octs  (manx-to-octs:server page)
-    ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/html bod]))
+    ~?  dbg  %explorer-get-conversions-done
+    ::  ?list=1: the listing as JSON — the static browse app's feed (and
+    ::  anyone else's). Non-html non-list requests for a dir get it too.
+    ::  child necks: the shallow peek of THIS dir returns subdirs as
+    ::  names only, so each child is peeked for its own fil.neck (the
+    ::  same per-root scan the shell's tile reader does)
+    ::  the same peek also yields each child's own fiber bang, so
+    ::  the row can flag a crashed sub-nexus like the old listing did
+    ;<  necks=(map @ta kid-info)  bind:m
+      =/  m  (fiber:fiber:nexus ,(map @ta kid-info))
+      ^-  form:m
+      =/  subs=(list @ta)  ~(tap in ~(key by dir.ball))
+      =|  acc=(map @ta kid-info)
+      |-
+      ?~  subs  (pure:m acc)
+      ;<  kv=view:nexus  bind:m
+        (peek-shallow:io [%& %| (snoc tree-path i.subs)] ~)
+      ?.  ?&(?=([%ball *] kv) ?=(^ fil.ball.kv))
+        $(subs t.subs)
+      =/  neck=(unit rail:tarball)  neck.u.fil.ball.kv
+      ::  the child's nexus source, resolved from the child's own place
+      ;<  src=(unit rail:tarball)  bind:m
+        ?~  neck  (pure:(fiber:fiber:nexus ,(unit rail:tarball)) ~)
+        ?:  =([/ %code] u.neck)  (pure:(fiber:fiber:nexus ,(unit rail:tarball)) ~)
+        (resolve:cs (snoc tree-path i.subs) %nex u.neck)
+      =/  neck-url=(unit tape)  ?~(src ~ `(url:cs u.src))
+      %=  $
+        subs  t.subs
+        acc   (~(put by acc) i.subs [neck neck-url bang.u.fil.ball.kv])
+      ==
+    ::  source links: this dir's own nexus, and the marc of every
+    ::  distinct blot among its files — resolved by the namespace walk,
+    ::  so the link is the file that actually governs here, shadowing
+    ::  included
+    ;<  own-url=(unit tape)  bind:m
+      =/  m  (fiber:fiber:nexus ,(unit tape))
+      ?~  fil.ball  (pure:m ~)
+      ?~  neck.u.fil.ball  (pure:m ~)
+      ?:  =([/ %code] u.neck.u.fil.ball)  (pure:m ~)
+      ;<  src=(unit rail:tarball)  bind:m  (resolve:cs tree-path %nex u.neck.u.fil.ball)
+      (pure:m ?~(src ~ `(url:cs u.src)))
+    ;<  blot-urls=(map rail:tarball (unit tape))  bind:m
+      =/  m  (fiber:fiber:nexus ,(map rail:tarball (unit tape)))
+      =/  blots=(list rail:tarball)
+        ?~  fil.ball  ~
+        =-  ~(tap in -)
+        %-  ~(gas in *(set rail:tarball))
+        (turn ~(val by contents.u.fil.ball) |=([=sang:tarball *] p.sang))
+      ;<  got=(map rail:tarball (unit rail:tarball))  bind:m
+        (resolve-many:cs tree-path %mar blots)
+      (pure:m (~(run by got) |=(s=(unit rail:tarball) ?~(s ~ `(url:cs u.s)))))
+    ::  per-file build status: the pass/fail mark for .hoon under a code
+    ::  namespace (the file view carries the full tang; this is the summary)
+    ;<  builds=(map @ta @tas)  bind:m
+      =/  m  (fiber:fiber:nexus ,(map @ta @tas))
+      ^-  form:m
+      =/  names=(list @ta)  ?~(fil.ball ~ ~(tap in ~(key by contents.u.fil.ball)))
+      =|  acc=(map @ta @tas)
+      |-  ^-  form:m
+      ?~  names  (pure:m acc)
+      ;<  bs=(unit @tas)  bind:m  (built-status tree-path i.names)
+      $(names t.names, acc ?~(bs acc (~(put by acc) i.names u.bs)))
+    ::  per-directory build status: how many artifacts under each child
+    ::  dir compiled and how many failed, so a failure anywhere below shows
+    ::  at every level above it and can be drilled down to
+    ;<  dir-builds=(map @ta [ok=@ud fail=@ud])  bind:m
+      =/  m  (fiber:fiber:nexus ,(map @ta [ok=@ud fail=@ud]))
+      ^-  form:m
+      =/  subs=(list @ta)  ~(tap in ~(key by dir.ball))
+      =|  acc=(map @ta [ok=@ud fail=@ud])
+      |-  ^-  form:m
+      ?~  subs  (pure:m acc)
+      ;<  counts=(unit [ok=@ud fail=@ud])  bind:m  (built-counts (snoc tree-path i.subs))
+      $(subs t.subs, acc ?~(counts acc (~(put by acc) i.subs u.counts)))
+    =/  jon=json  (listing-json tree-path ball ball-wave now conversions own-url blot-urls dir-weir necks builds dir-builds)
+    ;<  ~  bind:m  (send-json eyre-id 200 jon)
     (pure:m ~)
   ::  File view — ball is the parent directory
   ?~  tree-path
     ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
     (pure:m ~)
   =/  name=@ta  (rear tree-path)
+  ::  ?case=N reads a PAST version of this grub. Without it, the parent
+  ::  ball's current listing. +peek-at has carried a case all along; the
+  ::  file view simply never asked for one, so history was listable and
+  ::  not readable.
+  =/  case-arg=(unit @ud)
+    =/  c  (get-key:kv:html-utils 'case' args)
+    ?~(c ~ (ud-arg u.c))
+  ;<  past=(unit sang:tarball)  bind:m
+    =/  m  (fiber:fiber:nexus ,(unit sang:tarball))
+    ^-  form:m
+    ?~  case-arg  (pure:m ~)
+    ;<  rd=road:tarball  bind:m
+      (ancestor-road:io [/explorer %main] [%& [(snip `path`tree-path) name]])
+    ;<  v=view:nexus  bind:m  (peek-at:io rd ~ [%ud u.case-arg])
+    ?.  ?=([%file *] v)  (pure:m ~)
+    (pure:m `sang.v)
   =/  content-data=(unit [=sang:tarball gain=? bang=(unit tang)])
+    ?^  past  `[u.past %.n ~]
     ?~  fil.ball  ~
     (find-grub name u.fil.ball)
   ?~  content-data
-    ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
+    ;<  ~  bind:m  (send-missing eyre-id tree-path args html-ok)
     (pure:m ~)
+  =/  str  |=(t=tape `json`s+(crip t))
+  =/  info-param=(unit @t)  (get-key:kv:html-utils 'info' args)
+  =/  raw-param=(unit @t)  (get-key:kv:html-utils 'raw' args)
+  =/  view-param=(unit @t)  (get-key:kv:html-utils 'view' args)
+  =/  pretty-param=(unit @t)  (get-key:kv:html-utils 'pretty' args)
+  ::  the static file shell (view.html + view.js): it asks ?info=1 for
+  ::  what it is and ?raw=1 for the bytes. Default when a browser asks
+  ::  for html; ?view=1 forces it; ?raw ?info ?pretty bypass it.
+  ?:  ?&  ?=(~ raw-param)  ?=(~ info-param)  ?=(~ pretty-param)
+          |(?=(^ view-param) html-ok)
+      ==
+    ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils view-html))
+    (pure:m ~)
+  =/  blot-tape=tape
+    (spud (snoc path.p.sang.u.content-data name.p.sang.u.content-data))
   ?:  (is-boom:tarball sang.u.content-data)
     ~&  >>  [%explorer-file-boomed (rear tree-path)]
-    ;<  ~  bind:m  (send-simple:srv eyre-id [[500 ~] `(as-octs:mimes:html 'File is boomed')])
+    ::  no bytes to give: the shell hears kind=boom with the tang,
+    ::  everyone else gets a plain 500
+    ?~  info-param
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[500 ~] `(as-octs:mimes:html 'File is boomed')])
+      (pure:m ~)
+    =/  boom-tang=tang
+      ?^  bang.u.content-data  u.bang.u.content-data
+      ?:  ?=(%| -.q.sang.u.content-data)  tang.p.q.sang.u.content-data
+      ~[leaf+"validation failed"]
+    ;<  ~  bind:m
+      %^  send-json  eyre-id  200
+      %-  pairs:enjs:format
+      :~  ['kind' s+'boom']
+          ['name' s+name]
+          ['blot' (str blot-tape)]
+          ['boom' (str (render-tang boom-tang))]
+      ==
     (pure:m ~)
   =/  =sage:tarball  (need-sage:tarball sang.u.content-data)
-  =/  pretty-param=(unit @t)  (get-key:kv:html-utils 'pretty' args)
   ?^  pretty-param
     ::  ?pretty: render noun as text instead of binary download
     =/  bod=octs  (as-octs:mimes:html (crip (noah q.sage)))
     ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/plain bod]))
     (pure:m ~)
+  ::  ?raw (and the default non-info, non-pretty byte serve): delegate to the
+  ::  kernel ball-peek api (/grubbery/api/file) so the serve-sandbox applies —
+  ::  a grub that can't itself poke/make /sys/eyre gets runnable content served
+  ::  inert (text/plain + nosniff) there. We only ever served the stored bytes
+  ::  here, so a 307 is transparent to fetch()/img/download consumers.
+  ?~  info-param
+    =/  loc=@t
+      %-  crip
+      ;:  weld
+        "/grubbery/api/file"
+        (spud `path`tree-path)
+        ?~(case-arg "" (weld "?case=" (a-co:co u.case-arg)))
+      ==
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[307 ~[['location' loc]]] ~])
+    (pure:m ~)
   ;<  =mime  bind:m  (sage-to-mime:io sage)
-  ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [p.mime q.mime]))
+  ::  ?info=1: the file as data. x-urb-jam is sage-to-mime's no-tube
+  ::  fallback: the noun pretty-printed rides along as text, read-only.
+  ::  Texty content the shell fetches itself via ?raw=1.
+  =/  jammed=?  =(/application/x-urb-jam p.mime)
+  =/  texty=?  &(!jammed (texty-mite p.mime))
+  ::  code build status: does this file live under a /code nexus?
+  =/  code-name=@ta
+    =/  raw=@ta  (rear tree-path)
+    =/  t=tape  (trip raw)
+    =/  len=@ud  (lent t)
+    ?.  &((gth len 5) =(".hoon" (slag (sub len 5) t)))
+      raw
+    (crip (scag (sub len 5) t))
+  =/  file-road=road:tarball  [%& %& (snip `path`tree-path) code-name]
+  ::  the Build tab is for files a code namespace compiles: .hoon files
+  ::  inside one (owner = containment, from the namespace, no dart)
+  ;<  own=(unit fold:tarball)  bind:m  (owner:cs [(snip `path`tree-path) name])
+  =/  has-code=?  &(?=(^ own) !=(code-name name))
+  ;<  $:  build-status=tape
+          build-detail=tape
+          suite=(unit (list [name=@tas ok=?]))
+      ==
+    bind:m
+    ?.  has-code
+      %-  pure:(fiber:fiber:nexus ,[tape tape (unit (list [@tas ?]))])
+      ["" "" ~]
+    ;<  =built:nexus
+      bind:(fiber:fiber:nexus ,[tape tape (unit (list [@tas ?]))])
+      (get-code-full:io file-road)
+    %-  pure:(fiber:fiber:nexus ,[tape tape (unit (list [@tas ?]))])
+    ?-  -.built
+        %vase
+      ::  the suite is an extra reading of the product, never a
+      ::  replacement for it: the printed noun still ships, so the view
+      ::  can offer the grid by default and the raw product on demand
+      =/  printed=tape  ~(ram re (sell vase.built))
+      :+  "vase"
+        ?:  (lth (lent printed) 4.000)  printed
+        (weld (scag 4.000 printed) "...")
+      (test-suite vase.built)
+        %tang
+      :+  "tang"
+        %-  zing
+        %+  turn  (render-tang-to-wall:http-utils [160 tang.built])
+        |=(t=tape (weld t "\0a"))
+      ~
+        %mime
+      ["mime" "raw mime (no compilation)" ~]
+    ==
+  ;<  ~  bind:m
+    %^  send-json  eyre-id  200
+    %-  pairs:enjs:format
+    :~  ['kind' s+'file']
+        ['name' s+name]
+        ['blot' (str blot-tape)]
+        ['mite' (str (spud p.mime))]
+        ['texty' b+texty]
+        ['jammed' b+jammed]
+        ['text' ?.(jammed ~ (str (noah q.sage)))]
+        :-  'build'
+        %-  pairs:enjs:format
+        :~  ['status' (str build-status)]
+            ['detail' (str build-detail)]
+            ::  absent unless the product really is a test suite; the
+            ::  view draws a grid when it's here and the detail when not
+            :-  'tests'
+            ?~  suite  ~
+            :-  %a
+            %+  turn  u.suite
+            |=  [name=@tas ok=?]
+            (pairs:enjs:format ~[['name' s+name] ['ok' b+ok]])
+        ==
+        ['bang' ?~(bang.u.content-data ~ (str (render-tang u.bang.u.content-data)))]
+    ==
   (pure:m ~)
 ::  Handle POST requests (delete actions)
 ::
@@ -225,11 +1511,119 @@
       ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Unknown action')])
       (pure:m ~)
   ::
+      ::  keep-version: promote the CURRENT version to %firm with any
+      ::  labels the caller sent, in one write. The dart has no case:
+      ::  %firm always means "the one live now".
+      ::
+      %'keep-version'
+    ;<  ~  bind:m
+      %:  checkpoint:io
+        (act-road tree-path =(`'dir' (get-key:kv:html-utils 'kind' args)))
+        (tag-set (fall (get-key:kv:html-utils 'tags' args) ''))
+      ==
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
+    (pure:m ~)
+  ::
+      ::  tag-version: set the labels on a version. The caller hands the
+      ::  full desired set, so this both adds and removes. No ?case= means
+      ::  the current one.
+      ::
+      %'tag-version'
+    =/  cas=(unit @ud)
+      =/  k  (get-key:kv:html-utils 'case' args)
+      ?~(k ~ (ud-arg u.k))
+    =/  tags=(set @t)  (tag-set (fall (get-key:kv:html-utils 'tags' args) ''))
+    ;<  ~  bind:m
+      %:  tag:io
+        (act-road tree-path =(`'dir' (get-key:kv:html-utils 'kind' args)))
+        ?~(cas ~ `[%ud u.cas])
+        tags
+      ==
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
+    (pure:m ~)
+  ::
+      ::  set-gain: the RETENTION POLICY of this path. gain on, every
+      ::  write is %firm and the history accumulates; off, each write
+      ::  deletes the version it replaces. Recursive on a directory.
+      ::
+      %'set-gain'
+    =/  flag=?  =(`'1' (get-key:kv:html-utils 'flag' args))
+    ;<  ~  bind:m  (gain:io (act-road tree-path =(`'dir' (get-key:kv:html-utils 'kind' args))) flag)
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
+    (pure:m ~)
+  ::
+      ::  drop-version: delete ONE version of this path. %lose deletes the
+      ::  entry and releases its object together -- the pair that must
+      ::  always move as one. ?case= names the version; a directory drops
+      ::  its fold entry, a file its own.
+      ::
+      %'drop-version'
+    =/  cas=(unit @ud)
+      =/  k  (get-key:kv:html-utils 'case' args)
+      ?~(k ~ (ud-arg u.k))
+    ?~  cas
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'no version')])
+      (pure:m ~)
+    =/  =road:tarball
+      (act-road tree-path =(`'dir' (get-key:kv:html-utils 'kind' args)))
+    ;<  ~  bind:m  (lose:io road [%numb `u.cas `u.cas])
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
+    (pure:m ~)
+  ::
       %'delete-grub'
     =/  filename=@t  (fall (get-key:kv:html-utils 'filename' args) '')
     ::  cull road: up 3 from /explorer.explorer/requests/[id] to root, then file
     ;<  ~  bind:m  (cull:io [%& %& tree-path filename])
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
+    (pure:m ~)
+  ::
+      ::  write-text: the file view's save. POSTed to the FILE url, so
+      ::  tree-path here is the file's own path. The edited text goes in
+      ::  as mime and the runtime tubes it through the grub's existing
+      ::  blot — the marc's mime grab IS the validation. Mirrors forge's
+      ::  do-src: %hoon takes text directly, %mime stays mime (keeping
+      ::  its mite), everything else rides over-as-soft so a failed
+      ::  parse comes back as a tang for the editor, not a crash.
+      ::
+      %'write-text'
+    ?~  tree-path
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'no file')])
+      (pure:m ~)
+    =/  fdir=path  (snip `path`tree-path)
+    =/  fnam=@ta  (rear tree-path)
+    =/  content=@t  (fall (get-key:kv:html-utils 'content' args) '')
+    ;<  cur=view:nexus  bind:m  (peek:io [%& %& fdir fnam] ~)
+    ?.  ?=([%file *] cur)
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'not a file')])
+      (pure:m ~)
+    =/  ok=octs  (as-octs:mimes:html 'saved')
+    ?:  =([/ %hoon] p.sang.cur)
+      ;<  ~  bind:m  (over:io [%& %& fdir fnam] [[/ %hoon] content])
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `ok])
+      (pure:m ~)
+    ?:  =([/ %mime] p.sang.cur)
+      =/  cur-mime=mime  !<(mime (need-vase:tarball sang.cur))
+      =/  new-mite=mite
+        =/  mt=(unit @t)  (get-key:kv:html-utils 'mite' args)
+        ?~  mt  p.cur-mime
+        ?:  =('' u.mt)  ~
+        (fall (rush u.mt ;~(pfix (punt fas) (more fas sym))) p.cur-mime)
+      ;<  ~  bind:m
+        (over:io [%& %& fdir fnam] [[/ %mime] `mime`[new-mite (as-octs:mimes:html content)]])
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `ok])
+      (pure:m ~)
+    ;<  err=(unit tang)  bind:m
+      %^    over-as-soft:io
+          [%& %& fdir fnam]
+        [[/ %mime] `mime`[/text/plain (as-octs:mimes:html content)]]
+      p.sang.cur
+    ?~  err
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `ok])
+      (pure:m ~)
+    =/  msg=tape
+      (of-wall:format (render-tang-to-wall:http-utils 80 u.err))
+    ;<  ~  bind:m
+      (send-simple:srv eyre-id [[422 ~] `(as-octs:mimes:html (crip msg))])
     (pure:m ~)
   ::
       %'delete-folder'
@@ -241,12 +1635,75 @@
   ::
       %'create-folder'
     =/  foldername=@t  (fall (get-key:kv:html-utils 'foldername' args) '')
-    =/  dir-name=@ta  foldername
+    ?:  =('' foldername)
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing foldername')])
+      (pure:m ~)
+    =/  resolved=(each path @t)  (resolve-rel-path tree-path foldername)
+    ?:  ?=(%| -.resolved)
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html p.resolved)])
+      (pure:m ~)
+    =/  folder-path=path  p.resolved
+    ?:  =(folder-path tree-path)
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Nothing to create')])
+      (pure:m ~)
+    =/  new-ball=ball:tarball  [`[~ ~ %.n ~ ~] ~]
+    ;<  ~  bind:m  (make:io [%& %| folder-path] &+(ball-to-bole:tarball new-ball))
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
+    (pure:m ~)
+  ::
+      %'create-nexus'
+    =/  foldername=@t  (fall (get-key:kv:html-utils 'foldername' args) '')
+    ?:  =('' foldername)
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing foldername')])
+      (pure:m ~)
+    =/  neck-str=@t  (fall (get-key:kv:html-utils 'neck' args) '')
     =/  dir-neck=(unit neck:tarball)
-      (bind (parse-extension:tarball dir-name) ext-to-neck:tarball)
-    =/  folder-path=path  (snoc tree-path dir-name)
+      ?:  =('' neck-str)  ~
+      =/  pax=path  (stab neck-str)
+      ?~  pax  ~
+      `[(snip `(list @ta)`pax) (rear pax)]
+    =/  resolved=(each path @t)  (resolve-rel-path tree-path foldername)
+    ?:  ?=(%| -.resolved)
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html p.resolved)])
+      (pure:m ~)
+    =/  folder-path=path  p.resolved
+    ?:  =(folder-path tree-path)
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Nothing to create')])
+      (pure:m ~)
     =/  new-ball=ball:tarball  [`[dir-neck ~ %.n ~ ~] ~]
     ;<  ~  bind:m  (make:io [%& %| folder-path] &+(ball-to-bole:tarball new-ball))
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
+    (pure:m ~)
+  ::
+      %'create-file'
+    =/  filename=@t  (fall (get-key:kv:html-utils 'filename' args) '')
+    ?:  =('' filename)
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing filename')])
+      (pure:m ~)
+    =/  blot-str=@t  (fall (get-key:kv:html-utils 'blot' args) '')
+    =/  blt=(unit blot:tarball)
+      ?.  =('' blot-str)
+        =/  pax=path  (stab blot-str)
+        ?~  pax  ~
+        `[(snip `(list @ta)`pax) (rear pax)]
+      =/  ext=(unit @ta)  (parse-extension:tarball filename)
+      ?~  ext  ~
+      `[/ u.ext]
+    ?~  blt
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Filename needs an extension or a mark path')])
+      (pure:m ~)
+    =/  =blot:tarball  u.blt
+    ;<  marc=(unit marc:tarball)  bind:m  (get-marc:io [%& %| /code] blot)
+    ?~  marc
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'No mark found for that extension')])
+      (pure:m ~)
+    =/  content=(each vase tang)  (mule |.(bunt.u.marc))
+    ?.  ?=(%& -.content)
+      %-  (slog p.content)
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Mark bunt crashed')])
+      (pure:m ~)
+    =/  =bask:tarball  [blot q.p.content]
+    ;<  ~  bind:m  (make:io [%& %& tree-path filename] |+[bask ~])
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
   ::
@@ -268,6 +1725,13 @@
     (pure:m ~)
   ::
       %'add-weir-road'
+    ::  load-bearing weirs: a weir on /apps (or on explorer itself) locks
+    ::  the very tools that manage weirs — including THIS request fiber,
+    ::  which then dies un-self-cleaned and replays its sand on every
+    ::  restart (learned the hard way). Flatly refuse.
+    ?:  |(=(/apps tree-path) =(/apps/'explorer.explorer' tree-path))
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'this weir is load-bearing: restricting it would make grubbery painfully difficult to interface with from the outside')])
+      (pure:m ~)
     =/  category=@t  (fall (get-key:kv:html-utils 'category' args) '')
     =/  road-path=@t  (fall (get-key:kv:html-utils 'road-path' args) '')
     ?:  |(=('' category) =('' road-path))
@@ -285,7 +1749,30 @@
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
   ::
+      ::  make-weir: create an EMPTY weir — a filter with no holes, i.e.
+      ::  fully closed until roads are added (absent weir = unrestricted)
+      ::
+      %'make-weir'
+    ::  load-bearing weirs: a weir on /apps (or on explorer itself) locks
+    ::  the very tools that manage weirs — including THIS request fiber,
+    ::  which then dies un-self-cleaned and replays its sand on every
+    ::  restart (learned the hard way). Flatly refuse.
+    ?:  |(=(/apps tree-path) =(/apps/'explorer.explorer' tree-path))
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'this weir is load-bearing: restricting it would make grubbery painfully difficult to interface with from the outside')])
+      (pure:m ~)
+    =/  new=weir:nexus  [~ ~ ~]
+    ;<  ~  bind:m  (sand:io [%& %| tree-path] `new)
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
+    (pure:m ~)
+  ::
       %'del-weir-road'
+    ::  load-bearing weirs: a weir on /apps (or on explorer itself) locks
+    ::  the very tools that manage weirs — including THIS request fiber,
+    ::  which then dies un-self-cleaned and replays its sand on every
+    ::  restart (learned the hard way). Flatly refuse.
+    ?:  |(=(/apps tree-path) =(/apps/'explorer.explorer' tree-path))
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'this weir is load-bearing: restricting it would make grubbery painfully difficult to interface with from the outside')])
+      (pure:m ~)
     =/  category=@t  (fall (get-key:kv:html-utils 'category' args) '')
     =/  road-path=@t  (fall (get-key:kv:html-utils 'road-path' args) '')
     ?:  =('' category)
@@ -304,6 +1791,13 @@
     (pure:m ~)
   ::
       %'clear-weir'
+    ::  load-bearing weirs: a weir on /apps (or on explorer itself) locks
+    ::  the very tools that manage weirs — including THIS request fiber,
+    ::  which then dies un-self-cleaned and replays its sand on every
+    ::  restart (learned the hard way). Flatly refuse.
+    ?:  |(=(/apps tree-path) =(/apps/'explorer.explorer' tree-path))
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'this weir is load-bearing: restricting it would make grubbery painfully difficult to interface with from the outside')])
+      (pure:m ~)
     ;<  ~  bind:m  (sand:io [%& %| tree-path] ~)
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
@@ -469,446 +1963,6 @@
   |=  [seg=@ta =lump:tarball]
   ^-  (unit [=sang:tarball gain=? bang=(unit tang)])
   (~(get by contents.lump) seg)
-::  Handle SSE stream: subscribe to root, push change events
-::
-++  handle-stream
-  |=  [eyre-id=@ta req=inbound-request:eyre watch-path=path]
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  ?.  (is-sse-request:http-utils req)
-    ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'SSE only')])
-    (pure:m ~)
-  ;<  ~  bind:m  (send-header:srv eyre-id sse-header:http-utils)
-  ;<  initial-view=view:nexus  bind:m  (peek:io [%& %| ~] ~)
-  =/  prev-wave=wave:nexus
-    ?.  ?=(%ball -.initial-view)
-      *wave:nexus
-    wave.initial-view
-  =/  prev-weir=(unit weir:nexus)
-    ?.  ?=(%ball -.initial-view)
-      ~
-    =/  s=ball:tarball  (~(dip ba:tarball ball.initial-view) watch-path)
-    ?~(fil.s ~ weir.u.fil.s)
-  ;<  *  bind:m  (keep:io /ball [%& %| ~] ~)
-  ;<  now=@da  bind:m  get-time:io
-  ;<  ~  bind:m  (send-wait:io (add now ~s30))
-  |-
-  ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /ball)
-  ?-    -.nw
-      %wake
-    ;<  ~  bind:m  (send-data:srv eyre-id `sse-keep-alive:http-utils)
-    ;<  now=@da  bind:m  get-time:io
-    ;<  ~  bind:m  (send-wait:io (add now ~s30))
-    $
-      %news
-    =/  changes=(map lane:tarball cass:clay)  (diff-wave:nexus prev-wave wave.nw)
-    =/  max-cas=cass:clay
-      %+  roll  ~(val by changes)
-      |=  [c=cass:clay best=cass:clay]
-      ?:((gth ud.c ud.best) c best)
-    ;<  =view:nexus  bind:m  (peek-at:io [%& %| ~] ~ [%ud ud.max-cas])
-    ?.  ?=([%ball *] view)  $
-    =/  root=ball:tarball  ball.view
-    =/  root-wave=wave:nexus  wave.view
-    =/  watch-ball=ball:tarball  (~(dip ba:tarball root) watch-path)
-    =/  new-weir=(unit weir:nexus)  ?~(fil.watch-ball ~ weir.u.fil.watch-ball)
-    =/  what=(set lane:tarball)  ~(key by changes)
-    =.  prev-wave  root-wave
-    =/  par=ball:tarball  (~(dip ba:tarball root) watch-path)
-    =/  par-wave=wave:nexus  (~(dip of root-wave) watch-path)
-    =/  url-prefix=tape  (build-url watch-path)
-    ::  Resolve governing /code namespace so SSE-pushed rows get
-    ::  the same blot & nexus links as the initial page render.
-    ::  The bend is relative to this fiber, so resolve with `here`.
-    ;<  font=(unit (unit bend:tarball))  bind:m
-      (get-font:io [%& %| watch-path])
-    ;<  here=rail:tarball  bind:m  get-here-abs:io
-    =/  code-namespace=(unit path)
-      ?~  font  ~
-      ?~  u.font  ~
-      =/  ns=(unit lane:tarball)
-        (lane-from-bend:tarball [%& here] u.u.font)
-      ?~  ns  ~
-      ?.  ?=(%| -.u.ns)  ~
-      `p.u.ns
-    =/  now=@da  da.max-cas
-    ::  Only build tubes for marks of files that changed in watched dir
-    =/  changed-blots=(set blot:tarball)
-      %-  ~(gas in *(set blot:tarball))
-      %+  murn  ~(tap in what)
-      |=  =lane:tarball
-      ^-  (unit blot:tarball)
-      ?.  ?=(%& -.lane)  ~
-      ?.  =(path.p.lane watch-path)  ~
-      ?~  fil.par  ~
-      =/  ct=(unit [=sang:tarball gain=? bang=(unit tang)])  (~(get by contents.u.fil.par) name.p.lane)
-      ?~  ct  ~
-      `p.sang.u.ct
-    ;<  conversions=(map bars:tarball tube:clay)  bind:m
-      (build-blot-conversions:io changed-blots)
-    =/  lanes=(list lane:tarball)  ~(tap in what)
-    |-
-    ?~  lanes
-      ::  Check if watched directory was deleted
-      =/  still-exists=?
-        ?|  =(~ watch-path)
-            ?=(^ (~(dap ba:tarball root) watch-path))
-        ==
-      ?.  still-exists
-        =/  =json
-          (pairs:enjs:format ~[['action' s+'deleted']])
-        =/  =sse-event:http-utils  [~ `'ball-change' [(en:json:html json)]~]
-        =/  data=octs  (sse-encode:http-utils ~[sse-event])
-        ;<  ~  bind:m  (send-data:srv eyre-id `data)
-        (pure:m ~)
-      ::  Check for weir change
-      ?.  =(prev-weir new-weir)
-        =.  prev-weir  new-weir
-        =/  weir-html=tape
-          (zing (turn (render-weir new-weir url-prefix) en-xml:html))
-        =/  =json
-          %-  pairs:enjs:format
-          :~  ['action' s+'weir']
-              ['html' s+(crip weir-html)]
-          ==
-        =/  =sse-event:http-utils  [~ `'ball-change' [(en:json:html json)]~]
-        =/  data=octs  (sse-encode:http-utils ~[sse-event])
-        ;<  ~  bind:m  (send-data:srv eyre-id `data)
-        ^$
-      ^$
-    =/  [parent=path item=@ta is-file=?]
-      ?-  -.i.lanes
-        %&  [path.p.i.lanes name.p.i.lanes %.y]
-        %|  ?~  p.i.lanes  [~ %$ %.n]
-            [(snip `path`p.i.lanes) (rear p.i.lanes) %.n]
-      ==
-    ::  Skip lanes not matching watched directory
-    ?.  =(parent watch-path)
-      $(lanes t.lanes)
-    =/  exists=?
-      ?:  is-file
-        ?~  fil.par  %.n
-        (~(has by contents.u.fil.par) item)
-      (~(has by dir.par) item)
-    ?:  exists
-      ::  Add: render full row HTML
-      =/  row-html=tape
-        ?:  is-file
-          ?~  fil.par  ""
-          =/  ct=(unit [=sang:tarball gain=? bang=(unit tang)])  (~(get by contents.u.fil.par) item)
-          ?~  ct  ""
-          (en-xml:html (render-grub-row item sang.u.ct url-prefix watch-path par-wave now conversions code-namespace ~))
-        =/  sub=(unit ball:tarball)  (~(get by dir.par) item)
-        ?~  sub  ""
-        (en-xml:html (render-dir-row item u.sub url-prefix ~))
-      =/  =json
-        %-  pairs:enjs:format
-        :~  ['action' s+'add']
-            ['name' s+item]
-            ['html' s+(crip row-html)]
-        ==
-      =/  =sse-event:http-utils  [~ `'ball-change' [(en:json:html json)]~]
-      =/  data=octs  (sse-encode:http-utils ~[sse-event])
-      ;<  ~  bind:m  (send-data:srv eyre-id `data)
-      $(lanes t.lanes)
-    ::  Delete: send name
-    =/  =json
-      %-  pairs:enjs:format
-      :~  ['action' s+'del']
-          ['name' s+item]
-      ==
-    =/  =sse-event:http-utils  [~ `'ball-change' [(en:json:html json)]~]
-    =/  data=octs  (sse-encode:http-utils ~[sse-event])
-    ;<  ~  bind:m  (send-data:srv eyre-id `data)
-    $(lanes t.lanes)
-  ==
-::  Resolve URL path — direct match only
-::
-++  resolve-url-path
-  |=  [raw=path root=ball:tarball]
-  ^-  path
-  =/  current=ball:tarball  root
-  =/  result=path  ~
-  |-
-  ?~  raw  result
-  =/  child=(unit ball:tarball)  (~(get by dir.current) i.raw)
-  ?^  child
-    $(raw t.raw, result (snoc result i.raw), current u.child)
-  ::  No match — keep segment as-is
-  $(raw t.raw, result (snoc result i.raw))
-::  Build URL path from segments
-::
-++  build-url
-  |=  pax=path
-  ^-  tape
-  =/  acc=tape  "/grubbery/ball"
-  |-
-  ?~  pax  acc
-  $(pax t.pax, acc (weld acc "/{(trip i.pax)}"))
-::
-++  page-head
-  |=  title=tape
-  ^-  manx
-  ;head
-    ;title: {title}
-    ;meta(charset "utf-8");
-    ;meta(name "viewport", content "width=device-width, initial-scale=1");
-    ;link(rel "icon", href "data:,");
-    ;style
-      ; body { font-family: monospace; margin: 20px; }
-      ; h1 { font-size: 18px; }
-      ; table { border-collapse: collapse; width: 100%; }
-      ; th, td { text-align: left; padding: 8px; }
-      ; th { border-bottom: 1px solid #ccc; }
-      ; a { color: #0366d6; text-decoration: none; }
-      ; a:hover { text-decoration: underline; }
-      ; .breadcrumb { margin-bottom: 10px; }
-      ; .breadcrumb a { margin: 0 2px; }
-      ; .info { margin: 10px 0; padding: 10px; background: #f6f8fa; border-radius: 6px; }
-      ; .info dt { font-weight: bold; float: left; width: 100px; }
-      ; .info dd { margin-left: 110px; margin-bottom: 4px; }
-      ; button { padding: 2px 8px; cursor: pointer; font-family: monospace; font-size: 12px; }
-      ; .del-form { display: inline; }
-      ; .symlink-target { color: #6a737d; }
-      ; .mark-mismatch { color: #cb2431; font-weight: bold; }
-      ; .action-row { margin: 6px 0; display: flex; gap: 6px; align-items: center; }
-      ; .action-row label { font-weight: bold; min-width: 110px; }
-      ; .inline-form { display: flex; gap: 4px; align-items: center; }
-      ; .inline-form input[type="text"] { padding: 2px 4px; font-family: monospace; font-size: 12px; width: 120px; }
-      ; .weir-system { color: #e36209; font-weight: bold; }
-      ; .weir-label { color: #6a737d; margin-right: 4px; }
-      ; .weir-roads { color: #6f42c1; }
-      ; .weir-road-item { margin-right: 8px; }
-      ; .weir-del { font-size: 10px; padding: 0 4px; margin-left: 2px; color: #cb2431; cursor: pointer; }
-      ; select { padding: 2px 4px; font-family: monospace; font-size: 12px; }
-      ; .sortable { cursor: pointer; user-select: none; }
-      ; .sortable:hover { background: #f0f0f0; }
-      ; .sortable::after { content: ' \2195'; opacity: 0.3; }
-      ; .sortable.asc::after { content: ' \2191'; opacity: 1; }
-      ; .sortable.desc::after { content: ' \2193'; opacity: 1; }
-      ; .boom-banner { margin: 10px 0; padding: 10px; background: #ffeef0; border: 1px solid #cb2431; border-radius: 6px; cursor: pointer; }
-      ; .boom-banner:hover { background: #fdd; }
-      ; .boom-icon { color: #cb2431; font-weight: bold; cursor: pointer; margin-left: 4px; display: inline; }
-      ; .boom-icon:hover { text-decoration: underline; }
-      ; .boom-modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 1000; }
-      ; .boom-modal-overlay.active { display: flex; align-items: center; justify-content: center; }
-      ; .boom-modal { background: #fff; border: 2px solid #cb2431; border-radius: 8px; padding: 16px; max-width: 80vw; max-height: 80vh; overflow: auto; min-width: 400px; }
-      ; .boom-modal h3 { color: #cb2431; margin: 0 0 8px; }
-      ; .boom-modal pre { white-space: pre-wrap; font-size: 12px; margin: 0; max-height: 60vh; overflow: auto; background: #ffeef0; padding: 8px; border-radius: 4px; }
-      ; .actions-cell { white-space: nowrap; }
-      ; .actions-cell button, .actions-cell .del-form button { padding: 4px 8px; }
-      ; @media (max-width: 768px) {
-      ;   body { margin: 10px; font-size: 14px; }
-      ;   h1 { font-size: 16px; }
-      ;   .col-blot, .col-mime, .col-mtime { display: none; }
-      ;   .actions-cell button, .actions-cell .del-form button { padding: 6px 10px; }
-      ;   .action-row { flex-wrap: wrap; }
-      ;   .action-row label { min-width: unset; width: 100%; margin-bottom: 4px; }
-      ;   .inline-form { flex-wrap: wrap; width: 100%; }
-      ;   .inline-form input[type="text"] { width: 100%; min-width: 0; }
-      ;   .info dt { float: none; width: auto; }
-      ;   .info dd { margin-left: 0; }
-      ;   table { font-size: 13px; }
-      ;   th, td { padding: 6px 4px; }
-      ;   .boom-modal { min-width: unset; width: 90vw; }
-      ; }
-      ; @media (max-width: 480px) {
-      ;   body { margin: 6px; }
-      ;   .actions-cell { display: flex; flex-wrap: wrap; gap: 4px; }
-      ;   .col-size { display: none; }
-      ; }
-    ==
-  ==
-::
-++  breadcrumb
-  |=  pax=path
-  ^-  manx
-  =/  seg-data=(list [seg=@ta url=tape])
-    =/  built=path  ~
-    =/  acc=(list [seg=@ta url=tape])  ~
-    =/  rem=path  pax
-    |-
-    ?~  rem  (flop acc)
-    =.  built  (snoc built i.rem)
-    =/  url=tape  (build-url built)
-    $(rem t.rem, acc [[i.rem url] acc])
-  =/  crumbs=(list manx)
-    :~  ;a/"/grubbery/ball": /
-    ==
-  =.  crumbs
-    %+  weld  crumbs
-    %+  turn  seg-data
-    |=  [seg=@ta url=tape]
-    ^-  manx
-    ;a/"{url}": {(trip seg)}/
-  ;div.breadcrumb
-    ;*  crumbs
-  ==
-::
-++  dir-info
-  |=  [b=ball:tarball url-prefix=tape dir-weir=(unit weir:nexus) pax=path neck-url=(unit tape)]
-  ^-  manx
-  =/  neck-display=tape
-    ?~  fil.b  "-"
-    ?~  neck.u.fil.b  "-"
-    (trip (spat (rail-to-path:tarball u.neck.u.fil.b)))
-  =/  nkids=@ud
-    %+  add
-      ~(wyt by dir.b)
-    ?~(fil.b 0 ~(wyt by contents.u.fil.b))
-  =/  download-url=tape  "{url-prefix}?download=tar"
-  ;div.info
-    ;dl
-      ;dt: nexus
-      ;dd
-        ;*  ?~  neck-url
-              :~  ;span: {neck-display}
-              ==
-            :~  ;a/"{u.neck-url}": {neck-display}
-            ==
-      ==
-      ;dt: items
-      ;dd: {(scow %ud nkids)}
-      ;dt: sandbox
-      ;dd#sandbox-value
-        ;*  (render-sandbox dir-weir url-prefix pax)
-      ==
-    ==
-    ;*  ?.  ?=(^ pax)  ~
-        :~  ;div.action-row
-              ;form.inline-form(method "POST", action url-prefix)
-                ;label: Add to Weir:
-                ;select(name "category")
-                  ;option(value "write"): write
-                  ;option(value "poke"): poke
-                  ;option(value "read"): read
-                ==
-                ;input(type "text", name "road-path", placeholder "/path or /path/", required "");
-                ;input(type "hidden", name "action", value "add-weir-road");
-                ;button(type "submit"): Add
-              ==
-            ==
-        ==
-    ;*  ?.  ?&(?=(^ fil.b) ?=(^ neck.u.fil.b))  ~
-        :~  ;div.action-row
-              ;form.inline-form(method "POST", action url-prefix)
-                ;label: Nexus:
-                ;input(type "hidden", name "action", value "reload-nexus");
-                ;button(type "submit"): Reload
-              ==
-            ==
-        ==
-    ;div.action-row
-      ;label: Download:
-      ;a/"{download-url}"
-        ;button(type "button"): Download as Tarball
-      ==
-    ==
-    ;div.action-row
-      ;form.inline-form(method "POST", action url-prefix)
-        ;label: Create Folder:
-        ;input(type "text", name "foldername", placeholder "folder-name", required "");
-        ;input(type "hidden", name "action", value "create-folder");
-        ;button(type "submit"): Create
-      ==
-    ==
-    ;div.action-row
-      ;form.inline-form(method "POST", action url-prefix)
-        ;label: Create Symlink:
-        ;input(type "text", name "linkname", placeholder "link-name", required "");
-        ;input(type "text", name "target", placeholder "target-path", required "");
-        ;input(type "hidden", name "action", value "create-symlink");
-        ;button(type "submit"): Create
-      ==
-    ==
-    ;div.action-row
-      ;form.inline-form(method "POST", action url-prefix, enctype "multipart/form-data")
-        ;label: Upload Grub:
-        ;input(type "file", name "file");
-        ;button(type "submit"): Upload
-      ==
-    ==
-    ;div.action-row
-      ;form.inline-form(method "POST", action url-prefix, enctype "multipart/form-data")
-        ;label: Upload Grubs:
-        ;input(type "file", name "file", multiple "");
-        ;button(type "submit"): Upload All
-      ==
-    ==
-    ;div.action-row
-      ;form.inline-form(method "POST", action url-prefix, enctype "multipart/form-data")
-        ;label: Upload Directory:
-        ;input(type "file", name "file", webkitdirectory "", directory "");
-        ;button(type "submit"): Upload Directory
-      ==
-    ==
-  ==
-::
-++  render-sandbox
-  |=  [dir-weir=(unit weir:nexus) url-prefix=tape pax=path]
-  ^-  (list manx)
-  ?.  ?=(^ pax)
-    :~  ;span.weir-system: unrestricted
-    ==
-  (render-weir dir-weir url-prefix)
-::
-++  render-weir
-  |=  [dir-weir=(unit weir:nexus) url-prefix=tape]
-  ^-  (list manx)
-  ?~  dir-weir
-    :~  ;span.weir-system: unrestricted
-    ==
-  =/  items=(list manx)
-    ;:  weld
-      (render-weir-category "write" make.u.dir-weir url-prefix)
-      (render-weir-category "poke" poke.u.dir-weir url-prefix)
-      (render-weir-category "read" peek.u.dir-weir url-prefix)
-    ==
-  %+  snoc  items
-  ;form.del-form(method "POST", action url-prefix)
-    ;input(type "hidden", name "action", value "clear-weir");
-    ;button.weir-del(type "submit", onclick "return confirm('Remove weir? This gives unrestricted access.')"): clear weir
-  ==
-::
-++  render-weir-category
-  |=  [label=tape roads=(set road:tarball) url-prefix=tape]
-  ^-  (list manx)
-  =/  road-items=(list manx)
-    %+  turn  ~(tap in roads)
-    |=  =road:tarball
-    ^-  manx
-    =/  road-path=tape  (road-to-form road)
-    ;span.weir-road-item
-      ;span.weir-roads: {road-path}
-      ;form.del-form(method "POST", action url-prefix)
-        ;input(type "hidden", name "action", value "del-weir-road");
-        ;input(type "hidden", name "category", value label);
-        ;input(type "hidden", name "road-path", value road-path);
-        ;button.weir-del(type "submit"): x
-      ==
-    ==
-  %+  weld
-    :~  ;span.weir-label: {label}:
-    ==
-  ?~  road-items
-    :~  ;span.weir-roads: -
-        ;br;
-    ==
-  (snoc road-items ;br;)
-::
-++  render-road
-  |=  =road:tarball
-  ^-  tape
-  ?-    -.road
-      %&  (render-lane p.road)
-      %|
-    =/  ups=tape  ?:(=(0 p.p.road) "./" (zing (reap p.p.road "../")))
-    =/  lane=tape  (render-lane q.p.road)
-    ::  strip leading / since ups already provides the prefix
-    =/  trimmed=tape  ?:(&(?=(^ lane) =(i.lane '/')) t.lane lane)
-    "{ups}{trimmed}"
-  ==
-::
 ++  road-to-form
   |=  =road:tarball
   ^-  tape
@@ -933,323 +1987,302 @@
     ?~(p.lane "/" "{(trip (spat p.lane))}/")
   ==
 ::
-++  render-dir
+::  +tree-json: a whole subtree as nested JSON, names only —
+::  {"dirs": {name: <subtree>}, "files": [name]}. Pure: walks the ball a
+::  deep peek already returned, no further peeks. Nothing about a file but
+::  its name (no blot/mime/size) — that's the listing's job, per directory.
+::
+++  tree-json
+  |=  b=ball:tarball
+  ^-  json
+  ::  files carry their blot (the stored rail's path); dir nodes carry a weir
+  ::  presence bool and their neck (the nexus source rail's path, ~ if none).
+  ::  all read straight from this deep peek — no extra peeks — so the sidebar
+  ::  can label a row without a per-directory round trip.
+  =/  conts=(map @ta [=sang:tarball gain=? bang=(unit tang)])
+    ?~(fil.b ~ contents.u.fil.b)
+  =/  files=(list json)
+    %+  turn  (sort ~(tap by conts) |=([[a=@ta *] [c=@ta *]] (aor a c)))
+    |=  [name=@ta =sang:tarball *]
+    ^-  json
+    =/  blot=path
+      ?:  (is-boom:tarball sang)  (rail-to-path:tarball p.sang)
+      (rail-to-path:tarball p:(need-sage:tarball sang))
+    (pairs:enjs:format ~[name+s+name blot+s+(crip (spud blot))])
+  =/  dirs=(map @t json)
+    %-  ~(run by dir.b)
+    |=  kid=ball:tarball
+    ^-  json
+    =/  has-weir=?  ?~(fil.kid %.n ?=(^ weir.u.fil.kid))
+    =/  neck=json
+      ?~  fil.kid  ~
+      ?~  neck.u.fil.kid  ~
+      s+(crip (spud (rail-to-path:tarball u.neck.u.fil.kid)))
+    =/  sub=json  (tree-json kid)
+    ?>  ?=([%o *] sub)
+    o+(~(gas by p.sub) ~[weir+b+has-weir neck+neck])
+  %-  pairs:enjs:format
+  :~  ['dirs' o+dirs]
+      ['files' a+files]
+  ==
+::
+::  +listing-json: the dir listing as data — everything the browse app shows,
+::  one child object per subdir and grub. Pure given its inputs (the mime
+::  conversions ride the prefetched tube map, via gen:tarball).
+::
+++  built-status
+  ::  the build kind (%vase/%tang/%mime) of a .hoon source file inside a
+  ::  code namespace, or ~ when it is not a code-governed .hoon. The one-bit
+  ::  summary the listing shows; the file view (?info) carries the detail.
+  ::
+  ::  (+test-suite below reads a build product as test results, for the
+  ::  grid the file view draws instead of a wall of printed noun.)
+  |=  [dir=path name=@ta]
+  =/  m  (fiber:fiber:nexus ,(unit @tas))
+  ^-  form:m
+  =/  t=tape  (trip name)
+  =/  len=@ud  (lent t)
+  ?.  &((gth len 5) =(".hoon" (slag (sub len 5) t)))
+    (pure:m ~)
+  ;<  own=(unit fold:tarball)  bind:m  (owner:cs [dir name])
+  ?~  own  (pure:m ~)
+  ;<  =built:nexus  bind:m  (get-code-full:io [%& %& dir (crip (scag (sub len 5) t))])
+  (pure:m `-.built)
+::  +test-suite: a build product read as test results, or ~ when it isn't
+::  any. Two gates, and neither is a guess about where the file lives:
+::
+::    the +mule'd !< nests against the real type, faces and all, so a
+::    noun that merely looks like a list of pairs does not pass; and
+::    every name must carry the test- prefix that +run-tests:test uses
+::    to discover arms, so a genuine (list [name=@tas ok=?]) built for
+::    some other purpose (feature flags, say) is not mistaken for a
+::    suite. An empty list is not a suite either.
+::
+::  Path plays no part: a fixture or a helper core under lib/tests/ has
+::  nothing to render, and a suite kept elsewhere still renders.
+::
+++  test-suite
+  |=  v=vase
+  ^-  (unit (list [name=@tas ok=?]))
+  =/  got=(each (list [name=@tas ok=?]) tang)
+    (mule |.(!<((list [name=@tas ok=?]) v)))
+  ?:  ?=(%| -.got)  ~
+  ?:  =(~ p.got)  ~
+  ?.  (levy p.got |=([name=@tas ok=?] =('test-' (end 3^5 name))))  ~
+  `p.got
+::  +built-counts: the artifacts under a directory inside a code namespace,
+::  counted: how many compiled (%vase) and how many failed (%tang). One
+::  %code dart on the directory answers the whole subtree. ~ when the dir
+::  is not code-governed, or holds no artifact yet (nothing built there is
+::  nothing to say). Conversions (%mime) are neither.
+++  built-counts
+  |=  dir=path
+  =/  m  (fiber:fiber:nexus ,(unit [ok=@ud fail=@ud]))
+  ^-  form:m
+  ;<  own=(unit fold:tarball)  bind:m  (owner:cs [dir %$])
+  ?~  own  (pure:m ~)
+  ::  under a deadline: a reply that never comes (a dart the kernel dropped
+  ::  or crashed on) must not hang the listing, and with it every page that
+  ::  waits on the explorer behind the browser's connection cap
+  ;<  timed=(unit (unit (axal (map @ta built:nexus))))  bind:m
+    %^  (with-timeout:io ,(unit (axal (map @ta built:nexus))))  /code-tree  ~s3
+    (code-tree-soft dir)
+  ?~  timed  (pure:m ~)
+  =/  tree=(unit (axal (map @ta built:nexus)))  u.timed
+  ?~  tree  (pure:m ~)
+  =/  counts=[ok=@ud fail=@ud]
+    =|  acc=[ok=@ud fail=@ud]
+    =/  nodes=(list (map @ta built:nexus))  (count-nodes u.tree)
+    |-  ^-  [ok=@ud fail=@ud]
+    ?~  nodes  acc
+    =.  acc
+      %+  roll  ~(val by i.nodes)
+      |=  [b=built:nexus a=_acc]
+      ?-  -.b
+        %vase  a(ok +(ok.a))
+        %tang  a(fail +(fail.a))
+        %mime  a
+      ==
+    $(nodes t.nodes)
+  ?:  =(0 (add ok.counts fail.counts))  (pure:m ~)
+  (pure:m `counts)
+::  +code-tree-soft: the %code dart on a directory, answered ~ when the
+::  kernel says no (no code nexus there) or a weir vetoes it, instead of
+::  waiting on a reply that never comes (the io's get-code-tree skips a
+::  %| answer).
+++  code-tree-soft
+  |=  dir=path
+  =/  m  (fiber:fiber:nexus ,(unit (axal (map @ta built:nexus))))
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce:io /code-tree)
+  ;<  ~  bind:m  (send-dart:io %node wire [%& %| dir] %code ~)
+  |=  input:fiber:nexus
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]  [%done ~]
+      [~ %code * *]
+    ?.  =(wire wire.u.in)  [%skip ~]
+    ?.  ?=(%& -.res.u.in)  [%done ~]
+    [%done `p.res.u.in]
+  ==
+::  +count-nodes: every node's artifact map in an axal, flattened.
+++  count-nodes
+  |=  tree=(axal (map @ta built:nexus))
+  ^-  (list (map @ta built:nexus))
+  =/  todo=(list (axal (map @ta built:nexus)))  ~[tree]
+  =|  out=(list (map @ta built:nexus))
+  |-  ^-  (list (map @ta built:nexus))
+  ?~  todo  out
+  =/  t=(axal (map @ta built:nexus))  i.todo
+  =/  kids=(list (axal (map @ta built:nexus)))  ~(val by dir.t)
+  %=  $
+    todo  (weld kids t.todo)
+    out   ?~(fil.t out [u.fil.t out])
+  ==
+::
+++  listing-json
   |=  $:  pax=path
           b=ball:tarball
           b-wave=wave:nexus
           now=@da
           conversions=(map bars:tarball tube:clay)
-          code-namespace=(unit path)
+          neck-url=(unit tape)
+          blot-urls=(map rail:tarball (unit tape))
           dir-weir=(unit weir:nexus)
+          necks=(map @ta kid-info)
+          builds=(map @ta @tas)
+          dir-builds=(map @ta [ok=@ud fail=@ud])
       ==
-  ^-  manx
-  ::  Nexus source link: combines the governing /code namespace
-  ::  with the directory's neck rail to form a URL to the .hoon source.
-  ::  e.g. /grubbery/ball/code/nex/wallet/account.hoon
-  =/  neck-url=(unit tape)
-    ?~  code-namespace  ~
-    ?~  fil.b  ~
-    ?~  neck.u.fil.b  ~
-    `"/grubbery/ball{(trip (spat (weld u.code-namespace /nex)))}{(trip (spat (rail-to-path:tarball u.neck.u.fil.b)))}.hoon"
-  =/  path-display=tape
-    ?~  pax  "/"
-    (trip (spat pax))
-  =/  kids  dir.b
+  ^-  json
+  =/  str  |=(t=tape `json`s+(crip t))
+  =/  weir-to-json
+    |=  w=(unit weir:nexus)
+    ^-  json
+    ?~  w  ~
+    =/  cat
+      |=  roads=(set road:tarball)
+      ^-  json
+      a+(turn ~(tap in roads) |=(r=road:tarball `json`s+(crip (road-to-form r))))
+    (pairs:enjs:format ~[['write' (cat make.u.w)] ['poke' (cat poke.u.w)] ['read' (cat peek.u.w)]])
+  =/  neck-display=tape
+    ?~  fil.b  "-"
+    ?~  neck.u.fil.b  "-"
+    (trip (spat (rail-to-path:tarball u.neck.u.fil.b)))
   =/  file-contents=(map @ta [=sang:tarball gain=? bang=(unit tang)])
     ?~  fil.b  ~
     contents.u.fil.b
-  =/  subdirs=(list @ta)  ~(tap in ~(key by kids))
-  =/  files=(list @ta)  ~(tap in ~(key by file-contents))
-  =/  url-prefix=tape  (build-url pax)
-  ::  Error state at this level
-  =/  nexus-bang=(unit tang)  ?~(fil.b ~ bang.u.fil.b)
-  ;html
-    ;+  (page-head "Index of {path-display}")
-    ;body
-      ;+  (breadcrumb pax)
-      ;h1: Index of {path-display}
-      ;+  (dir-info b url-prefix dir-weir pax neck-url)
-      ;*  ?~  nexus-bang  ~
-          =/  rendered=tape  (render-tang u.nexus-bang)
-          :~  ;div.boom-banner(data-tang rendered, onclick "showBoom(this)")
-                nexus crashed — click for details
-              ==
-          ==
-      ;table#listing(data-path (trip (spat pax)))
-        ;tr
-          ;th.sortable(data-col "0", onclick "sortTable(0)"): Name
-          ;th.sortable.col-blot(data-col "1", onclick "sortTable(1)"): Blot
-          ;th.sortable.col-mime(data-col "2", onclick "sortTable(2)"): Mime Type
-          ;th.sortable(data-col "3", onclick "sortTable(3)"): Size
-          ;th.sortable.col-mtime(data-col "4", onclick "sortTable(4)"): Modified
-          ;th: Actions
-        ==
-        ;*
-        =/  rows=(list manx)  ~
-        ::  Parent link
-        =?  rows  ?=(^ pax)
-          =/  parent=path  (snip `path`pax)
-          =/  parent-url=tape  (build-url parent)
-          %+  snoc  rows
-          ;tr
-            ;td
-              ;a/"{parent-url}": ../
-            ==
-            ;td.col-blot: -
-            ;td.col-mime: -
-            ;td: -
-            ;td.col-mtime: -
-            ;td: -
-          ==
-        ::  Subdirectories
-        =.  rows
-          %+  weld  rows
-          %+  turn  subdirs
-          |=  name=@ta
-          ^-  manx
-          =/  sub=ball:tarball  (~(got by kids) name)
-          =/  sub-bang=(unit tang)  ?~(fil.sub ~ bang.u.fil.sub)
-          (render-dir-row name sub url-prefix sub-bang)
-        ::  Grubs
-        =.  rows
-          %+  weld  rows
-          %+  turn  files
-          |=  name=@ta
-          ^-  manx
-          =/  [=sang:tarball gain=? bang=(unit tang)]  (~(got by file-contents) name)
-          (render-grub-row name sang url-prefix pax b-wave now conversions code-namespace bang)
-        rows
+  =/  mtime
+    |=  name=@ta
+    ^-  json
+    ?~  fil.b-wave  ~
+    =/  cas=(unit cass:clay)  (~(get by file.u.fil.b-wave) name)
+    ?~  cas  ~
+    (str (en:datetime-local:iso-8601 da.u.cas))
+  =/  dirs=(list json)
+    %+  turn
+      (sort ~(tap by dir.b) |=([[a=@ta *] [b=@ta *]] (aor a b)))
+    |=  [name=@ta kid=ball:tarball]
+    ^-  json
+    ::  a directory's weir lives in ITS PARENT's ject, so read it from this
+    ::  (parent) ball's entry for the child, not the child's own peek.
+    =/  kid-weir=json  ?~(fil.kid ~ (weir-to-json weir.u.fil.kid))
+    =/  kid=(unit kid-info)  (~(get by necks) name)
+    =/  neck-json=json
+      ?~  kid  ~
+      ?~  neck.u.kid  ~
+      s+(crip (spud (rail-to-path:tarball u.neck.u.kid)))
+    =/  neck-url-json=json
+      ?~  kid  ~
+      ?~  neck-url.u.kid  ~
+      (str u.neck-url.u.kid)
+    =/  kid-bang=json
+      ?~  kid  ~
+      ?~  bang.u.kid  ~
+      (str (render-tang u.bang.u.kid))
+    =/  dir-mod=json
+      =/  kid-wave=(unit wave:nexus)  (~(get by dir.b-wave) name)
+      ?~  kid-wave  ~
+      ?~  fil.u.kid-wave  ~
+      (str (en:datetime-local:iso-8601 da.fold.u.fil.u.kid-wave))
+    ::  the subtree's build tally, {ok, fail}, when it holds artifacts
+    =/  dir-built=json
+      =/  c  (~(get by dir-builds) name)
+      ?~  c  ~
+      (pairs:enjs:format ~[['ok' (numb:enjs:format ok.u.c)] ['fail' (numb:enjs:format fail.u.c)]])
+    (pairs:enjs:format ~[['name' s+`@t`name] ['kind' s+'dir'] ['neck' neck-json] ['neck-url' neck-url-json] ['bang' kid-bang] ['weir' kid-weir] ['built' dir-built] ['modified' dir-mod]])
+  =/  files=(list json)
+    %+  turn
+      (sort ~(tap by file-contents) |=([[a=@ta *] [b=@ta *]] (aor a b)))
+    |=  [name=@ta =sang:tarball gain=? bang=(unit tang)]
+    ^-  json
+    ?:  (is-boom:tarball sang)
+      =/  boom-tang=tang  ?~(bang ~[leaf+"validation failed"] u.bang)
+      %-  pairs:enjs:format
+      :~  ['name' s+`@t`name]
+          ['kind' s+'boom']
+          ['blot' (str (spud (rail-to-path:tarball p.sang)))]
+          ['boom' (str (render-tang boom-tang))]
+          ['modified' (mtime name)]
       ==
-      ;div#boom-overlay.boom-modal-overlay
-        ;div.boom-modal
-          ;h3: Error
-          ;pre;
-        ==
+    =/  sag=sage:tarball  (need-sage:tarball sang)
+    =/  blot-json=json  (str (spud (rail-to-path:tarball p.sag)))
+    =/  mark-url=json
+      =/  u=(unit (unit tape))  (~(get by blot-urls) p.sag)
+      ?~  u  ~
+      ?~  u.u  ~
+      (str u.u.u)
+    ?:  =(%symlink name.p.sag)
+      =/  sym  !<(symlink:tarball q.sag)
+      %-  pairs:enjs:format
+      :~  ['name' s+`@t`name]
+          ['kind' s+'symlink']
+          ['blot' blot-json]
+          ['blot-url' mark-url]
+          ['target' (str (trip (encode-symlink:tarball sym)))]
+          ['resolved' (str (trip (spat (resolve-symlink:tarball sym pax))))]
+          ['modified' (mtime name)]
       ==
-      ;script: {(trip sse-script)}
+    =/  =mime
+      ?:  =(%mime name.p.sag)
+        !<(mime q.sag)
+      (~(sage-to-mime gen:tarball [now conversions]) sag)
+    =/  mime-raw=tape  (trip (spat p.mime))
+    =/  ext=(unit @ta)  (parse-extension:tarball name)
+    =/  rail-ext=@ta
+      %-  crip  %-  zing
+      %+  join  "_"
+      (turn (rail-to-path:tarball p.sag) trip)
+    %-  pairs:enjs:format
+    :~  ['name' s+`@t`name]
+        ['kind' s+'file']
+        ['blot' blot-json]
+        ['blot-url' mark-url]
+        ['mismatch' b+?~(ext %.y !=(u.ext rail-ext))]
+        ['mime' (str ?~(mime-raw "" (tail mime-raw)))]
+        ['size' (numb:enjs:format p.q.mime)]
+        ['binary' b+=(p.mime /application/x-urb-jam)]
+        ['bang' ?~(bang ~ (str (render-tang u.bang)))]
+        ['built' =/(g (~(get by builds) name) ?~(g ~ s+u.g))]
+        ['modified' (mtime name)]
     ==
+  =/  weir-json=json  (weir-to-json dir-weir)
+  =/  nexus-bang=json
+    ?~  fil.b  ~
+    ?~  bang.u.fil.b  ~
+    (str (render-tang u.bang.u.fil.b))
+  %-  pairs:enjs:format
+  :~  ['path' (str ?~(pax "/" (trip (spat pax))))]
+      ['root' b+?=(~ pax)]
+      :-  'nexus'
+      %-  pairs:enjs:format
+      :~  ['display' (str neck-display)]
+          ['url' ?~(neck-url ~ (str u.neck-url))]
+      ==
+      ['weir' weir-json]
+      ['bang' nexus-bang]
+      ['children' a+(weld dirs files)]
   ==
-::
-++  sse-script
-  ^-  @t
-  '''
-  var sortCol = 0, sortAsc = true;
-  function getRows() {
-    var tbl = document.getElementById('listing');
-    return Array.from(tbl.querySelectorAll('tr[data-name]'));
-  }
-  function sortVal(row, col) {
-    if (col === 3) return parseInt(row.dataset.size || '0') || 0;
-    return (row.cells[col] && row.cells[col].textContent || '').toLowerCase();
-  }
-  function doSort() {
-    var tbl = document.getElementById('listing');
-    var tb = tbl.querySelector('tbody') || tbl;
-    var rows = getRows();
-    rows.sort(function(a, b) {
-      var ta = a.dataset.type || '', tb2 = b.dataset.type || '';
-      if (ta !== tb2) { var df = ta === 'dir' ? -1 : 1; return sortAsc ? df : -df; }
-      var va = sortVal(a, sortCol), vb = sortVal(b, sortCol);
-      var cmp = (typeof va === 'number') ? va - vb : (va < vb ? -1 : va > vb ? 1 : 0);
-      return sortAsc ? cmp : -cmp;
-    });
-    rows.forEach(function(r) { tb.appendChild(r); });
-    tbl.querySelectorAll('th.sortable').forEach(function(th) {
-      th.classList.remove('asc', 'desc');
-      if (parseInt(th.dataset.col) === sortCol) th.classList.add(sortAsc ? 'asc' : 'desc');
-    });
-  }
-  function sortTable(col) {
-    if (sortCol === col) { sortAsc = !sortAsc; }
-    else { sortCol = col; sortAsc = true; }
-    doSort();
-  }
-  (function() {
-    doSort();
-    var tbl = document.getElementById('listing');
-    if (!tbl) return;
-    var tb = tbl.querySelector('tbody') || tbl;
-    var es = new EventSource('/grubbery/ball/stream?path=' + tbl.dataset.path);
-    es.addEventListener('ball-change', function(e) {
-      var d = JSON.parse(e.data);
-      if (d.action === 'weir') {
-        var sb = document.getElementById('sandbox-value');
-        if (sb) sb.innerHTML = d.html;
-        return;
-      }
-      if (d.action === 'deleted') {
-        document.body.innerHTML = '<h1>Directory deleted</h1><p><a href="/grubbery/ball">Back to root</a></p>';
-        es.close();
-        return;
-      }
-      var row = tb.querySelector('tr[data-name="' + d.name + '"]');
-      if (row) row.remove();
-      if (d.action === 'add' && d.html) {
-        tb.insertAdjacentHTML('beforeend', d.html);
-        doSort();
-      }
-    });
-    window.addEventListener('beforeunload', function() { es.close(); });
-  })();
-  function doAction(action, params) {
-    var form = document.createElement('form');
-    form.method = 'POST';
-    form.action = location.pathname;
-    var a = document.createElement('input');
-    a.type = 'hidden'; a.name = 'action'; a.value = action;
-    form.appendChild(a);
-    for (var k in params) {
-      var i = document.createElement('input');
-      i.type = 'hidden'; i.name = k; i.value = params[k];
-      form.appendChild(i);
-    }
-    document.body.appendChild(form);
-    form.submit();
-  }
-  function renameItem(type, name) {
-    var n = prompt('New name for ' + name + ':', name);
-    if (!n || n === name) return;
-    doAction('rename-' + type, type === 'grub' ? {filename: name, newname: n} : {foldername: name, newname: n});
-  }
-  function moveItem(type, name) {
-    var cur = location.pathname.replace('/grubbery/ball', '') || '/';
-    var d = prompt('Move ' + name + ' to (full path):', cur + (cur === '/' ? '' : '/') + name);
-    if (!d) return;
-    doAction('move-' + type, type === 'grub' ? {filename: name, dest: d} : {foldername: name, dest: d});
-  }
-  function copyItem(type, name) {
-    var cur = location.pathname.replace('/grubbery/ball', '') || '/';
-    var d = prompt('Copy ' + name + ' to (full path):', cur + (cur === '/' ? '' : '/') + name);
-    if (!d) return;
-    doAction('copy-' + type, type === 'grub' ? {filename: name, dest: d} : {foldername: name, dest: d});
-  }
-  function showBoom(el) {
-    var pre = el.dataset.tang;
-    var ov = document.getElementById('boom-overlay');
-    ov.querySelector('pre').textContent = pre;
-    ov.classList.add('active');
-  }
-  document.addEventListener('click', function(e) {
-    var ov = document.getElementById('boom-overlay');
-    if (e.target === ov) ov.classList.remove('active');
-  });
-  document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') document.getElementById('boom-overlay').classList.remove('active');
-  });
-  '''
-::
-++  render-split
-  ^-  manx
-  ;html
-    ;head
-      ;title: grubbery split view
-      ;meta(charset "utf-8");
-      ;link(rel "icon", href "data:,");
-      ;style
-        ; * { box-sizing: border-box; margin: 0; padding: 0; }
-        ; html, body { height: 100%; font-family: monospace; }
-        ; .split-header { display: flex; height: 32px; background: #f6f8fa; border-bottom: 1px solid #ccc; }
-        ; .pane-bar { display: flex; align-items: center; padding: 0 6px; gap: 4px; }
-        ; .pane-bar.left { flex: 1; border-right: 1px solid #ccc; }
-        ; .pane-bar.right { flex: 1; }
-        ; .pane-bar input { flex: 1; font-family: monospace; font-size: 12px; border: 1px solid #ccc; padding: 2px 6px; min-width: 0; }
-        ; .pane-bar button { background: none; border: 1px solid #ccc; cursor: pointer; font-family: monospace; font-size: 12px; padding: 2px 6px; }
-        ; .pane-bar button:hover { background: #e1e4e8; }
-        ; .split-container { display: flex; height: calc(100% - 32px); }
-        ; .split-container iframe { border: none; height: 100%; }
-        ; #left-frame { flex: 1; border-right: 1px solid #ccc; }
-        ; #right-frame { flex: 1; }
-      ==
-    ==
-    ;body
-      ;div.split-header
-        ;div.pane-bar.left
-          ;button(onclick "goBack('left-frame')"): ←
-          ;button(onclick "goFwd('left-frame')"): →
-          ;input#left-url(type "text", value "/grubbery/ball", placeholder "/grubbery/ball/...", onkeydown "if(event.key==='Enter')navLeft()");
-          ;button(onclick "navLeft()"): go
-          ;button(onclick "mirrorRight()"): mirror →
-        ==
-        ;div.pane-bar.right
-          ;button(onclick "goBack('right-frame')"): ←
-          ;button(onclick "goFwd('right-frame')"): →
-          ;input#right-url(type "text", value "/grubbery/ball", placeholder "/grubbery/ball/...", onkeydown "if(event.key==='Enter')navRight()");
-          ;button(onclick "navRight()"): go
-          ;button(onclick "mirrorLeft()"): mirror ←
-        ==
-      ==
-      ;div#split.split-container
-        ;iframe#left-frame(src "/grubbery/ball");
-        ;iframe#right-frame(src "/grubbery/ball");
-      ==
-      ;script: {(trip split-script)}
-    ==
-  ==
-::
-++  split-script
-  ^-  @t
-  '''
-  var hist = { 'left-frame': [], 'right-frame': [] };
-  var fwd  = { 'left-frame': [], 'right-frame': [] };
-  function navTo(id, inputId, url) {
-    var f = document.getElementById(id);
-    try { var cur = f.contentWindow.location.href; if (cur && cur !== 'about:blank') hist[id].push(cur); } catch(e) {}
-    fwd[id] = [];
-    f.src = url;
-    document.getElementById(inputId).value = url;
-  }
-  function navLeft() {
-    var url = document.getElementById('left-url').value.trim();
-    if (url) navTo('left-frame', 'left-url', url);
-  }
-  function navRight() {
-    var url = document.getElementById('right-url').value.trim();
-    if (url) navTo('right-frame', 'right-url', url);
-  }
-  function mirrorLeft() {
-    try {
-      var loc = document.getElementById('left-frame').contentWindow.location.href;
-      navTo('right-frame', 'right-url', loc);
-    } catch(e) {}
-  }
-  function mirrorRight() {
-    try {
-      var loc = document.getElementById('right-frame').contentWindow.location.href;
-      navTo('left-frame', 'left-url', loc);
-    } catch(e) {}
-  }
-  function goBack(id) {
-    if (!hist[id].length) return;
-    var inputId = id === 'left-frame' ? 'left-url' : 'right-url';
-    var f = document.getElementById(id);
-    try { var cur = f.contentWindow.location.href; if (cur && cur !== 'about:blank') fwd[id].push(cur); } catch(e) {}
-    var prev = hist[id].pop();
-    f.src = prev;
-    document.getElementById(inputId).value = prev;
-  }
-  function goFwd(id) {
-    if (!fwd[id].length) return;
-    var inputId = id === 'left-frame' ? 'left-url' : 'right-url';
-    var f = document.getElementById(id);
-    try { var cur = f.contentWindow.location.href; if (cur && cur !== 'about:blank') hist[id].push(cur); } catch(e) {}
-    var next = fwd[id].pop();
-    f.src = next;
-    document.getElementById(inputId).value = next;
-  }
-  function trackFrame(id, inputId) {
-    var frame = document.getElementById(id);
-    frame.addEventListener('load', function() {
-      try {
-        var loc = frame.contentWindow.location.href;
-        if (loc && loc !== 'about:blank') {
-          document.getElementById(inputId).value = loc;
-        }
-      } catch(e) {}
-    });
-  }
-  trackFrame('left-frame', 'left-url');
-  trackFrame('right-frame', 'right-url');
-  '''
 ::
 ++  render-tang
   |=  =tang
@@ -1257,165 +2290,4 @@
   %-  zing
   %+  turn  (flop tang)
   |=(=tank (weld ~(ram re tank) "\0a"))
-::
-++  format-size
-  |=  n=@ud
-  ^-  tape
-  ?:  (lth n 1.024)
-    "{(scow %ud n)} B"
-  ?:  (lth n 1.048.576)
-    "{(scow %ud (div n 1.024))} KB"
-  "{(scow %ud (div n 1.048.576))} MB"
-::
-++  render-dir-row
-  |=  [name=@ta sub=ball:tarball url-prefix=tape nexus-bang=(unit tang)]
-  ^-  manx
-  =/  dir-url=tape  "{url-prefix}/{(trip name)}"
-  ;tr(data-name (trip name), data-type "dir")
-    ;td
-      ;a/"{dir-url}": {(trip name)}/
-      ;*  ?~  nexus-bang  ~
-          =/  rendered=tape  (render-tang u.nexus-bang)
-          :~  ;span.boom-icon(data-tang rendered, onclick "showBoom(this)"): !
-          ==
-    ==
-    ;td.col-blot: -
-    ;td.col-mime: -
-    ;td: -
-    ;td.col-mtime: -
-    ;td.actions-cell
-      ;a/"{dir-url}?download=tar"
-        ;button(type "button"): Download
-      ==
-      ;button(type "button", onclick "renameItem('folder','{(trip name)}')"): Rename
-      ;button(type "button", onclick "moveItem('folder','{(trip name)}')"): Move
-      ;button(type "button", onclick "copyItem('folder','{(trip name)}')"): Copy
-      ;form.del-form(method "POST", action url-prefix)
-        ;input(type "hidden", name "action", value "delete-folder");
-        ;input(type "hidden", name "foldername", value (trip name));
-        ;button(type "submit", onclick "return confirm('Delete folder {(trip name)} and all its contents?')"): Delete
-      ==
-    ==
-  ==
-::
-++  render-grub-row
-  |=  $:  name=@ta
-          =sang:tarball
-          url-prefix=tape
-          pax=path
-          dir-wave=wave:nexus
-          now=@da
-          conversions=(map bars:tarball tube:clay)
-          code-namespace=(unit path)
-          file-bang=(unit tang)
-      ==
-  ^-  manx
-  =/  mtime-display=tape
-    ?~  fil.dir-wave  "-"
-    =/  cas=(unit cass:clay)  (~(get by file.u.fil.dir-wave) name)
-    ?~  cas  "-"
-    (en:datetime-local:iso-8601 da.u.cas)
-  =/  display-name=tape  (trip name)
-  =/  file-url=tape  "{url-prefix}/{display-name}"
-  ::  Boom file: render error row instead of crashing
-  ?:  (is-boom:tarball sang)
-    =/  boom-tang=tang
-      ?~  file-bang  ~[leaf+"validation failed"]
-      u.file-bang
-    =/  rendered=tape  (render-tang boom-tang)
-    ;tr.boom-row(data-name display-name, data-type "grub")
-      ;td
-        ;a/"{file-url}": {display-name}
-        ;span.boom-icon(data-tang rendered, onclick "showBoom(this)"): !
-      ==
-      ;td.col-blot: {(spud (rail-to-path:tarball p.sang))}
-      ;td.col-mime: -
-      ;td: -
-      ;td.col-mtime: {mtime-display}
-      ;td.actions-cell
-        ;form.del-form(method "POST", action url-prefix)
-          ;input(type "hidden", name "action", value "delete-grub");
-          ;input(type "hidden", name "filename", value display-name);
-          ;button(type "submit", onclick "return confirm('Delete {display-name}?')"): Delete
-        ==
-      ==
-    ==
-  =/  sag=sage:tarball  (need-sage:tarball sang)
-  ?:  =(%symlink name.p.sag)
-    =/  sym  !<(symlink:tarball q.sag)
-    =/  target-display=tape  (trip (encode-symlink:tarball sym))
-    =/  resolved-path=path  (resolve-symlink:tarball sym pax)
-    =/  target-url=tape  "/grubbery/ball{(trip (spat resolved-path))}"
-    ;tr(data-name (trip name), data-type "grub")
-      ;td
-        ;a/"{target-url}": {(trip name)}
-        ;span.symlink-target:  -> {target-display}
-      ==
-      ;td.col-blot: symlink
-      ;td.col-mime: -
-      ;td: -
-      ;td.col-mtime: {mtime-display}
-      ;td.actions-cell
-        ;form.del-form(method "POST", action url-prefix)
-          ;input(type "hidden", name "action", value "delete-grub");
-          ;input(type "hidden", name "filename", value (trip name));
-          ;button(type "submit", onclick "return confirm('Delete {(trip name)}?')"): Delete
-        ==
-      ==
-    ==
-  =/  mark-name=tape  (spud (rail-to-path:tarball p.sag))
-  =/  ext=(unit @ta)  (parse-extension:tarball name)
-  =/  rail-ext=@ta
-    %-  crip  %-  zing
-    %+  join  "_"
-    (turn (rail-to-path:tarball p.sag) trip)
-  =/  mark-matches=?
-    ?~  ext  %.n
-    =(u.ext rail-ext)
-  =/  mark-class=tape  ?:(mark-matches "" " mark-mismatch")
-  =/  =mime
-    ?:  =(%mime name.p.sag)
-      !<(mime q.sag)
-    (~(sage-to-mime gen:tarball [now conversions]) sag)
-  =/  mime-raw=tape  (trip (spat p.mime))
-  =/  mime-display=tape  ?~(mime-raw "" (tail mime-raw))
-  =/  is-binary=?  =(p.mime /application/x-urb-jam)
-  =/  view-url=tape  ?:(is-binary "{file-url}?pretty" file-url)
-  ;tr(data-name (trip name), data-type "grub", data-size (scow %ud p.q.mime))
-    ;td
-      ;a/"{view-url}": {display-name}
-      ;*  ?~  file-bang  ~
-          =/  rendered=tape  (render-tang u.file-bang)
-          :~  ;span.boom-icon(data-tang rendered, onclick "showBoom(this)"): !
-          ==
-    ==
-    ::  Blot link: governing /code namespace + /mar/ + blot rail
-    ;td.col-blot(class mark-class)
-      ;*  =/  mark-url=(unit tape)
-            ?~  code-namespace  ~
-            =/  mar-path=path  (weld u.code-namespace (weld /mar (rail-to-path:tarball p.sag)))
-            `"/grubbery/ball{(trip (spat mar-path))}.hoon"
-          ?~  mark-url
-            :~  ;span: {mark-name}
-            ==
-          :~  ;a/"{u.mark-url}": {mark-name}
-          ==
-    ==
-    ;td.col-mime: {mime-display}
-    ;td: {(format-size p.q.mime)}
-    ;td.col-mtime: {mtime-display}
-    ;td.actions-cell
-      ;a/"{file-url}"(download display-name)
-        ;button(type "button"): Download
-      ==
-      ;button(type "button", onclick "renameItem('grub','{display-name}')"): Rename
-      ;button(type "button", onclick "moveItem('grub','{display-name}')"): Move
-      ;button(type "button", onclick "copyItem('grub','{display-name}')"): Copy
-      ;form.del-form(method "POST", action url-prefix)
-        ;input(type "hidden", name "action", value "delete-grub");
-        ;input(type "hidden", name "filename", value (trip name));
-        ;button(type "submit", onclick "return confirm('Delete {(trip name)}?')"): Delete
-      ==
-    ==
-  ==
 --

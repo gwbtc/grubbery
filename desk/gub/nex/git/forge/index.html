@@ -1,0 +1,124 @@
+<!doctype html>
+<html>
+<head>
+  <title>forge</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/svg+xml" href="/grubbery/forge/icon.svg">
+  <link rel="stylesheet" href="/grubbery/forge/style.css">
+</head>
+<body>
+  <div id="ide">
+    <div id="topbar">
+      <button id="sb-toggle" class="icon-btn" title="toggle sidebar">☰</button>
+      <a id="brand" href="/grubbery/forge">forge</a>
+      <drop-menu id="repo-menu" align="start">
+        <button slot="trigger" id="tb-repo" style="display:none"></button>
+      </drop-menu>
+      <drop-menu id="branch-menu" align="start">
+        <button slot="trigger" id="tb-branch" class="chip" style="display:none"></button>
+      </drop-menu>
+      <div id="mode-tabs" style="display:none">
+        <button class="mode-tab" data-mode="files">repo</button>
+        <button class="mode-tab" data-mode="settings">settings</button>
+      </div>
+      <span id="tb-origin"></span>
+      <div id="tb-actions"></div>
+    </div>
+    <split-view id="main" orientation="vertical" primary="end" size="230" min="90" max="500" persist="forge-console">
+    <div id="repo-pane" slot="start">
+      <!-- the working tree is the explorer: one <namespace-explorer> (the
+           explorer's browse.js, a web component) mounted here per selected
+           repo, rooted at that repo's data/tree, in its finder view — tree
+           on the left, tabs with FileView on the right. app.js mounts it;
+           nothing about browsing or editing files is forge's own. -->
+      <div id="repo-explorer" style="display:none"></div>
+      <div id="landing" style="display:none">
+        <div id="landing-head">
+          <div class="run-head">repos <span id="landing-count"></span></div>
+          <button id="edit-defaults" class="hdr-btn">defaults</button>
+          <button id="new-repo" class="hdr-btn primary">+ repo</button>
+        </div>
+        <tab-group id="landing-tabs" persist="forge-landing">
+          <div tab-label="repos"><div id="landing-grid"></div></div>
+          <div tab-label="stock"><div id="stock-grid"></div></div>
+        </tab-group>
+      </div>
+    </div>
+    <div id="console" slot="end">
+      <div id="con-bar">
+        <button class="con-tab active" data-panel="status">status</button>
+        <button class="con-tab" data-panel="history">history</button>
+        <button class="con-tab" data-panel="run">run</button>
+        <span id="con-spacer"></span>
+        <button id="con-toggle" class="icon-btn" title="toggle panel">▾</button>
+      </div>
+      <div id="con-body">
+        <div id="pane-status" class="con-pane"></div>
+        <div id="pane-history" class="con-pane" style="display:none"></div>
+        <div id="pane-run" class="con-pane" style="display:none">
+          <div id="queue-main">
+            <div id="queue-log"></div>
+            <div id="queue-row">
+              <span id="queue-prompt">git ▸</span>
+              <input id="queue-input" type="text" spellcheck="false" autocomplete="off"
+                     placeholder='type a git command — e.g. commit -m "message"'>
+              <button id="queue-info" title="command reference">ⓘ</button>
+            </div>
+          </div>
+          <div id="queue-docs">
+            <div class="docs-head">commands</div>
+            <div class="docs-item"><code>commit -m "msg"</code><span>commit staged changes</span></div>
+            <div class="docs-item"><code>add</code><span>stage everything</span></div>
+            <div class="docs-item"><code>add &lt;paths&gt;</code><span>stage specific files</span></div>
+            <div class="docs-item"><code>stash</code><span>shelve changes, reset to HEAD</span></div>
+            <div class="docs-item"><code>stash pop</code><span>restore the last stash</span></div>
+            <div class="docs-item"><code>branch &lt;name&gt;</code><span>create a branch at HEAD</span></div>
+            <div class="docs-item"><code>branch -d &lt;name&gt;</code><span>delete a branch</span></div>
+            <div class="docs-item"><code>checkout &lt;name&gt;</code><span>switch to a branch</span></div>
+            <div class="docs-item"><code>push</code><span>push commits to the remote</span></div>
+            <div class="docs-item"><code>pull</code><span>fetch + check out the tracked ref</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    </split-view>
+    <!-- settings is its own full-bleed view, outside the split nest -->
+    <div id="settings-pane" style="display:none"></div>
+  </div>
+
+  <modal-dialog id="repo-modal">
+    <h2>new repo</h2>
+    <label class="m-label">name <input id="m-name" type="text" placeholder="short id, e.g. contacts"></label>
+    <label class="m-label">repo <input id="m-repo" type="text" placeholder="owner/repo (blank for empty)"></label>
+    <label class="m-label">ref <input id="m-ref" type="text" placeholder="main" value="main"></label>
+    <div id="m-actions">
+      <button id="m-cancel" class="hdr-btn" data-close>cancel</button>
+      <button id="m-save" class="hdr-btn primary">create</button>
+    </div>
+  </modal-dialog>
+
+  <modal-dialog id="defaults-modal">
+    <h2>defaults</h2>
+    <p class="m-note">stamped into new repos on create — per-repo settings override</p>
+    <label class="m-label">author name <input id="d-author-name" type="text" placeholder="Your Name"></label>
+    <label class="m-label">author email <input id="d-author-email" type="text" placeholder="you@example.com"></label>
+    <label class="m-label">account <span class="hint">(github login; empty = none)</span> <input id="d-account" type="text" placeholder="none"></label>
+    <div id="m-actions">
+      <button class="hdr-btn" data-close>cancel</button>
+      <button id="d-save" class="hdr-btn primary">save</button>
+    </div>
+  </modal-dialog>
+
+  <!-- the explorer's kit (every component + marked + FilePreview + FileView,
+       one request) and its <namespace-explorer> component. kit.js is classic so the
+       custom elements exist before anything below; browse.js is a module
+       (deferred), so app.js waits for <namespace-explorer> to be defined before
+       it boots. forge's own components.js / file-view.js / marked are NOT
+       loaded here: the kit defines the same elements and define() is not
+       idempotent. -->
+  <script src="/grubbery/ball/apps/explorer.explorer/kit.js"></script>
+  <script type="module" src="/grubbery/ball/apps/explorer.explorer/browse.js"></script>
+  <script src="/grubbery/forge/app.js"></script>
+</body>
+</html>

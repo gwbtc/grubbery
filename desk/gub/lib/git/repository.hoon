@@ -70,6 +70,30 @@
     |=  remote=@ta
     (need (get-url remote))
   --
+::  blob-at-commit: the blob bytes at repo path `pax` as of `commit-hash`,
+::  or ~ if the commit or path is absent. Walks commit -> root tree -> each
+::  path segment, descending subtree dirs. The targeted read the forge-hosted
+::  docs system (and CI) need to slice a file at a pinned commit.
+++  blob-at-commit
+  |=  [commit-hash=hash pax=path]
+  ^-  (unit octs)
+  =/  com=(unit commit)  (get-commit:store commit-hash)
+  ?~  com  ~
+  =/  troot=hash  tree.u.com
+  =/  segs=path  pax
+  |-  ^-  (unit octs)
+  ?~  segs  ~                       :: a path must name a file, not a dir
+  =/  td=(unit tree-dir)  (get-tree:store troot)
+  ?~  td  ~
+  =/  ent=(unit tree-entry)
+    |-  ^-  (unit tree-entry)
+    ?~  u.td  ~
+    ?:  =(i.segs name.i.u.td)  `i.u.td
+    $(u.td t.u.td)
+  ?~  ent  ~
+  ?~  t.segs  (get-blob:store hash.u.ent)
+  ?.  (is-dir u.ent)  ~
+  $(troot hash.u.ent, segs t.segs)
 ++  store
   |%
   ++  add-pack

@@ -10,7 +10,7 @@
 +$  reus      (each vase boom)
 +$  sang      (pair blot reus)    :: grubbery content: blot + typed vase or error
 +$  bask      (pair blot noun)    :: grubbery page: blot-typed noun
-+$  metadata  (map @t @t)          :: used only for tar export headers
++$  metadata  (map @t @t)         :: used only for tar export headers
 ::  sang helpers
 ::
 ++  need-sage  |=(=sang ^-(sage ?>(?=(%& -.q.sang) [p.sang p.q.sang])))
@@ -29,6 +29,7 @@
   $_  ^?
   |%
   ++  type  *^type
+  ++  bunt  *vase
   ++  vale  |~(* *vase)
   ++  grow  |~(blot *tube:clay)
   ++  grab  |~(blot *tube:clay)
@@ -54,7 +55,7 @@
 ::
 ::  Symlink: untyped path reference (resolved at lookup time)
 ::
-+$  symlink   (each path (pair @ud path))
++$  symlink  (each path (pair @ud path))
 +$  weir
   $:  make=(set road)  :: allowed destinations for %make, %cull, %sand
       poke=(set road)  :: allowed destinations for %poke
@@ -67,14 +68,14 @@
       bang=(unit tang)
       contents=(map @ta [=sang gain=? bang=(unit tang)])
   ==
-+$  ball      (axal lump)
++$  ball  (axal lump)
 +$  pulp
   $:  neck=(unit neck)
       weir=(unit weir)
       gain=?
       contents=(map @ta [=bask gain=?])
   ==
-+$  bole      (axal pulp)
++$  bole  (axal pulp)
 :: simple descriptive file tree
 ::
 +$  node  [neck=(unit neck) files=(map @ta blot)]
@@ -136,6 +137,54 @@
   ^-  ^rail
   [(need (decap base path.rail)) name.rail]
 ::  Resolve a bend relative to a location to get an absolute lane.
+::
+::  +code-candidates: the code namespaces that may govern a path, in
+::  resolution order — the path's sibling /code (its parent's child),
+::  then each ancestor's, ending at root /code. X/code governs X's
+::  children and below, never X itself. One definition of governance,
+::  shared by the kernel (find-code-ns, resolve-built) and by anyone
+::  walking the namespace to find the source behind a blot or neck.
+::
+++  code-candidates
+  |=  pax=path
+  ^-  (list fold)
+  =/  root=fold  /code
+  =|  acc=(list fold)
+  |-
+  ?~  pax  (flop [root acc])
+  ?~  t.pax  (flop [root acc])
+  $(pax (snip `path`pax), acc [(snoc (snip `path`pax) %code) acc])
+::  Source addressing. A mark or nexus is identified by its blot or neck
+::  (a rail like [/ %json] or [/wallet %account]); its SOURCE is the
+::  file /mar/<path>/<name>.hoon or /nex/<path>/<name>.hoon within a
+::  code namespace. These two arms are that bijection, defined once for
+::  the kernel's artifact index and every namespace walker.
+::
+::  +source-rail: blot or neck -> source rail, relative to a namespace
+::
+++  source-rail
+  |=  [kind=?(%mar %nex) addr=rail]
+  ^-  rail
+  [(weld /[kind] path.addr) (source-name name.addr)]
+::  +source-name: a bare name means the .hoon source of that name; a
+::  name that already carries an extension is a source filename as-is
+::
+++  source-name
+  |=  name=@ta
+  ^-  @ta
+  ?^  (find "." (trip name))  name
+  (cat 3 name '.hoon')
+::  +rail-addr: source rail -> [kind blot-or-neck], for a .hoon source
+::  under /mar or /nex; ~ for anything else
+::
+++  rail-addr
+  |=  r=rail
+  ^-  (unit [?(%mar %nex) rail])
+  ?.  ?=([?(%mar %nex) *] path.r)  ~
+  =/  t=tape  (trip name.r)
+  =/  len=@ud  (lent t)
+  ?.  &((gth len 5) =(".hoon" (slag (sub len 5) t)))  ~
+  `[i.path.r [t.path.r (crip (scag (sub len 5) t))]]
 ::
 ++  lane-from-bend
   |=  [loc=lane =bend]
@@ -540,8 +589,9 @@
       browser-type
     (fall (ext-to-mime u.ext.u.parsed) browser-type)
   ::  Try to convert to sage, otherwise store as %mime sage
-  =/  file-size=@ud  (met 3 body.file-part)
-  =/  file-mime=mime  [mime-type [file-size body.file-part]]
+  ::  (body is octs: length preserved from the multipart parse — never
+  ::  re-measure with met, that drops trailing zero bytes)
+  =/  file-mime=mime  [mime-type body.file-part]
   =/  maybe-sage=(unit sage)  (mime-to-sage conversions file-name file-mime)
   ::  Keep full filename as-is (no extension stripping)
   =/  [store-name=@ta file-content=sang]
@@ -1113,7 +1163,6 @@
     =/  tf=@t  (~(got by fields) 'typeflag')
     ~?  >>>  &(?=(^ data) ?=(?(%'1' %'2' %'3' %'4' %'5' %'6') tf))
       `@t`(cat 3 'tarball: unexpected data for header with typeflag ' tf)
-    ~?  >>  (~(has by fields) 'size')  'tarball: ignoring size field'
     =.  fields
       %+  ~(put by fields)
         'size'

@@ -1,31 +1,75 @@
 ::  git/data nexus: git object store + atomic checkout + local commits
 ::
-::  Stores pack data, index, refs, HEAD. On reload, checks out
-::  the tree at HEAD and builds commit log + branch list.
+::  Reload-driven state machine. Its whole behavior is on-load: given the
+::  git objects (packs + loose) + HEAD + refs, plus the request log, it
+::  (1) runs every pending request in order (checkout / add / commit /
+::  stash / pop / drop), recording each outcome under its id, (2) checks
+::  out the tree at HEAD into tree/, and (3) rebuilds the derived ui/
+::  views. Ball in -> ball out, recomputed from source on every reload —
+::  so a reboot at any point yields a consistent tree + views with no stale
+::  cache and no separate "refresh the UI" step to race. Mutations arrive
+::  through one grub, requests.json: the parent nexus appends a request
+::  and reloads us, then reads its outcome back by id. This on-load is the
+::  single place git state is ever changed.
+::
+::  That is how this nexus gets ATOMICITY AT THE DIRECTORY LEVEL without a
+::  poke. A poke carries one argument to one process; a request grub sits
+::  in the namespace beside everything it must be judged against — the
+::  tree, the index, HEAD — and on-load sees all of it as one ball in one
+::  event. Nothing can change between reading the request and reading the
+::  state it is decided on, because they are the same read. Checkout is on
+::  this protocol for exactly that reason: whether a move of HEAD would
+::  overwrite uncommitted work is decided from the bytes in hand, never
+::  from a cached view that may lag the tree. And because the outcome is
+::  recorded beside the request, the parent never infers what happened
+::  from HEAD or a status count: it reads the answer, or reads that there
+::  is none, which is its own answer.
+::
+::  The watcher (watch.sig, below) is the other half, and it is NOT atomic:
+::  a write to tree/ lands, news reaches the watcher, it reloads, the views
+::  rebuild — several hops, and a read can fall between them. That is fine
+::  for the views, which are a display. Nothing destructive reads them.
+::
+::  Git-format boundary: interop with real git happens at the WIRE — the
+::  packs, refs, and object formats that cross to/from GitHub are all real
+::  git. The on-disk /data layout, by contrast, is internal: nothing outside
+::  the ship ever reads it with a real `git` binary. So some encodings below
+::  are Hoon-side conveniences, not git's own formats — marked NON-STD. They
+::  work because they never leave the ship; move them toward git convention
+::  over time (rewriting them into git's real formats buys interop we don't
+::  currently need).
 ::
 ::  Ball layout (inputs — written by parent):
-::    packs/pack-N.pack     raw pack bytes (mime), N = 0, 1, 2, ...
-::    packs/pack-N.idx      pack index: "hex-hash offset\n" per line (mime)
+::    packs/pack-N.pack     raw pack bytes (mime), N = 0, 1, 2, ...   [real git]
+::    packs/pack-N.idx      NON-STD pack index: "hex-hash offset\n" per line
+::                          (git's real .idx is a binary fanout table)
 ::    HEAD                  "ref: refs/heads/<branch>" or raw hash (detached)
-::    refs/heads/<branch>   local branch ref (mime, hash text)
+::    refs/heads/<branch>   local branch ref (mime, hash text)        [real git]
 ::    refs/remotes/origin/<branch>  remote tracking ref (mime, hash text)
 ::    refs/stash            most recent stash commit hash
-::    commit-request.json   if present, create commit from current tree/
-::    stash-request.sig     if present, stash dirty tree and reset
-::    stash-pop-request.sig if present, pop stash onto working tree
-::    objects/              loose git objects (persisted across reloads)
-::    INDEX                 git index: "mode hash\tpath\n" per entry
+::    logs/                 NON-STD stash reflog (custom append format;
+::                          git uses logs/refs/... in its own line format)
+::    requests.json         the request log: {pending: [{id, kind, ...}],
+::                          done: [{id, kind, ok, message, paths}]}
+::    objects/              loose git objects (persisted across reloads) [real git]
+::    INDEX                 NON-STD index: "mode hash\tpath\n" per entry
+::                          (git's real index is a binary format)
 ::
-::  Ball layout (outputs — built by on-load):
+::  Ball layout (outputs — cached porcelain: derived views, never
+::  authoritative, rebuilt from git state every reload by +write-ui-outputs.
+::  These correspond to git commands that compute on demand — git stores no
+::  such files itself):
 ::    tree/               checked out files
-::    ui/commits.json     commit log from branch tip (50 max)
-::    ui/branches.json    branch name list
-::    ui/current.json     {"hash": "<HEAD>"}
+::    ui/commits.json     commit log from branch tip (50 max)   = `git log`
+::    ui/branches.json    branch name list                      = `git branch`
+::    ui/current.json     {"hash","branch","remote"}            = resolved HEAD
+::    ui/status.json      {staged,unstaged,untracked,clean,...} = `git status`
 ::
 /<  git-obj  /lib/git/object.hoon
 /<  git-pack  /lib/git/pack.hoon
 /<  git-repo  /lib/git/repository.hoon
 /<  git-transport  /lib/git/transport.hoon
+/<  dc  /lib/doc-coverage.hoon
 /&  man  ../../man/git/data/readme.md
 =<  ^-  nexus:nexus
     |%
@@ -33,242 +77,47 @@
       |=  =ball:tarball
       ^-  bole:tarball
       %-  ball-to-bole:tarball
-      =.  ball  (~(put ba:tarball ball) [/man %'readme.md'] [[/ %mime] %& !>(man)])
-      ::  load all packs from packs/ directory
-      =/  archive=(list pack:git-pack)  (load-packs ball)
-      ?~  archive  ball
-      ::  check for HEAD
-      =/  parsed-head=(unit [branch=(unit @t) hash=@ux])
-        (parse-head ball)
-      ?~  parsed-head  ball
-      =/  commit-hash=@ux  hash.u.parsed-head
-      ::  read refs from refs/ namespace
-      =/  built-refs=(axal ref:git-repo)
-        (read-refs-from-ns ball)
-      ::  read loose objects from objects/ dir
-      =/  loose=(map hash:git-repo object:git-obj)
-        (read-loose-from-ball ball)
-      =/  repo=repository:git-repo
-        [%sha-1 [loose archive] built-refs ~ ~]
+      =.  ball  (~(put ba:tarball ball) [/ %'README.md'] [[/ %mime] %& !>(man)])
+      ::  the tree watcher: a grub whose only job is to hold a process that
+      ::  follows tree/ and reloads us when it moves. tree/ is the one part
+      ::  of this nexus anyone may write — the explorer's editor, a tool, an
+      ::  agent — and those writers are generic: they write a grub and know
+      ::  nothing of git. So the reaction belongs here, not at the write
+      ::  sites. Laid before any early return, so the watcher exists even
+      ::  for a repo with no packs or no HEAD yet.
+      =.  ball  (~(put ba:tarball ball) [/ %'watch.sig'] [[/ %sig] %& !>(~)])
+      ::
+      ::  === the request log ===
+      ::  requests.json is the one channel for mutations: the parent nexus
+      ::  appends {id, kind, ...} to its pending list and reloads us. Every
+      ::  pending request runs here, in order, each against the ball as the
+      ::  ones before it left it, and each gets its outcome recorded under
+      ::  its id in done. The parent reads its id back: an answer, or no
+      ::  answer, never an inference from HEAD or a status count. A request
+      ::  that changes HEAD (checkout, commit, stash) is seen by the next
+      ::  one and by the checkout below, which open the repo afresh.
+      =/  log=[pending=(list request) done=(list json)]  (read-requests ball)
+      =.  ball
+        |-  ^-  ball:tarball
+        ?~  pending.log  (write-requests ball ~ done.log)
+        =/  r=request  i.pending.log
+        =^  out=outcome  ball  (run-request ball r)
+        %=  $
+          pending.log  t.pending.log
+          done.log  `(list json)`[(outcome-json r out) done.log]
+        ==
+      ::
+      ::  === checkout ===
+      ::  tree/ is materialized from HEAD exactly when HEAD moved since it
+      ::  was last materialized (checkout, commit, stash, clone); otherwise
+      ::  it may carry working edits and a staged index, both preserved,
+      ::  and only the derived ui is rebuilt.
+      =/  opened=(unit opened)  (open-repo ball)
+      ?~  opened  ball
+      =/  parsed-head=(unit [branch=(unit @t) hash=@ux])  `parsed-head.u.opened
+      =/  commit-hash=@ux  hash.parsed-head.u.opened
+      =/  repo=repository:git-repo  repo.u.opened
       =/  sto  store:~(. git-repo repo)
-      ::
-      ::  === stash request handling ===
-      ::  create a commit from index, write refs/stash + reflog, reset tree
-      ::
-      =/  stash-req=(unit sang:tarball)
-        (~(get ba:tarball ball) [/ %'stash-request.sig'])
-      ?^  stash-req
-        ~&  >>  "%git/data: stash request"
-        =/  full-idx=(map path [hash:git-repo mtime=@t])  (read-index ball)
-        =/  idx=(map path hash:git-repo)  (idx-hashes full-idx)
-        =/  parent-com=(unit commit:git-repo)  (get-commit:sto commit-hash)
-        =/  parent-tree-hash=hash:git-repo
-          ?~(parent-com 0x0 tree.u.parent-com)
-        ::  build tree + commit from current index
-        =/  stash-result
-          (git-commit idx parent-tree-hash commit-hash (pairs:enjs:format ~[['message' s+'stash']]))
-        ?~  stash-result
-          ~&  >>  "%git/data: nothing to stash (clean)"
-          =.  ball  (~(del ba:tarball ball) / %'stash-request.sig')
-          ball
-        ::  merge loose objects
-        =.  ball  (write-loose-to-ball ball new-loose.u.stash-result)
-        ::  write refs/stash
-        =/  stash-hex=tape  (print-hash-sha-1:git-transport new-hash.u.stash-result)
-        =/  stash-octs=octs  (as-octt:bytestream stash-hex)
-        =.  ball
-          %+  ~(put ba:tarball ball)  [/refs %'stash']
-          [[/ %mime] %& !>([/text/plain stash-octs])]
-        ::  append stash reflog
-        =/  old-stash-hex=tape
-          =/  old=(unit hash:git-repo)  (read-ref-file ball /refs 'stash')
-          ?~  old  (reap 40 '0')
-          (print-hash-sha-1:git-transport u.old)
-        =.  ball  (append-stash-reflog ball old-stash-hex stash-hex "stash")
-        ::  clear request
-        =.  ball  (~(del ba:tarball ball) / %'stash-request.sig')
-        ::  full checkout from HEAD — reset tree + index + UI
-        =/  get-tree=$-(@ux (unit tree-dir:git-repo))
-          |=(h=@ux (get-tree:sto h))
-        =/  get-blob=$-(@ux (unit octs))
-          |=(h=@ux (get-blob:sto h))
-        =/  head-idx=(map path [hash:git-repo mtime=@t])
-          (build-index-from-tree get-tree parent-tree-hash)
-        =.  ball  (write-index ball head-idx)
-        =/  files=(list [path octs])
-          (checkout:git-transport get-tree get-blob parent-tree-hash)
-        =/  tree-ball=ball:tarball  (files-to-ball files)
-        =.  ball  ball(dir (~(put by dir.ball) 'tree' tree-ball))
-        =.  ball  (write-ui-outputs ball sto commit-hash parsed-head head-idx parent-tree-hash)
-        ~&  >>  ["%git/data: stashed at" (scag 7 stash-hex)]
-        ball
-      ::
-      ::  === stash pop request handling ===
-      ::  read refs/stash commit, apply its tree to index, drop stash
-      ::
-      =/  pop-req=(unit sang:tarball)
-        (~(get ba:tarball ball) [/ %'stash-pop-request.sig'])
-      ?^  pop-req
-        ~&  >>  "%git/data: stash pop request"
-        =/  stash-hash=(unit hash:git-repo)
-          (read-ref-file ball /refs 'stash')
-        ?~  stash-hash
-          ~&  >>>  "%git/data: no stash to pop"
-          =.  ball  (~(del ba:tarball ball) / %'stash-pop-request.sig')
-          ball
-        =/  stash-com=(unit commit:git-repo)  (get-commit:sto u.stash-hash)
-        ?~  stash-com
-          ~&  >>>  "%git/data: stash commit not found in store"
-          =.  ball  (~(del ba:tarball ball) / %'stash-pop-request.sig')
-          ball
-        ::  get HEAD commit tree for status comparison
-        =/  head-com=(unit commit:git-repo)  (get-commit:sto commit-hash)
-        =/  head-tree-hash=hash:git-repo
-          ?~(head-com 0x0 tree.u.head-com)
-        ::  restore index from stash commit tree
-        =/  get-tree=$-(@ux (unit tree-dir:git-repo))
-          |=(h=@ux (get-tree:sto h))
-        =/  get-blob=$-(@ux (unit octs))
-          |=(h=@ux (get-blob:sto h))
-        =/  stash-idx=(map path [hash:git-repo mtime=@t])
-          (build-index-from-tree get-tree tree.u.stash-com)
-        =.  ball  (write-index ball stash-idx)
-        ::  checkout stash tree into tree/
-        =/  files=(list [path octs])
-          (checkout:git-transport get-tree get-blob tree.u.stash-com)
-        =.  ball  ball(dir (~(put by dir.ball) 'tree' (files-to-ball files)))
-        ::  pop reflog — drop last entry, get previous stash hash
-        =/  pop-result=[prev=(unit hash:git-repo) =ball:tarball]
-          (pop-stash-reflog ball)
-        =.  ball  ball.pop-result
-        ::  update refs/stash: point to previous stash or delete if empty
-        =.  ball
-          ?~  prev.pop-result
-            (~(del ba:tarball ball) /refs %'stash')
-          =/  prev-hex=tape  (print-hash-sha-1:git-transport u.prev.pop-result)
-          =/  prev-octs=octs  (as-octt:bytestream prev-hex)
-          %+  ~(put ba:tarball ball)  [/refs %'stash']
-          [[/ %mime] %& !>([/text/plain prev-octs])]
-        ::  clear request
-        =.  ball  (~(del ba:tarball ball) / %'stash-pop-request.sig')
-        ::  build UI outputs — status will show stash diff against HEAD
-        =.  ball  (write-ui-outputs ball sto commit-hash parsed-head stash-idx head-tree-hash)
-        ~&  >>  ["%git/data: popped stash" (scag 7 (print-hash-sha-1:git-transport u.stash-hash))]
-        ball
-      ::
-      ::  === add request handling ===
-      ::  if add-request.json exists, stage files into INDEX
-      ::
-      =/  add-req=(unit json)  (read-add-request ball)
-      ?^  add-req
-        ~&  >>  "%git/data: add request found"
-        ?>  ?=(%o -.u.add-req)
-        =/  req-map=(map @t json)  p.u.add-req
-        =/  current-tree=ball:tarball
-          (fall (~(get by dir.ball) 'tree') [~ ~])
-        =/  old-idx=(map path [hash:git-repo mtime=@t])  (read-index ball)
-        ::  determine which files to stage
-        =/  add-paths=(unit (set path))
-          =/  p  (~(get by req-map) 'paths')
-          ?.  ?=([~ %a *] p)  ~
-          :-  ~
-          %-  silt
-          %+  turn  p.u.p
-          |=  j=json
-          ?.  ?=(%s -.j)  /
-          (stab (crip (weld "/" (trip p.j))))
-        =/  add-result=[idx=(map path [hash:git-repo mtime=@t]) new-loose=(map hash:git-repo object:git-obj)]
-          ?~  add-paths
-            ::  add all
-            (git-add current-tree old-idx)
-          ::  add specific paths only
-          (git-add-paths current-tree old-idx u.add-paths)
-        ::  write only new loose objects (existing ones already in ball)
-        =.  ball  (write-loose-to-ball ball new-loose.add-result)
-        =.  ball  (write-index ball idx.add-result)
-        =.  ball  (~(del ba:tarball ball) / %'add-request.json')
-        ::  rebuild status after staging
-        =/  get-tree=$-(@ux (unit tree-dir:git-repo))
-          |=(h=@ux (get-tree:sto h))
-        =/  parent-com=(unit commit:git-repo)  (get-commit:sto commit-hash)
-        =/  head-tree-idx=(map path hash:git-repo)
-          ?~  parent-com  ~
-          (idx-hashes (build-index-from-tree get-tree tree.u.parent-com))
-        =/  status=json  (build-status ball idx.add-result head-tree-idx)
-        =.  ball
-          (~(put ba:tarball ball) [/ui %'status.json'] [[/ %json] %& !>(status)])
-        ~&  >>  "%git/data: staged files"
-        ball
-      ::
-      ::  === commit request handling ===
-      ::  if commit-request.json exists, create a local commit
-      ::  from the current tree/ state (don't overwrite it)
-      ::
-      =/  commit-req=(unit json)  (read-commit-request ball)
-      ?^  commit-req
-        ~&  >>  "%git/data: commit request found"
-        ::  read index as-is (staging is done by add-request)
-        =/  full-idx=(map path [hash:git-repo mtime=@t])  (read-index ball)
-        =/  idx=(map path hash:git-repo)  (idx-hashes full-idx)
-        =/  parent-com=(unit commit:git-repo)  (get-commit:sto commit-hash)
-        =/  parent-tree-hash=hash:git-repo
-          ?~(parent-com 0x0 tree.u.parent-com)
-        =/  commit-result
-          (git-commit idx parent-tree-hash commit-hash u.commit-req)
-        ?~  commit-result
-          ~&  >>  "%git/data: no changes, skipping commit"
-          =.  ball  (~(del ba:tarball ball) / %'commit-request.json')
-          ball
-        ::  merge new loose objects
-        =/  all-loose=(map hash:git-repo object:git-obj)
-          (~(uni by loose) new-loose.u.commit-result)
-        =.  repo  repo(loose.object-store all-loose)
-        =.  sto  store:~(. git-repo repo)
-        ::  advance HEAD (branch ref or detached)
-        =/  new-head-text=tape  (print-hash-sha-1:git-transport new-hash.u.commit-result)
-        =/  hash-octs=octs  (as-octt:bytestream new-head-text)
-        =/  branch-name=@t  (fall branch.u.parsed-head '')
-        ::  on a branch — update refs/heads/<branch>, HEAD stays symbolic
-        =?  ball  ?=(^ branch.u.parsed-head)
-          %+  ~(put ba:tarball ball)  [/refs/heads (crip (trip u.branch.u.parsed-head))]
-          [[/ %mime] %& !>([/text/plain hash-octs])]
-        ::  detached HEAD — update HEAD hash directly
-        =?  ball  ?=(~ branch.u.parsed-head)
-          %+  ~(put ba:tarball ball)  [/ %'HEAD']
-          [[/ %mime] %& !>([/text/plain hash-octs])]
-        ::  append reflog if on a branch
-        =?  ball  ?=(^ branch.u.parsed-head)
-          =/  old-hex=tape  (print-hash-sha-1:git-transport commit-hash)
-          =/  msg=tape
-            ?.  ?=(%o -.u.commit-req)  "commit"
-            =/  m  (~(get by p.u.commit-req) 'message')
-            ?.  ?=([~ %s *] m)  "commit"
-            "commit: {(take-first-line (trip p.u.m))}"
-          (append-reflog ball (crip (trip u.branch.u.parsed-head)) old-hex new-head-text msg)
-        ::  persist only new loose objects (existing ones already in ball)
-        =.  ball  (write-loose-to-ball ball new-loose.u.commit-result)
-        ::  clear commit request
-        =.  ball  (~(del ba:tarball ball) / %'commit-request.json')
-        ::  rebuild outputs with new HEAD
-        =/  ref-labels=(map hash:git-repo (list @t))  (build-ref-labels ball)
-        =/  new-commits=json  (build-commit-log sto new-hash.u.commit-result 50 ref-labels)
-        =/  branches=json  (build-branch-list ball)
-        =/  new-hex=@t  (crip new-head-text)
-        =/  new-current=json  (build-current ball new-hex branch-name)
-        ::  after commit, HEAD tree = index, so staged is clean
-        =/  new-status=json  (build-status ball full-idx idx)
-        =.  ball
-          (~(put ba:tarball ball) [/ui %'commits.json'] [[/ %json] %& !>(new-commits)])
-        =.  ball
-          (~(put ba:tarball ball) [/ui %'branches.json'] [[/ %json] %& !>(branches)])
-        =.  ball
-          (~(put ba:tarball ball) [/ui %'current.json'] [[/ %json] %& !>(new-current)])
-        =.  ball
-          (~(put ba:tarball ball) [/ui %'status.json'] [[/ %json] %& !>(new-status)])
-        ball
-      ::
-      ::  === normal checkout ===
-      ::
       =/  com-maybe=(unit commit:git-repo)  (get-commit:sto commit-hash)
       ?~  com-maybe
         ::  HEAD points to unreachable commit (stale loose objects?)
@@ -278,7 +127,13 @@
         ball
       =/  com=commit:git-repo  u.com-maybe
       =/  head-text=tape  (print-hash-sha-1:git-transport commit-hash)
-      ~&  >>  ["%git/data: checkout" (scag 7 head-text)]
+      ?:  ?&  (~(has by dir.ball) 'tree')
+              =(`head-text (read-tree-head ball))
+          ==
+        =/  idx=(map path [hash:git-repo mtime=@t])  (read-index ball)
+        =.  ball  (write-ui-outputs ball repo commit-hash parsed-head idx tree.com)
+        ball
+      ~?  dbg  ["%git/data: checkout" (scag 7 head-text)]
       =/  get-tree=$-(@ux (unit tree-dir:git-repo))
         |=(h=@ux (get-tree:sto h))
       =/  get-blob=$-(@ux (unit octs))
@@ -286,7 +141,7 @@
       ::  checkout tree
       =/  files=(list [path octs])
         (checkout:git-transport get-tree get-blob tree.com)
-      ~&  >>  ["%git/data: checked out" (lent files) "files"]
+      ~?  dbg  ["%git/data: checked out" (lent files) "files"]
       =/  tree-ball=ball:tarball  (files-to-ball files)
       ::  build index from commit tree (path -> blob-hash flat map)
       =/  idx=(map path [hash:git-repo mtime=@t])
@@ -294,7 +149,8 @@
       =.  ball  (write-index ball idx)
       ::  write tree into ball BEFORE computing status
       =.  ball  ball(dir (~(put by dir.ball) 'tree' tree-ball))
-      =.  ball  (write-ui-outputs ball sto commit-hash parsed-head idx tree.com)
+      =.  ball  (write-tree-head ball head-text)
+      =.  ball  (write-ui-outputs ball repo commit-hash parsed-head idx tree.com)
       ball
     ::
     ++  on-file
@@ -303,14 +159,73 @@
       |=  =prod:fiber:nexus
       =/  m  (fiber:fiber:nexus ,~)
       ^-  process:fiber:nexus
+      ::  the tree watcher: follow tree/ and reload ourselves whenever it
+      ::  moves, so the derived views (status especially) describe the tree
+      ::  as it is rather than as it was at the last git command. A reload
+      ::  does NOT re-check-out here — on-load only checks out when HEAD
+      ::  moved, and leaves a tree already materialized from this HEAD
+      ::  alone — so this cannot drive itself in a circle.
+      ::
+      ::  TODO(perf): a tree write costs a FULL on-load — packs, store,
+      ::  commit log, branches, stash, docs coverage, and a SHA-1 of every
+      ::  working-tree file — when only status.json depends on the tree.
+      ::  The news this watcher takes is a wave with a cass per file, and
+      ::  those cass values are honest (a version is filled once), so the
+      ::  watcher knows exactly what moved. When it matters: keep the
+      ::  previous wave, diff-wave the two, and write the delta as a
+      ::  request — status-request.json {changed, removed}, merged into
+      ::  one already waiting so a burst folds into a single union — then
+      ::  reload. On-load takes it first: hash only `changed`, drop
+      ::  `removed` from INDEX, rebuild status from that, clear it, and
+      ::  skip everything that does not read the tree. A reload with no
+      ::  request keeps doing the whole rebuild. Status goes O(changed),
+      ::  the kernel's own change-tracking reaches the pure on-load as
+      ::  data, and it stays on the request protocol (see the header).
+      ?:  ?=([~ %'watch.sig'] rail)
+        ;<  ~  bind:m  (rise-wait:io prod "%git/data watch: failed")
+        ;<  *  bind:m  (keep:io /tree [%| 0 %| /tree] ~)
+        |-  ^-  form:m
+        ;<  *  bind:m  (take-news:io /tree)
+        ;<  ~  bind:m  (reload:io [%| 0 %| /])
+        $
+      ::  everything under tree/ is a git blob and must be a %mime grub.
+      ::  a non-mime grub (e.g. %hoon source) would bang ball-to-files on
+      ::  the next add/commit and take the whole nexus inert — so a grub
+      ::  that lands here with any other mark cleans itself up.
+      ?:  ?&  ?=([%tree *] path.rail)
+              !=([/ %mime] blot)
+          ==
+        (pure:m ~)
       stay:m
     --
 ::
 |%
+::  +dbg: the routine traces print only when this is yes. It lives in this
+::  helper core, where the nexus core above can see it.
+::
+++  dbg  ^-(? |)
+::  +read-tree-head: which commit tree/ was last materialized from.
+::  ~ means never recorded — treat as needing checkout.
+::
+++  read-tree-head
+  |=  =ball:tarball
+  ^-  (unit tape)
+  =/  got=(unit sang:tarball)  (~(get ba:tarball ball) [/ %'TREE-HEAD'])
+  ?~  got  ~
+  =/  res  (mule |.(!<(mime (need-vase:tarball u.got))))
+  ?:  ?=(%| -.res)  ~
+  `(trip `@t`q.q.p.res)
+::
+++  write-tree-head
+  |=  [=ball:tarball hex=tape]
+  ^-  ball:tarball
+  %+  ~(put ba:tarball ball)  [/ %'TREE-HEAD']
+  [[/ %mime] %& !>(`mime`[/text/plain (as-octt:bytestream hex)])]
 ::  +append-reflog: append an entry to the reflog for a branch
 ::
-::    Format: "old-hash new-hash message\n" per entry.
-::    Stored at logs/heads/<branch> as mime.
+::    NON-STD format: "old-hash new-hash message\n" per entry (git's real
+::    reflog line carries committer identity + timestamp too). Internal-only;
+::    move toward git convention over time. Stored at logs/heads/<branch> as mime.
 ::
 ++  append-reflog
   |=  [=ball:tarball branch=@ta old-hex=tape new-hex=tape msg=tape]
@@ -403,30 +318,349 @@
   ?~  hash  ~
   `[~ u.hash]
 ::
-::  +read-add-request: check for add-request.json
+::  The request protocol. A request is {id, kind, ...}, appended by the
+::  parent nexus to requests.json's pending list; an outcome is what it
+::  answers, recorded in done under the same id: {id, kind, ok, message,
+::  paths}. The kinds: checkout {head, force}, add {all} | {paths}, commit
+::  {message, author_name, author_email, date, paths}, stash, stash-pop,
+::  stash-drop.
 ::
-++  read-add-request
++$  request  [id=@ud kind=@t req=json]
++$  outcome  [ok=? message=@t paths=(list path)]
+::  +opened: the repo as read from the ball: HEAD parsed, and the object
+::  store with its packs, loose objects and refs. ~ when there are no
+::  packs or no HEAD yet.
+::
++$  opened  [parsed-head=[branch=(unit @t) hash=@ux] repo=repository:git-repo]
+++  open-repo
   |=  =ball:tarball
-  ^-  (unit json)
-  =/  req=(unit sang:tarball)
-    (~(get ba:tarball ball) [/ %'add-request.json'])
-  ?~  req  ~
-  =/  j=json  (fall (mole |.(!<(json (need-vase:tarball u.req)))) *json)
-  ?.  ?=(%o -.j)  ~
-  `j
+  ^-  (unit opened)
+  =/  archive=(list pack:git-pack)  (load-packs ball)
+  ?~  archive  ~
+  =/  ph=(unit [branch=(unit @t) hash=@ux])  (parse-head ball)
+  ?~  ph  ~
+  =/  built-refs=(axal ref:git-repo)  (read-refs-from-ns ball)
+  =/  loose=(map hash:git-repo object:git-obj)  (read-loose-from-ball ball)
+  `[u.ph [%sha-1 [loose archive] built-refs ~ ~]]
+::  +read-requests: requests.json as [pending done]; empty when absent
+::  or unreadable. A pending entry without an id or a kind is dropped.
 ::
-::  +read-commit-request: check for commit-request.json
-::
-++  read-commit-request
+++  read-requests
   |=  =ball:tarball
-  ^-  (unit json)
-  =/  req=(unit sang:tarball)
-    (~(get ba:tarball ball) [/ %'commit-request.json'])
-  ?~  req  ~
-  =/  j=json  (fall (mole |.(!<(json (need-vase:tarball u.req)))) *json)
-  ?.  ?=(%o -.j)  ~
-  ?:  =(~ p.j)  ~
-  `j
+  ^-  [pending=(list request) done=(list json)]
+  =/  got=(unit sang:tarball)  (~(get ba:tarball ball) [/ %'requests.json'])
+  ?~  got  [~ ~]
+  =/  j=json  (fall (mole |.(!<(json (need-vase:tarball u.got)))) *json)
+  ?.  ?=(%o -.j)  [~ ~]
+  =/  pending=(list request)
+    =/  p  (~(get by p.j) 'pending')
+    ?.  ?=([~ %a *] p)  ~
+    %+  murn  p.u.p
+    |=  e=json
+    ^-  (unit request)
+    ?.  ?=(%o -.e)  ~
+    =/  id  (~(get by p.e) 'id')
+    ?.  ?=([~ %n *] id)  ~
+    =/  kind=@t  (json-str e 'kind')
+    ?:  =('' kind)  ~
+    `[(fall (rush p.u.id dem) 0) kind e]
+  =/  done=(list json)
+    =/  d  (~(get by p.j) 'done')
+    ?.  ?=([~ %a *] d)  ~
+    p.u.d
+  [pending done]
+++  write-requests
+  |=  [=ball:tarball pending=(list request) done=(list json)]
+  ^-  ball:tarball
+  =/  jon=json
+    %-  pairs:enjs:format
+    :~  ['pending' a+(turn pending |=(r=request req.r))]
+        ['done' a+done]
+    ==
+  (~(put ba:tarball ball) [/ %'requests.json'] [[/ %json] %& !>(jon)])
+++  outcome-json
+  |=  [r=request out=outcome]
+  ^-  json
+  %-  pairs:enjs:format
+  :~  ['id' (numb:enjs:format id.r)]
+      ['kind' s+kind.r]
+      ['ok' b+ok.out]
+      ['message' s+message.out]
+      ['paths' a+(turn paths.out |=(p=path s+(crip (zing (join "/" (turn p trip))))))]
+  ==
+::  +run-request: one request against the ball, answered. Checkout needs
+::  only the tree and the index; the rest need the repo open, and a repo
+::  that cannot be opened answers every one of them the same way.
+::
+++  run-request
+  |=  [=ball:tarball r=request]
+  ^-  [outcome ball:tarball]
+  ~?  dbg  ["%git/data: request" id.r kind.r]
+  ?:  =('checkout' kind.r)  (do-checkout ball req.r)
+  =/  opened=(unit opened)  (open-repo ball)
+  ?~  opened
+    [[%.n 'the repo has no packs or no HEAD yet: nothing to run this against' ~] ball]
+  ?:  =('add' kind.r)  (do-add ball u.opened req.r)
+  ?:  =('commit' kind.r)  (do-commit ball u.opened req.r)
+  ?:  =('stash' kind.r)  (do-stash ball u.opened)
+  ?:  =('stash-pop' kind.r)  (do-stash-pop ball u.opened)
+  ?:  =('stash-drop' kind.r)  (do-stash-drop ball u.opened)
+  [[%.n (cat 3 'unknown request kind: ' kind.r) ~] ball]
+::  +do-checkout: move HEAD, unless the tree has uncommitted work and the
+::  request does not say force. We hold the tree and the index, so only
+::  we can tell; decided from the bytes in hand, never from a cached view
+::  that may lag the tree. A refusal leaves HEAD and tree/ as they were.
+::
+++  do-checkout
+  |=  [=ball:tarball req=json]
+  ^-  [outcome ball:tarball]
+  =/  head=@t  (json-str req 'head')
+  ?:  =('' head)  [[%.n 'checkout: no head given' ~] ball]
+  =/  force=?  (json-flag req 'force')
+  =/  dirty=(list path)  (tree-dirty ball)
+  ?:  ?&(?=(^ dirty) !force)
+    :_  ball
+    [%.n 'the working tree has uncommitted changes — commit or stash them, or force' dirty]
+  =.  ball
+    %+  ~(put ba:tarball ball)  [/ %'HEAD']
+    [[/ %mime] %& !>(`mime`[/text/plain (as-octt:bytestream (trip head))])]
+  [[%.y (cat 3 'HEAD -> ' head) ~] ball]
+::  +do-add: stage into INDEX: everything ({all}), or the named paths. The
+::  message counts the index entries the add changed.
+::
+++  do-add
+  |=  [=ball:tarball op=opened req=json]
+  ^-  [outcome ball:tarball]
+  ?.  ?=(%o -.req)  [[%.n 'add: malformed request' ~] ball]
+  =/  current-tree=ball:tarball  (fall (~(get by dir.ball) 'tree') [~ ~])
+  =/  old-idx=(map path [hash:git-repo mtime=@t])  (read-index ball)
+  =/  add-paths=(unit (set path))
+    =/  p  (~(get by p.req) 'paths')
+    ?.  ?=([~ %a *] p)  ~
+    :-  ~
+    %-  silt
+    %+  turn  p.u.p
+    |=  j=json
+    ?.  ?=(%s -.j)  /
+    ::  split on '/', never +stab: a file name is any text (README.md),
+    ::  not a knot, and +stab crashed the whole data nexus on it
+    %+  turn
+      (skip (split:git-transport (trip p.j) '/') |=(t=tape =(~ t)))
+    crip
+  =/  add-result=[idx=(map path [hash:git-repo mtime=@t]) new-loose=(map hash:git-repo object:git-obj)]
+    ?~  add-paths
+      (git-add current-tree old-idx)
+    (git-add-paths current-tree old-idx u.add-paths)
+  ::  write only new loose objects (existing ones already in ball)
+  =.  ball  (write-loose-to-ball ball new-loose.add-result)
+  =.  ball  (write-index ball idx.add-result)
+  =/  changed=@ud  (idx-delta old-idx idx.add-result)
+  ?:  =(0 changed)
+    ?~  add-paths
+      [[%.y 'nothing to stage — the working tree matches the index' ~] ball]
+    [[%.n 'staged nothing: no such path(s) in the working tree (plain `add` stages everything)' ~] ball]
+  [[%.y (crip "staged {(scow %ud changed)} path(s)") ~] ball]
+::  +idx-delta: how many entries differ between two indexes, by hash.
+::
+++  idx-delta
+  |=  [a=(map path [hash:git-repo mtime=@t]) b=(map path [hash:git-repo mtime=@t])]
+  ^-  @ud
+  =/  ah=(map path hash:git-repo)  (idx-hashes a)
+  =/  bh=(map path hash:git-repo)  (idx-hashes b)
+  =/  all=(set path)  (~(uni in ~(key by ah)) ~(key by bh))
+  %-  lent
+  %+  skim  ~(tap in all)
+  |=(=path !=((~(get by ah) path) (~(get by bh) path)))
+::  +do-commit: a local commit from the index as it stands (staging is the
+::  add request's). A `paths` pathspec scopes it to those prefixes, so a
+::  shared index's other staged work stays out. tree/ already holds the
+::  committed content, so the tree marker moves with HEAD and the checkout
+::  below preserves it.
+::
+++  do-commit
+  |=  [=ball:tarball op=opened req=json]
+  ^-  [outcome ball:tarball]
+  ?.  ?=(%o -.req)  [[%.n 'commit: malformed request' ~] ball]
+  =/  repo=repository:git-repo  repo.op
+  =/  sto  store:~(. git-repo repo)
+  =/  commit-hash=@ux  hash.parsed-head.op
+  =/  full-idx=(map path [hash:git-repo mtime=@t])  (read-index ball)
+  =/  idx=(map path hash:git-repo)  (idx-hashes full-idx)
+  =/  parent-com=(unit commit:git-repo)  (get-commit:sto commit-hash)
+  =/  parent-tree-hash=hash:git-repo
+    ?~(parent-com 0x0 tree.u.parent-com)
+  =/  req-paths=(list path)
+    =/  j  (~(get by p.req) 'paths')
+    ?.  ?=([~ %a *] j)  ~
+    %+  murn  p.u.j
+    |=(=json ?.(?=([%s *] json) ~ `(stab p.json)))
+  =/  idx=(map path hash:git-repo)
+    ?~  req-paths  idx
+    =/  base=(map path hash:git-repo)
+      %-  idx-hashes
+      %+  build-index-from-tree
+        |=(h=@ux (get-tree:sto h))
+      parent-tree-hash
+    (scope-index idx base req-paths)
+  =/  commit-result  (git-commit idx parent-tree-hash commit-hash req)
+  ?~  commit-result
+    [[%.n 'nothing to commit — the index matches HEAD' ~] ball]
+  =/  new-head-text=tape  (print-hash-sha-1:git-transport new-hash.u.commit-result)
+  =/  hash-octs=octs  (as-octt:bytestream new-head-text)
+  ::  on a branch — update refs/heads/<branch>, HEAD stays symbolic
+  =?  ball  ?=(^ branch.parsed-head.op)
+    %+  ~(put ba:tarball ball)  [/refs/heads (crip (trip u.branch.parsed-head.op))]
+    [[/ %mime] %& !>([/text/plain hash-octs])]
+  ::  detached HEAD — update HEAD hash directly
+  =?  ball  ?=(~ branch.parsed-head.op)
+    %+  ~(put ba:tarball ball)  [/ %'HEAD']
+    [[/ %mime] %& !>([/text/plain hash-octs])]
+  ::  append reflog if on a branch
+  =?  ball  ?=(^ branch.parsed-head.op)
+    =/  old-hex=tape  (print-hash-sha-1:git-transport commit-hash)
+    =/  msg=tape  "commit: {(take-first-line (trip (json-str req 'message')))}"
+    (append-reflog ball (crip (trip u.branch.parsed-head.op)) old-hex new-head-text msg)
+  ::  persist only new loose objects (existing ones already in ball)
+  =.  ball  (write-loose-to-ball ball new-loose.u.commit-result)
+  =.  ball  (write-tree-head ball new-head-text)
+  :_  ball
+  [%.y (crip "committed {(scag 7 new-head-text)}: {(trip (json-str req 'message'))}") ~]
+::  +do-stash: a commit of the FULL working tree (staged and unstaged, per
+::  git convention) onto refs/stash with a reflog entry, then tree and
+::  index reset to HEAD.
+::
+++  do-stash
+  |=  [=ball:tarball op=opened]
+  ^-  [outcome ball:tarball]
+  =/  repo=repository:git-repo  repo.op
+  =/  sto  store:~(. git-repo repo)
+  =/  commit-hash=@ux  hash.parsed-head.op
+  =/  current-tree=ball:tarball  (fall (~(get by dir.ball) 'tree') [~ ~])
+  =/  old-idx=(map path [hash:git-repo mtime=@t])  (read-index ball)
+  =/  work=[idx=(map path [hash:git-repo mtime=@t]) new-loose=(map hash:git-repo object:git-obj)]
+    (git-add current-tree old-idx)
+  =.  ball  (write-loose-to-ball ball new-loose.work)
+  =/  idx=(map path hash:git-repo)  (idx-hashes idx.work)
+  =/  parent-com=(unit commit:git-repo)  (get-commit:sto commit-hash)
+  =/  parent-tree-hash=hash:git-repo
+    ?~(parent-com 0x0 tree.u.parent-com)
+  =/  stash-result
+    (git-commit idx parent-tree-hash commit-hash (pairs:enjs:format ~[['message' s+'stash']]))
+  ?~  stash-result
+    [[%.n 'nothing to stash — the working tree is clean' ~] ball]
+  =.  ball  (write-loose-to-ball ball new-loose.u.stash-result)
+  =/  stash-hex=tape  (print-hash-sha-1:git-transport new-hash.u.stash-result)
+  =/  stash-octs=octs  (as-octt:bytestream stash-hex)
+  =.  ball
+    %+  ~(put ba:tarball ball)  [/refs %'stash']
+    [[/ %mime] %& !>([/text/plain stash-octs])]
+  =/  old-stash-hex=tape
+    =/  old=(unit hash:git-repo)  (read-ref-file ball /refs 'stash')
+    ?~  old  (reap 40 '0')
+    (print-hash-sha-1:git-transport u.old)
+  =.  ball  (append-stash-reflog ball old-stash-hex stash-hex "stash")
+  ::  reset tree + index to HEAD
+  =/  get-tree=$-(@ux (unit tree-dir:git-repo))
+    |=(h=@ux (get-tree:sto h))
+  =/  get-blob=$-(@ux (unit octs))
+    |=(h=@ux (get-blob:sto h))
+  =/  head-idx=(map path [hash:git-repo mtime=@t])
+    (build-index-from-tree get-tree parent-tree-hash)
+  =.  ball  (write-index ball head-idx)
+  =/  files=(list [path octs])
+    (checkout:git-transport get-tree get-blob parent-tree-hash)
+  =.  ball  ball(dir (~(put by dir.ball) 'tree' (files-to-ball files)))
+  =.  ball  (write-tree-head ball (print-hash-sha-1:git-transport commit-hash))
+  [[%.y (crip "stashed at {(scag 7 stash-hex)}") ~] ball]
+::  +do-stash-drop: discard the top stash: pop the reflog and move
+::  refs/stash back to the previous entry (deleting it when the stack
+::  empties). The working tree and index are untouched -- that is the
+::  whole difference from a pop.
+::
+++  do-stash-drop
+  |=  [=ball:tarball op=opened]
+  ^-  [outcome ball:tarball]
+  =/  had=(unit hash:git-repo)  (read-ref-file ball /refs 'stash')
+  ?~  had  [[%.n 'no stash to drop — the stack is empty' ~] ball]
+  =/  dropped=[prev=(unit hash:git-repo) =ball:tarball]  (pop-stash-reflog ball)
+  =.  ball  ball.dropped
+  =.  ball
+    ?~  prev.dropped
+      (~(del ba:tarball ball) /refs %'stash')
+    =/  prev-hex=tape  (print-hash-sha-1:git-transport u.prev.dropped)
+    %+  ~(put ba:tarball ball)  [/refs %'stash']
+    [[/ %mime] %& !>([/text/plain (as-octt:bytestream prev-hex)])]
+  [[%.y (crip "dropped stash {(scag 7 (print-hash-sha-1:git-transport u.had))}") ~] ball]
+::  +do-stash-pop: the top stash's tree into the working tree over the
+::  same HEAD, index left at HEAD so the restored changes show as
+::  unstaged (git's default pop), and the stash dropped.
+::
+++  do-stash-pop
+  |=  [=ball:tarball op=opened]
+  ^-  [outcome ball:tarball]
+  =/  repo=repository:git-repo  repo.op
+  =/  sto  store:~(. git-repo repo)
+  =/  commit-hash=@ux  hash.parsed-head.op
+  =/  stash-hash=(unit hash:git-repo)  (read-ref-file ball /refs 'stash')
+  ?~  stash-hash  [[%.n 'no stash to pop — the stack is empty' ~] ball]
+  =/  stash-com=(unit commit:git-repo)  (get-commit:sto u.stash-hash)
+  ?~  stash-com  [[%.n 'the stash commit is not in the store' ~] ball]
+  =/  head-com=(unit commit:git-repo)  (get-commit:sto commit-hash)
+  =/  head-tree-hash=hash:git-repo
+    ?~(head-com 0x0 tree.u.head-com)
+  =/  get-tree=$-(@ux (unit tree-dir:git-repo))
+    |=(h=@ux (get-tree:sto h))
+  =/  get-blob=$-(@ux (unit octs))
+    |=(h=@ux (get-blob:sto h))
+  =/  head-idx=(map path [hash:git-repo mtime=@t])
+    (build-index-from-tree get-tree head-tree-hash)
+  =.  ball  (write-index ball head-idx)
+  =/  files=(list [path octs])
+    (checkout:git-transport get-tree get-blob tree.u.stash-com)
+  =.  ball  ball(dir (~(put by dir.ball) 'tree' (files-to-ball files)))
+  =.  ball  (write-tree-head ball (print-hash-sha-1:git-transport commit-hash))
+  =/  pop-result=[prev=(unit hash:git-repo) =ball:tarball]  (pop-stash-reflog ball)
+  =.  ball  ball.pop-result
+  =.  ball
+    ?~  prev.pop-result
+      (~(del ba:tarball ball) /refs %'stash')
+    =/  prev-hex=tape  (print-hash-sha-1:git-transport u.prev.pop-result)
+    %+  ~(put ba:tarball ball)  [/refs %'stash']
+    [[/ %mime] %& !>([/text/plain (as-octt:bytestream prev-hex)])]
+  [[%.y (crip "popped stash {(scag 7 (print-hash-sha-1:git-transport u.stash-hash))}") ~] ball]
+::
+::
+++  json-str
+  |=  [j=json k=@t]
+  ^-  @t
+  ?.  ?=(%o -.j)  ''
+  =/  v  (~(get by p.j) k)
+  ?.(?=([~ %s *] v) '' p.u.v)
+::
+++  json-flag
+  |=  [j=json k=@t]
+  ^-  ?
+  ?.  ?=(%o -.j)  %.n
+  ?=([~ %b %.y] (~(get by p.j) k))
+::  +tree-dirty: the paths where tree/ differs from the index — the
+::  checkout guard's question, answered from the bytes in hand rather than
+::  from the cached status view, so a stale status can never authorize an
+::  overwrite. Same compare +build-status makes, kept to the paths.
+::
+++  tree-dirty
+  |=  =ball:tarball
+  ^-  (list path)
+  =/  idx-h=(map path hash:git-repo)  (idx-hashes (read-index ball))
+  =/  tree-ball=ball:tarball  (fall (~(get by dir.ball) 'tree') [~ ~])
+  =/  working-hashes=(map path hash:git-repo)
+    %-  malt
+    %+  turn  (ball-to-files-mt tree-ball /)
+    |=  [=path data=octs mtime=@t]
+    [path (hash-obj:git-obj %sha-1 `object:git-obj`[%blob p.data data])]
+  =/  all=(set path)  (~(uni in ~(key by working-hashes)) ~(key by idx-h))
+  %+  skim  ~(tap in all)
+  |=  =path
+  !=((~(get by working-hashes) path) (~(get by idx-h) path))
 ::
 ::  +read-loose-from-ball: load persisted loose objects from objects/ dir
 ::
@@ -476,6 +710,53 @@
   ?~  tree  ~
   (walk-tree-for-index get-tree / u.tree)
 ::
+::  +scope-index: git's `commit -- <paths>`
+::
+::    A scoped commit takes the PARENT's tree and overlays only the index
+::    entries lying under one of the given prefixes. Everything outside
+::    keeps the parent's version, so another agent's staged work in the
+::    same index cannot ride along; a path under a prefix that is absent
+::    from the index is a deletion and is dropped.
+::
+::    ~ paths means the whole index, which is the unscoped commit — so
+::    this is safe to run unconditionally.
+::
+++  scope-index
+  |=  $:  idx=(map path hash:git-repo)
+          base=(map path hash:git-repo)
+          paths=(list path)
+      ==
+  ^-  (map path hash:git-repo)
+  ?:  =(~ paths)  idx
+  ::  is `pre` a path prefix of `p`? Written out rather than
+  ::  scag/lent, which are wet and inferred badly against the narrowed
+  ::  list type above.
+  =/  prefix
+    |=  [pre=path p=path]
+    ^-  ?
+    |-  ^-  ?
+    ?~  pre  %.y
+    ?~  p    %.n
+    ?.  =(i.pre i.p)  %.n
+    $(pre t.pre, p t.p)
+  =/  under
+    |=  p=path
+    ^-  ?
+    =/  l=(list path)  paths
+    |-  ^-  ?
+    ?~  l  %.n
+    ?:  (prefix i.l p)  %.y
+    $(l t.l)
+  =/  entries=(list [p=path h=hash:git-repo])  ~(tap by base)
+  =/  kept=(list [p=path h=hash:git-repo])
+    (skip entries |=([p=path h=hash:git-repo] (under p)))
+  =/  staged=(list [p=path h=hash:git-repo])  ~(tap by idx)
+  =/  taken=(list [p=path h=hash:git-repo])
+    (skim staged |=([p=path h=hash:git-repo] (under p)))
+  =/  out=(map path hash:git-repo)
+    (~(gas by *(map path hash:git-repo)) kept)
+  (~(gas by out) taken)
+::
 ++  walk-tree-for-index
   |=  [get-tree=$-(hash:git-repo (unit tree-dir:git-repo)) here=path dir=tree-dir:git-repo]
   ^-  (map path [hash:git-repo mtime=@t])
@@ -490,7 +771,8 @@
 ::
 ::  +write-index: serialize index as flat file into ball
 ::
-::    Format: "mode hash mtime\tpath\n" per entry
+::    NON-STD format: "mode hash mtime\tpath\n" per entry (git's real index
+::    is a binary format). Internal-only; move toward git convention over time.
 ::    mtime is optional — missing means no cached mtime.
 ::    Stored as INDEX mime file.
 ::
@@ -603,13 +885,49 @@
     (ball-to-files-mt tree-ball /)
   =/  working-map=(map path [octs @t])
     (malt (turn working |=([=path data=octs mtime=@t] [path data mtime])))
-  =/  todo=(list path)  ~(tap in paths)
+  ::  EXPAND the request the way git's pathspec does, then stage files.
+  ::
+  ::    Each requested path is one of four things, and only the first two
+  ::    were handled before -- a directory matched nothing and fell into
+  ::    the removal branch, so `add code` quietly staged zero files.
+  ::
+  ::      a file in the working tree      stage its content
+  ::      absent here, present in index   stage the DELETION
+  ::      a directory                     stage every file beneath it
+  ::      neither                         no match; op-add reports it
+  ::
+  ::    `.` is NOT special and is not made special: there is no cwd here
+  ::    for it to mean, so it is matched literally like any other name,
+  ::    finds nothing, and comes back as no match. (It arrives as the
+  ::    one-segment path /. because the request splits names on '/' --
+  ::    see +do-add's note on never using +stab.) Bare `add`,
+  ::    with no paths at all, is the way to stage everything; it does not
+  ::    reach here, it goes to +git-add.
+  ::
+  =/  working-paths=(list path)  (turn working |=([=path *] path))
+  =/  under=$-(path (list path))
+    |=  pre=path
+    ^-  (list path)
+    %+  skim  working-paths
+    |=  w=path
+    ?~  (decap:tarball pre w)  %.n
+    %.y
+  =/  todo=(list path)
+    %-  zing
+    %+  turn  ~(tap in paths)
+    |=  pax=path
+    ^-  (list path)
+    ::  a file, or an index entry whose file is gone (a deletion)
+    ?:  |((~(has by working-map) pax) (~(has by old-idx) pax))  ~[pax]
+    ::  a directory: everything beneath it. Empty when it matches
+    ::  nothing, which is how op-add comes to report no match.
+    (under pax)
   |-
   ?~  todo  [new-idx new-loose]
   =/  pax=path  i.todo
   =/  file-data=(unit [octs @t])  (~(get by working-map) pax)
   ?~  file-data
-    ::  file not in working tree — remove from index
+    ::  in the index but gone from the working tree: stage the deletion
     $(todo t.todo, new-idx (~(del by new-idx) pax))
   ::  file exists — hash and stage
   =/  data=octs  -.u.file-data
@@ -646,6 +964,12 @@
 ::
 ::  +ball-to-files-mt: flatten ball tree with mtime from metadata
 ::
+::  TODO(perf): mtime is always '' here — the ball carries a file's noun
+::  and blot, not its cass — so the "mtime matches index, skip hashing"
+::  fast path in +git-add never fires and every file is hashed on
+::  every reload. Either feed it a real version (the watcher's wave has
+::  one per file; see the status-request idea at watch.sig) or take the
+::  fast path out, so it stops reading as an optimization that exists.
 ++  ball-to-files-mt
   |=  [=ball:tarball here=path]
   ^-  (list [=path data=octs mtime=@t])
@@ -653,7 +977,9 @@
     ?~  fil.ball  ~
     %+  turn  ~(tap by contents.u.fil.ball)
     |=  [name=@t =sang:tarball gain=? bang=(unit tang)]
-    =/  m=mime  !<(mime (need-vase:tarball sang))
+    =/  m=mime
+      ~|  (spud (snoc here name))
+      !<(mime (need-vase:tarball sang))
     [(snoc here name) q.m '']
   =/  sub-files=(list [=path data=octs mtime=@t])
     %-  zing
@@ -989,20 +1315,32 @@
     $(entries t.entries)
   result
 ::
-::  +write-ui-outputs: build and write commits, branches, current, status to ball
+::  +write-ui-outputs: rebuild the derived ui/ views (commits, branches,
+::  current, status) from git state and write them to the ball.
+::
+::    This is the projection/cache step, not git logic: it recomputes the
+::    porcelain views git normally produces on demand (log / branch / status).
+::    It runs as the tail of on-load, where the object store is already loaded
+::    and tree/ freshly checked out, so the rebuild is nearly free and the
+::    views are always consistent with the tree on disk. The args are just the
+::    on-load locals it needs — status is the three-way compare of working
+::    tree vs `idx` (index) vs HEAD tree, so callers pass whichever index/tree
+::    their mutation produced. (Name kept for now; it's a view rebuild, not UI.)
 ::
 ::    Expects tree/ to already be set in ball before calling.
 ::    idx is the current index (may differ from HEAD for staged changes).
 ::
 ++  write-ui-outputs
   |=  $:  =ball:tarball
-          sto=_store:~(. git-repo *repository:git-repo)
+          repo=repository:git-repo
           head-hash=hash:git-repo
           parsed-head=(unit [branch=(unit @t) hash=@ux])
           idx=(map path [hash:git-repo mtime=@t])
           head-tree-hash=hash:git-repo
       ==
   ^-  ball:tarball
+  =/  gr   ~(. git-repo repo)
+  =/  sto  store:gr
   =/  branch-name=@t  (fall ?~(parsed-head ~ branch.u.parsed-head) '')
   =/  log-start=hash:git-repo
     ?~  parsed-head  head-hash
@@ -1019,6 +1357,7 @@
   =/  head-tree-idx=(map path hash:git-repo)
     (idx-hashes (build-index-from-tree get-tree head-tree-hash))
   =/  status=json  (build-status ball idx head-tree-idx)
+  =/  stash=json  (build-stash-list ball)
   =.  ball
     (~(put ba:tarball ball) [/ui %'commits.json'] [[/ %json] %& !>(commits)])
   =.  ball
@@ -1027,7 +1366,126 @@
     (~(put ba:tarball ball) [/ui %'current.json'] [[/ %json] %& !>(current)])
   =.  ball
     (~(put ba:tarball ball) [/ui %'status.json'] [[/ %json] %& !>(status)])
+  =.  ball
+    (~(put ba:tarball ball) [/ui %'stash.json'] [[/ %json] %& !>(stash)])
+  ::  handbook coverage — the git trick: a repo that carries .grubbery/docs/
+  ::  gets its coverage/drift folded ONCE here, from HEAD + the pinned commits,
+  ::  and cached as sibling ui/ grubs. Forge reads docs-covstate and renders any
+  ::  view purely (no per-request fold, no source reads). Absent docs → skip.
+  =/  docs=(unit [nav=json cs=cov-state:dc blocks=json])  (build-docs-coverage gr head-hash)
+  ?~  docs  ball
+  =.  ball
+    (~(put ba:tarball ball) [/ui %'docs-nav.json'] [[/ %json] %& !>(nav.u.docs)])
+  =.  ball
+    (~(put ba:tarball ball) [/ui %'docs-covstate'] [[/ %noun] %& !>(cs.u.docs)])
+  =.  ball
+    (~(put ba:tarball ball) [/ui %'docs-blocks.json'] [[/ %json] %& !>(blocks.u.docs)])
   ball
+::
+::  +build-docs-coverage: fold a repo's handbook coverage from the object store.
+::  A repo opts in by carrying `.grubbery/docs/docs.json` (nav + ignore). Each
+::  live block in a page .md is "<path>@<commit> <from-to>"; the path is the
+::  file's real repo-relative path, so no alias is needed. finfo is the HEAD
+::  line map of the whole checkout; each anchor's pin-span is its exact lines at
+::  its commit (blob-at-commit). ~ when the repo has no handbook.
+++  build-docs-coverage
+  |=  [gr=_~(. git-repo *repository:git-repo) head-hash=hash:git-repo]
+  ^-  (unit [nav=json cs=cov-state:dc blocks=json])
+  =/  sto  store:gr
+  =/  dj=(unit octs)  (blob-at-commit:gr head-hash ~[%'.grubbery' %docs %'docs.json'])
+  ?~  dj  ~
+  =/  mani=(unit json)  (de:json:html q.u.dj)
+  ?~  mani  ~
+  ?.  ?=([%o *] u.mani)  ~
+  =/  ignore=(list @t)  (json-strs:dc (~(get by p.u.mani) 'ignore'))
+  =/  nav=json  (fall (~(get by p.u.mani) 'nav') [%a ~])
+  ::  finfo: every file at HEAD, keyed by its real repo path (e.g.
+  ::  "/desk/app/grubbery.hoon") -> its lines.
+  =/  head-com=(unit commit:git-repo)  (get-commit:sto head-hash)
+  ?~  head-com  ~
+  ::  the HEAD each block's freshness is computed AGAINST (short form), so the
+  ::  reader can always say "fresh/drifted vs <this commit>".
+  =/  head-short=@t  (crip (scag 7 (print-hash-sha-1:git-transport head-hash)))
+  =/  get-tree=$-(@ux (unit tree-dir:git-repo))  |=(h=@ux (get-tree:sto h))
+  =/  get-blob=$-(@ux (unit octs))  |=(h=@ux (get-blob:sto h))
+  =/  files=(list [path octs])  (checkout:git-transport get-tree get-blob tree.u.head-com)
+  =/  finfo=(map @t (list @t))
+    %-  malt
+    %+  turn  files
+    |=  [p=path o=octs]
+    ^-  [@t (list @t)]
+    [(crip (spud p)) (to-wain:format q.o)]
+  ::  anchors: parse each page's live fences; resolve each to its pinned slice.
+  =/  items=(list [path=@t title=@t])  (nav-items:dc nav)
+  =/  anchors=(list [doc=@t file=@t commit=(unit @t) from=@ud to=@ud pin-span=(unit (list @t))])
+    %-  zing
+    %+  turn  items
+    |=  [pth=@t ttl=@t]
+    ^-  (list [doc=@t file=@t commit=(unit @t) from=@ud to=@ud pin-span=(unit (list @t))])
+    =/  mdpath=path  (weld `path`~[%'.grubbery' %docs] (stab (crip "/{(trip pth)}")))
+    =/  mdb=(unit octs)  (blob-at-commit:gr head-hash mdpath)
+    ?~  mdb  ~
+    =/  md=@t  (of-wain:format (to-wain:format q.u.mdb))
+    %+  turn  (parse-anchors:dc md)
+    |=  [f=@t c=(unit @t) fr=@ud to=@ud]
+    ^-  [doc=@t file=@t commit=(unit @t) from=@ud to=@ud pin-span=(unit (list @t))]
+    [pth f c fr to (pin-span-at gr c f fr to)]
+  =/  cs=cov-state:dc  (fold-coverage:dc finfo anchors ignore)
+  ::  resolved live blocks per page, in document order: the display lines (the
+  ::  slice AT the pinned commit), the short commit, and fresh/drifted/gone — so
+  ::  forge serves a page's blocks ready-made and the browser does no per-block
+  ::  store load or source fetch at render time.
+  =/  bmap=(map @t (list json))
+    %+  roll  anchors
+    |=  $:  a=[doc=@t file=@t commit=(unit @t) from=@ud to=@ud pin-span=(unit (list @t))]
+            acc=(map @t (list json))
+        ==
+    =/  hl=(unit (list @t))
+      =/  ls=(unit (list @t))  (~(get by finfo) file.a)
+      ?~  ls  ~
+      ?:  (gth from.a (lent u.ls))  ~
+      =/  hi=@ud  (min (lent u.ls) ?:(=(0 to.a) (lent u.ls) to.a))
+      `(swag [(dec from.a) +((sub hi from.a))] u.ls)
+    =/  status=@t
+      ?~  hl  'gone'
+      ?:  |(?=(~ pin-span.a) =(u.hl u.pin-span.a))  'fresh'
+      'drifted'
+    =/  disp=(list @t)  (fall pin-span.a (fall hl ~))
+    =/  blk=json
+      %-  pairs:enjs:format
+      :~  ['file' s+file.a]
+          ['commit' ?~(commit.a ~ s+u.commit.a)]
+          ['short' ?~(commit.a ~ s+(crip (scag 7 (trip u.commit.a))))]
+          ['from' (numb:enjs:format from.a)]
+          ['to' (numb:enjs:format to.a)]
+          ['status' s+status]
+          ['head' s+head-short]
+          ['lines' [%a (turn disp |=(l=@t `json`s+l))]]
+      ==
+    (~(put by acc) doc.a [blk (fall (~(get by acc) doc.a) ~)])
+  =/  blocks=json
+    :-  %o
+    %-  ~(run by bmap)
+    |=(l=(list json) `json`[%a (flop l)])
+  `[nav cs blocks]
+::  +pin-span-at: the EXACT lines of [from..to] of `file` at `commit`, read from
+::  the object store via blob-at-commit — what fold-coverage compares against
+::  the HEAD slice. `file` is a real repo path ("/desk/app/x.hoon"). ~ when the
+::  anchor floats, the commit/path is absent there, or the range is out of range.
+++  pin-span-at
+  |=  [gr=_~(. git-repo *repository:git-repo) commit=(unit @t) file=@t from=@ud to=@ud]
+  ^-  (unit (list @t))
+  ?~  commit  ~
+  =/  ch=(unit @ux)  (rust (trip u.commit) parse-hash-sha-1:git-transport)
+  ?~  ch  ~
+  =/  blob=(unit octs)  (blob-at-commit:gr u.ch (stab file))
+  ?~  blob  ~
+  =/  lines=(list @t)  (to-wain:format q.u.blob)
+  =/  total=@ud  (lent lines)
+  ?:  =(0 total)  ~
+  =/  hi=@ud  (min total ?:(=(0 to) total to))
+  ?:  (gth from hi)  ~
+  `(swag [(dec from) +((sub hi from))] lines)
 ::
 ::  +build-current: build current.json with HEAD, branch, and remote tracking info
 ::
@@ -1054,6 +1512,34 @@
   =/  heads=ball:tarball  (get-sub-ball ball /refs/heads)
   ?~  fil.heads  [%a ~]
   [%a (turn ~(tap in ~(key by contents.u.fil.heads)) |=(n=@t s+n))]
+::
+::  +build-stash-list: the stash stack from the logs/stash reflog, newest
+::  first (index 0 = top, git's stash@{0}). Each reflog line is fixed-width
+::  "old-hex(40) new-hex(40) msg"; new-hex is that entry's stash commit.
+::
+++  build-stash-list
+  |=  =ball:tarball
+  ^-  json
+  =/  existing=(unit sang:tarball)  (~(get ba:tarball ball) [/logs %'stash'])
+  ?~  existing  [%a ~]
+  =/  m=mime  !<(mime (need-vase:tarball u.existing))
+  =/  lines=(list @t)  (skip (to-wain:format q.q.m) |=(l=@t =('' l)))
+  ::  newest is last in the reflog; reverse so index 0 = top of stack
+  =/  rlines=(list @t)  (flop lines)
+  :-  %a
+  =|  i=@ud
+  |-  ^-  (list json)
+  ?~  rlines  ~
+  =/  line=tape  (trip i.rlines)
+  =/  new-hex=@t   (crip (scag 40 (slag 41 line)))
+  =/  msg=@t       (crip (slag 82 line))
+  :_  $(rlines t.rlines, i +(i))
+  %-  pairs:enjs:format
+  :~  ['index' n+(scot %ud i)]
+      ['hash' s+new-hex]
+      ['short' s+(crip (scag 7 (trip new-hex)))]
+      ['message' s+msg]
+  ==
 ::
 ::  +build-status: compare working tree vs index vs HEAD tree
 ::
@@ -1136,11 +1622,11 @@
   =/  ahead=@ud
     ?~  local-hash   0
     ?~  remote-hash  0
-    (count-ahead ball u.local-hash u.remote-hash)
+    (count-only ball u.local-hash u.remote-hash)
   =/  behind=@ud
     ?~  local-hash   0
     ?~  remote-hash  0
-    (count-ahead ball u.remote-hash u.local-hash)
+    (count-only ball u.remote-hash u.local-hash)
   %-  pairs:enjs:format
   :~  ['staged' [%a staged]]
       ['unstaged' [%a unstaged]]
@@ -1156,6 +1642,51 @@
 ::    Simple linear walk — doesn't handle merge commits fully,
 ::    but correct for linear histories.
 ::
+::  +ancestry: every commit reachable from a hash by first parents, as a set.
+::  Bounded by the loose store, the same as +count-ahead.
+::
+++  ancestry
+  |=  [=ball:tarball from=hash:git-repo]
+  ^-  (set hash:git-repo)
+  =/  loose=(map hash:git-repo object:git-obj)  (read-loose-from-ball ball)
+  =|  seen=(set hash:git-repo)
+  =/  h=hash:git-repo  from
+  |-  ^-  (set hash:git-repo)
+  ?:  =(h 0x0)  seen
+  ?:  (~(has in seen) h)  seen
+  =/  obj=(unit object:git-obj)  (~(get by loose) h)
+  ?~  obj  seen
+  ?.  ?=(%commit -.u.obj)  seen
+  =.  seen  (~(put in seen) h)
+  ?~  parents.commit.u.obj  seen
+  $(h i.parents.commit.u.obj)
+::  +count-only: commits reachable from `from` that are NOT reachable from
+::  `to` — i.e. how far `from` is out in front.
+::
+::    +count-ahead walks first parents from `from` until it meets `to`, which
+::    answers only when `to` is an ancestor of `from`. Asked the other way
+::    round (how far BEHIND is a local tip that is actually ahead) the walk
+::    never meets its target and counts ancestors until the loose store runs
+::    out, reporting a stable nonsense number. ahead/behind are each other's
+::    mirror, so one of the two was always wrong.
+::
+++  count-only
+  |=  [=ball:tarball from=hash:git-repo to=hash:git-repo]
+  ^-  @ud
+  ?:  =(from to)  0
+  =/  theirs=(set hash:git-repo)  (ancestry ball to)
+  =/  loose=(map hash:git-repo object:git-obj)  (read-loose-from-ball ball)
+  =|  count=@ud
+  =/  h=hash:git-repo  from
+  |-  ^-  @ud
+  ?:  =(h 0x0)  count
+  ?:  (~(has in theirs) h)  count
+  =/  obj=(unit object:git-obj)  (~(get by loose) h)
+  ?~  obj  count
+  ?.  ?=(%commit -.u.obj)  count
+  =.  count  +(count)
+  ?~  parents.commit.u.obj  count
+  $(h i.parents.commit.u.obj)
 ++  count-ahead
   |=  [=ball:tarball from=hash:git-repo to=hash:git-repo]
   ^-  @ud

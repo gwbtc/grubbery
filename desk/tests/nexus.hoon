@@ -260,8 +260,9 @@
     !>  `(unit hist:nexus)`~
   !>  (get:b [/a/b %file])
 ::
-++  test-bo-init-creates-zero-hist
-  ::  Init creates hist seeded with [[%temp ~] ~] at [0 now]
+++  test-bo-init-creates-empty-hist
+  ::  Init creates the RAIL with no versions: a version always
+  ::  references content, so there is nothing to seed it with.
   =/  now=@da  ~2024.1.1
   =/  b  (make-bo now)
   =/  new-born=born:nexus  (init:b [/a/b %file])
@@ -269,11 +270,8 @@
   =/  sok=(unit hist:nexus)  (get:b2 [/a/b %file])
   ;:  weld
     %+  expect-eq  !>(%.y)  !>(?=(^ sok))
-    %+  expect-eq  !>(`@ud`0)  !>((ver:hist:nexus (need sok)))
-    %+  expect-eq  !>(`@ud`1)  !>((lent (tap:hon:hist:nexus (need sok))))
-    %+  expect-eq
-      !>  `(unit pace:hist:nexus)`[~ %temp ~]
-    !>  (get-pace:hist:nexus (need sok) [0 now])
+    %+  expect-eq  !>(`@ud`0)  !>((lent (tap:hon:hist:nexus (need sok))))
+    %+  expect-eq  !>(`(unit cass:clay)`~)  !>((top:hist:nexus (need sok)))
   ==
 ::
 ::
@@ -305,14 +303,41 @@
   =/  b2  (make-bo-with now born1)
   =/  born2=born:nexus  (init:b2 [/a %file2])
   =/  b3  (make-bo-with now born2)
-  ::  Both files init'd, both at ver 0
+  ::  both rails exist, each holding nothing: init makes the RAIL, not a
+  ::  version (see +test-bo-init-has-no-versions). Independence is that
+  ::  one rail's init leaves the other's alone.
   =/  sok1=(unit hist:nexus)  (get:b3 [/a %file1])
   =/  sok2=(unit hist:nexus)  (get:b3 [/a %file2])
   ;:  weld
-    %+  expect-eq  !>(`@ud`0)  !>((ver:hist:nexus (need sok1)))
-    %+  expect-eq  !>(`@ud`0)  !>((ver:hist:nexus (need sok2)))
+    %+  expect-eq  !>(%.y)  !>(?=(^ sok1))
+    %+  expect-eq  !>(%.y)  !>(?=(^ sok2))
+    %+  expect-eq  !>(`(unit cass:clay)`~)  !>((top:hist:nexus (need sok1)))
+    %+  expect-eq  !>(`(unit cass:clay)`~)  !>((top:hist:nexus (need sok2)))
   ==
 ::
+::
+++  test-bo-init-has-no-versions
+  ::  init makes the RAIL, not a version: a rail's first entry comes
+  ::  from its first write, and where that one is numbered is read from
+  ::  $peak, which a dropped record never lowers -- so [rail cass]
+  ::  never rebinds.
+  =/  now=@da  ~2024.1.1
+  =/  b  (make-bo now)
+  =/  =peak:nexus  (~(put-file pk:nexus *peak:nexus) [/a %file] [7 ~2023.1.1])
+  =/  new-born=born:nexus  (init:b [/a %file])
+  =/  sok=(unit hist:nexus)  (~(get bo:nexus now new-born) [/a %file])
+  ;:  weld
+    ::  the rail exists
+    %+  expect-eq  !>(%.y)  !>(?=(^ sok))
+    ::  and holds nothing yet
+    %+  expect-eq  !>(`(unit cass:clay)`~)  !>((top:hist:nexus (need sok)))
+    ::  the number the first write will land above
+    %+  expect-eq  !>(`(unit cass:clay)``[7 ~2023.1.1])
+      !>((~(get-file pk:nexus peak) [/a %file]))
+    ::  a lower mark never lowers a peak
+    =/  same=peak:nexus  (~(put-file pk:nexus peak) [/a %file] [3 ~2023.1.1])
+    %+  expect-eq  !>(`(unit cass:clay)``[7 ~2023.1.1])  !>((~(get-file pk:nexus same) [/a %file]))
+  ==
 ::
 ++  test-bo-next-cass-future-da
   ::  next-cass uses +(da.cass) when da.cass >= now
@@ -470,7 +495,7 @@
     !>  ~(wyt by nouns.silo3)
   ::  Oldest entry has a live firm pace with an ject-lobe
     =/  oldest-pace=(unit pace:hist:nexus)  (get-pace:hist:nexus hist3 cass1)
-    %+  expect-eq  !>(%.y)  !>(?=([~ %firm [~ @]] oldest-pace))
+    %+  expect-eq  !>(%.y)  !>(?=([~ %firm @] oldest-pace))
   ==
 ::
 ++  test-si-record-two-versions
@@ -554,8 +579,9 @@
   %+  expect-eq
     !>  `@ud`0
   !>  ~(wyt by nouns.silo3)
-++  test-si-record-temp-tombs-previous
-  ::  temp entries get tombed on next write — only latest survives
+++  test-si-record-temp-deletes-previous
+  ::  a replaced temp pace is deleted, not tombed: a hist holds only
+  ::  readable paces, and absence at the old cass is the terminal state
   =/  page1=bask:tarball  [[/ %txt] 'alpha']
   =/  page2=bask:tarball  [[/ %txt] 'bravo']
   =/  cass1=cass:clay  [1 ~2024.1.1]
@@ -566,16 +592,16 @@
   =/  [lobe2=nobe:nexus silo2=silo:nexus hist2=_hist]
     (~(record si:nexus silo1) q.page2 p.page2 0v0 / %.n cass2 cass1 hist1)
   ;:  weld
-    ::  Hist still has 2 entries (tomb + live)
+    ::  Hist has 1 entry: the live one
     %+  expect-eq
-      !>  `@ud`2
+      !>  `@ud`1
     !>  (lent (tap:hon:hist:nexus hist2))
-    ::  First entry is tombed
+    ::  The old cass is gone from the hist
     =/  old-pace=(unit pace:hist:nexus)  (get-pace:hist:nexus hist2 cass1)
-    %+  expect-eq  !>(%.y)  !>(?=([~ %tomb *] old-pace))
+    %+  expect-eq  !>(%.n)  !>(?=(^ old-pace))
     ::  Second entry is live temp
     =/  new-pace=(unit pace:hist:nexus)  (get-pace:hist:nexus hist2 cass2)
-    %+  expect-eq  !>(%.y)  !>(?=([~ %temp [~ @]] new-pace))
+    %+  expect-eq  !>(%.y)  !>(?=([~ %temp @] new-pace))
     ::  Only latest noun in silo
     %+  expect-eq  !>(`@ud`1)  !>(~(wyt by nouns.silo2))
     ::  Old lobe gone
@@ -598,9 +624,9 @@
   ;:  weld
     ::  Both paces are firm (not tombed)
     =/  p1=(unit pace:hist:nexus)  (get-pace:hist:nexus hist2 cass1)
-    %+  expect-eq  !>(%.y)  !>(?=([~ %firm [~ @]] p1))
+    %+  expect-eq  !>(%.y)  !>(?=([~ %firm @] p1))
     =/  p2=(unit pace:hist:nexus)  (get-pace:hist:nexus hist2 cass2)
-    %+  expect-eq  !>(%.y)  !>(?=([~ %firm [~ @]] p2))
+    %+  expect-eq  !>(%.y)  !>(?=([~ %firm @] p2))
     ::  Both nouns survive
     %+  expect-eq  !>(`@ud`2)  !>(~(wyt by nouns.silo2))
   ==
@@ -618,8 +644,8 @@
   =/  [lobe3=nobe:nexus silo3=silo:nexus hist3=_hist]
     (~(record si:nexus silo2) q.page3 p.page3 0v0 / %.n [3 ~2024.1.3] [2 ~2024.1.2] hist2)
   ;:  weld
-    ::  3 hist entries total (2 tombs + 1 live)
-    %+  expect-eq  !>(`@ud`3)  !>((lent (tap:hon:hist:nexus hist3)))
+    ::  1 hist entry: each replaced temp pace was deleted, not tombed
+    %+  expect-eq  !>(`@ud`1)  !>((lent (tap:hon:hist:nexus hist3)))
     ::  Only 1 noun in silo (the latest)
     %+  expect-eq  !>(`@ud`1)  !>(~(wyt by nouns.silo3))
     ::  drop-hist on the 1 live entry cleans up
@@ -637,7 +663,7 @@
   =/  =hist:nexus  ~
   |-
   ?~  entries  hist
-  $(entries t.entries, hist (put-pace:hist:nexus hist [ud.i.entries da.i.entries] [%temp `jobe.i.entries]))
+  $(entries t.entries, hist (put-pace:hist:nexus hist [ud.i.entries da.i.entries] [%temp jobe.i.entries]))
 ::
 ++  test-resolve-case-ud-exact
   ::  %ud finds exact revision number
@@ -646,7 +672,7 @@
   =/  lobe3=jobe:nexus  `@uvI`(sham 'ccc')
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]] [2 ~2024.1.2 lobe2 [/ %txt]] [3 ~2024.1.3 lobe3 [/ %txt]]])
   %+  expect-eq
-    !>  [[2 ~2024.1.2] [%temp `lobe2]]
+    !>  `[[2 ~2024.1.2] [%temp lobe2]]
   !>  (resolve-case:nexus [%ud 2] hist)
 ::
 ++  test-resolve-case-ud-first
@@ -655,7 +681,7 @@
   =/  lobe2=jobe:nexus  `@uvI`(sham 'bbb')
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]] [2 ~2024.1.2 lobe2 [/ %txt]]])
   %+  expect-eq
-    !>  [[1 ~2024.1.1] [%temp `lobe1]]
+    !>  `[[1 ~2024.1.1] [%temp lobe1]]
   !>  (resolve-case:nexus [%ud 1] hist)
 ::
 ++  test-resolve-case-ud-last
@@ -665,18 +691,16 @@
   =/  lobe3=jobe:nexus  `@uvI`(sham 'ccc')
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]] [2 ~2024.1.2 lobe2 [/ %txt]] [3 ~2024.1.3 lobe3 [/ %txt]]])
   %+  expect-eq
-    !>  [[3 ~2024.1.3] [%temp `lobe3]]
+    !>  `[[3 ~2024.1.3] [%temp lobe3]]
   !>  (resolve-case:nexus [%ud 3] hist)
 ::
 ++  test-resolve-case-ud-not-found
-  ::  %ud crashes on missing revision
+  ::  %ud returns ~ on missing revision
   =/  lobe1=jobe:nexus  `@uvI`(sham 'aaa')
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]]])
-  =/  res=(each [cass:clay pace:hist:nexus] tang)
-    (mule |.((resolve-case:nexus [%ud 99] hist)))
   %+  expect-eq
     !>  %.y
-  !>  ?=(%| -.res)
+  !>  =(~ (resolve-case:nexus [%ud 99] hist))
 ::
 ++  test-resolve-case-da-exact
   ::  %da exact date match
@@ -684,7 +708,7 @@
   =/  lobe2=jobe:nexus  `@uvI`(sham 'bbb')
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]] [2 ~2024.1.2 lobe2 [/ %txt]]])
   %+  expect-eq
-    !>  [[2 ~2024.1.2] [%temp `lobe2]]
+    !>  `[[2 ~2024.1.2] [%temp lobe2]]
   !>  (resolve-case:nexus [%da ~2024.1.2] hist)
 ::
 ++  test-resolve-case-da-between
@@ -695,7 +719,7 @@
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]] [2 ~2024.3.1 lobe2 [/ %txt]] [3 ~2024.6.1 lobe3 [/ %txt]]])
   ::  Date between entry 1 and 2 should return lobe1
   %+  expect-eq
-    !>  [[1 ~2024.1.1] [%temp `lobe1]]
+    !>  `[[1 ~2024.1.1] [%temp lobe1]]
   !>  (resolve-case:nexus [%da ~2024.2.1] hist)
 ::
 ++  test-resolve-case-da-after-all
@@ -704,36 +728,30 @@
   =/  lobe2=jobe:nexus  `@uvI`(sham 'bbb')
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]] [2 ~2024.3.1 lobe2 [/ %txt]]])
   %+  expect-eq
-    !>  [[2 ~2024.3.1] [%temp `lobe2]]
+    !>  `[[2 ~2024.3.1] [%temp lobe2]]
   !>  (resolve-case:nexus [%da ~2025.1.1] hist)
 ::
 ++  test-resolve-case-da-before-all
-  ::  %da before all entries crashes
+  ::  %da before all entries returns ~
   =/  lobe1=jobe:nexus  `@uvI`(sham 'aaa')
   =/  hist  (make-hist ~[[1 ~2024.6.1 lobe1 [/ %txt]]])
-  =/  res=(each [cass:clay pace:hist:nexus] tang)
-    (mule |.((resolve-case:nexus [%da ~2024.1.1] hist)))
   %+  expect-eq
     !>  %.y
-  !>  ?=(%| -.res)
+  !>  =(~ (resolve-case:nexus [%da ~2024.1.1] hist))
 ::
 ++  test-resolve-case-da-empty
-  ::  %da on empty hist crashes
+  ::  %da on empty hist returns ~
   =/  =hist:nexus  ~
-  =/  res=(each [cass:clay pace:hist:nexus] tang)
-    (mule |.((resolve-case:nexus [%da ~2024.1.1] hist)))
   %+  expect-eq
     !>  %.y
-  !>  ?=(%| -.res)
+  !>  =(~ (resolve-case:nexus [%da ~2024.1.1] hist))
 ::
 ++  test-resolve-case-ud-empty
-  ::  %ud on empty hist crashes
+  ::  %ud on empty hist returns ~
   =/  =hist:nexus  ~
-  =/  res=(each [cass:clay pace:hist:nexus] tang)
-    (mule |.((resolve-case:nexus [%ud 1] hist)))
   %+  expect-eq
     !>  %.y
-  !>  ?=(%| -.res)
+  !>  =(~ (resolve-case:nexus [%ud 1] hist))
 ::
 ::  ==========================================
 ::  +record-trees tests
@@ -753,10 +771,10 @@
   |=  [dir=path name=@ta =jobe:nexus =blot:tarball file-cass=cass:clay]
   ^-  born:nexus
   =/  sok=hist:nexus
-    (put-pace:hist:nexus ~ file-cass [%temp `jobe])
+    (put-pace:hist:nexus ~ file-cass [%temp jobe])
   =/  zero=cass:clay  [0 ~2024.1.1]
   =/  node=[fold=hist:nexus file=(map @ta hist:nexus)]
-    [(put-pace:hist:nexus ~ zero [%temp ~]) (~(put by *(map @ta hist:nexus)) name sok)]
+    [~ (~(put by *(map @ta hist:nexus)) name sok)]
   (~(put of *born:nexus) dir node)
 ::
 ++  test-record-trees-single-file
@@ -766,7 +784,7 @@
   =/  =blot:tarball  [/ %txt]
   =/  =born:nexus  (make-grub-born / %myfile jobe blot [1 now])
   =/  [new-born=born:nexus new-silo=silo:nexus]
-    (record-trees:nexus born *silo:nexus *code:nexus now /)
+    (record-trees:nexus born *silo:nexus *peak:nexus *code:nexus now /)
   ::  Fold should have bumped
   =/  node  (need (get-node new-born /))
   ;:  weld
@@ -776,7 +794,7 @@
   ::  Tree's fil should have our grub's lobe
     =/  tree-lobe=jobe:nexus
       =/  pv=pace:hist:nexus  (need (get-pace:hist:nexus fold.node (need (top:hist:nexus fold.node))))
-      ?>(?=(%temp -.pv) (need p.pv))
+      ?>(?=(%temp -.pv) lobe.pv)
     =/  tree-entry=ject:nexus  ject:(~(got by jects.new-silo) tree-lobe)
     ?>  ?=(%tree -.tree-entry)
     %+  expect-eq
@@ -790,10 +808,10 @@
   =/  =jobe:nexus  `@uvI`(sham 'hello')
   =/  =born:nexus  (make-grub-born / %myfile jobe [/ %txt] [1 now])
   =/  [born1=born:nexus silo1=silo:nexus]
-    (record-trees:nexus born *silo:nexus *code:nexus now /)
+    (record-trees:nexus born *silo:nexus *peak:nexus *code:nexus now /)
   ::  Call again — nothing changed
   =/  [born2=born:nexus silo2=silo:nexus]
-    (record-trees:nexus born1 silo1 *code:nexus now /)
+    (record-trees:nexus born1 silo1 *peak:nexus *code:nexus now /)
   ::  Fold should still be 1, not 2
   =/  node  (need (get-node born2 /))
   ;:  weld
@@ -808,23 +826,23 @@
   =/  lobe1=jobe:nexus  `@uvI`(sham 'first')
   =/  =born:nexus  (make-grub-born / %myfile lobe1 [/ %txt] [1 now])
   =/  [born1=born:nexus silo1=silo:nexus]
-    (record-trees:nexus born *silo:nexus *code:nexus now /)
+    (record-trees:nexus born *silo:nexus *peak:nexus *code:nexus now /)
   ::  Simulate file change: update hist with new lobe at new cass
   =/  lobe2=jobe:nexus  `@uvI`(sham 'second')
   =/  new-cass=cass:clay  [2 ~2024.1.2]
   =/  born1-node  (need (get-node born1 /))
   =/  sok=hist:nexus  (~(got by file.born1-node) %myfile)
   =/  new-sok=hist:nexus
-    (put-pace:hist:nexus sok new-cass [%temp `lobe2])
+    (put-pace:hist:nexus sok new-cass [%temp lobe2])
   =/  born2=born:nexus
     (~(put of born1) / born1-node(file (~(put by file.born1-node) %myfile new-sok)))
   =/  [born3=born:nexus silo2=silo:nexus]
-    (record-trees:nexus born2 silo1 *code:nexus now /)
+    (record-trees:nexus born2 silo1 *peak:nexus *code:nexus now /)
   ::  Fold should now be 2
   =/  node  (need (get-node born3 /))
   ;:  weld
     %+  expect-eq  !>(`@ud`2)  !>((ver:hist:nexus fold.node))
-  ::  1 tree in silo (old tree tombed by tomb-temp)
+  ::  1 tree in silo (the old temp tree entry was deleted, drop-temp)
     %+  expect-eq  !>(`@ud`1)  !>(~(wyt by jects.silo2))
   ==
 ::
@@ -834,7 +852,7 @@
   =/  =jobe:nexus  `@uvI`(sham 'hello')
   =/  =born:nexus  (make-grub-born /a %myfile jobe [/ %txt] [1 now])
   =/  [new-born=born:nexus new-silo=silo:nexus]
-    (record-trees:nexus born *silo:nexus *code:nexus now /a)
+    (record-trees:nexus born *silo:nexus *peak:nexus *code:nexus now /a)
   ::  /a should have fold=1
   =/  a-node  (need (get-node new-born /a))
   ::  / should also have fold=1 (parent got a tree too)
@@ -845,11 +863,11 @@
   ::  Root's tree should have /a's tree lobe in its dir map
     =/  root-tree-lobe=jobe:nexus
       =/  pv=pace:hist:nexus  (need (get-pace:hist:nexus fold.root-node (need (top:hist:nexus fold.root-node))))
-      ?>(?=(%temp -.pv) (need p.pv))
+      ?>(?=(%temp -.pv) lobe.pv)
     =/  root-tree  =+(jt=ject:(~(got by jects.new-silo) root-tree-lobe) ?>(?=(%tree -.jt) tree.jt))
     =/  a-tree-lobe=jobe:nexus
       =/  pv=pace:hist:nexus  (need (get-pace:hist:nexus fold.a-node (need (top:hist:nexus fold.a-node))))
-      ?>(?=(%temp -.pv) (need p.pv))
+      ?>(?=(%temp -.pv) lobe.pv)
     %+  expect-eq
       !>  a-tree-lobe
     !>  lobe:(~(got by dir.root-tree) %a)
@@ -862,11 +880,11 @@
   |=  [=born:nexus dir=path name=@ta =jobe:nexus =blot:tarball file-cass=cass:clay]
   ^-  born:nexus
   =/  sok=hist:nexus
-    (put-pace:hist:nexus ~ file-cass [%temp `jobe])
+    (put-pace:hist:nexus ~ file-cass [%temp jobe])
   =/  sub=born:nexus  (~(dip of born) dir)
   =/  node=[fold=hist:nexus file=(map @ta hist:nexus)]
     =/  zero=cass:clay  [0 ~2024.1.1]
-    (fall fil.sub [(put-pace:hist:nexus ~ zero [%temp ~]) ~])
+    (fall fil.sub [~ ~])
   (~(put of born) dir node(file (~(put by file.node) name sok)))
 ::
 ++  test-record-trees-multi-file
@@ -879,11 +897,11 @@
   =.  born  (add-grub born / %beta lobe2 [/ %hoon] [1 now])
   =.  born  (add-grub born / %gamma lobe3 [/ %json] [1 now])
   =/  [new-born=born:nexus new-silo=silo:nexus]
-    (record-trees:nexus born *silo:nexus *code:nexus now /)
+    (record-trees:nexus born *silo:nexus *peak:nexus *code:nexus now /)
   =/  node  (need (get-node new-born /))
   =/  tree-lobe=jobe:nexus
     =/  pv=pace:hist:nexus  (need (get-pace:hist:nexus fold.node (need (top:hist:nexus fold.node))))
-    ?>(?=(%temp -.pv) (need p.pv))
+    ?>(?=(%temp -.pv) lobe.pv)
   =/  =tree:nexus  =+(jt=ject:(~(got by jects.new-silo) tree-lobe) ?>(?=(%tree -.jt) tree.jt))
   ;:  weld
     ::  All 3 grubs in tree's fil
@@ -909,11 +927,11 @@
   =.  born  (add-grub born /sub %childfile lobe2 [/ %txt] [1 now])
   ::  Record from /sub up
   =/  [new-born=born:nexus new-silo=silo:nexus]
-    (record-trees:nexus born *silo:nexus *code:nexus now /sub)
+    (record-trees:nexus born *silo:nexus *peak:nexus *code:nexus now /sub)
   =/  root-node  (need (get-node new-born /))
   =/  root-tree-lobe=jobe:nexus
     =/  pv=pace:hist:nexus  (need (get-pace:hist:nexus fold.root-node (need (top:hist:nexus fold.root-node))))
-    ?>(?=(%temp -.pv) (need p.pv))
+    ?>(?=(%temp -.pv) lobe.pv)
   =/  root-tree  =+(jt=ject:(~(got by jects.new-silo) root-tree-lobe) ?>(?=(%tree -.jt) tree.jt))
   ;:  weld
     ::  Root tree has the root grub in fil
@@ -926,7 +944,7 @@
     =/  sub-node  (need (get-node new-born /sub))
     =/  sub-tree-lobe=jobe:nexus
       =/  pv=pace:hist:nexus  (need (get-pace:hist:nexus fold.sub-node (need (top:hist:nexus fold.sub-node))))
-      ?>(?=(%temp -.pv) (need p.pv))
+      ?>(?=(%temp -.pv) lobe.pv)
     =/  sub-tree  =+(jt=ject:(~(got by jects.new-silo) sub-tree-lobe) ?>(?=(%tree -.jt) tree.jt))
     %+  expect-eq
       !>  `(unit jobe:nexus)``lobe2
@@ -1136,7 +1154,7 @@
   =/  [lobe2=jobe:nexus silo2=silo:nexus]  (put-ject:s2 [%tree tree2])
   =/  =hist:nexus
     %-  put-pace:hist:nexus
-    [(put-pace:hist:nexus ~ [1 ~2024.1.1] [%temp `lobe1]) [2 ~2024.1.2] [%temp `lobe2]]
+    [(put-pace:hist:nexus ~ [1 ~2024.1.1] [%temp lobe1]) [2 ~2024.1.2] [%temp lobe2]]
   =/  silo3=silo:nexus  (~(drop-hist si:nexus silo2) hist)
   %+  expect-eq  !>(`@ud`0)  !>(~(wyt by jects.silo3))
 --

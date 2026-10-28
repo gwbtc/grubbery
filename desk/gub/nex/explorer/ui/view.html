@@ -1,0 +1,29 @@
+<!doctype html>
+<!--
+  explorer file page — a thin shell that mounts the shared <FileView>
+  component (lib/ui/file-view.js) over the file's own /grubbery/ball URL.
+  All the editor/preview logic lives in that component, reused by the browse
+  finder preview and forge tabs too.
+-->
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>explorer</title>
+  <link rel="icon" type="image/svg+xml" href="/grubbery/tiles/icon/explorer.explorer">
+  <style>
+    html, body { margin: 0; height: 100%; }
+    #fv { height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="fv"></div>
+  <script src="/grubbery/ball/apps/explorer.explorer/file-preview.js"></script>
+  <script src="/grubbery/ball/apps/explorer.explorer/file-view.js"></script>
+  <script src="/grubbery/ball/apps/explorer.explorer/vim-editor.js"></script>
+  <script>
+    document.title = decodeURIComponent(location.pathname.split('/').filter(Boolean).pop() || 'explorer');
+    FileView.mount(document.getElementById('fv'), { url: location.pathname, wrapKey: 'explorer-wrap' });
+  </script>
+</body>
+</html>

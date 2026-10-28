@@ -70,11 +70,30 @@
     ==
   ==
 ::
+::  a styled run: its text and its style as webterm spells one —
+::  deco: a list of 'br' 'un' 'bl'; back/fore: null, a letter among
+::  k r g y b m c w, or {r, g, b}
 ++  stye-to-json
   |=  [=stye text=(list @c)]
   ^-  json
   %-  pairs:enjs:format
   :~  ['text' s+(crip (tufa text))]
+      :-  'stye'
+      %-  pairs:enjs:format
+      :~  ['deco' a+(murn ~(tap in p.stye) |=(d=deco ?~(d ~ `s+d)))]
+          ['back' (tint-to-json p.q.stye)]
+          ['fore' (tint-to-json q.q.stye)]
+      ==
+  ==
+++  tint-to-json
+  |=  =tint
+  ^-  json
+  ?@  tint
+    ?~(tint ~ s+tint)
+  %-  pairs:enjs:format
+  :~  ['r' (numb:enjs:format r.tint)]
+      ['g' (numb:enjs:format g.tint)]
+      ['b' (numb:enjs:format b.tint)]
   ==
 ::
 ++  blit-to-wain
