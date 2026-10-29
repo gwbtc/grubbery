@@ -18,25 +18,17 @@
 ::  main.sig; read the result on news, then drop. The lifecycle-grub
 ::  pattern the anthropic and openrouter proxies share.
 ::
-/&  man      ../man/github/readme.md
-/<  ui-html  github/index.html
-/<  ui-js    github/app.js
-/<  ui-css   github/style.css
-/<  ui-icon  github/icon.svg
+/&  man      ../../man/git/github/readme.md
+/<  ui-html  ./github/index.html
+/<  ui-js    ./github/app.js
+/<  ui-css   ./github/style.css
+/<  ui-icon  ./github/icon.svg
 /<  nw       /lib/nexus-web.hoon
 =<  ^-  nexus:nexus
     |%
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
-      =/  tile=json
-        %-  pairs:enjs:format
-        :~  title+s+'GitHub'
-            info+s+'The ship\'s GitHub proxy'
-            color+s+'#24292f'
-            image+s+'/grubbery/tiles/icon/github.github'
-            href+s+'/grubbery/github'
-        ==
       =/  default-config=json
         %-  pairs:enjs:format
         :~  ['token' s+'']
@@ -44,9 +36,7 @@
         ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
-          [%over %& [/ %'link.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'github'] ['description' s+'Local structured proxy for GitHub']])]]
           [%over %& [/ %'weir.json'] [[/ %json] weir-json]]
-          [%over %& [/ %'tile.json'] [[/ %json] tile]]
           [%over %& [/ %'icon.svg'] [[/ %mime] ui-icon]]
           [%over %& [/ %'index.html'] [[/ %mime] ui-html]]
           [%over %& [/ %'app.js'] [[/ %mime] ui-js]]

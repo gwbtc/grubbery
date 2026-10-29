@@ -11,7 +11,7 @@
   =/  m  (fiber:fiber:nexus ,s3-creds)
   ^-  form:m
   ;<  creds-view=view:nexus  bind:m
-    (peek:io [%& %& /apps/'shell.shell'/tools %'s3.json'] `[/ %json])
+    (peek:io [%& %& /apps/shell/tools %'s3.json'] `[/ %json])
   ?.  ?=([%file *] creds-view)
     ~|  %s3-creds-not-found
     !!

@@ -16,7 +16,7 @@ Tools for going from a git repo to a running Clay desk. Always in this order:
 ```
 forge_create_repo name=ahoy remote=owner/repo
 new_desk desk=ahoy
-deploy_to_desk source=/apps/forge.git_forge/repos/ahoy.git_repo/data/tree/desk desk=ahoy
+deploy_to_desk source=@forge/repos/ahoy.git_repo/data/tree/desk desk=ahoy
 install_app desk=ahoy
 ```
 

@@ -79,7 +79,7 @@
   :~  title+s+'Explorer'
       info+s+'Browse the tarball'
       color+s+'#4a9de5'
-      image+s+'/grubbery/ball/apps/shell.shell/ui/explorer/icon.svg'
+      image+s+'/grubbery/ball/apps/shell/ui/explorer/icon.svg'
       href+s+'/grubbery/ball'
   ==
 ::  +bundles: the served bundles, one request each: the graph kit, the
@@ -1729,7 +1729,7 @@
     ::  the very tools that manage weirs — including THIS request fiber,
     ::  which then dies un-self-cleaned and replays its sand on every
     ::  restart (learned the hard way). Flatly refuse.
-    ?:  |(=(/apps tree-path) =(/apps/'shell.shell' tree-path))
+    ?:  |(=(/apps tree-path) =(/apps/shell tree-path))
       ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'this weir is load-bearing: restricting it would make grubbery painfully difficult to interface with from the outside')])
       (pure:m ~)
     =/  category=@t  (fall (get-key:kv:html-utils 'category' args) '')
@@ -1757,7 +1757,7 @@
     ::  the very tools that manage weirs — including THIS request fiber,
     ::  which then dies un-self-cleaned and replays its sand on every
     ::  restart (learned the hard way). Flatly refuse.
-    ?:  |(=(/apps tree-path) =(/apps/'shell.shell' tree-path))
+    ?:  |(=(/apps tree-path) =(/apps/shell tree-path))
       ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'this weir is load-bearing: restricting it would make grubbery painfully difficult to interface with from the outside')])
       (pure:m ~)
     =/  new=weir:nexus  [~ ~ ~]
@@ -1770,7 +1770,7 @@
     ::  the very tools that manage weirs — including THIS request fiber,
     ::  which then dies un-self-cleaned and replays its sand on every
     ::  restart (learned the hard way). Flatly refuse.
-    ?:  |(=(/apps tree-path) =(/apps/'shell.shell' tree-path))
+    ?:  |(=(/apps tree-path) =(/apps/shell tree-path))
       ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'this weir is load-bearing: restricting it would make grubbery painfully difficult to interface with from the outside')])
       (pure:m ~)
     =/  category=@t  (fall (get-key:kv:html-utils 'category' args) '')
@@ -1795,7 +1795,7 @@
     ::  the very tools that manage weirs — including THIS request fiber,
     ::  which then dies un-self-cleaned and replays its sand on every
     ::  restart (learned the hard way). Flatly refuse.
-    ?:  |(=(/apps tree-path) =(/apps/'shell.shell' tree-path))
+    ?:  |(=(/apps tree-path) =(/apps/shell tree-path))
       ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'this weir is load-bearing: restricting it would make grubbery painfully difficult to interface with from the outside')])
       (pure:m ~)
     ;<  ~  bind:m  (sand:io [%& %| tree-path] ~)

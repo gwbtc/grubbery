@@ -10,7 +10,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>explorer</title>
-  <link rel="icon" type="image/svg+xml" href="/grubbery/ball/apps/shell.shell/ui/explorer/icon.svg">
+  <link rel="icon" type="image/svg+xml" href="/grubbery/ball/apps/shell/ui/explorer/icon.svg">
   <style>
     html, body { margin: 0; height: 100%; }
     #fv { height: 100vh; }
@@ -18,9 +18,9 @@
 </head>
 <body>
   <div id="fv"></div>
-  <script src="/grubbery/ball/apps/shell.shell/ui/explorer/file-preview.js"></script>
-  <script src="/grubbery/ball/apps/shell.shell/ui/explorer/file-view.js"></script>
-  <script src="/grubbery/ball/apps/shell.shell/ui/explorer/vim-editor.js"></script>
+  <script src="/grubbery/ball/apps/shell/ui/explorer/file-preview.js"></script>
+  <script src="/grubbery/ball/apps/shell/ui/explorer/file-view.js"></script>
+  <script src="/grubbery/ball/apps/shell/ui/explorer/vim-editor.js"></script>
   <script>
     document.title = decodeURIComponent(location.pathname.split('/').filter(Boolean).pop() || 'explorer');
     FileView.mount(document.getElementById('fv'), { url: location.pathname, wrapKey: 'explorer-wrap' });

@@ -19,7 +19,7 @@
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
-  :~  ['path' [%string 'Path to git/repo nexus (e.g. "/apps/forge.git_forge/repos/contacts.git_repo")']]
+  :~  ['path' [%string 'Path to git/repo nexus (e.g. "@forge/repos/contacts.git_repo")']]
       ['command' [%string 'Git command, e.g. commit -m "msg"']]
   ==
 ++  required  ~['path' 'command']

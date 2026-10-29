@@ -770,6 +770,112 @@
       [tk(in `[%peek wire.u.in.tk [%none ~]]) sil]
     ==
   ==
+::  +migrate-shell: the shell lives at /apps/shell. A ship that still
+::  holds it at /apps/shell.shell (the old spelling; nexus extensions are
+::  being retired) gets it moved, once, before the root rows run: the
+::  subtree is landed at the new place (content-addressed, so no bytes
+::  copy), the old one culled, every /sys/link lane and every json grub
+::  inside it that spelled the old path rewritten, and every grant.json
+::  dropped so the shell re-sands its apps from its approvals at the new
+::  place. Only a real shell moves: the old directory's neck must be
+::  [/ %shell], and /apps/shell must hold no shell of its own (no desks/)
+::  -- the name is taken by a shell, never squatted on.
+::
+++  migrate-shell
+  ^+  this
+  =/  old=path  /apps/'shell.shell'
+  =/  new=path  /apps/shell
+  =/  ob=ball:tarball  (peek-ball-now old)
+  ?~  fil.ob  this
+  ?.  =(`[/ %shell] neck.u.fil.ob)  this
+  =/  nb=ball:tarball  (peek-ball-now new)
+  ?:  (~(has by dir.nb) %desks)
+    ~>  %slog.[0 leaf+"grubbery: /apps/shell is a shell already; /apps/shell.shell left as it is"]
+    this
+  ~>  %slog.[0 leaf+"grubbery: the shell moves from /apps/shell.shell to /apps/shell"]
+  =/  from=tape  (spud old)
+  =/  to=tape    (spud new)
+  =.  this  (load-ball-changes new (ball-to-bole:tarball ob) %.n)
+  =.  this  (cull [%| old])
+  =.  this  (respell-json new from to)
+  (respell-lanes /sys/link from to)
+::  +respell-json: every json grub under `at` whose text spells `from`
+::  is rewritten with `to`; every grant.json under it is dropped (the
+::  shell grants again at the new place). Walks the tree as it stands.
+::
+++  respell-json
+  |=  [at=path from=tape to=tape]
+  ^+  this
+  =/  b=ball:tarball  (peek-ball-now at)
+  =.  this
+    ?~  fil.b  this
+    =/  files=(list [name=@ta =sang:tarball gain=? bang=(unit tang)])
+      ~(tap by contents.u.fil.b)
+    |-  ^+  this
+    ?~  files  this
+    =/  name=@ta  name.i.files
+    ?:  =(%'grant.json' name)
+      $(files t.files, this (delete at name))
+    ?.  =([/ %json] p.sang.i.files)  $(files t.files)
+    =/  jon=(unit json)  (mole |.(;;(json (sang-noun:tarball sang.i.files))))
+    ?~  jon  $(files t.files)
+    =/  txt=tape  (trip (en:json:html u.jon))
+    ?~  (find from txt)  $(files t.files)
+    =/  new=(unit json)  (de:json:html (crip (respell txt from to)))
+    ?~  new  $(files t.files)
+    $(files t.files, this (save-file [at name] [[/ %json] u.new]))
+  =/  kids=(list @ta)  ~(tap in ~(key by dir.b))
+  |-  ^+  this
+  ?~  kids  this
+  $(kids t.kids, this (respell-json (snoc at i.kids) from to))
+::  +respell-lanes: every dest.lanes under `at`, at any depth (a /sys/link
+::  name may nest), with a lane under `from` is rewritten to point under `to`.
+::
+++  respell-lanes
+  |=  [at=path from=tape to=tape]
+  ^+  this
+  =/  b=ball:tarball  (peek-ball-now at)
+  =/  old=path  (stab (crip from))
+  =/  new=path  (stab (crip to))
+  =/  kids=(list @ta)  ~(tap in ~(key by dir.b))
+  |-  ^+  this
+  ?~  kids  this
+  =/  here=path  (snoc at i.kids)
+  =/  kb=ball:tarball  (peek-ball-now here)
+  =/  got=(unit [=sang:tarball gain=? bang=(unit tang)])
+    ?~  fil.kb  ~
+    (~(get by contents.u.fil.kb) %'dest.lanes')
+  ::  a name may nest (@chat/v1): the walk goes on below either way
+  ?~  got  $(kids t.kids, this (respell-lanes here from to))
+  ?.  =([/ %lanes] p.sang.u.got)  $(kids t.kids, this (respell-lanes here from to))
+  =/  lanes=(unit (list lane:tarball))
+    (mole |.(;;((list lane:tarball) (sang-noun:tarball sang.u.got))))
+  ?~  lanes  $(kids t.kids, this (respell-lanes here from to))
+  =/  moved=(list lane:tarball)
+    %+  turn  u.lanes
+    |=  l=lane:tarball
+    ?-  -.l
+      %|  ?.(=(old (scag (lent old) p.l)) l [%| (weld new (slag (lent old) p.l))])
+      %&  ?.(=(old (scag (lent old) path.p.l)) l [%& (weld new (slag (lent old) path.p.l)) name.p.l])
+    ==
+  =.  this
+    ?:  =(moved u.lanes)  this
+    (save-file [here %'dest.lanes'] [[/ %lanes] moved])
+  $(kids t.kids, this (respell-lanes here from to))
+::  +respell: every occurrence of `from` in a tape replaced with `to`
+::
+++  respell
+  |=  [txt=tape from=tape to=tape]
+  ^-  tape
+  =/  n=@ud  (lent from)
+  |^  (go txt)
+  ++  go
+    |=  r=tape
+    ^-  tape
+    ?~  r  ~
+    ?:  =(from (scag n `tape`r))  (weld to (go (slag n `tape`r)))
+    [i.r (go t.r)]
+  --
 ++  cold-start
   ^-  _this
   =.  this  bootstrap-marcs
@@ -779,6 +885,9 @@
   ::  anything it governs is touched
   =.  this  (sync-gub %.n)
   =.  this  carry-behn-state
+  ::  the shell's spelling: a ship still holding it at /apps/shell.shell
+  ::  has it moved to /apps/shell before the root rows run
+  =.  this  migrate-shell
   =.  this  (reload-nexus-at / root)
   =.  this  (spawn-all-files / (peek-bole-now /))
   =.  this  sync-dill
@@ -6121,7 +6230,11 @@
   ^-  ?
   =/  t=tape  (trip seg)
   =/  len=@ud  (lent t)
+  ::  dek/: the desks the kernel ships (dek/forge, ...). Their code is a
+  ::  desk's, built by that desk's own code nexus once it mirrors it, so
+  ::  here it is data, as a checked-out tree would be.
   ?|  =("bundle" t)
+      =("dek" t)
       &((gth len 7) =("-bundle" (slag (sub len 7) t)))
   ==
 ::
@@ -9013,8 +9126,8 @@
   ::  Strip the roads this registrant OWNS, then add the ones it is claiming.
   ::
   ::  Owning a prefix is not the same as owning every road under it. Registrants
-  ::  nest: the shell owns /apps/shell.shell, and a desk inside it owns
-  ::  /apps/shell.shell/desks/<x>.desk. `inner` is the prefixes of the OTHER
+  ::  nest: the shell owns /apps/shell, and a desk inside it owns
+  ::  /apps/shell/desks/<x>.desk. `inner` is the prefixes of the OTHER
   ::  registrants that sit inside ours, and roads under those are theirs.
   ::
   ::  Without that exclusion the outer registrant erases the inner one's grants

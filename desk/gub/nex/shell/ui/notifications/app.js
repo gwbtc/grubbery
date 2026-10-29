@@ -3,7 +3,7 @@
 // decisions live here — the protocol only records mack.
 
 var API = '/grubbery/api';
-var BALL = 'apps/shell.shell/notifications';
+var BALL = 'apps/shell/notifications';
 var notes = [];
 
 function fetchInbox() {

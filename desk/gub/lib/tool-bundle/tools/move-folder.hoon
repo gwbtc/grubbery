@@ -10,7 +10,7 @@
   ^-  (map @t parameter-def:tools)
   %-  malt
   :~  ['from' [%string 'Source folder path (e.g. "/apps/old.desk")']]
-      ['to' [%string 'Destination folder path (e.g. "/apps/shell.shell/desks/old.desk")']]
+      ['to' [%string 'Destination folder path (e.g. "/apps/shell/desks/old.desk")']]
   ==
 ++  required  ~['from' 'to']
 ++  handler

@@ -53,7 +53,7 @@ function fullName(n) {
 // prefix, per repo (its keys carry the root). A repo switch replaces the
 // element: an explorer mounts once.
 var explorerEl = null;
-function treeRoot(name) { return '/apps/forge.git_forge/repos/' + name + '/data/tree'; }
+function treeRoot(name) { return window.FORGE_ROOT + '/repos/' + name + '/data/tree'; }   // the page is told where the forge lives (index.html carries it)
 function mountExplorer(name) {
   unmountExplorer();
   var host = document.getElementById('repo-explorer');

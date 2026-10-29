@@ -87,7 +87,7 @@ plus one UI, not a UI-per-instance.
    watches/gates that; desk distributes grant to internals. Delete `app-roots`'
    descend-into-desk-internals path (for the weir/consent axis, at least).
 5. **Desk UI → shell** — add a `/desks` management page; strip UI from `desk.hoon`.
-6. **Location move** — desks under the shell (`/apps/shell.shell/desks/`). Last.
+6. **Location move** — desks under the shell (`/apps/shell/desks/`). Last.
 
 ## Open questions (resolve before committing to full opacity)
 

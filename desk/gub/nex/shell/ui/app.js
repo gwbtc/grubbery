@@ -1,6 +1,6 @@
-var API='/grubbery/api';var BALL='apps/shell.shell'; // local tiles live in the shell's own root
+var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell's own root
   // inbox bell: landscape-style notifications panel over the tiles
-  var NBALL = 'apps/shell.shell/notifications';
+  var NBALL = 'apps/shell/notifications';
   var bellNotes = [];
 
   // Pending permission requests belong in the bell too. An app that has asked

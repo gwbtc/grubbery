@@ -1,0 +1,263 @@
+// <tab-group> — a tabbed panel switcher.
+//
+// You slot in panels, each tagged with a tab-label attribute; the component
+// renders the tab strip from those labels and shows one panel at a time.
+// Forge hand-rolls three separate tab strips (mode-tabs, console tabs, tool
+// subtabs) — this replaces all of them with one element.
+//
+// USAGE
+//   <tab-group persist="forge-mode">
+//     <div tab-label="Repo">...panel content...</div>
+//     <div tab-label="Tools">...</div>
+//     <section tab-label="Settings">...</section>
+//   </tab-group>
+//
+// CONTRACT
+//   attributes (config in):
+//     active   initial tab, by 0-based index ("0") or by label ("Tools")
+//     persist  localStorage key; when set, the active tab survives reload
+//     closable boolean; each tab gets an ×. Clicking it only EMITS tg-close —
+//              the host removes the panel (slotchange then rebuilds the strip),
+//              so the host stays in charge of teardown/veto.
+//   slots (content in):
+//     default  each direct child is a panel; its tab-label attribute names
+//              the tab. A child with no tab-label is ignored (not a panel).
+//              tab-title, if present, becomes the tab button's title
+//              (tooltip) instead of repeating tab-label — for cases like a
+//              file path where the tab shows the basename but hover should
+//              reveal the full path.
+//              tab-fixed marks a tab that never gets an × even when the
+//              group is closable — a permanent place (a home, a folder
+//              view) among closable ones. Put it first in the DOM to pin
+//              it at the front; order is document order.
+//              tab-icon="folder" draws a small inline icon before the
+//              label (built-in set, see ICONS below — add names there).
+//   css vars (theme in), house-light defaults:
+//     --tg-border      strip underline / divider color (default #e2e7ee)
+//     --tg-tab-color   idle tab text (default #57606a)
+//     --tg-tab-hover   hovered tab text (default #24292f)
+//     --tg-tab-active  active tab text (default #1f2328)
+//     --tg-accent      active tab underline (default #0969da)
+//     --tg-gap         space between tabs (default 4px)
+//     --tg-font-size   tab label size (default 13px) — family/weight still
+//                       just inherit from the host's own font, unset here
+//   events (state out), all bubbling + composed (library policy):
+//     tg-change   detail: { index, label }
+//     tg-close    detail: { index, label, panel } — × clicked (closable only)
+//   methods:
+//     .select(indexOrLabel)
+//     .refresh()   re-read panels/labels (after in-place tab-label edits);
+//                  keeps the current tab selected
+//
+// DESIGN NOTES — same as <split-view>: one self-contained file, shadow DOM
+// for isolation, --tg-* vars are the theming surface, four-channel contract,
+// no form participation. State kept minimal (just the active index, in
+// localStorage). Panels here are laid out with plain block flow (strip on
+// top, one panel shown below), so the <slot> display:contents quirk that bit
+// split-view's grid doesn't apply — we just toggle `hidden` on the slotted
+// panels. Keep this template literal backtick-free (a stray backtick, even in
+// a CSS comment, ends the string and the element never registers).
+
+const TPL = document.createElement('template');
+TPL.innerHTML = `
+  <style>
+    :host {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 0;
+    }
+    #strip {
+      flex: 0 0 auto;
+      display: flex;
+      gap: var(--tg-gap, 4px);
+      border-bottom: 1px solid var(--tg-border, #e2e7ee);
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    #strip::-webkit-scrollbar { display: none; }
+    button.tab {
+      appearance: none;
+      background: none;
+      border: none;
+      font: inherit;
+      color: var(--tg-tab-color, #57606a);
+      font-size: var(--tg-font-size, 13px);
+      padding: 8px 12px;
+      cursor: pointer;
+      white-space: nowrap;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      transition: color .12s, border-color .12s;
+    }
+    button.tab:hover { color: var(--tg-tab-hover, #24292f); }
+    button.tab[aria-selected="true"] {
+      color: var(--tg-tab-active, #1f2328);
+      border-bottom-color: var(--tg-accent, #0969da);
+      font-weight: 600;
+    }
+    button.tab:focus-visible {
+      outline: 2px solid var(--tg-accent, #0969da);
+      outline-offset: -2px;
+      border-radius: 4px;
+    }
+    button.tab .x {
+      display: inline-block; margin-left: 7px; padding: 0 3px;
+      border-radius: 4px; opacity: .45; font-weight: 400;
+    }
+    button.tab .ico { display: inline-block; width: 14px; height: 14px; margin-right: 6px; vertical-align: -2px; }
+    button.tab .ico svg { width: 100%; height: 100%; display: block; }
+    button.tab .x:hover { opacity: 1; background: #e2e7ee; }
+    #panels { flex: 1 1 auto; min-height: 0; }
+    ::slotted([tab-label]) { height: 100%; }
+    ::slotted([hidden]) { display: none !important; }
+  </style>
+  <div id="strip" part="strip" role="tablist"></div>
+  <div id="panels" part="panels"><slot></slot></div>
+`;
+
+// built-in tab-icon set: Feather paths, 24x24 viewBox, stroked in currentColor
+const ICONS = {
+  folder: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>',
+};
+const SVG_OPEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">';
+
+class TabGroup extends HTMLElement {
+  static observedAttributes = ['active'];
+
+  #strip;
+  #slot;
+  #panels = [];   // the slotted elements that are panels (have tab-label)
+  #index = 0;
+
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' }).appendChild(TPL.content.cloneNode(true));
+    this.#strip = this.shadowRoot.getElementById('strip');
+    this.#slot = this.shadowRoot.querySelector('slot');
+  }
+
+  connectedCallback() {
+    this.#slot.addEventListener('slotchange', this.#rebuild);
+    this.#rebuild();
+  }
+
+  attributeChangedCallback(name, _old, val) {
+    if (name === 'active' && this.#panels.length) this.select(val ?? 0);
+  }
+
+  // read the slotted panels, (re)render the tab strip, restore active tab
+  #rebuild = () => {
+    this.#panels = this.#slot.assignedElements().filter(el => el.hasAttribute('tab-label'));
+    this.#strip.textContent = '';
+    this.#panels.forEach((panel, i) => {
+      const label = panel.getAttribute('tab-label');
+      const id = `tg-tab-${i}`;
+      const btn = document.createElement('button');
+      btn.className = 'tab';
+      const icon = panel.getAttribute('tab-icon');
+      if (icon && ICONS[icon]) {
+        const ico = document.createElement('span');
+        ico.className = 'ico';
+        ico.innerHTML = SVG_OPEN + ICONS[icon] + '</svg>';
+        btn.appendChild(ico);
+      }
+      btn.appendChild(document.createTextNode(label));
+      btn.id = id;
+      const tip = panel.getAttribute('tab-title');
+      if (tip) btn.title = tip;
+      btn.setAttribute('role', 'tab');
+      btn.setAttribute('type', 'button');
+      btn.tabIndex = -1;
+      btn.addEventListener('click', () => this.select(i));
+      btn.addEventListener('keydown', this.#onKey);
+      if (this.hasAttribute('closable') && !panel.hasAttribute('tab-fixed')) {
+        const x = document.createElement('span');
+        x.className = 'x';
+        x.textContent = '×';
+        x.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.dispatchEvent(new CustomEvent('tg-close', {
+            detail: { index: i, label, panel }, bubbles: true, composed: true,
+          }));
+        });
+        btn.appendChild(x);
+      }
+      this.#strip.appendChild(btn);
+      panel.setAttribute('role', 'tabpanel');
+      panel.setAttribute('aria-labelledby', id);
+    });
+    if (!this.#panels.length) return;
+    // pick the starting tab: persisted, else whatever was already selected
+    // (a rebuild from a slotchange or refresh() must not reset the host's
+    // selection), else the `active` attr, else 0
+    const keep = this.#index >= 0 && this.#index < this.#panels.length ? this.#index : null;
+    const start = this.#load() ?? keep ?? this.getAttribute('active') ?? 0;
+    this.select(start, true);
+  };
+
+  // resolve an index-or-label to an index; -1 if not found
+  #resolve(indexOrLabel) {
+    if (indexOrLabel == null) return 0;
+    const asNum = Number(indexOrLabel);
+    if (Number.isInteger(asNum) && String(asNum) === String(indexOrLabel)) return asNum;
+    return this.#panels.findIndex(p => p.getAttribute('tab-label') === indexOrLabel);
+  }
+
+  select(indexOrLabel, silent = false) {
+    let i = this.#resolve(indexOrLabel);
+    if (i < 0 || i >= this.#panels.length) i = 0;
+    this.#index = i;
+    this.#panels.forEach((panel, j) => { panel.hidden = j !== i; });
+    [...this.#strip.children].forEach((btn, j) => {
+      const on = j === i;
+      btn.setAttribute('aria-selected', on ? 'true' : 'false');
+      btn.tabIndex = on ? 0 : -1;
+    });
+    this.#save();
+    if (!silent) {
+      this.dispatchEvent(new CustomEvent('tg-change', {
+        detail: { index: i, label: this.#panels[i].getAttribute('tab-label') },
+        bubbles: true, composed: true,
+      }));
+    }
+  }
+
+  // arrow keys move between tabs (roving tabindex), Home/End jump to ends
+  #onKey = (e) => {
+    const n = this.#panels.length;
+    let to = this.#index;
+    if (e.key === 'ArrowRight') to = (this.#index + 1) % n;
+    else if (e.key === 'ArrowLeft') to = (this.#index - 1 + n) % n;
+    else if (e.key === 'Home') to = 0;
+    else if (e.key === 'End') to = n - 1;
+    else return;
+    this.select(to);
+    this.#strip.children[to].focus();
+    e.preventDefault();
+  };
+
+  get value() { return this.#panels[this.#index]?.getAttribute('tab-label') ?? null; }
+
+  // re-read panels + labels. Needed after changing a panel's tab-label in
+  // place: attribute edits don't fire slotchange, only add/remove do.
+  refresh() { this.#rebuild(); }
+
+  #key() {
+    const k = this.getAttribute('persist');
+    return k ? 'tab-group:' + k : null;
+  }
+  #save() {
+    const k = this.#key();
+    if (!k) return;
+    try { localStorage.setItem(k, String(this.#index)); } catch (_) {}
+  }
+  #load() {
+    const k = this.#key();
+    if (!k) return null;
+    const v = localStorage.getItem(k);
+    return v == null ? null : Number(v);
+  }
+}
+
+customElements.define('tab-group', TabGroup);

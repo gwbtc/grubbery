@@ -4,6 +4,9 @@
 ::  at a code directory to mirror, anywhere in the namespace:
 ::    "~nec/apps/counter/desk/code"                (remote ship)
 ::    "/apps/foo.git_repo/data/tree/code"          (a checked-out repo)
+::    "@forge/repos/foo.git_repo/data/tree/code"   (by an app's name, resolved
+::                                                  through /sys/link, followed
+::                                                  as the name moves)
 ::  The desk mirrors whatever dir you point it at into its /desk/code;
 ::  it assumes NOTHING about the source's internal shape.
 ::
@@ -150,7 +153,14 @@
     ::  the authored content version (never null), NOT the source's own root
     ::  version.json (its private follow-state, none of our business). The
     ::  road is KNOWN, so watch its EXACT road even before it exists.
-    =/  code-path=path           (parse-path code.u.config)
+    ;<  code-path=path  bind:m  (resolve-source code.u.config)
+    ::  a source by name follows the name too: when the link moves, the
+    ::  desk re-resolves and follows the code where it went
+    =/  link=(unit road:tarball)  (link-road code.u.config)
+    ;<  ~  bind:m
+      ?~  link  (pure:m ~)
+      ;<  *  bind:m  (keep:io /link u.link ~)
+      (pure:m ~)
     =/  code-road=road:tarball   [%& %| code-path]
     =/  ver-road=road:tarball    [%& %& code-path %'version.json']
     =/  ver-name=@ta             %'version.json'
@@ -177,11 +187,18 @@
       ;<  ~  bind:m  (sync-release ver-road code-road ver-name rail)
       $
         %poke
-      ::  config change: replace state, drop sub, restart
+      ::  config change: replace state, drop subs, restart
       =/  new-json=json  !<(json q.sage.res)
       ~?  dbg  [%source-config-change new-json]
       ;<  ~  bind:m  (replace:io new-json)
       ;<  ~  bind:m  (drop:io /ver ver-road)
+      ;<  ~  bind:m  ?~(link (pure:m ~) (drop:io /link u.link))
+      ^$
+        %moved
+      ::  the name points elsewhere now: drop subs, resolve again, follow
+      ~?  dbg  [%desk-source-moved code.u.config]
+      ;<  ~  bind:m  (drop:io /ver ver-road)
+      ;<  ~  bind:m  ?~(link (pure:m ~) (drop:io /link u.link))
       ^$
     ==
       ::  share.usergroups: the OPENING state. Poke {add|remove: <group>}
@@ -408,6 +425,7 @@
 +$  news-or-poke
   $%  [%news =wave:nexus]
       [%poke =sage:tarball]
+      [%moved ~]
   ==
 ::  a file lifted out of a ball, addressed relative to the peeked dir
 ::
@@ -528,6 +546,40 @@
   =/  target=@p  (slav %p (crip (scag ship-end txt)))
   =/  source-path=path  (stab (crip (slag ship-end txt)))
   (weld /sys/ames/ships/[(scot %p target)]/root source-path)
+::  resolve-source: a source string as the path it names NOW. `@name/...`
+::  resolves the name through /sys/link, waiting for the link when it is
+::  not there yet (a desk may rise before the app it follows); any other
+::  spelling is +parse-path.
+::
+++  resolve-source
+  |=  src=@t
+  =/  m  (fiber:fiber:nexus ,path)
+  ^-  form:m
+  ?.  =('@' (end 3 src))  (pure:m (parse-path src))
+  =/  txt=tape  (trip src)
+  =/  cut=@ud  (fall (find "/" txt) (lent txt))
+  =/  name=@t  (crip (scag cut txt))
+  =/  rest=path  ?:(=(cut (lent txt)) / (stab (crip (slag cut txt))))
+  =/  link=road:tarball  (need (link-road src))
+  |-  ^-  form:m
+  ;<  ln=(unit lane:tarball)  bind:m  (resolve-link:io name)
+  ?:  ?=([~ %| *] ln)  (pure:m (weld p.u.ln rest))
+  ~&  >>  [%desk-source-unlinked src]
+  ;<  *  bind:m  (keep:io /link link ~)
+  ;<  *  bind:m  (take-news:io /link)
+  ;<  ~  bind:m  (drop:io /link link)
+  $
+::  link-road: for a source spelled `@name/...`, the link grub that says
+::  where the name points; ~ for any other spelling
+::
+++  link-road
+  |=  src=@t
+  ^-  (unit road:tarball)
+  ?.  =('@' (end 3 src))  ~
+  =/  txt=tape  (trip src)
+  =/  cut=@ud  (fall (find "/" txt) (lent txt))
+  =/  name=@ta  (crip (slag 1 (scag cut txt)))
+  `[%& %& /sys/link/[name] %'dest.lanes']
 ::  parse-source: a source string as a directory road
 ::
 ++  parse-source
@@ -668,7 +720,7 @@
     ::  must not fail the install.
     ?.  made-any  (pure:m ~)
     ;<  *  bind:m
-      (poke-soft:io [%& %& /apps/'shell.shell' %'sweep.sig'] [[/ %sig] ~])
+      (poke-soft:io [%& %& /apps/shell %'sweep.sig'] [[/ %sig] ~])
     (pure:m ~)
   =/  nam=@ta  -.i.entries
   =/  cod=path  (stab +.i.entries)
@@ -1433,6 +1485,8 @@
       [~ %veto *]
     [%fail (veto-error:io dart.u.in)]
       [~ %news * *]
+    ::  /link: the name the source is spelled by moved (see +resolve-source)
+    ?:  =(/link wire.u.in)  [%done %moved ~]
     ?.  =(news-wire wire.u.in)
       [%skip ~]
     [%done %news wave.u.in]

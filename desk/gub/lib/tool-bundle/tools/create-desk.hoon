@@ -1,5 +1,5 @@
 /<  tools  /lib/tools.hoon
-::  create-desk: create a /desk syncer under /apps/shell.shell/desks/.
+::  create-desk: create a /desk syncer under /apps/shell/desks/.
 ::
 !:
 ^-  tool:tools
@@ -8,14 +8,14 @@
 ++  description
   ^~  %-  crip
   ;:  weld
-    "Create a new /desk syncer in /apps/shell.shell/desks/. It syncs from "
+    "Create a new /desk syncer in /apps/shell/desks/. It syncs from "
     "a source code dir already in the namespace and deploys it. Provide "
     "source (~ship/path or /local/path — e.g. a git_repo's /data/tree/code)."
   ==
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
-  :~  ['name' [%string 'App name (e.g. "myapp") — becomes /apps/shell.shell/desks/myapp.desk']]
+  :~  ['name' [%string 'App name (e.g. "myapp") — becomes /apps/shell/desks/myapp.desk']]
       ['source' [%string 'Source path (e.g. "~nec/apps/counter" or "/local/path")']]
       ['public' [%boolean 'whether the desk code namespace is publicly readable. (default: false)']]
   ==
@@ -29,7 +29,7 @@
   ?~  nam  (pure:m [%error 'Missing required argument: name'])
   =/  app-name=@ta  u.nam
   =/  dir-name=@ta  (cat 3 app-name '.desk')
-  =/  dir-path=path  /apps/'shell.shell'/desks/[dir-name]
+  =/  dir-path=path  /apps/shell/desks/[dir-name]
   =/  app-weir=(unit weir:nexus)
     `[make=~ poke=(sy ~[[%& %| /]]) peek=(sy ~[[%& %| /]])]
   =/  =bole:tarball  [`[`[/ %desk] app-weir %.n ~] ~]

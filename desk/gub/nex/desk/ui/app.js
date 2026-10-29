@@ -431,7 +431,7 @@ function ensureShiki() {
   if (shikiHl || shikiTried) return Promise.resolve(shikiHl);
   shikiTried = true;
   return import('https://esm.sh/shiki@1.24.0').then(function (m) {
-    return fetch('/grubbery/ball/apps/shell.shell/ui/explorer/hoon-grammar.json')
+    return fetch('/grubbery/ball/apps/shell/ui/explorer/hoon-grammar.json')
       .then(function (r) { return r.json(); })
       .then(function (grammar) {
         return m.createHighlighter({ themes: ['github-dark'], langs: [grammar, 'json', 'javascript', 'css', 'xml', 'markdown'] });

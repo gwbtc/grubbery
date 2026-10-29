@@ -883,7 +883,7 @@ function setup(root, opts) {
   // the tabs + per-tab history now; the host just renders a path's content and
   // routes navigation back in (plain = in place, ⌘-click = new pane). The whole
   // workspace persists to localStorage (the `persist` attr) as pure data.
-  // gmux holds bare NAMESPACE paths (e.g. /apps/shell.shell), not
+  // gmux holds bare NAMESPACE paths (e.g. /apps/shell), not
   // http urls — the /grubbery/ball serve prefix is added here, only at fetch.
   // a moment is a path, optionally with ?args saying HOW that path is looked
   // at (a dir's ?view=rows|grid|tree). Args never change what is fetched.
@@ -1043,7 +1043,7 @@ function setup(root, opts) {
     if (!base) base = '/';
     return base + (query ? '?' + query : '');
   };
-  const TREE_JS = PREFIX + '/apps/shell.shell/ui/explorer/tree-viewer.js';           // the explorer's own tree, a stock viewer
+  const TREE_JS = PREFIX + '/apps/shell/ui/explorer/tree-viewer.js';           // the explorer's own tree, a stock viewer
   // a pane's waiting state: `text` over an optional `sub` line (what is being
   // fetched); psWaitFail turns the same block into the failure it ended in
   const psWait = (el, text, sub) => {
@@ -1467,7 +1467,7 @@ function setup(root, opts) {
     const open = d.root || !d.weir;
     const sb = chip('sandbox', open ? 'unrestricted' : 'restricted', open);
     const here = ns.replace(/\/$/, '') || '/';
-    const PROTECTED = ['/apps', '/apps/shell.shell'];
+    const PROTECTED = ['/apps', '/apps/shell'];
     if (PROTECTED.includes(here)) {
       sb.classList.add('locked');
       sb.querySelector('.v').append(' \ud83d\udd12');
@@ -2958,7 +2958,7 @@ function setup(root, opts) {
     c.appendChild(chip('items', String(data.children.filter((x) => !x.ghost).length)));
     const open = data.root || !data.weir;
     const sb = chip('sandbox', open ? 'unrestricted' : 'restricted', open);
-    const PROTECTED = ['/apps', '/apps/shell.shell'];
+    const PROTECTED = ['/apps', '/apps/shell'];
     if (!data.root && !PROTECTED.includes(dirPath)) {
       sb.classList.add('click');
       sb.title = 'manage this sandbox';
@@ -3282,14 +3282,14 @@ function setup(root, opts) {
   // <id>.png; the tool awaits the png, reads the answer, and culls all
   // three. One session has one attached client, so one page answers; a
   // passive mirror and every other session stay quiet.
-  const SNAPS = '/apps/shell.shell/explorer/snaps/';
+  const SNAPS = '/apps/shell/explorer/snaps/';
   let h2c = null;
   function html2canvasLoad() {
     if (h2c) return h2c;
     return h2c = new Promise((res, rej) => {
       if (window.html2canvas) return res(window.html2canvas);
       const s = document.createElement('script');
-      s.src = PREFIX + '/apps/shell.shell/ui/explorer/html2canvas.min.js';
+      s.src = PREFIX + '/apps/shell/ui/explorer/html2canvas.min.js';
       s.onload = () => res(window.html2canvas);
       s.onerror = () => { h2c = null; rej(new Error('html2canvas did not load')); };
       document.head.appendChild(s);
@@ -3595,7 +3595,7 @@ function setup(root, opts) {
   // standalone panes endpoint (/grubbery/explorer): stand the pane workspace up
   // full-screen using the SAME wiring as the ⊞ panes tab — no finder.
   const SESSION_API = PREFIX.replace(/\/ball$/, '/explorer') + '/session';
-  const SESSIONS_DIR = '/apps/shell.shell/explorer/sessions/';
+  const SESSIONS_DIR = '/apps/shell/explorer/sessions/';
   // ---- the session protocol: every client of a workspace speaks it ----
   // The session grub is the record. A client attaches (taking over whoever
   // held it), restores the spec, applies the ops waiting in it, and from then
@@ -4868,7 +4868,7 @@ function sessionsPage(root, api, wait, waitFail) {
   const field = (label, ...help) => { const l = document.createElement('label'); const sp = document.createElement('span'); sp.textContent = label; const i = document.createElement('input'); i.type = 'text'; i.spellcheck = false; l.append(sp, i); form.appendChild(l); const h = document.createElement('div'); h.className = 'ss-help ss-hint'; h.append(...help); form.appendChild(h); return i; };
   const name = field('name', 'One word: lowercase letters, digits, dashes. Empty picks one.');
   name.placeholder = 'main';
-  const layout = field('layout', 'Optional. A ', code('.layout'), ' file in the namespace to start from, such as ', code('/apps/forge.git_forge/ui/forge.layout'), '. Empty starts at the root.');
+  const layout = field('layout', 'Optional. A ', code('.layout'), ' file in the namespace to start from, such as ', code('@forge/layout.json'), '. Empty starts at the root.');
   const go = document.createElement('button'); go.textContent = 'start'; form.appendChild(go);
   const err = document.createElement('div'); err.className = 'ss-err'; form.appendChild(err);
   const start = async () => {

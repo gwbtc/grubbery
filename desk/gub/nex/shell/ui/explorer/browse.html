@@ -12,7 +12,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>explorer</title>
-  <link rel="icon" type="image/svg+xml" href="/grubbery/ball/apps/shell.shell/ui/explorer/icon.svg">
+  <link rel="icon" type="image/svg+xml" href="/grubbery/ball/apps/shell/ui/explorer/icon.svg">
   <style>
     * { box-sizing: border-box; }
     body { font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #1f2328; background: #fff; margin: 0; padding-bottom: 48px; }
@@ -31,8 +31,8 @@
   <!-- one request for every component + the file viewer (welded in
        explorer.hoon's on-load), classic so it runs before browse.js, which
        is a module and therefore deferred -->
-  <script src="/grubbery/ball/apps/shell.shell/ui/explorer/kit.js"></script>
-  <script type="module" src="/grubbery/ball/apps/shell.shell/ui/explorer/browse.js"></script>
+  <script src="/grubbery/ball/apps/shell/ui/explorer/kit.js"></script>
+  <script type="module" src="/grubbery/ball/apps/shell/ui/explorer/browse.js"></script>
   <script type="module">
     // the explorer is the page here: it owns the url, the title and the favicon.
     // /grubbery/explorer stands the pane workspace up full-screen (panes mode).

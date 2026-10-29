@@ -283,20 +283,22 @@
         ::  rebuild on every sweep, not only when a new app appeared.
         ;<  ~  bind:m  (build-share rail)
         $
-          ::  bootstrap.sig: first-boot setup. On the FIRST rise where the
-          ::  /bootstrapped.json marker is absent, run the repos-to-sync
-          ::  pipeline once and write the marker. The marker persists, so every
-          ::  later rise (restart/crash-recovery) skips — setup runs exactly
-          ::  once. The manual POST /desks/sync-defaults stays available.
+          ::  bootstrap.sig: the stock desks, held current at every rise.
+          ::  /bootstrapped.json marks that the first run happened. The
+          ::  manual POST /desks/sync-defaults does the same on demand.
           ::
           [~ %'bootstrap.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%shell bootstrap: failed")
+        ;<  ~  bind:m  ensure-polls
+        ::  every rise: each stock entry's repo and desk, made if missing,
+        ::  and its source re-pointed at the forge as it stands now. A
+        ::  stock entry added later, or a forge that moved, is taken up by
+        ::  the next rise with no one's hand on it. Idempotent; the network
+        ::  is touched last and softly.
+        ;<  ~  bind:m  sync-defaults
         ;<  done=?  bind:m
           (peek-exists:io (nex-road:io rail [%& / %'bootstrapped.json']))
-        ;<  ~  bind:m  ensure-polls
         ?:  done  (pure:m ~)
-        ~?  dbg  %shell-bootstrap-first-boot
-        ;<  ~  bind:m  sync-defaults
         ;<  err=(unit tang)  bind:m
           (make-soft:io (nex-road:io rail [%& / %'bootstrapped.json']) |+[[[/ %json] `json`[%b %.y]] ~])
         ~?  >>>  ?=(^ err)  %shell-bootstrap-mark-failed
@@ -509,8 +511,8 @@
           =/  rt=(unit path)  (soft-path (fall (jget jon 'root') ''))
           =/  target=(unit path)
             ?~  rt  ~
-            ?:  ?=([%apps %'shell.shell' %desks @ %desk %data @ ~] u.rt)
-              `/apps/'shell.shell'/desks/[i.t.t.t.u.rt]
+            ?:  ?=([%apps %shell %desks @ %desk %data @ ~] u.rt)
+              `/apps/shell/desks/[i.t.t.t.u.rt]
             ?:  ?=([%apps @ ~] u.rt)  `u.rt
             ~
           ?~  target
@@ -567,7 +569,7 @@
             ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'code required')])
             (pure:m ~)
           =/  dir-path=path
-            /apps/'shell.shell'/desks/[(cat 3 `@ta`name '.desk')]
+            /apps/shell/desks/[(cat 3 `@ta`name '.desk')]
           ;<  live=?  bind:m  (peek-exists:io [%& %| dir-path])
           ?:  live
             ;<  ~  bind:m  (send-simple:srv eyre-id [[409 ~] `(as-octs:mimes:html 'a desk by that name already exists')])
@@ -641,13 +643,13 @@
         ::  file. The path may be deep (a desk-install's desk/data/<nexus>).
         ?:  ?=([%icon ^] suffix)
           ::  reconstruct the nexus root from the compressed icon path:
-          ::  <desk>/<nexus> -> /apps/shell.shell/desks/<desk>/desk/data/<nexus>,
+          ::  <desk>/<nexus> -> /apps/shell/desks/<desk>/desk/data/<nexus>,
           ::  a bare <nexus> -> /apps/<nexus>, or a full /apps/... path as-is.
           =/  segs=path  t.suffix
           =/  root=path
             ?:  ?=([%apps *] segs)  segs
             ?:  ?=([@ @ ~] segs)
-              ~[%apps %'shell.shell' %desks i.segs %desk %data i.t.segs]
+              ~[%apps %shell %desks i.segs %desk %data i.t.segs]
             ?:  ?=([@ ~] segs)  ~[%apps i.segs]
             [%apps segs]
           ;<  kid-root=view:nexus  bind:m
@@ -727,7 +729,7 @@
         ::  install-name availability checks.
         ?:  ?=([%desks %taken ~] suffix)
           ;<  =view:nexus  bind:m
-            (peek-shallow:io [%& %| /apps/'shell.shell'/desks] ~)
+            (peek-shallow:io [%& %| /apps/shell/desks] ~)
           =/  names=(list @ta)
             ?.  ?=([%ball *] view)  ~
             ~(tap in ~(key by dir.ball.view))
@@ -867,7 +869,7 @@
   =/  page=tape  (trip q.q:browse-html:explorer)
   =/  decl=tape
     "<script>window.EXPLORER_MOUNT = {(trip (en:json:html mount))};</script>\0a"
-  =/  marker=tape  "<script src=\"/grubbery/ball/apps/shell.shell/ui/explorer/kit.js\""
+  =/  marker=tape  "<script src=\"/grubbery/ball/apps/shell/ui/explorer/kit.js\""
   =/  at=(unit @ud)  (find marker page)
   =/  out=tape
     ?~  at  (weld decl page)
@@ -988,7 +990,7 @@
     ::  REGISTERED sender, scoped to that sender's own prefix (see the
     ::  registry in app/grubbery.hoon); a request fiber is no registrant,
     ::  and the shell's own registrant may only grant under
-    ::  /apps/shell.shell. The old peers page used the same poke and was
+    ::  /apps/shell. The old peers page used the same poke and was
     ::  rejected the same way, silently. Group permissions are really
     ::  delegated grants, each app granting into its own subtree. Decide:
     ::  make the pane's permissions read-only (grants keep coming from
@@ -1064,7 +1066,11 @@
   ==
 ++  default-repos
   ^-  (list stock-entry)
-  :~  [%github 'hatchery' 'gwbtc/hatchery' 'main' [%desk ~]]
+  ::  the forge ships with the kernel: its code is /code/dek/forge and a
+  ::  desk follows it, so it is live before any repo is, and the github
+  ::  entries below are housed in it. First, so @forge resolves for them.
+  :~  [%code 'forge' '/code/dek/forge']
+      [%github 'hatchery' 'gwbtc/hatchery' 'main' [%desk ~]]
       [%github 'grubbery' 'gwbtc/grubbery' 'develop' [%clay %grubbery 'desk']]
   ==
 ::  deploy-json: the deploy spec as the repo's config.json carries it
@@ -1079,6 +1085,15 @@
 ::  stock-name / stock-code: pull the name (and, for %code, the code path)
 ::  out of an entry regardless of kind.
 ++  stock-name  |=(e=stock-entry ?-(-.e %github name.e, %code name.e))
+::  stock-app: is this app a nexus of a stock desk, one the kernel ships
+::  (/apps/shell/desks/<stock>.desk/desk/data/<app>)?
+++  stock-app
+  |=  ap=path
+  ^-  ?
+  ?.  ?=([%apps %shell %desks @ %desk %data *] ap)  %.n
+  =/  desk=@ta  i.t.t.t.ap
+  %+  lien  default-repos
+  |=(e=stock-entry =(desk (cat 3 `@ta`(stock-name e) '.desk')))
 ::  repo-config: the config.json a git_repo instance is seeded with.
 ::
 ++  repo-config
@@ -1101,18 +1116,20 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   =/  name=@t  (stock-name entry)
-  =/  desk-dir=path  /apps/'shell.shell'/desks/[(cat 3 `@ta`name '.desk')]
-  ::  forge houses the repo instances; it is found by name
+  =/  desk-dir=path  /apps/shell/desks/[(cat 3 `@ta`name '.desk')]
+  ::  forge houses the repo instances; it is found by name. A %code entry
+  ::  (the forge itself) needs no forge.
   ;<  fr=(unit lane:tarball)  bind:m  (resolve-link:io '@forge')
-  ?.  ?=([~ %| *] fr)
+  ?.  |(?=(%code -.entry) ?=([~ %| *] fr))
     ~&  >>>  %shell-pairing-no-forge
     (pure:m ~)
-  =/  forge=path  p.u.fr
-  ::  the /code path the desk will follow
+  =/  forge=path  ?:(?=([~ %| *] fr) p.u.fr /)
+  ::  the code path the desk will follow: a github entry's by the forge's
+  ::  NAME, so the desk resolves it where the forge is, now and after a move
   =/  code=@t
     ?-  -.entry
       %code    code.entry
-      %github  (crip "{(spud forge)}/repos/{(trip name)}.git_repo/data/tree/code")
+      %github  (crip "@forge/repos/{(trip name)}.git_repo/data/tree/code")
     ==
   =/  repo-dir=path  (weld forge /repos/[(cat 3 `@ta`name '.git_repo')])
   ::  ORDER MATTERS HERE, and it used to leave a user with a repo, no desk,
@@ -1215,10 +1232,12 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   =/  todo=(list stock-entry)  default-repos
+  ;<  fr=(unit lane:tarball)  bind:m  (resolve-link:io '@forge')
+  ?.  ?=([~ %| *] fr)  (pure:m ~)
   |-  ^-  form:m
   ?~  todo  (pure:m ~)
   ?.  ?=(%github -.i.todo)  $(todo t.todo)
-  =/  repo-dir=path  /apps/'forge.git_forge'/repos/[(cat 3 `@ta`(stock-name i.todo) '.git_repo')]
+  =/  repo-dir=path  (weld p.u.fr /repos/[(cat 3 `@ta`(stock-name i.todo) '.git_repo')])
   ;<  has=?  bind:m  (peek-exists:io [%& %| repo-dir])
   ;<  ~  bind:m  ?.(has (pure:m ~) (ensure-poll repo-dir))
   $(todo t.todo)
@@ -1253,7 +1272,7 @@
   |-  ^-  form:m
   ?~  todo  (pure:m a+(flop acc))
   =/  name=@t  (stock-name i.todo)
-  =/  desk-dir=path  /apps/'shell.shell'/desks/[(cat 3 `@ta`name '.desk')]
+  =/  desk-dir=path  /apps/shell/desks/[(cat 3 `@ta`name '.desk')]
   ;<  has-desk=?  bind:m  (peek-exists:io [%& %| desk-dir])
   ;<  src=(unit json)  bind:m
     ?.  has-desk  (pure:(fiber:fiber:nexus ,(unit json)) ~)
@@ -1262,7 +1281,9 @@
   ::  synced when its repo mirror exists
   ;<  has-repo=?  bind:m
     ?.  ?=(%github -.i.todo)  (pure:(fiber:fiber:nexus ,?) %.n)
-    (peek-exists:io [%& %| /apps/'forge.git_forge'/repos/[(cat 3 `@ta`name '.git_repo')]])
+    ;<  fr=(unit lane:tarball)  bind:(fiber:fiber:nexus ,?)  (resolve-link:io '@forge')
+    ?.  ?=([~ %| *] fr)  (pure:(fiber:fiber:nexus ,?) %.n)
+    (peek-exists:io [%& %| (weld p.u.fr /repos/[(cat 3 `@ta`name '.git_repo')])])
   =/  synced=?
     ?:  &(?=(%github -.i.todo) ?=(%clay -.deploy.i.todo))  has-repo
     ?&  has-desk
@@ -1292,7 +1313,7 @@
   =/  m  (fiber:fiber:nexus ,json)
   ^-  form:m
   ;<  =view:nexus  bind:m
-    (peek:io [%& %| /apps/'shell.shell'/peers] ~)
+    (peek:io [%& %| /apps/shell/peers] ~)
   ?.  ?=([%ball *] view)  (pure:m a+~)
   ?~  fil.ball.view  (pure:m a+~)
   =/  entries=(list [n=@ta =sang:tarball gain=? bang=(unit tang)])
@@ -1307,14 +1328,14 @@
   =/  m  (fiber:fiber:nexus ,(map @t @t))
   ^-  form:m
   ;<  =view:nexus  bind:m
-    (peek-shallow:io [%& %| /apps/'shell.shell'/desks] ~)
+    (peek-shallow:io [%& %| /apps/shell/desks] ~)
   ?.  ?=([%ball *] view)  (pure:m ~)
   =/  kids=(list @ta)  ~(tap in ~(key by dir.ball.view))
   =|  acc=(map @t @t)
   |-
   ?~  kids  (pure:m acc)
   ;<  src=(unit json)  bind:m
-    (peek-as:io [%& %& /apps/'shell.shell'/desks/[i.kids] %'source.json'] ,json)
+    (peek-as:io [%& %& /apps/shell/desks/[i.kids] %'source.json'] ,json)
   ?~  src  $(kids t.kids)
   =/  code=@t  (jstr u.src 'code')
   ?:  =('' code)  $(kids t.kids)
@@ -1453,7 +1474,7 @@
   =/  m  (fiber:fiber:nexus ,json)
   ^-  form:m
   ;<  =view:nexus  bind:m
-    (peek:io [%& %| /apps/'shell.shell'/desks] ~)
+    (peek:io [%& %| /apps/shell/desks] ~)
   ?.  ?=([%ball *] view)  (pure:m a+~)
   =/  apps=(list @ta)  ~(tap in ~(key by dir.ball.view))
   ;<  cards=(list json)  bind:m  (gather-desks apps)
@@ -1473,7 +1494,7 @@
   =/  m  (fiber:fiber:nexus ,(unit json))
   ^-  form:m
   ;<  sj=(unit json)  bind:m
-    (peek-as:io [%& %& /apps/'shell.shell'/desks/[app] %'source.json'] ,json)
+    (peek-as:io [%& %& /apps/shell/desks/[app] %'source.json'] ,json)
   =/  code=@t  ?~(sj '' (jstr u.sj 'code'))
   ::  publishing + source editing live in the desk's OWN page now; this list
   ::  is just navigation, so it carries name, source, and a link to the page.
@@ -1542,7 +1563,7 @@
 ++  peer-pub-road
   |=  s=@t
   ^-  road:tarball
-  [%& %& /sys/ames/ships/[s]/root/apps/'shell.shell'/share/public %'desks.json']
+  [%& %& /sys/ames/ships/[s]/root/apps/shell/share/public %'desks.json']
 ::
 ++  jget
   |=  [j=json k=@t]
@@ -1724,9 +1745,9 @@
   ^-  form:m
   =/  pax=path  (fall (soft-path app) /unknown)
   ::  desk-nested apps keep their nested identity in the title:
-  ::  /apps/shell.shell/desks/<desk>/desk/data/<app> -> "<desk>/<app>".
+  ::  /apps/shell/desks/<desk>/desk/data/<app> -> "<desk>/<app>".
   =/  nm=@t
-    ?:  ?=([%apps %'shell.shell' %desks @ %desk %data @ ~] pax)
+    ?:  ?=([%apps %shell %desks @ %desk %data @ ~] pax)
       (rap 3 (app-slug i.t.t.t.pax) '/' (app-slug i.t.t.t.t.t.t.pax) ~)
     (app-slug (rear pax))
   =/  meta=json
@@ -1852,7 +1873,7 @@
 ++  read-local-tiles
   =/  m  (fiber:fiber:nexus ,(list tile))
   ^-  form:m
-  =/  tiles-root=path  /apps/'shell.shell'
+  =/  tiles-root=path  /apps/shell
   ;<  =view:nexus  bind:m  (peek:io [%& %| (weld tiles-root /tiles)] ~)
   ?.  ?=([%ball *] view)
     (pure:m ~)
@@ -1874,8 +1895,33 @@
   ^-  (unit tile)
   =/  jon=(unit json)  (mole |.(!<(json (need-vase:tarball sang))))
   ?~  jon  ~
-  ?.  ?=(%o -.u.jon)  ~
-  =/  m  p.u.jon
+  (tile-from-json name u.jon)
+::  +tiles-from-sang: an app's tile.json as its tiles. One object is one
+::  tile, named by the app's slug; an array is several, the first named
+::  by the slug (the app's own tile, the one its icon file dresses) and
+::  the rest <slug>-2, <slug>-3, ... so each can be hidden on its own.
+::  An app housing more than one surface (the forge and its github
+::  proxy) puts a tile on the home page for each.
+::
+++  tiles-from-sang
+  |=  [slug=@ta =sang:tarball]
+  ^-  (list tile)
+  =/  jon=(unit json)  (mole |.(!<(json (need-vase:tarball sang))))
+  ?~  jon  ~
+  ?:  ?=(%o -.u.jon)  (drop (tile-from-json (crip "{(trip slug)}.json") u.jon))
+  ?.  ?=(%a -.u.jon)  ~
+  =/  n=@ud  1
+  |-  ^-  (list tile)
+  ?~  p.u.jon  ~
+  =/  name=@ta  ?:(=(1 n) (crip "{(trip slug)}.json") (crip "{(trip slug)}-{(a-co:co n)}.json"))
+  =/  one=(unit tile)  (tile-from-json name i.p.u.jon)
+  =/  rest  $(p.u.jon t.p.u.jon, n +(n))
+  ?~(one rest [u.one rest])
+++  tile-from-json
+  |=  [name=@ta jon=json]
+  ^-  (unit tile)
+  ?.  ?=(%o -.jon)  ~
+  =/  m  p.jon
   :-  ~
   :*  name
       (fall (bind (~(get by m) 'title') |=(=json ?>(?=(%s -.json) p.json))) '')
@@ -1899,9 +1945,8 @@
     (peek:io [%& %& [root %'tile.json']] `[/ %json])
   ?.  ?=([%file *] kid-view)
     $(roots t.roots)
-  =/  tile-name=@ta  (crip "{(trip slug)}.json")
-  =/  made=(unit tile)  (json-to-tile tile-name sang.kid-view)
-  ?~  made  $(roots t.roots)
+  =/  tiles=(list tile)  (tiles-from-sang slug sang.kid-view)
+  ?~  tiles  $(roots t.roots)
   ::  an app that ships an icon file gets it as the tile image, addressed
   ::  by its full nexus-root path.
   ;<  kid-root=view:nexus  bind:m  (peek-shallow:io [%& %| root] ~)
@@ -1920,10 +1965,13 @@
     ?:  ?=([%apps @ %desk %data @ ~] root)  ~[i.t.root i.t.t.t.t.root]
     ?:  ?=([%apps @ ~] root)  ~[i.t.root]
     root
-  =/  til=tile
-    ?~  icon  u.made
-    u.made(image (crip "/grubbery/tiles/icon{(spud icon-segs)}"))
-  $(roots t.roots, acc [[til root] acc])
+  ::  the app's own tile (the first) wears its icon; the others keep the
+  ::  image they declared
+  =/  first=tile
+    ?~  icon  i.tiles
+    i.tiles(image (crip "/grubbery/tiles/icon{(spud icon-segs)}"))
+  =/  more=(list [tile path])  (turn t.tiles |=(t=tile [t root]))
+  $(roots t.roots, acc (weld (flop more) [[first root] acc]))
 ::
 ++  app-slug
   |=  name=@ta
@@ -1947,18 +1995,18 @@
   ::  scans /apps root, follows them, or asks about them. Each desk wrapper's
   ::  real apps are the children of its /desk/data (what apply-bill creates).
   ;<  dv=view:nexus  bind:m
-    (peek-shallow:io [%& %| /apps/'shell.shell'/desks] ~)
+    (peek-shallow:io [%& %| /apps/shell/desks] ~)
   ?.  ?=([%ball *] dv)  (pure:m ~)
   =/  desks=(list @ta)  ~(tap in ~(key by dir.ball.dv))
   =|  out=(list path)
   |-  ^-  form:m
   ?~  desks  (pure:m (flop out))
   ;<  sv=view:nexus  bind:m
-    (peek-shallow:io [%& %| /apps/'shell.shell'/desks/[i.desks]/desk/data] ~)
+    (peek-shallow:io [%& %| /apps/shell/desks/[i.desks]/desk/data] ~)
   =/  subs=(list path)
     ?.  ?=([%ball *] sv)  ~
     %+  turn  ~(tap in ~(key by dir.ball.sv))
-    |=(sub=@ta /apps/'shell.shell'/desks/[i.desks]/desk/data/[sub])
+    |=(sub=@ta /apps/shell/desks/[i.desks]/desk/data/[sub])
   $(desks t.desks, out (weld subs out))
 ::  +all-app-roots: built-ins (every direct child of /apps) PLUS user desks.
 ::  Only the tile reader uses this — a home-page tile is benign UI, so built-in
@@ -2000,20 +2048,40 @@
     ?.  ?=(%a -.u.nv)  ~
     (murn p.u.nv |=(j=json ?.(?=(%s -.j) ~ `p.j)))
   ?:  =(~ names)  $(roots t.roots)
-  =/  opt=json
+  ::  an option: `path` is where the name points, `app` the app that
+  ::  claims it (the approval is the app's). The app's own name points at
+  ::  its root; an alias (`aliases: [{name, path, description}]`) points at
+  ::  a place INSIDE the app, so one app can claim several names: the
+  ::  forge claims @github for the github proxy it houses at /github.
+  =/  opt
+    |=  [sub=path desc=@t]
+    ^-  json
     %-  pairs:enjs:format
-    :~  ['path' s+(crip (spud root))]
-        ['description' s+(fall (jget u.jon 'description') '')]
+    :~  ['path' s+(crip (spud (weld root sub)))]
+        ['app' s+(crip (spud root))]
+        ['description' s+desc]
         ['source' s+src]
     ==
+  =/  claims=(list [nm=@t o=json])
+    %+  weld
+      (turn names |=(n=@t [n (opt / (fall (jget u.jon 'description') ''))]))
+    %+  murn
+      =/  al  (~(get by p.u.jon) 'aliases')
+      ?.(?=([~ %a *] al) ~ p.u.al)
+    |=  a=json
+    ^-  (unit [@t json])
+    =/  n=@t  (fall (jget a 'name') '')
+    =/  sub=(unit path)  (rush (fall (jget a 'path') '/') stap)
+    ?:  |(=('' n) ?=(~ sub))  ~
+    `[n (opt u.sub (fall (jget a 'description') ''))]
   =/  acc2=(map @t (list json))
-    =/  ns=(list @t)  names
+    =/  cs=(list [nm=@t o=json])  claims
     =/  a=(map @t (list json))  acc
     |-  ^-  (map @t (list json))
-    ?~  ns  a
-    =/  aname=@t  (cat 3 '@' i.ns)
+    ?~  cs  a
+    =/  aname=@t  (cat 3 '@' nm.i.cs)
     =/  cur=(list json)  (fall (~(get by a) aname) ~)
-    $(ns t.ns, a (~(put by a) aname (snoc cur opt)))
+    $(cs t.cs, a (~(put by a) aname (snoc cur o.i.cs)))
   $(roots t.roots, acc acc2)
 ::  +build-alias-menus: the full alias directory as menus. Merges the
 ::  app-scanned options with the user's stored aliases (each a `you`-
@@ -2068,7 +2136,7 @@
 ::
 ::  +sync-lane: the /sync grub lane for an app-root path. Built-in apps
 ::  at /apps/<name> mirror as /sync/<name>; desk sub-apps at
-::  /apps/shell.shell/desks/<desk>/desk/data/<sub> mirror as
+::  /apps/shell/desks/<desk>/desk/data/<sub> mirror as
 ::  /sync/<desk>/<sub>. ~ for anything unrecognized.
 ::
 ++  sync-lane
@@ -2077,7 +2145,7 @@
   ?+  ap  ~
     [%apps @ ~]
       `[%& [/sync i.t.ap]]
-    [%apps %'shell.shell' %desks @ %desk %data @ ~]
+    [%apps %shell %desks @ %desk %data @ ~]
       `[%& [/sync/[i.t.t.t.ap] i.t.t.t.t.t.t.ap]]
   ==
 ::  +app-path-of: inverse — the app-root path a /sync follower watches,
@@ -2090,7 +2158,7 @@
     [%sync ~]
       `~[%apps name.rail]
     [%sync @ ~]
-      `~[%apps %'shell.shell' %desks i.t.path.rail %desk %data name.rail]
+      `~[%apps %shell %desks i.t.path.rail %desk %data name.rail]
   ==
 ::  +drop-stale-subs: subscriptions persist across fiber restarts and are
 ::  never auto-cleaned. An earlier follower version kept its app's WHOLE
@@ -2183,7 +2251,7 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ;<  =view:nexus  bind:m
-    (peek-shallow:io [%& %| /apps/'shell.shell'/desks] ~)
+    (peek-shallow:io [%& %| /apps/shell/desks] ~)
   ?.  ?=([%ball *] view)  (pure:m ~)
   =/  kids=(list @ta)  ~(tap in ~(key by dir.ball.view))
   ;<  pairs=(list [grp=path entry=json])  bind:m  (gather-shares kids)
@@ -2209,7 +2277,7 @@
   ^-  form:m
   ?~  kids  (pure:m ~)
   ;<  shr=(unit (set path))  bind:m
-    (peek-as:io [%& %& /apps/'shell.shell'/desks/[i.kids] %'share.usergroups'] ,(set path))
+    (peek-as:io [%& %& /apps/shell/desks/[i.kids] %'share.usergroups'] ,(set path))
   ;<  rest=(list [path json])  bind:m  $(kids t.kids)
   ?~  shr  (pure:m rest)
   =/  entry=json  (desk-entry i.kids)
@@ -2224,7 +2292,7 @@
   %-  pairs:enjs:format
   :~  ['name' s+(app-slug name)]
       ['dir' s+name]
-      ['code' s+(crip "/apps/shell.shell/desks/{(trip name)}/desk/code")]
+      ['code' s+(crip "/apps/shell/desks/{(trip name)}/desk/code")]
   ==
 ::
 ++  build-links
@@ -2242,7 +2310,7 @@
     |=  [nm=@t opts=(list json)]
     ^-  (unit [@t (list json)])
     =/  keep=(list json)
-      (skim opts |=(o=json (~(has by approved) (fall (jget o 'path') ''))))
+      (skim opts |=(o=json (~(has by approved) (fall (jget o 'app') (fall (jget o 'path') '')))))
     ?~(keep ~ `[nm keep])
   =/  want=(set path)  (silt (turn entries |=([nm=@t *] (link-dir nm))))
   |-  ^-  form:m
@@ -2256,7 +2324,7 @@
     ;<  bv=view:nexus  bind:m  (peek-shallow:io [%& %| /sys/link] ~)
     ?.  ?=([%ball *] bv)  (pure:m ~)
     =/  haves=(list @ta)  ~(tap in ~(key by dir.ball.bv))
-    =/  desks-root=path  /apps/'shell.shell'/desks
+    =/  desks-root=path  /apps/shell/desks
     |-  ^-  form:m
     ?~  haves  (pure:m ~)
     ?:  (~(has in want) /sys/link/[i.haves])  $(haves t.haves)
@@ -2345,6 +2413,12 @@
   =/  ask=json  [%o (~(put by p.u.jon) 'app' s+app)]
   ;<  approved=(map @t json)  bind:m  (read-approved rail)
   ?:  (is-settled ask approved)  (pure:m ~)
+  ::  a stock desk's app ships with the kernel: what it asks for is granted
+  ::  as it asks, no notice. The user installed grubbery; this is grubbery.
+  ?:  (stock-app ap)
+    ;<  hidden=json  bind:m  (read-hidden rail)
+    ;<  now=@da  bind:m  get-time:io
+    (do-approve-weir rail app [%o ~] u.jon hidden now)
   ::  already told the user about this exact pending ask? don't re-ping on a
   ::  reload. A changed ask fails the match below and notifies afresh.
   ;<  notified=(map @t json)  bind:m  (read-notified rail)
@@ -2409,7 +2483,7 @@
   ^-  form:m
   ;<  roots=(list path)  bind:m  app-roots
   ::  A root instance /apps/X whose code has moved into a desk - the same X
-  ::  installed at /apps/shell.shell/desks/<d>/desk/data/X - is dormant: its
+  ::  installed at /apps/shell/desks/<d>/desk/data/X - is dormant: its
   ::  code left the ball, its data was carried, and it keeps its weir.json.
   ::  It is not an ask anyone can act on, and listing it puts a permanent
   ::  "pending" on every ship that ever migrated an app. Skip it.
@@ -2808,7 +2882,7 @@
   =/  local-names=(set @ta)  (sy (turn local |=(t=tile name.t)))
   ;<  app-pairs=(list [tile path])  bind:m  read-app-tiles
   ::  A root instance /apps/X whose code has moved into a desk - the same X
-  ::  installed at /apps/shell.shell/desks/<d>/desk/data/X - is dormant: it
+  ::  installed at /apps/shell/desks/<d>/desk/data/X - is dormant: it
   ::  keeps its tile.json but nothing behind it runs, and its address is
   ::  the desk install's now. One icon, not two. Same rule as read-app-weirs.
   =/  leaves=(list @ta)

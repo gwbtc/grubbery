@@ -1,7 +1,7 @@
 ::  docs-mirror: shared helpers for the docs-agent tools. The agent reads the
 ::  shell's LOCAL MIRROR of the documented collection — its code sources at
-::  /apps/shell.shell/docs/mirror/<name>/<tag>/… and its handbook prose at
-::  /apps/shell.shell/docs/hb/<name>/…. Which collection comes from the registry
+::  /apps/shell/docs/mirror/<name>/<tag>/… and its handbook prose at
+::  /apps/shell/docs/hb/<name>/…. Which collection comes from the registry
 ::  (targets.json), so the tools name none: register one and its assistant works
 ::  with no code change. Source paths carry the tag as their first segment
 ::  (/gub/lib/build.hoon), which is just where that source mounts under the
@@ -9,11 +9,11 @@
 ::
 |%
 ::  +mirror-base: the code-source mirror root in the namespace (absolute).
-++  mirror-base  `path`/apps/'shell.shell'/docs/mirror
+++  mirror-base  `path`/apps/shell/docs/mirror
 ::  +hb-base: the handbook (prose) mirror root in the namespace (absolute).
-++  hb-base  `path`/apps/'shell.shell'/docs/hb
+++  hb-base  `path`/apps/shell/docs/hb
 ::  +targets-road: the registry grub the tools read to resolve the collection.
-++  targets-road  `road:tarball`[%& %& /apps/'shell.shell'/docs %'targets.json']
+++  targets-road  `road:tarball`[%& %& /apps/shell/docs %'targets.json']
 ::  +roots-from: the first registered collection's two mirror roots — its SOURCE
 ::  root (the collection mirror; each source sits under its tag as the first path
 ::  segment) and its handbook (DOC) root. General to whatever is registered.

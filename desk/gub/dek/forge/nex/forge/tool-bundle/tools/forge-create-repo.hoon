@@ -10,7 +10,7 @@
   ;:  weld
     "Create a git repo in forge. Optionally provide a remote URL "
     "to clone from (triggers an initial pull). The repo appears at "
-    "/apps/forge.git_forge/repos/<name>.git_repo with a checked-out "
+    "@forge/repos/<name>.git_repo with a checked-out "
     "working tree at /data/tree/."
   ==
 ++  parameters

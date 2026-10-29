@@ -78,16 +78,14 @@
         ::
         ::  the shell: the one bootstrap nexus, the user's interface to the
         ::  kernel. Its home page's local tiles live inside it (/tiles).
-        [%fall %| /apps/'shell.shell' [`[`[/ %shell] ~ %.n ~] ~]]
+        [%fall %| /apps/shell [`[`[/ %shell] ~ %.n ~] ~]]
         ::
         ::  forge: the UI over git repo instances, housing them at
         ::  /repos inside itself.
-        [%fall %| /apps/'forge.git_forge' [`[`[/git %forge] ~ %.n ~] ~]]
         ::
         ::  contacts + wallet seeds DISABLED: desks are managed by the
         ::  shell's sync-defaults pipeline now.
         ::
-        [%fall %| /apps/'github.github' [`[`[/ %github] ~ %.n ~] ~]]
         ::  /sys/link built-in names: the apps that ship with grubbery claim
         ::  their discovery names HERE, next to where the apps are declared, so
         ::  @github/@forge/… resolve the instant the tree loads — no shell scan,
@@ -95,20 +93,16 @@
         ::  own root (a %| dir lane). The shell registers only the names USER
         ::  DESKS claim; these shipped names are a fact of the base tree.
         [%fall %| /sys/link/explorer [`[~ ~ %.n ~] ~]]
-        [%fall %& [/sys/link/explorer %'dest.lanes'] [[/ %lanes] ~[`lane:tarball`[%| /apps/'shell.shell'/explorer]]]]
+        [%fall %& [/sys/link/explorer %'dest.lanes'] [[/ %lanes] ~[`lane:tarball`[%| /apps/shell/explorer]]]]
         ::  tools: the MCP endpoint's tools nexus is a service of the shell
         ::  (its /tools directory, lib/shell/mcp), so @tools is that.
         [%fall %| /sys/link/tools [`[~ ~ %.n ~] ~]]
-        [%fall %& [/sys/link/tools %'dest.lanes'] [[/ %lanes] ~[`lane:tarball`[%| /apps/'shell.shell'/tools]]]]
+        [%fall %& [/sys/link/tools %'dest.lanes'] [[/ %lanes] ~[`lane:tarball`[%| /apps/shell/tools]]]]
         ::  notifications: the inbox is a service of the shell (its
         ::  /notifications directory); the name points into it, so
         ::  @notifications/main.sig is the shell's notifications/main.sig.
         [%fall %| /sys/link/notifications [`[~ ~ %.n ~] ~]]
-        [%fall %& [/sys/link/notifications %'dest.lanes'] [[/ %lanes] ~[`lane:tarball`[%| /apps/'shell.shell'/notifications]]]]
-        [%fall %| /sys/link/forge [`[~ ~ %.n ~] ~]]
-        [%fall %& [/sys/link/forge %'dest.lanes'] [[/ %lanes] ~[`lane:tarball`[%| /apps/'forge.git_forge']]]]
-        [%fall %| /sys/link/github [`[~ ~ %.n ~] ~]]
-        [%fall %& [/sys/link/github %'dest.lanes'] [[/ %lanes] ~[`lane:tarball`[%| /apps/'github.github']]]]
+        [%fall %& [/sys/link/notifications %'dest.lanes'] [[/ %lanes] ~[`lane:tarball`[%| /apps/shell/notifications]]]]
     ==
 ::
 ++  on-file

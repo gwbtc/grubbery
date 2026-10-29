@@ -10,7 +10,7 @@ source of truth.
 
 1. **Hold the source in-ship** — a forge repo instance
    (`/repos/grubbery.git_repo`) cloned from `gwbtc/grubbery` through
-   the github proxy (`/apps/github.github`, OAuth device flow).
+   the github proxy (`@github`, the forge's own /github, OAuth device flow).
 2. **Edit in the namespace** — forge's working-tree editor
    (`POST /api/src`), explorer, or MCP `edit_file` into
    `/repos/grubbery.git_repo/data/tree/...`.

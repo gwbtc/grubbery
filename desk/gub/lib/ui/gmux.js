@@ -1928,7 +1928,7 @@ class Gmux extends HTMLElement {
     else if (k === 'o') this.focusNext();
     else if (k === ' ') this.swap();
     else if (k === 'm') { const on = this.markToggle(); this.#flashHint(on ? 'marked — space on another pane swaps' : 'mark cleared'); }
-    else if (k === 't') this.newTab(this.#activeId, this.#curPath(this.#activeId));
+    else if (k === 't') this.newTab(this.#activeId);   // always an EMPTY tab: passing a path would dedupe against the tab you are standing in
     else if (k === 'T') this.setBar(this.#activeId);   // toggle the selected pane's bar
     else if (k === ':') this.focusNav(this.#activeId); // jump to the navbar to type a path
     else if (k === 'i') { /* into the content: its input or navigator (focusContent runs below) */ }

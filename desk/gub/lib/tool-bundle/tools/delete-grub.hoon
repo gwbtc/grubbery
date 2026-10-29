@@ -9,7 +9,7 @@
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
-  :~  ['path' [%string 'Directory containing the grub (e.g. "/apps/shell.shell/tools")']]
+  :~  ['path' [%string 'Directory containing the grub (e.g. "/apps/shell/tools")']]
       ['name' [%string 'Grub filename to delete']]
   ==
 ++  required  ~['path' 'name']

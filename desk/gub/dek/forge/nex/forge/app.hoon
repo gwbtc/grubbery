@@ -20,25 +20,25 @@
 /<  git-repo  /lib/git/repository.hoon
 /<  git-transport  /lib/git/transport.hoon
 /<  load-repo  /lib/git/load-repo.hoon
-/&  icon        forge/icon.svg
-/&  forge-html  forge/index.html
-/&  forge-js    forge/app.js
-/&  forge-viewers-js  forge/viewers.js
+/&  icon        ./icon.svg
+/&  forge-html  ./index.html
+/&  forge-js    ./app.js
+/&  forge-viewers-js  ./viewers.js
 ::  the handbook as a pane: the docs reader ported to a viewer (its own file,
 ::  served as docs-pane.js; the reader page stays for the original forge ui)
-/&  docs-pane-js  forge/docs/pane.js
+/&  docs-pane-js  ./docs/pane.js
 ::  the layouts the explorer opens forge's dirs as, './' paths resolved
 ::  against the dir opened: the forge root (repo selector left, a tab per
 ::  repo right) and a repo (tree, file, and the status/history/run/settings
 ::  panes). One definition each.
-/&  forge-layout  forge/layout.json
-/&  repo-layout   forge/repo-layout.json
-/&  forge-reader-html  forge/docs-reader.html
-/&  forge-reader-js  forge/docs-reader.js
-/&  forge-css   forge/style.css
+/&  forge-layout  ./layout.json
+/&  repo-layout   ./repo-layout.json
+/&  forge-reader-html  ./docs-reader.html
+/&  forge-reader-js  ./docs-reader.js
+/&  forge-css   ./style.css
 /&  todo        /lib/todo.md
 ::  the self-hosting development flow, materialized like TODO.md
-/&  ratchet-md  forge/ratchet.md
+/&  ratchet-md  ./ratchet.md
 ::  web-component kit: shared sources in /lib/ui (one copy for all nexuses),
 ::  welded into one components.js bundle in on-load so a page makes a single
 ::  request (no staggered per-file "flash-in").
@@ -57,24 +57,35 @@
 /&  fp-js       /lib/ui/file-preview.js
 /&  fv-js       /lib/ui/file-view.js
 ::  marked: renders markdown previews (window.marked), loaded before app.js
-/&  marked-js   forge/marked.min.js
+/&  marked-js   ./marked.min.js
 /<  nex-tools   /lib/tools.hoon
-/&  forge-tools  forge/tool-bundle/
+/&  forge-tools  ./tool-bundle/
 ::  the recipes the forge ships with each repo's clanker: forge/recipes/
 ::  <name>.json, with the files it ships with beside it under <name>/
-/&  forge-recipes  forge/recipes/
+/&  forge-recipes  ./recipes/
 =<  ^-  nexus:nexus
     |%
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
+      ::  two tiles on the home page: the forge, and the github proxy it
+      ::  houses (which has no app root of its own to be found by)
       =/  tile=json
-        %-  pairs:enjs:format
-        :~  title+s+'Forge'
-            info+s+'git repos'
-            color+s+'#3d3a45'
-            image+s+'/grubbery/tiles/icon/forge.git_forge'
-            href+s+'/grubbery/forge'
+        :-  %a
+        :~  %-  pairs:enjs:format
+            :~  title+s+'Forge'
+                info+s+'git repos'
+                color+s+'#3d3a45'
+                image+s+'/grubbery/tiles/icon/forge/forge.git_forge'
+                href+s+'/grubbery/forge'
+            ==
+            %-  pairs:enjs:format
+            :~  title+s+'GitHub'
+                info+s+'The ship\'s GitHub proxy'
+                color+s+'#24292f'
+                image+s+'/grubbery/tiles/icon/apps/shell/desks/forge.desk/desk/data/forge.git_forge/github'
+                href+s+'/grubbery/github'
+            ==
         ==
       ::  kit bundle: weld the components into one file. Each is wrapped in a
       ::  { } block so top-level consts don't collide; define runs globally.
@@ -93,7 +104,13 @@
           ::  config — the one thing not scoped to a selected repo.
           [%fall %& [/ %'defaults.json'] [[/ %json] (pairs:enjs:format ~[['author_name' s+''] ['author_email' s+''] ['account' s+'']])]]
           [%over %& [/ %'tile.json'] [[/ %json] tile]]
-          [%over %& [/ %'link.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'forge'] ['description' s+'git repos: the UI over repo instances']])]]
+          ::  the forge's names: @forge is this nexus; @github is the github
+          ::  proxy it houses at /github (an alias into its own tree)
+          [%over %& [/ %'link.json'] [[/ %json] link-json]]
+          ::  the github proxy: token custody, REST calls and git transport
+          ::  for every repo here, a nexus of its own under /github
+          [%fall %| /github [`[`[/git %github] ~ %.n ~] ~]]
+          [%over %& [/ %'weir.json'] [[/ %json] weir-json]]
           [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
           [%over %& [/ %'index.html'] [[/ %mime] forge-html]]
           [%over %& [/ %'app.js'] [[/ %mime] forge-js]]
@@ -109,7 +126,7 @@
           %-  pairs:enjs:format
           :~  ['viewers' s+'/grubbery/forge/api/viewers']
               ['title' s+'forge']
-              ['icon' s+'/grubbery/tiles/icon/forge.git_forge']
+              ['icon' s+'/grubbery/tiles/icon/forge/forge.git_forge']
           ==
           [%over %& [/ %'docs-reader.html'] [[/ %mime] forge-reader-html]]
           [%over %& [/ %'docs-reader.js'] [[/ %mime] forge-reader-js]]
@@ -349,11 +366,71 @@
           ;<  ~  bind:m  (send-simple:s eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
           (pure:m ~)
         =/  =mime  !<(mime (need-vase:tarball sang.fv))
-        ;<  ~  bind:m  (send-simple:s eyre-id (mime-response:http-utils mime))
+        ::  the page is told where the forge lives, so its links into the
+        ::  repo trees are spelled from wherever the forge is mounted
+        ;<  page=_mime  bind:m
+          =/  m  (fiber:fiber:nexus ,_mime)
+          ?.  =('index.html' filename)  (pure:m mime)
+          ;<  here=rail:tarball  bind:m  get-here-abs:io
+          =/  decl=tape  "<script>window.FORGE_ROOT = \"{(spud (snip `path`path.here))}\";</script>\0a"
+          (pure:m [p.mime (as-octs:mimes:html (crip (weld decl (trip q.q.mime))))])
+        ;<  ~  bind:m  (send-simple:s eyre-id (mime-response:http-utils page))
         (pure:m ~)
       ==
     --
 |%
+::  +link-json: the names this nexus claims. `name` is its own; each of
+::  `aliases` points a name at a place inside it, so the shell registers
+::  @github at /github without the proxy being an app of its own.
+::
+++  link-json
+  ^-  json
+  %-  pairs:enjs:format
+  :~  ['name' s+'forge']
+      ['description' s+'git repos: the UI over repo instances']
+      :-  'aliases'
+      :-  %a
+      :~  %-  pairs:enjs:format
+          :~  ['name' s+'github']
+              ['path' s+'/github']
+              ['description' s+'Local structured proxy for GitHub']
+          ==
+      ==
+  ==
+::  +weir-json: the roads the forge reaches, declared for the shell. The
+::  forge is the developer's hands: it clones and pushes through the
+::  github proxy, deploys trees into desks and into the kernel, and seeds
+::  each repo's clanker with a weir on the working tree. Every road a
+::  repo instance or a repo clanker needs is reached from here.
+::
+++  weir-json
+  ^-  json
+  =/  line  |=([r=@t w=@t] `json`(pairs:enjs:format ~[['road' s+r] ['why' s+w]]))
+  %-  pairs:enjs:format
+  :~  :-  'poke'
+      :-  %a
+      :~  (line '/sys/bowl.sig' 'time, identity, entropy: every fiber op')
+          (line '/sys/eyre/' 'bind /grubbery/forge and send page responses')
+          (line '/sys/behn/' 'poll timers on each repo, and tool timeouts')
+          (line '/sys/iris/' 'fetch and push packs over HTTP, through the github proxy or direct')
+          (line '/sys/clay/main.clay-state' 'deploy a tree into a Clay desk (the kernel)')
+          (line '/sys/scry/main.sig' 'read Clay to compare a deploy against what it holds')
+          (line '/sys/dill/main.sig' 'read the build log after a kernel deploy')
+          (line '@github/main.sig' 'call GitHub (pull requests, pushes) through the proxy')
+          (line '@clanker/main.sig' 'make and keep each repo\'s clanker, with its roads')
+          (line '/' 'a repo\'s own git queue and its desk: pokes land where its config points')
+      ==
+      :-  'peek'
+      :-  %a
+      :~  (line '/sys/link/' 'find the github proxy and the clanker collection by name')
+          (line '/sys/dill/logs.dill-told' 'the build log a deploy waits on')
+          (line '/' 'read any tree a repo deploys to or a clanker reads from')
+      ==
+      :-  'make'
+      :-  %a
+      :~  (line '/' 'write a deployed tree into a desk, and a clanker\'s files into the collection')
+      ==
+  ==
 ::  +stock-repos: the house catalog — one-click clones surfaced on the
 ::  landing page. Names here become <name>.git_repo instances; do-add
 ::  handles the rest exactly as if typed into the create form.

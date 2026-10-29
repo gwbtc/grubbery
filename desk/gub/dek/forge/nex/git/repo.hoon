@@ -1112,7 +1112,7 @@
   =/  o=@ud  (scan off dum:ag)
   $(lines t.lines, idx (put:pack-on:git-pack idx h o))
 ::
-::  GitHub traffic rides the /apps/github.github proxy (issue #45):
+::  GitHub traffic rides the @github proxy (the forge's own /github) (issue #45):
 ::  the ship's one token lives there, auth and redirects are handled
 ::  there, and this nexus needs no HTTP reach of its own. Lifecycle
 ::  per call: keep the lifecycle grub's road, poke main.sig, read the
