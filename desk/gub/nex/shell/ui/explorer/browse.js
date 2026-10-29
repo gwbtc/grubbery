@@ -2576,7 +2576,7 @@ function setup(root, opts) {
       // and fetch it again -- the rows you were reading would jump. The
       // names that were here are fetched once, then kept beside the live
       // ones and welded in or left out.
-      const live = d.children;
+      let live = d.children;
       let gone = null;
       const paint = () => {
         const rows = el._trace && gone ? live.concat(gone) : live;
@@ -2611,8 +2611,12 @@ function setup(root, opts) {
       let timer = null;
       const refreshRows = () => fetch(url + listQ, { cache: 'no-store' }).then((r) => { if (r.status === 404) { psMarkDead(ps, el, ns, 'deleted'); return null; } return r.ok ? r.json() : null; }).then((nd) => {
         if (!nd || !Array.isArray(nd.children) || !el.isConnected) return;
-        nd.children.forEach((c) => { c.__dir = url; });
-        t.items = nd.children;
+        live = nd.children;
+        if (!el._trace) { paint(); return; }
+        // tracing, so re-read what is gone alongside what is here: the
+        // very change that woke us may BE a deletion, and the name it
+        // removed should appear faint rather than simply vanish.
+        return psGhosts(url, { ...dArgs, trace: '1' }).then((g) => { gone = g; paint(); });
       }).catch(() => {});
       el._fv = { destroy() { clearTimeout(timer); }, onUpdate() { if (timer) return; timer = setTimeout(() => { timer = null; refreshRows(); }, 500); } };
       paneLive(ps, paneId, el, [{ road: abs === '/' ? '/' : abs.replace(/\/$/, '') + '/', fold: true }]);
