@@ -124,7 +124,7 @@
           ::  its app lives.
           ::  sweep.sig: poke target for "new apps may exist — look now".
           ::  Desk installs poke it after applying their bill, so fresh
-          ::  apps get followers (and their rise-notify) immediately
+          ::  apps get followers (and their reload-time notify) immediately
           ::  instead of waiting for a permits page load.
           [%fall %& [/ %'sweep.sig'] [[/ %sig] ~]]
           ::  bootstrap.sig: runs the repos-to-sync setup ONCE on first boot
@@ -278,6 +278,10 @@
           ::
           [~ %'sweep.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%shell sweep: failed")
+        ::  a sweep on every nexus reload too: a follower this version
+        ::  adds (the desk share listener) must appear on a ship that
+        ::  already has desks, not wait for the next poke
+        ;<  *  bind:m  (spawn-followers rail)
         |-
         ;<  *  bind:m  take-poke:io
         ;<  made=?  bind:m  (spawn-followers rail)
@@ -292,17 +296,17 @@
         ::  rebuild on every sweep, not only when a new app appeared.
         ;<  ~  bind:m  (build-share rail)
         $
-          ::  bootstrap.sig: the stock desks, held current at every rise.
+          ::  bootstrap.sig: the stock desks, held current at every nexus reload.
           ::  /bootstrapped.json marks that the first run happened. The
           ::  manual POST /desks/sync-defaults does the same on demand.
           ::
           [~ %'bootstrap.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%shell bootstrap: failed")
         ;<  ~  bind:m  ensure-polls
-        ::  every rise: each stock entry's repo and desk, made if missing,
+        ::  every nexus reload: each stock entry's repo and desk, made if missing,
         ::  and its source re-pointed at the forge as it stands now. A
         ::  stock entry added later, or a forge that moved, is taken up by
-        ::  the next rise with no one's hand on it. Idempotent; the network
+        ::  the next reload with no one's hand on it. Idempotent; the network
         ::  is touched last and softly.
         ;<  ~  bind:m  sync-defaults
         ;<  done=?  bind:m
@@ -343,6 +347,22 @@
           ~?  >>>  ?=(^ err)  [%shell-peer-cull-failed u.del]
           $
         $
+          ::  /sync/<desk>/share.sig: the desk's share listener. One job:
+          ::  when the desk's share set changes, the storefront follows.
+          ::  Nothing else runs in this fiber, so nothing can keep it from
+          ::  hearing the change.
+          ::
+          [[%sync @ ~] %'share.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%shell share-listener: failed")
+        =/  desk=@ta  i.t.path.rail
+        =/  road=road:tarball  [%& %& /apps/shell/desks/[desk] %'share.usergroups']
+        ;<  *  bind:m  (keep:io /share road ~)
+        ::  a change made while the shell was down shows on reload
+        ;<  ~  bind:m  (build-share rail)
+        |-
+        ;<  *  bind:m  (take-news:io /share)
+        ;<  ~  bind:m  (build-share rail)
+        $
           ::  /sync/<app>: a pure follower. Subscribes to its app's tree and
           ::  on any change (link.json, weir.json, …) pings the scanner to
           ::  reconcile /sys/link and the asks. Holds no state, writes nothing.
@@ -359,7 +379,7 @@
         ::  a desk's opening declaration — absent for non-desk apps (a sub on
         ::  an absent road is legal and fires if it ever appears).
         ;<  *  bind:m  (keep:io /shareg (share-road u.ap) ~)
-        ::  notify at rise too: a fresh install's ask predates this
+        ::  notify on reload too: a fresh install's ask predates this
         ::  follower, so there is no change-news to catch — and an ask
         ::  still pending across a reload deserves the re-ping anyway.
         ;<  ~  bind:m  (notify-if-unsettled rail u.ap)
@@ -1811,7 +1831,7 @@
   (resolve-link-at:io '@notifications' [%& / %'main.sig'])
 ::  +register-notify: register the shell with the notifications nexus so
 ::  its notify pokes are accepted (senders must be registered). Poke-soft
-::  so a failed registration is logged, not fatal — re-run on every rise.
+::  so a failed registration is logged, not fatal — re-run on every reload.
 ::
 ++  register-notify
   |=  rail=rail:tarball
@@ -2351,6 +2371,11 @@
   ?~  roots  (pure:m made)
   =/  syn=(unit lane:tarball)  (sync-lane i.roots)
   ?~  syn  $(roots t.roots)
+  ::  a desk's apps share as one desk: one share listener per desk dir,
+  ::  ensured whether or not this app's own follower already exists
+  ;<  ~  bind:m
+    ?.  ?=([%& [%sync @ *] *] u.syn)  (pure:(fiber:fiber:nexus ,~) ~)
+    (ensure-share-listener rail i.t.path.p.u.syn)
   =/  fr=road:tarball  (nex-road:io rail u.syn)
   ;<  has=?  bind:m  (peek-exists:io fr)
   ?:  has  $(roots t.roots)
@@ -2368,6 +2393,18 @@
   ;<  err=(unit tang)  bind:m  (make-soft:io fr |+[[[/ %sig] ~] ~])
   ~?  >>>  ?=(^ err)  [%shell-sync-spawn-failed i.roots]
   $(roots t.roots, made |(made ?=(~ err)))
+::  +ensure-share-listener: /sync/<desk>/share.sig exists
+::
+++  ensure-share-listener
+  |=  [rail=rail:tarball desk=@ta]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  rd=road:tarball  (nex-road:io rail [%& /sync/[desk] %'share.sig'])
+  ;<  has=?  bind:m  (peek-exists:io rd)
+  ?:  has  (pure:m ~)
+  ;<  err=(unit tang)  bind:m  (make-soft:io rd |+[[[/ %sig] ~] ~])
+  ~?  >>>  ?=(^ err)  [%shell-share-listener-failed desk]
+  (pure:m ~)
 ::  +build-links: materialize the discovery registry at /sys/link/. For
 ::  each @name, write /sys/link/<segments>/dest.lanes — a (list lane:tarball)
 ::  of target locations, earliest claimant first. Only writes on genuine
@@ -2569,7 +2606,7 @@
 ::  +regrant-if-dropped: a reload drops every file an app's on-load does
 ::  not list, grant.json among them, and an approved app then reads as
 ::  unapproved: here-abs fails, since a sandboxed app cannot walk to
-::  root. At the follower's rise, an app that is approved but has no
+::  root. When the follower restarts on a reload, an app that is approved but has no
 ::  grant.json gets its recorded grant applied again. Idempotent: the
 ::  sand is a total replacement and grant.json a rewrite.
 ::
