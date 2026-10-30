@@ -7875,19 +7875,19 @@
       =/  dek=desk  !<(desk q.sage)
       =.  this  (handle-clay-mount dek)
       `(enqu-take here ~ ~ %pack wir ~)
+    ::  the write handlers emit their own %pack: each guards the
+    ::  kernel desks itself and answers a refusal with a failed pack
+    ::  (see +kernel-desk)
     ?:  =([/ %unmount-desk] p.sage)
       =/  dek=desk  !<(desk q.sage)
-      =.  this  (handle-clay-unmount dek)
-      `(enqu-take here ~ ~ %pack wir ~)
+      `(handle-clay-unmount here wir dek)
     ?:  =([/ %new-desk] p.sage)
       =/  dek=desk  !<(desk q.sage)
-      =.  this  (handle-clay-new-desk dek)
-      `(enqu-take here ~ ~ %pack wir ~)
+      `(handle-clay-new-desk here wir dek)
     ?:  =([/ %clay-info] p.sage)
       =/  [dek=desk files=(list [path (unit mime)])]
         !<([desk (list [path (unit mime)])] q.sage)
-      =.  this  (handle-clay-info dek files)
-      `(enqu-take here ~ ~ %pack wir ~)
+      `(handle-clay-info here wir dek files)
     ~  :: unknown clay poke, fall through
   ::
       %dill
@@ -8125,11 +8125,29 @@
   =.  this  (ensure-dir /sys/clay/desks/[dek])
   (sync-clay-desk dek)
 ::
-++  handle-clay-unmount
+::  +kernel-desk: %base and %grubbery are the ship's own code: writing
+::  either through /sys/clay is a kernel upgrade. Every clay write
+::  handler checks this itself, first thing, so a handler added later
+::  inherits no silent gap, and answers with a failed pack rather than
+::  an event crash (the sys-clay wart: a grub holding /sys/clay poke
+::  access must get a no it can read, not a crashed event).
+::
+++  kernel-desk
   |=  dek=desk
+  ^-  ?
+  |(=(%base dek) =(%grubbery dek))
+::
+++  clay-refuse
+  |=  [here=rail:tarball wir=path dek=desk]
   ^+  this
-  ?>  !=(dek %grubbery)
-  ?>  !=(dek %base)
+  =/  msg=tape  "%{(trip dek)} is not written through /sys/clay"
+  ~&  >>>  msg
+  (enqu-take here ~ ~ %pack wir `~[leaf+msg])
+::
+++  handle-clay-unmount
+  |=  [here=rail:tarball wir=path dek=desk]
+  ^+  this
+  ?:  (kernel-desk dek)  (clay-refuse here wir dek)
   =/  clay-rail=rail:tarball  [/sys/clay %'main.clay-state']
   =/  old=(unit sang:tarball)  (peek-grub-now clay-rail)
   =/  st=clay-state:nexus
@@ -8137,11 +8155,13 @@
     !<(clay-state:nexus (need-vase:tarball u.old))
   =.  desks.st  (~(del in desks.st) dek)
   =.  this  (save-file clay-rail [[/ %clay-state] st])
-  (unmount-clay-desk dek)
+  =.  this  (unmount-clay-desk dek)
+  (enqu-take here ~ ~ %pack wir ~)
 ::
 ++  handle-clay-new-desk
-  |=  dek=desk
+  |=  [here=rail:tarball wir=path dek=desk]
   ^+  this
+  ?:  (kernel-desk dek)  (clay-refuse here wir dek)
   =/  base-paths=(list path)
     :~  /sys/kelvin
         /mar/bill/hoon
@@ -8166,7 +8186,8 @@
     :-  (rear path)
     .^(noun %cx (scot %p our.bowl) %base (scot %da now.bowl) path)
   =.  this  (emit-card [%pass /new-desk %arvo (new-desk:cloy dek ~ files)])
-  (emit-card [%pass /desk-bill %arvo %c %info dek %& [/desk/bill %ins bill+!>(~[dek])]~])
+  =.  this  (emit-card [%pass /desk-bill %arvo %c %info dek %& [/desk/bill %ins bill+!>(~[dek])]~])
+  (enqu-take here ~ ~ %pack wir ~)
 ::  /sys/clay/ file write service
 ::
 ::  Every file arrives as a mime and goes to Clay as a %mime cage, the
@@ -8177,15 +8198,17 @@
 ::  the clay-info mark instead of crashing inside Clay.
 ::
 ++  handle-clay-info
-  |=  [dek=desk files=(list [path (unit mime)])]
+  |=  [here=rail:tarball wir=path dek=desk files=(list [path (unit mime)])]
   ^+  this
+  ?:  (kernel-desk dek)  (clay-refuse here wir dek)
   =/  mis=(list [path miso:clay])
     %+  turn  files
     |=  [pax=path fil=(unit mime)]
     ^-  [path miso:clay]
     ?~  fil  [pax %del ~]
     [pax %ins %mime !>(u.fil)]
-  (emit-card [%pass /clay-info %arvo %c %info dek %& mis])
+  =.  this  (emit-card [%pass /clay-info %arvo %c %info dek %& mis])
+  (enqu-take here ~ ~ %pack wir ~)
 ::  /sys/eyre/ HTTP server service
 ::
 ++  eyre-response-cards
