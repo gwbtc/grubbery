@@ -880,7 +880,7 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
         '<div><div class="inst-app-title">' + escP(a.title || a.name) + '</div>' +
         '<div class="inst-app-sub">from ' + escP(a.ship || a.source || '') + '</div></div></div>' +
       '<label class="inst-lab">install as</label>' +
-        '<div class="inst-row"><span class="inst-pre">/apps/</span>' +
+        '<div class="inst-row"><span class="inst-pre">/apps/shell/desks/</span>' +
           '<input id="inst-name" spellcheck="false">' +
           '<span class="inst-pre">.desk</span></div>' +
         '<div id="inst-avail"></div>' +
@@ -905,7 +905,7 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
       if (!n) { avail.textContent = ''; go.disabled = true; return; }
       var dir = n + '.desk';
       var bad = taken.indexOf(dir) >= 0;
-      avail.textContent = '/apps/' + dir + (bad ? ' is taken' : ' is available');
+      avail.textContent = '/apps/shell/desks/' + dir + (bad ? ' is taken' : ' is available');
       avail.className = bad ? 'bad' : 'ok';
       go.disabled = bad;
     }

@@ -111,8 +111,26 @@
   ?~  app-kids
     ::  All pairs collected, now compile and filter
     =/  all-tools=(list tool:tools)  ~
+    ::  broken: the lines for source files in the tools dir that produced
+    ::  no usable tool. These were dropped silently, which is how
+    ::  remote_peek sat missing from every ship's list with its source in
+    ::  the bundle looking correct -- the count read 71 instead of 72 and
+    ::  nothing named the one that went. A tool you cannot call is news.
+    ::
+    ::  A TAPE, not a list of [name why]: this rides through the |- below
+    ::  as a loop parameter, and a structured accumulator fuses a
+    ::  recursive type onto that parameter when the branch below reads it
+    ::  (fuse-loop, whether the test is ?~ or =(~ ...)). A tape is built
+    ::  in order, needs no flop, and carries no faces to fuse.
+    =/  broken=tape  ""
     |-
     ?~  pairs
+      ::  broken tools ride on EVERY answer, filters included: a name
+      ::  glob that matches nothing is exactly when you want to be told
+      ::  the tool you asked for is sitting there not compiling.
+      =/  broke-text=tape
+        ?:  =("" broken)  ""
+        (weld "\0a\0aFAILED TO COMPILE -- present but unusable:" broken)
       =/  matches=(list tool:tools)
         %+  skim  all-tools
         |=  =tool:tools
@@ -124,11 +142,11 @@
           (has-substr (trip u.pat-search) (trip description:tool))
         &(name-ok search-ok)
       ?~  matches
-        (pure:m [%text 'No tools found'])
+        (pure:m [%text (crip "No tools found{broke-text}")])
       ?:  names-only
         =/  result=tape
           (zing (turn matches |=(=tool:tools "\0a{(trip name:tool)}")))
-        (pure:m [%text (crip "{<(lent matches)>} tools:{result}")])
+        (pure:m [%text (crip "{<(lent matches)>} tools:{result}{broke-text}")])
       =/  result=tape
         %-  zing
         %+  turn  matches
@@ -151,16 +169,27 @@
             (join ", " (turn req trip))
           (weld out "\0a  required: {req-text}")
         out
-      (pure:m [%text (crip "{<(lent matches)>} tools found:{result}")])
+      (pure:m [%text (crip "{<(lent matches)>} tools found:{result}{broke-text}")])
     =/  [cp=path n=@ta]  `[path @ta]`i.pairs
     =/  tool-road=road:tarball
       ?^  cp  [%& %& cp n]
       [%| 1 [%& /code/lib/tools n]]
     ;<  res=built:nexus  bind:m  (get-code-full:io tool-road)
-    ?.  ?=(%vase -.res)  $(pairs t.pairs)
+    ::  +built is [%vase *], [%tang *] or [%mime *]: a failed build keeps
+    ::  its trace as the tang. Say so and name the file; check_bin on it
+    ::  prints the trace itself.
+    ?.  ?=(%vase -.res)
+      =/  why=tape
+        ?:  ?=(%tang -.res)  "did not compile; check_bin it for the trace"
+        "no compiled artifact"
+      $(pairs t.pairs, broken (weld broken "\0a  {(trip n)}  --  {why}"))
     =/  got=(each tool:tools tang)
       (mule |.(!<(tool:tools vase.res)))
-    ?.  ?=(%& -.got)  $(pairs t.pairs)
+    ?.  ?=(%& -.got)
+      %=  $
+        pairs   t.pairs
+        broken  (weld broken "\0a  {(trip n)}  --  compiled, but does not nest as a tool")
+      ==
     $(pairs t.pairs, all-tools [p.got all-tools])
   $(app-kids t.app-kids)
 --

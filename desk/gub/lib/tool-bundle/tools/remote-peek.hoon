@@ -45,26 +45,29 @@
   =/  label=tape
     ?~  name-raw  "{(trip u.path-raw)}/ on {(trip u.ship-raw)}"
     "{(trip u.path-raw)}/{(trip u.name-raw)} on {(trip u.ship-raw)}"
-  ?+  -.view
-    (pure:m [%text (crip "Peeked {label}: {<-.view>}")])
-      %none
-    (pure:m [%text (crip "Nothing at {label}")])
-      %veto
-    (pure:m [%error (crip "Blocked: no permission to peek {label}")])
-      %tomb
-    (pure:m [%error (crip "Tombstoned: data at {label} has been removed")])
-      %file
-    =/  [* * =sang:tarball]  view
+  ::  ?= on the WHOLE view, never a switch on its head. A switch tests the
+  ::  tag without refining the type, so the branches had to read the view
+  ::  by slot -- and a slot count is a promise about a type you do not
+  ::  control. %file grew a `bang` field and the three-slot read became
+  ::  nest-fail: need path, have rail. The tool then vanished from
+  ::  tools/list with its source sitting in the bundle looking correct.
+  ::  ?= refines, so these read by face and survive the next field.
+  ?:  ?=([%file *] view)
     =/  res=(each tape tang)
-      (mule |.((trip q.q:;;(mime (sang-noun:tarball sang)))))
+      (mule |.((trip q.q:;;(mime (sang-noun:tarball sang.view)))))
     ?:  ?=(%& -.res)
       (pure:m [%text (crip p.res)])
-    (pure:m [%text (crip "Peeked {label} ({<p.sang>})")])
-      %ball
-    =/  [* * b=ball:tarball]  view
+    (pure:m [%text (crip "Peeked {label} ({<p.sang.view>})")])
+  ?:  ?=([%ball *] view)
     =/  files=(list @ta)
-      ?~(fil.b ~ ~(tap in ~(key by contents.u.fil.b)))
-    =/  dirs=(list @ta)  ~(tap in ~(key by dir.b))
+      ?~(fil.ball.view ~ ~(tap in ~(key by contents.u.fil.ball.view)))
+    =/  dirs=(list @ta)  ~(tap in ~(key by dir.ball.view))
     (pure:m [%text (crip "Peeked {label}:\0a  dirs: {<dirs>}\0a  files: {<files>}")])
-  ==
+  ?:  ?=(%none -.view)
+    (pure:m [%text (crip "Nothing at {label}")])
+  ?:  ?=(%veto -.view)
+    (pure:m [%error (crip "Blocked: no permission to peek {label}")])
+  ?:  ?=(%tomb -.view)
+    (pure:m [%error (crip "Tombstoned: data at {label} has been removed")])
+  (pure:m [%text (crip "Peeked {label}: {<-.view>}")])
 --

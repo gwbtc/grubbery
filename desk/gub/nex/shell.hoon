@@ -382,10 +382,19 @@
         ::  notify on reload too: a fresh install's ask predates this
         ::  follower, so there is no change-news to catch — and an ask
         ::  still pending across a reload deserves the re-ping anyway.
-        ;<  ~  bind:m  (notify-if-unsettled rail u.ap)
-        ::  a reload drops grant.json (an app's on-load never lists it);
-        ::  an approved app must not read as unapproved after one
-        ;<  ~  bind:m  (regrant-if-dropped rail u.ap)
+        ::  Regrant FIRST: a reload drops grant.json and the app's sand
+        ::  comes up empty, so its fibers bang on their first poke and are
+        ::  rebuilt on every take until the grant is back. Nothing may sit
+        ::  in front of that.
+        ;<  did=(unit ~)  bind:m
+          ((with-timeout:io ,~) /regrant ~s30 (regrant-if-dropped rail u.ap))
+        ~?  >>  ?=(~ did)  [%shell-follower-regrant-timeout u.ap]
+        ::  then the notice, bounded: a notify whose ack never came (the
+        ::  notifications nexus busy or banged) used to hold the follower
+        ::  here for good, deaf to every change to the files it follows
+        ;<  did=(unit ~)  bind:m
+          ((with-timeout:io ,~) /notify ~s30 (notify-if-unsettled rail u.ap))
+        ~?  >>  ?=(~ did)  [%shell-follower-notify-timeout u.ap]
         |-
         ;<  ~  bind:m  take-any-news
         ;<  live=?  bind:m  (peek-exists:io [%& %| u.ap])
@@ -1459,31 +1468,73 @@
   ^-  form:m
   =/  t=tape  (trip n)
   =/  s=@t  (crip (scag (sub (lent t) 5) t))
-  ::  the mirror holds the peer's /share/public/desks.json — an array of
-  ::  desk cards {name, dir, code}, each a desk we may install.
-  =/  entries=(list json)
+  ::  the mirror holds the peer's desk cards, enriched by the mirror
+  ::  fiber when the peer's storefront last changed; nothing here reaches
+  ::  the peer, so a dead peer costs this listing nothing
+  =/  cards=(list json)
     ?:  (is-boom:tarball sang)  ~
     =/  r=(each json tang)
       (mule |.(!<(json (need-vase:tarball sang))))
     ?:  ?=(%| -.r)  ~
     ?.  ?=(%a -.p.r)  ~
     p.p.r
-  ;<  apps=(list json)  bind:m  (peer-apps s entries srcs)
+  =/  apps=(list json)  (turn cards |=(c=json (mark-installed c srcs)))
   (pure:m (pairs:enjs:format ~[['ship' s+s] ['apps' a+apps]]))
 ::
 ++  peer-apps
-  |=  [s=@t entries=(list json) srcs=(map @t @t)]
+  |=  [s=@t entries=(list json)]
   =/  m  (fiber:fiber:nexus ,(list json))
   ^-  form:m
   ?~  entries  (pure:m ~)
-  ;<  one=json  bind:m  (peer-app s i.entries srcs)
+  ::  each card costs remote peeks into the peer; a peer that stops
+  ::  answering mid-way costs this mirror a wait and a bare card, never
+  ::  the listing
+  ;<  one=(unit json)  bind:m
+    ((with-timeout:io ,json) /enrich ~s20 (peer-app s i.entries))
+  ~?  >>  ?=(~ one)  [%shell-peer-card-timeout s (jstr i.entries 'name')]
+  =/  card=json  ?^(one u.one (bare-card s i.entries))
   ;<  rest=(list json)  bind:m  $(entries t.entries)
-  (pure:m [one rest])
+  (pure:m [card rest])
+::  +bare-card: a peer's desk card with nothing fetched from the peer:
+::  what its storefront entry alone says
+::
+++  bare-card
+  |=  [s=@t entry=json]
+  ^-  json
+  =/  ename=@t  (jstr entry 'name')
+  =/  dir=@t    (jstr entry 'dir')
+  =/  code-src=@t  (cat 3 s (jstr entry 'code'))
+  %-  pairs:enjs:format
+  :~  ['path' s+(cat 3 '/apps/shell/desks/' dir)]
+      ['name' s+ename]
+      ['title' s+ename]
+      ['info' s+'']
+      ['color' s+'']
+      ['version' ~]
+      ['icon' ~]
+      ['ship' s+s]
+      ['code' s+code-src]
+      ['source' s+code-src]
+  ==
+::  +mark-installed: a mirrored card plus whether this ship follows it
+::  (a local desk whose source is the card's code) and as what
+::
+++  mark-installed
+  |=  [card=json srcs=(map @t @t)]
+  ^-  json
+  ?.  ?=([%o *] card)  card
+  =/  src=@t  (jstr card 'source')
+  =/  loc=(unit @t)  (~(get by srcs) src)
+  :-  %o
+  %-  ~(gas by p.card)
+  :~  ['installed' b+?=(^ loc)]
+      ['local' ?~(loc ~ s+u.loc)]
+  ==
 ::  +peer-app: one published desk as a card — tile metadata and icon from
 ::  a shallow peek of its code tree, version from canonical file names.
 ::
 ++  peer-app
-  |=  [s=@t entry=json srcs=(map @t @t)]
+  |=  [s=@t entry=json]
   =/  m  (fiber:fiber:nexus ,json)
   ^-  form:m
   =/  dir=@t    (jstr entry 'dir')       :: the desk's dir name on the peer
@@ -1542,8 +1593,6 @@
       ['ship' s+s]
       ['code' s+code-src]
       ['source' s+code-src]
-      ['installed' b+(~(has by srcs) code-src)]
-      ['local' ?~((~(get by srcs) code-src) ~ s+(need (~(get by srcs) code-src)))]
   ==
 ::  +try-version: a remote desk's version through canonical file names,
 ::  since its root is not listable.
@@ -1992,7 +2041,12 @@
   =/  res=(each json tang)
     (mule |.(!<(json (need-vase:tarball sang.pv))))
   ?:  ?=(%| -.res)  (pure:m ~)
-  (replace:io p.res)
+  ::  the storefront names desks; the cards other pages show need the
+  ::  peer's tile, icon and version too. Fetch them HERE, once per change
+  ::  of the storefront, so the listing endpoint reads only this mirror.
+  =/  entries=(list json)  ?.(?=([%a *] p.res) ~ p.p.res)
+  ;<  cards=(list json)  bind:m  (peer-apps s entries)
+  (replace:io a+cards)
 ::
 +$  tile
   $:  name=@ta
