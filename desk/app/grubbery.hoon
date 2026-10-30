@@ -6230,11 +6230,7 @@
   ^-  ?
   =/  t=tape  (trip seg)
   =/  len=@ud  (lent t)
-  ::  dek/: the desks the kernel ships (dek/forge, ...). Their code is a
-  ::  desk's, built by that desk's own code nexus once it mirrors it, so
-  ::  here it is data, as a checked-out tree would be.
   ?|  =("bundle" t)
-      =("dek" t)
       &((gth len 7) =("-bundle" (slag (sub len 7) t)))
   ==
 ::
@@ -7038,7 +7034,7 @@
   (rush (crip (skip (trip t) |=(a=@tD =('.' a)))) dim:ag)
 ::  +asof-arg: the ?asof= a request asked for.
 ::
-::    Spelled <path>:<version> -- /apps/forge.git_forge/repos:14 -- so
+::    Spelled <path>:<version> -- /apps/shell/forge/repos:14 -- so
 ::    one argument carries both halves: WHOSE version, and which. A case
 ::    says "this path at version N"; an asof says "this path as it was
 ::    inside version N of that ancestor".

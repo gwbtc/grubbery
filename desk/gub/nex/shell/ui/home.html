@@ -13,10 +13,7 @@
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-bell"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
         <span id="bell-count" style="display:none"></span>
       </a>
-      <button id="add-btn" class="hdr-btn" onclick="addTile()">+ New</button>
-      <button id="get-btn" class="hdr-btn" onclick="openGet()">Get Apps</button>
-      <button id="desks-btn" class="hdr-btn" onclick="openDesks()">Desks</button>
-      <a class="hdr-btn" href="/apps/grubbery/peers" title="Ships and usergroups" style="text-decoration:none;">Peers</a>
+      <button id="add-btn" class="hdr-btn" onclick="openAdd()">Manage Desks</button>
       <button id="hidden-btn" class="hdr-btn" onclick="toggleHiddenView()" style="display:none">Hidden</button>
     </div>
     <div id="bell-backdrop" onclick="closeBell(event)">
@@ -35,53 +32,103 @@
       <div id="get-panel">
         <div id="get-head">
           <button id="get-back" class="hdr-btn" onclick="instBack()">back</button>
-          <span id="get-title">Get apps</span>
+          <span id="get-title">Install</span>
+          <div id="add-tabs">
+            <button class="dtab" data-tab="ships" onclick="addTab('ships')">Install</button>
+            <button class="dtab" data-tab="mine" onclick="addTab('mine')">Installed</button>
+          </div>
           <a class="hdr-btn" href="/apps/grubbery/permits">Sandbox Settings</a>
           <button class="hdr-btn" onclick="closeGetNow()">close</button>
         </div>
         <div id="get-slider">
           <div class="get-screen">
-            <div id="get-search">
-              <input id="peer-ship" type="text" placeholder="search ~ship" autocomplete="off">
-              <button class="hdr-btn" onclick="peerAdd()">search</button>
-              <div id="peer-suggest"></div>
+            <div id="ships-view" class="add-view">
+              <div id="sub-tabs">
+                <button class="stab" data-sub="ship" onclick="subTab('ship')">From a ship</button>
+                <button class="stab" data-sub="forge" onclick="subTab('forge')">From your forge</button>
+                <button class="stab" data-sub="source" onclick="subTab('source')">From source</button>
+                <button class="stab" data-sub="stock" onclick="subTab('stock')">Recommended</button>
+              </div>
+              <div id="sub-ship" class="sub-view">
+                <div id="get-search">
+                  <input id="peer-ship" type="text" placeholder="search ~ship" autocomplete="off">
+                  <button class="hdr-btn" onclick="peerAdd()">search</button>
+                  <div id="peer-suggest"></div>
+                </div>
+                <div id="peer-lists"></div>
+              </div>
+              <div id="sub-forge" class="sub-view">
+                <div class="stock-sub">Repos in your forge whose checkout has a /code directory.</div>
+                <div id="forge-list"></div>
+              </div>
+              <div id="sub-stock" class="sub-view">
+                <div class="stock-sub">Grubbery's picks. They are set up on a fresh ship without asking; install one here if it is missing.</div>
+                <div id="stock-list"></div>
+              </div>
+              <div id="sub-source" class="sub-view">
+                <div class="stock-sub">Any directory a desk can follow: ~ship/path, @forge/repos/…/data/tree/code, /code/dek/…, or another path on this ship.</div>
+                <div id="src-form">
+                  <input id="src-name" type="text" placeholder="name" spellcheck="false">
+                  <input id="src-code" type="text" placeholder="source" spellcheck="false">
+                  <button class="hdr-btn primary" onclick="installFromForm()">Install</button>
+                </div>
+              </div>
             </div>
-            <div id="peer-lists"></div>
+            <div id="mine-view" class="add-view">
+              <div id="desks-list"></div>
+              <div id="pub-sheet" style="display:none">
+                <div id="pub-head">
+                  <span id="pub-title">Publish</span>
+                  <a class="hdr-btn" href="/apps/grubbery/peers/usergroups">Groups</a>
+                  <button class="hdr-btn" onclick="closePublish()">done</button>
+                </div>
+                <div class="stock-sub">Ships in a ticked group may follow this desk. Public means every ship.</div>
+                <div id="pub-groups"></div>
+              </div>
+            </div>
+            <div id="add-foot">
+              <span>Not a desk?</span>
+              <button class="hdr-btn" onclick="addTile()">Pin a link □</button>
+            </div>
           </div>
           <div class="get-screen">
             <div id="inst-screen"></div>
             <div id="inst-foot"></div>
           </div>
-        </div>
-      </div>
-    </div>
-    <div id="desks-backdrop" onclick="closeDesks(event)">
-      <div id="desks-panel">
-        <div id="desks-head">
-          <div id="desks-tabs">
-            <button class="dtab active" data-tab="mine" onclick="desksTab('mine')">Your desks</button>
-            <button class="dtab" data-tab="stock" onclick="desksTab('stock')">Stock</button>
+          <div class="get-screen" id="pin-screen">
+            <div id="edit-form">
+              <label>Title<input id="f-title" type="text" placeholder="What it's called"></label>
+              <label>Opens<input id="f-href" type="text" placeholder="/apps/… or https://…"></label>
+              <label>About<input id="f-info" type="text" placeholder="One line, shown on hover"></label>
+              <label>Color<span class="color-row"><input id="f-color-pick" type="color"><input id="f-color" type="text" placeholder="#333"></span></label>
+              <label>Image<input id="f-image" type="text" placeholder="Image URL (optional)"></label>
+            </div>
+            <textarea id="edit-json" rows="10" placeholder="{}"></textarea>
+            <div id="edit-status"></div>
+            <div id="edit-actions">
+              <button id="edit-raw" class="hdr-btn subtle">raw json</button>
+              <span class="spacer"></span>
+              <button id="edit-save" class="hdr-btn primary">save</button>
+            </div>
           </div>
-          <button class="hdr-btn" onclick="closeDesksNow()">close</button>
-        </div>
-        <div id="desks-list"></div>
-        <div id="stock-view" style="display:none">
-          <div class="stock-sub">Vendored repos that ship with the shell.</div>
-          <div id="stock-list"></div>
         </div>
       </div>
     </div>
     <div id="edit-backdrop">
       <div id="edit-modal">
         <div id="edit-header">
-          <span id="edit-title">Edit tile</span>
-          <div>
-            <button id="edit-save" class="hdr-btn">save</button>
-            <button id="edit-close" class="hdr-btn">close</button>
-          </div>
+          <span id="edit-title">Tile</span>
+          <button id="edit-close" class="hdr-btn">close</button>
         </div>
-        <textarea id="edit-json" rows="10" placeholder="{}"></textarea>
-        <div id="edit-status"></div>
+        <div id="edit-card">
+          <div id="edit-preview"><div id="edit-preview-title"></div></div>
+          <dl id="edit-fields"></dl>
+        </div>
+        <div id="card-actions">
+          <button id="edit-hide" class="hdr-btn">hide</button>
+          <button id="edit-uninstall" class="hdr-btn danger">delete tile</button>
+          <button id="edit-edit" class="hdr-btn">edit</button>
+        </div>
       </div>
     </div>
     <div id="tiles">

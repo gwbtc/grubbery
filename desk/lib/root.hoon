@@ -98,6 +98,12 @@
         ::  (its /tools directory, lib/shell/mcp), so @tools is that.
         [%fall %| /sys/link/tools [`[~ ~ %.n ~] ~]]
         [%fall %& [/sys/link/tools %'dest.lanes'] [[/ %lanes] ~[`lane:tarball`[%| /apps/shell/tools]]]]
+        ::  forge: the shell's git forge, and the github proxy it houses
+        ::  at /github. Stock sync finds the forge by this name.
+        [%fall %| /sys/link/forge [`[~ ~ %.n ~] ~]]
+        [%fall %& [/sys/link/forge %'dest.lanes'] [[/ %lanes] ~[`lane:tarball`[%| /apps/shell/forge]]]]
+        [%fall %| /sys/link/github [`[~ ~ %.n ~] ~]]
+        [%fall %& [/sys/link/github %'dest.lanes'] [[/ %lanes] ~[`lane:tarball`[%| /apps/shell/forge/github]]]]
         ::  notifications: the inbox is a service of the shell (its
         ::  /notifications directory); the name points into it, so
         ::  @notifications/main.sig is the shell's notifications/main.sig.

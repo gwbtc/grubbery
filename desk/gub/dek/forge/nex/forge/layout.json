@@ -1,3 +1,0 @@
-{"div":{"dir":"horizontal","ratio":0.2,
- "a":{"open":{"to":"#repo","mode":"tab"},"tabs":[{"label":"repos","entries":[{"path":"./repos"}],"cursor":0}]},
- "b":{"id":"repo","bar":true,"nav":false,"tabs":[{"entries":[],"cursor":-1}]}}}

@@ -177,6 +177,7 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
   function buildTile(t) {
     var d = document.createElement('div');
     d.className = t.image ? 'tile has-img' : 'tile';
+    if (!t.root) d.classList.add('pinned'); // a link you pinned, not an app's tile
     d.dataset.tile = t.name;
     var bg = document.createElement('div');
     bg.className = 'tile-bg';
@@ -196,6 +197,13 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     ttl.className = 'tile-title';
     ttl.textContent = t.title || '';
     lbl.appendChild(ttl);
+    if (!t.root) {
+      var pin = document.createElement('span');
+      pin.className = 'tile-pin';
+      pin.title = 'pinned link';
+      pin.textContent = '□';
+      ttl.appendChild(pin);
+    }
     if (t.info) {
       var desc = document.createElement('div');
       desc.className = 'tile-desc';
@@ -256,30 +264,6 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     paintTiles();
   }
 
-  function uninstallTile(t, tiles) {
-    var m = t.root.match(/^\/apps\/([^\/]+)\/desk\/data\/[^\/]+$/);
-    var word, msg;
-    if (m) {
-      var desk = m[1];
-      var shipped = tiles.filter(function(x) {
-        return x.root && x.root.indexOf('/apps/' + desk + '/') === 0;
-      }).map(function(x) { return x.title || x.name; });
-      word = desk;
-      msg = 'CAREFUL: this app ships with the desk "' + desk + '". Uninstalling removes the '
-        + 'WHOLE desk and every app it ships' + (shipped.length ? ':\n\n  ' + shipped.join('\n  ') : '')
-        + '\n\nAll their data is permanently deleted. Type "' + desk + '" to confirm:';
-    } else {
-      word = t.root.replace(/^\/apps\//, '');
-      msg = 'CAREFUL: this permanently deletes ' + t.root + ' and all its data. Type "' + word + '" to confirm:';
-    }
-    if (prompt(msg) !== word) return;
-    fetch('/grubbery/tiles/uninstall', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ root: t.root })
-    }).then(function() { setTimeout(loadTiles, 600); });
-  }
-
   function loadTiles() {
     fetch('/grubbery/tiles/tiles.json')
       .then(function(r) { return r.json(); })
@@ -287,21 +271,143 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
       .catch(function() { tilesDiv.innerHTML = '<div class="empty">failed to load tiles</div>'; });
   }
 
+  // the modal has three faces: a read-only card ('view'), a fields form
+  // ('form') and a raw JSON editor ('json'). The two editors show the same
+  // tile; switching between them carries the current values across.
+  var FIELDS = ['title', 'href', 'info', 'color', 'image'];
+  var mode = 'view';
+  function show(id, on) { document.getElementById(id).style.display = on ? '' : 'none'; }
+  // the card modal shows one tile; a pinned link also offers edit, which
+  // opens the Manage Desks panel on its pin screen
+  function modalMode(m, t) {
+    show('edit-edit', t && !t.root);
+  }
+  // the pin screen's two faces: the fields form or the raw json
+  function pinMode(m) {
+    mode = m;
+    show('edit-form', m === 'form');
+    show('edit-json', m === 'json');
+    document.getElementById('edit-raw').textContent = m === 'json' ? 'fields' : 'raw json';
+  }
+  // the pin screen, inside the Manage Desks panel, behind a back button
+  function openPin(title, t) {
+    editBack.classList.remove('open');
+    var panel = document.getElementById('get-panel');
+    if (!document.getElementById('get-backdrop').classList.contains('open')) openAdd('mine');
+    panel.classList.remove('inst');
+    panel.classList.add('pin');
+    document.getElementById('get-title').textContent = title;
+    openEditor(t);
+    document.getElementById('f-title').focus();
+  }
+  function formFill(t) {
+    FIELDS.forEach(function(k) { document.getElementById('f-' + k).value = t[k] || ''; });
+    pickFromHex();
+  }
+  function formRead() {
+    var t = {};
+    FIELDS.forEach(function(k) { t[k] = document.getElementById('f-' + k).value.trim(); });
+    return t;
+  }
+  // the colour chip and the hex box are one value
+  function pickFromHex() {
+    var hex = document.getElementById('f-color').value.trim();
+    if (/^#[0-9a-f]{6}$/i.test(hex)) document.getElementById('f-color-pick').value = hex;
+  }
+  document.getElementById('f-color').oninput = pickFromHex;
+  document.getElementById('f-color-pick').oninput = function() {
+    document.getElementById('f-color').value = this.value;
+  };
+  // the editor's current content, whichever face is up. null = invalid JSON.
+  function editorRead() {
+    if (mode === 'form') return formRead();
+    try { return JSON.parse(editJson.value); } catch(e) { return null; }
+  }
+  function openEditor(t) {
+    editStatus.textContent = '';
+    formFill(t);
+    editJson.value = JSON.stringify(t, null, 2);
+    pinMode('form');
+  }
+  document.getElementById('edit-raw').onclick = function() {
+    if (mode === 'form') {
+      editJson.value = JSON.stringify(formRead(), null, 2);
+      pinMode('json');
+      return;
+    }
+    var t = editorRead();
+    if (!t) {
+      editStatus.textContent = 'Invalid JSON';
+      editStatus.style.color = '#f87171';
+      return;
+    }
+    editStatus.textContent = '';
+    formFill(t);
+    pinMode('form');
+  };
+
   function addTile() {
     isNew = true;
     editName = 'tile-' + Date.now().toString(36);
-    editTitle.textContent = 'New tile';
-    editStatus.textContent = '';
-    editJson.disabled = false;
-    document.getElementById('edit-save').style.display = '';
-    editJson.value = JSON.stringify({
-      image: '',
-      title: 'New tile',
-      href: '',
-      color: '#333',
-      info: ''
-    }, null, 2);
-    editBack.classList.add('open');
+    openPin('Pin a link', { title: '', href: '', info: '', color: '#333333', image: '' });
+  }
+
+  // the read-only card: a preview of the tile as it sits on the grid, then
+  // its fields as labelled rows. Empty fields are left out.
+  function fillCard(t) {
+    var pv = document.getElementById('edit-preview');
+    pv.style.background = t.color || '#333';
+    var old = pv.querySelector('img');
+    if (old) old.remove();
+    if (t.image) {
+      var im = document.createElement('img');
+      im.src = t.image;
+      im.onerror = function() { this.remove(); };
+      pv.insertBefore(im, pv.firstChild);
+    }
+    document.getElementById('edit-preview-title').textContent = t.title || '';
+    var dl = document.getElementById('edit-fields');
+    dl.innerHTML = '';
+    function row(label, node) {
+      var dt = document.createElement('dt');
+      dt.textContent = label;
+      var dd = document.createElement('dd');
+      dd.appendChild(node);
+      dl.appendChild(dt);
+      dl.appendChild(dd);
+    }
+    function text(s) { return document.createTextNode(s); }
+    function mono(s) {
+      var c = document.createElement('code');
+      c.textContent = s;
+      return c;
+    }
+    if (t.info) row('About', text(t.info));
+    if (t.href) {
+      var a = document.createElement('a');
+      a.href = t.href;
+      a.target = '_blank';
+      a.textContent = t.href;
+      row('Opens', a);
+    }
+    if (t.root) {
+      row('App', mono(t.root));
+    } else {
+      row('Kind', text('pinned link, not tied to a desk'));
+    }
+    if (t.color) {
+      var sw = document.createElement('span');
+      sw.className = 'swatch';
+      sw.style.background = t.color;
+      var wrap = document.createElement('span');
+      wrap.appendChild(sw);
+      wrap.appendChild(mono(t.color));
+      row('Color', wrap);
+    }
+    // an app's icon is served by the shell itself; only a pinned link's
+    // image is something you chose
+    if (t.image && t.image.indexOf('/grubbery/tiles/icon/') !== 0) row('Image', mono(t.image));
+    if (t.hidden) row('Shown', text('hidden from the home grid'));
   }
 
   function viewTile(el, name) {
@@ -312,45 +418,28 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     var disp = name.slice(-5) === '.json' ? name.slice(0, -5) : name;
     editTitle.textContent = t.title || disp;
     editStatus.textContent = '';
-    // name is the tile's identity key (its filename), stapled on by the
-    // /tiles.json API -- not part of the grub's content, so don't show it
-    var content = Object.assign({}, t);
-    delete content.name;
-    editJson.value = JSON.stringify(content, null, 2);
-    editJson.disabled = true;
-    document.getElementById('edit-save').style.display = 'none';
+    modalMode('view', t);
+    fillCard(t);
+    // a pinned link is yours to change; an app's tile comes from its desk
+    document.getElementById('edit-edit').onclick = function() {
+      isNew = false;
+      editName = name;
+      var content = {};
+      FIELDS.forEach(function(k) { content[k] = t[k] || ''; });
+      openPin('Edit ' + (t.title || name), content);
+    };
+    // an app comes and goes with its desk, which is removed from the
+    // Installed tab; only a pinned link is deleted here
     var un = document.getElementById('edit-uninstall');
-    if (!un) {
-      un = document.createElement('button');
-      un.id = 'edit-uninstall';
-      un.className = 'tile-edit';
-      un.textContent = 'uninstall';
-      document.getElementById('edit-save').parentNode.appendChild(un);
-    }
-    un.style.display = '';
-    if (t.root) {
-      un.textContent = 'uninstall';
-      un.onclick = function() {
-        editBack.classList.remove('open');
-        uninstallTile(t, Object.keys(tileData).map(function(k) { return tileData[k]; }));
-      };
-    } else {
-      un.textContent = 'delete tile';
-      un.onclick = function() {
-        editBack.classList.remove('open');
-        deleteTile(name);
-      };
-    }
+    un.style.display = t.root ? 'none' : '';
+    un.textContent = 'delete tile';
+    un.onclick = function() {
+      editBack.classList.remove('open');
+      deleteTile(name);
+    };
     // hide / unhide this tile from the home grid (a user preference, stored
     // ship-side in hidden-tiles.json — any tile can be toggled)
     var hb = document.getElementById('edit-hide');
-    if (!hb) {
-      hb = document.createElement('button');
-      hb.id = 'edit-hide';
-      hb.className = 'tile-edit';
-      document.getElementById('edit-save').parentNode.appendChild(hb);
-    }
-    hb.style.display = '';
     hb.textContent = t.hidden ? 'unhide' : 'hide';
     hb.onclick = function() {
       editBack.classList.remove('open');
@@ -367,7 +456,7 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     var el = document.querySelector('[data-tile="' + name + '"]');
     var title = el ? (el.querySelector('.tile-title') || {}).textContent || name : name;
     if (!confirm('Delete ' + title + '?')) return;
-    fetch(API + '/file/' + BALL + '/tiles/' + name + '/tile', {method: 'DELETE'})
+    fetch(API + '/file/' + BALL + '/tiles/' + name + '/tile.json', {method: 'DELETE'})
       .then(function() { loadTiles(); });
   }
 
@@ -380,15 +469,20 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
   };
 
   document.getElementById('edit-save').onclick = async function() {
-    var parsed;
-    try { parsed = JSON.parse(editJson.value); } catch(e) {
+    var parsed = editorRead();
+    if (!parsed) {
       editStatus.textContent = 'Invalid JSON';
+      editStatus.style.color = '#f87171';
+      return;
+    }
+    if (!parsed.title) {
+      editStatus.textContent = 'A title is needed';
       editStatus.style.color = '#f87171';
       return;
     }
     var method = isNew ? 'PUT' : 'POST';
     var endpoint = isNew ? '/file/' : '/over/';
-    var r = await fetch(API + endpoint + BALL + '/tiles/' + editName + '/tile?blot=/json', {
+    var r = await fetch(API + endpoint + BALL + '/tiles/' + editName + '/tile.json?blot=/json', {
       method: method,
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(parsed)
@@ -396,7 +490,7 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     if (r.ok) {
       editStatus.textContent = 'Saved';
       editStatus.style.color = '#4ade80';
-      setTimeout(function() { editBack.classList.remove('open'); loadTiles(); }, 400);
+      setTimeout(function() { instBack(); loadTiles(); }, 400);
     } else {
       editStatus.textContent = 'Save failed';
       editStatus.style.color = '#f87171';
@@ -416,33 +510,68 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     document.getElementById('peer-lists').innerHTML =
       '<div class="peer-spin"><div class="spinner"></div></div>';
   }
-  function openGet() {
+  // one panel for getting apps: three tabs (a ship's published desks,
+  // the recommended desks that ship with grubbery, what is installed) and
+  // a footer for the thing that is not an app at all, a pinned link
+  function openAdd(which) {
     instBack();
     document.getElementById('get-backdrop').classList.add('open');
-    peerSpin();
-    loadContacts();
-    loadPeers();
-    document.getElementById('peer-ship').focus();
+    addTab(which || 'ships');
+  }
+  function addTab(which) {
+    var tabs = document.querySelectorAll('#add-tabs .dtab');
+    for (var i = 0; i < tabs.length; i++) {
+      tabs[i].classList.toggle('active', tabs[i].getAttribute('data-tab') === which);
+    }
+    var views = document.querySelectorAll('.add-view');
+    for (var j = 0; j < views.length; j++) {
+      views[j].style.display = views[j].id === which + '-view' ? '' : 'none';
+    }
+    if (which === 'ships') {
+      subTab('ship');
+    } else {
+      document.getElementById('pub-sheet').style.display = 'none';
+      document.getElementById('desks-list').style.display = '';
+      loadDesks();
+    }
+  }
+  // the Install tab's three ways in: a ship's published desks, the forge's
+  // repos, or a source typed by hand
+  function subTab(which) {
+    var tabs = document.querySelectorAll('#sub-tabs .stab');
+    for (var i = 0; i < tabs.length; i++) {
+      tabs[i].classList.toggle('active', tabs[i].getAttribute('data-sub') === which);
+    }
+    var views = document.querySelectorAll('.sub-view');
+    for (var j = 0; j < views.length; j++) {
+      views[j].style.display = views[j].id === 'sub-' + which ? '' : 'none';
+    }
+    if (which === 'ship') {
+      peerSpin();
+      loadContacts();
+      loadPeers();
+      document.getElementById('peer-ship').focus();
+    } else if (which === 'forge') {
+      loadForgeRepos();
+    } else if (which === 'stock') {
+      loadStock();
+    } else {
+      document.getElementById('src-name').focus();
+    }
+  }
+  // a button the user just clicked can vanish under a re-render (Get,
+  // remove, publishing); the browser then scrolls the overflow-hidden
+  // panel sideways to chase the focus. Every re-render settles it.
+  function settlePanel() {
+    if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
+    var p = document.getElementById('get-panel');
+    if (p) p.scrollLeft = 0;
   }
   function closeGet(e) {
     if (e.target === document.getElementById('get-backdrop')) closeGetNow();
   }
   function closeGetNow() {
     document.getElementById('get-backdrop').classList.remove('open');
-  }
-  function openDesks() {
-    document.getElementById('desks-backdrop').classList.add('open');
-    desksTab('mine');
-  }
-  function desksTab(which) {
-    var mine = document.getElementById('desks-list');
-    var stock = document.getElementById('stock-view');
-    var tabs = document.querySelectorAll('#desks-tabs .dtab');
-    for (var i = 0; i < tabs.length; i++) {
-      tabs[i].classList.toggle('active', tabs[i].getAttribute('data-tab') === which);
-    }
-    if (which === 'stock') { mine.style.display = 'none'; stock.style.display = ''; loadStock(); }
-    else { stock.style.display = 'none'; mine.style.display = ''; loadDesks(); }
   }
   function loadStock() {
     var box = document.getElementById('stock-list');
@@ -451,38 +580,31 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
       .then(function(r) { return r.json(); })
       .then(function(items) {
         box.innerHTML = '';
-        if (!items.length) { box.innerHTML = '<div class="papp-none">no stock repos.</div>'; return; }
+        settlePanel();
+        if (!items.length) { box.innerHTML = '<div class="papp-none">nothing recommended.</div>'; return; }
         items.forEach(function(it) {
-          var badge = it.synced
-            ? '<span class="stock-badge ok">synced</span>'
-            : '<span class="stock-badge no">not synced</span>';
-          var sub = (it.kind === 'code')
-            ? escP(it.code)
-            : (escP(it.repo) + ' · ' + escP(it.ref));
           var row = document.createElement('div');
           row.className = 'papp';
           row.innerHTML =
             '<div class="papp-body">' +
-              '<div class="papp-title">' + escP(it.name) + ' ' + badge + '</div>' +
-              '<div class="papp-sub">' + sub + '</div>' +
+              '<div class="papp-title">' + escP(it.name) + '</div>' +
+              '<div class="papp-sub">' + escP(it.repo) + ' · ' + escP(it.ref) + '</div>' +
             '</div>' +
-            '<button class="papp-get" data-name="' + escP(it.name) + '" onclick="syncOne(this)">Sync</button>';
+            (it.synced
+              ? '<button class="papp-get" disabled>Installed</button>'
+              : '<button class="papp-get" data-name="' + escP(it.name) + '" onclick="syncOne(this)">Install</button>');
           box.appendChild(row);
         });
-        var foot = document.createElement('div');
-        foot.className = 'stock-foot';
-        foot.innerHTML = '<button class="hdr-btn primary" onclick="syncDefaults(this)">Sync all</button>';
-        box.appendChild(foot);
+        if (items.some(function(it) { return !it.synced; })) {
+          var foot = document.createElement('div');
+          foot.className = 'stock-foot';
+          foot.innerHTML = '<button class="hdr-btn primary" onclick="syncDefaults(this)">Install all</button>';
+          box.appendChild(foot);
+        }
       })
       .catch(function(e) {
         box.innerHTML = '<div class="papp-none">failed to load stock: ' + escP(String((e && e.message) || e)) + '</div>';
       });
-  }
-  function closeDesks(e) {
-    if (e.target === document.getElementById('desks-backdrop')) closeDesksNow();
-  }
-  function closeDesksNow() {
-    document.getElementById('desks-backdrop').classList.remove('open');
   }
   function loadDesks() {
     var box = document.getElementById('desks-list');
@@ -491,6 +613,7 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
       .then(function(r) { return r.json(); })
       .then(function(desks) {
         box.innerHTML = '';
+        settlePanel();
         if (!desks.length) { box.innerHTML = '<div class="papp-none">no desks yet.</div>'; return; }
         desks.forEach(function(d) {
           var src = d.source || '';
@@ -498,23 +621,125 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
           var url = d.url || ('/grubbery/desk/' + String(d.name).split('.')[0]);
           var row = document.createElement('div');
           row.className = 'papp';
+          var share = d.share || [];
+          var badge = '<span class="stock-badge ' + (share.length ? 'ok' : 'no') + '">' + escP(shareLabel(share)) + '</span>';
           row.innerHTML =
             '<div class="papp-body">' +
-              '<div class="papp-title">' + escP(d.name) + '</div>' +
+              '<div class="papp-title">' + escP(d.name) + ' ' + badge + '</div>' +
               '<div class="papp-sub">' + escP(srcLabel) + '</div>' +
             '</div>' +
-            '<a class="papp-get" href="' + escP(url) + '">Open</a>';
+            '<button class="papp-pub" data-pub="' + escP(d.name) + '">publishing</button>' +
+            '<a class="papp-get" href="' + escP(url) + '">Open</a>' +
+            '<button class="papp-un" data-desk="' + escP(d.name) + '">remove</button>';
           box.appendChild(row);
+        });
+        Array.prototype.forEach.call(box.querySelectorAll('[data-desk]'), function(b) {
+          b.onclick = function() { removeDesk(b.getAttribute('data-desk'), b); };
+        });
+        Array.prototype.forEach.call(box.querySelectorAll('[data-pub]'), function(b) {
+          b.onclick = function() {
+            var name = b.getAttribute('data-pub');
+            var d = desks.filter(function(x) { return x.name === name; })[0];
+            openPublish(d);
+          };
         });
       })
       .catch(function(e) {
         box.innerHTML = '<div class="papp-none">failed to load desks: ' + escP(String((e && e.message) || e)) + '</div>';
       });
   }
+  // what a desk's publish button says: who may follow it
+  function shareLabel(share) {
+    if (!share.length) return 'private';
+    if (share.indexOf('/public') >= 0) return 'public';
+    return share.length === 1 ? share[0] : share.length + ' groups';
+  }
+  // the publish sheet: every usergroup on this ship with a tick for the
+  // ones this desk is open to; a tick posts the share command and the
+  // follower rebuilds the public listing behind it
+  var pubDesk = null;
+  function openPublish(d) {
+    pubDesk = d;
+    document.getElementById('pub-title').textContent = 'Publish ' + d.name.replace(/\.desk$/, '');
+    document.getElementById('desks-list').style.display = 'none';
+    document.getElementById('pub-sheet').style.display = '';
+    settlePanel();
+    var box = document.getElementById('pub-groups');
+    box.innerHTML = '<div class="peer-spin"><div class="spinner"></div></div>';
+    fetch('/apps/grubbery/peers.json')
+      .then(function(r) { return r.json(); })
+      .then(function(groups) {
+        box.innerHTML = '';
+        groups.sort(function(a, b) { return a.public ? -1 : b.public ? 1 : a.name < b.name ? -1 : 1; });
+        groups.forEach(function(g) {
+          var on = (d.share || []).indexOf(g.name) >= 0;
+          var row = document.createElement('label');
+          row.className = 'pub-row';
+          var who = g.public ? 'every ship' : (g.members.length + ' ship' + (g.members.length === 1 ? '' : 's'));
+          row.innerHTML =
+            '<input type="checkbox"' + (on ? ' checked' : '') + '>' +
+            '<span class="pub-name">' + escP(g.name) + '</span>' +
+            '<span class="pub-who">' + escP(who) + '</span>';
+          var cb = row.querySelector('input');
+          cb.onchange = function() {
+            cb.disabled = true;
+            var cmd = { name: d.name.replace(/\.desk$/, '') };
+            cmd[cb.checked ? 'add' : 'remove'] = g.name;
+            fetch('/grubbery/tiles/desks/share', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify(cmd)
+            }).then(function(r) {
+              cb.disabled = false;
+              if (!r.ok) { cb.checked = !cb.checked; return; }
+              d.share = (d.share || []).filter(function(x) { return x !== g.name; });
+              if (cb.checked) d.share.push(g.name);
+            });
+          };
+          box.appendChild(row);
+        });
+        if (!groups.length) box.innerHTML = '<div class="papp-none">no usergroups on this ship.</div>';
+      })
+      .catch(function(e) {
+        box.innerHTML = '<div class="papp-none">failed to load groups: ' + escP(String((e && e.message) || e)) + '</div>';
+      });
+  }
+  function closePublish() {
+    pubDesk = null;
+    document.getElementById('pub-sheet').style.display = 'none';
+    document.getElementById('desks-list').style.display = '';
+    loadDesks();
+  }
+  // remove a whole desk and every app it ships, from the Installed tab
+  function removeDesk(name, btn) {
+    var word = name.replace(/\.desk$/, '');
+    var msg = 'CAREFUL: this removes the whole desk "' + word + '" and every app it ships. '
+      + 'All their data is permanently deleted. Type "' + word + '" to confirm:';
+    if (prompt(msg) !== word) return;
+    btn.disabled = true; btn.textContent = 'removing…';
+    fetch('/grubbery/tiles/uninstall', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ root: '/apps/shell/desks/' + name })
+    }).then(function(r) {
+      // a refused uninstall used to land here unread: the button said
+      // "removing…", the list reloaded unchanged, and the desk was still
+      // there with nothing said. Say what happened instead.
+      if (!r.ok) {
+        return r.text().then(function(t) {
+          btn.disabled = false;
+          btn.textContent = 'remove';
+          alert('remove failed (' + r.status + '): ' + (t || 'no reason given'));
+        });
+      }
+      setTimeout(loadDesks, 800);
+      setTimeout(loadTiles, 1000);
+    });
+  }
   function syncOne(btn) {
     var name = btn.getAttribute('data-name');
     var orig = btn.textContent;
-    btn.disabled = true; btn.textContent = 'Syncing…';
+    btn.disabled = true; btn.textContent = 'Installing…';
     fetch('/grubbery/tiles/desks/sync', {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ name: name })
@@ -526,13 +751,58 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
       });
   }
   function syncDefaults(btn) {
-    if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Installing…'; }
     fetch('/grubbery/tiles/desks/sync-defaults', {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}'
     })
       .then(function() { loadStock(); })
-      .catch(function(e) { alert('sync failed: ' + String((e && e.message) || e)); })
-      .then(function() { if (btn) { btn.disabled = false; btn.textContent = 'Sync all'; } });
+      .catch(function(e) { alert('install failed: ' + String((e && e.message) || e)); })
+      .then(function() { if (btn) { btn.disabled = false; btn.textContent = 'Install all'; } });
+  }
+  // the typed source: any spelling the desk nexus takes. The name and
+  // permissions screen is the same one a picked app gets.
+  function installFromForm() {
+    var name = document.getElementById('src-name').value.trim();
+    var code = document.getElementById('src-code').value.trim();
+    if (!code) { document.getElementById('src-code').focus(); return; }
+    if (!name) {
+      // the source's last real segment is a fair default name
+      name = code.replace(/\/+$/, '').split('/').filter(function(s) { return s && s !== 'code'; }).pop() || '';
+      name = name.replace(/\.(git_repo|desk)$/, '');
+    }
+    openInstall({ name: name, code: code, title: name, source: code }, null);
+  }
+  // the forge's repos: each one a source a desk can follow
+  function loadForgeRepos() {
+    var box = document.getElementById('forge-list');
+    box.innerHTML = '<div class="peer-spin"><div class="spinner"></div></div>';
+    fetch('/grubbery/tiles/desks/forge-repos')
+      .then(function(r) { return r.json(); })
+      .then(function(repos) {
+        box.innerHTML = '';
+        settlePanel();
+        if (!repos.length) { box.innerHTML = '<div class="papp-none">no repos in your forge yet.</div>'; return; }
+        repos.forEach(function(rp) {
+          var row = document.createElement('div');
+          row.className = 'papp';
+          row.innerHTML =
+            '<div class="papp-body">' +
+              '<div class="papp-title">' + escP(rp.name) + '</div>' +
+              '<div class="papp-sub">' + escP(rp.code) + '</div>' +
+            '</div>' +
+            (rp.ready
+              ? '<button class="papp-get">Get</button>'
+              : '<button class="papp-get" disabled title="this repo has no /code yet">no code</button>');
+          var b = row.querySelector('button');
+          if (rp.ready) b.onclick = function() {
+            openInstall({ name: rp.name, code: rp.code, title: rp.name, source: 'your forge' }, b);
+          };
+          box.appendChild(row);
+        });
+      })
+      .catch(function(e) {
+        box.innerHTML = '<div class="papp-none">failed to load forge repos: ' + escP(String((e && e.message) || e)) + '</div>';
+      });
   }
   function peerPost(path, body) {
     return fetch('/grubbery/tiles/desks/' + path, {
@@ -555,25 +825,31 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
   function peerDel(s) {
     peerPost('peers', { del: s }).then(function() { setTimeout(loadPeers, 500); });
   }
+  // btn is the picker row's button when there is one; a typed source has
+  // none, and its outcome shows in the Installed tab and the grid
   function installPeerApp(a, btn, name) {
-    btn.disabled = true;
-    btn.textContent = 'installing...';
+    function say(text, enabled) { if (btn) { btn.textContent = text; btn.disabled = !enabled; } }
+    say('installing...', false);
     var body = { name: name || a.name, code: a.code };
     peerPost('add', body)
       .then(function(r) {
         if (r.status === 409) {
           var alt = prompt('A desk named "' + (name || a.name) + '" already exists here. Install under a different name:');
           if (alt && alt.trim()) { installPeerApp(a, btn, alt.trim()); return; }
-          btn.textContent = 'Get';
-          btn.disabled = false;
+          say('Get', true);
           return;
         }
         if (!r.ok) {
-          btn.textContent = 'failed';
-          btn.disabled = false;
+          say('failed', true);
+          if (!btn) alert('install failed: ' + r.status);
           return;
         }
-        btn.textContent = 'installed';
+        say('installed', false);
+        if (!btn) {
+          document.getElementById('src-name').value = '';
+          document.getElementById('src-code').value = '';
+          addTab('mine');
+        }
         setTimeout(loadTiles, 1200);
         setTimeout(loadPeers, 1500);
       });
@@ -588,8 +864,11 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
       .then(function(taken) { renderInstall(a, btn, taken); });
   }
   function instBack() {
-    document.getElementById('get-panel').classList.remove('inst');
-    document.getElementById('get-title').textContent = 'Get apps';
+    var panel = document.getElementById('get-panel');
+    panel.classList.remove('inst');
+    panel.classList.remove('pin');
+    document.getElementById('get-title').textContent = 'Install';
+    settlePanel();
   }
   function renderInstall(a, btn, taken) {
     var ov = document.getElementById('inst-screen');
@@ -615,6 +894,7 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
       '<button id="inst-cancel">cancel</button>' +
       '<button class="go" id="inst-go">install</button>';
     document.getElementById('get-panel').classList.add('inst');
+    settlePanel();
     document.getElementById('get-title').textContent = 'Install ' + (a.title || a.name);
     var nameInp = ov.querySelector('#inst-name');
     var avail = ov.querySelector('#inst-avail');
@@ -655,6 +935,7 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
         peerGroups = groups;
         var box = document.getElementById('peer-lists');
         box.innerHTML = '';
+        settlePanel();
         if (!groups.length) {
           box.innerHTML = '<div class="papp-none">no ships yet. search for one above.</div>';
           return;

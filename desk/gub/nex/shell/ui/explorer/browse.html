@@ -42,6 +42,8 @@
       url: PANES ? '/grubbery/ball' : location.pathname,
       scope: new URLSearchParams(location.search).get('scope') || '',
       mount: window.EXPLORER_MOUNT || null,
+      // a mount may fix the layout (view: 'list' | 'grid' | 'cols')
+      view: (window.EXPLORER_MOUNT && window.EXPLORER_MOUNT.view) || undefined,
       page: true,
       panes: PANES,
     });

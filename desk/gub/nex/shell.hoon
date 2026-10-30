@@ -142,6 +142,14 @@
           ::  under the shell, not /apps — desks need permission management,
           ::  built-in apps at /apps don't.
           [%fall %| /desks empty-dir:loader]
+          ::  /forge: the forge. A nexus, not a desk — it ships with the
+          ::  kernel, so its code is already in this namespace, named by
+          ::  the neck below (/nex/git/forge.hoon). Desks are for code
+          ::  that lives on another ship.
+          ::
+          ::  %fall, so the forge's own world — its repos and their git
+          ::  working trees — survives a shell reload.
+          [%fall %| /forge [`[`[/git %forge] ~ %.n ~] ~]]
           ::  /share: per-usergroup discovery directories, derived from
           ::  local desks' share.usergroups. /share/<group>/desks.json lists
           ::  the desks that group may subscribe to and where their code +
@@ -278,6 +286,7 @@
           ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-links rail)
           ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-asks rail)
           ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-aliases rail)
+          ;<  ~  bind:(fiber:fiber:nexus ,~)  (regrant-moved rail)
           (build-weirs rail)
         ::  desk shares change without spawning a follower, so /share must
         ::  rebuild on every sweep, not only when a new app appeared.
@@ -349,7 +358,7 @@
         ;<  *  bind:m  (keep:io /weir [%& %& u.ap %'weir.json'] ~)
         ::  a desk's opening declaration — absent for non-desk apps (a sub on
         ::  an absent road is legal and fires if it ever appears).
-        ;<  *  bind:m  (keep:io /shareg [%& %& u.ap %'share.usergroups'] ~)
+        ;<  *  bind:m  (keep:io /shareg (share-road u.ap) ~)
         ::  notify at rise too: a fresh install's ask predates this
         ::  follower, so there is no change-news to catch — and an ask
         ::  still pending across a reload deserves the re-ping anyway.
@@ -388,6 +397,9 @@
         ;<  ~  bind:m  (build-links rail)
         ;<  ~  bind:m  (build-asks rail)
         ;<  ~  bind:m  (build-aliases rail)
+        ::  a name this app claims may be one another app was granted
+        ::  against: their sand follows the registry
+        ;<  ~  bind:m  (regrant-moved rail)
         ;<  ~  bind:m  (build-weirs rail)
         ;<  ~  bind:m  (build-share rail)
         $
@@ -509,10 +521,16 @@
             %+  fall  (de:json:html ?~(body.request.req '' q.u.body.request.req))
             *json
           =/  rt=(unit path)  (soft-path (fall (jget jon 'root') ''))
+          ::  three spellings reach the same place. A desk-nested app names
+          ::  one nexus inside a desk and uninstalls the WHOLE desk, so walk
+          ::  up to the desk root; the desk root itself is already there (the
+          ::  Desks panel's "remove" sends this one); a bare /apps/<app> is a
+          ::  built-in app. Anything else is refused.
           =/  target=(unit path)
             ?~  rt  ~
             ?:  ?=([%apps %shell %desks @ %desk %data @ ~] u.rt)
               `/apps/shell/desks/[i.t.t.t.u.rt]
+            ?:  ?=([%apps %shell %desks @ ~] u.rt)  `u.rt
             ?:  ?=([%apps @ ~] u.rt)  `u.rt
             ~
           ?~  target
@@ -579,6 +597,25 @@
           =/  source=json  (pairs:enjs:format ~[['code' s+code]])
           ;<  ~  bind:m  (poke:io [%& %& dir-path %'source.json'] [[/ %json] source])
           ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'created')])
+          (pure:m ~)
+        ::  POST /desks/share {name, add|remove: <group>}: publish a desk to
+        ::  a usergroup, or stop. Forwarded to the desk's share.usergroups,
+        ::  which grants and the follower rebuilds the listing.
+        ?:  &(=('POST' method.request.req) ?=([%desks %share ~] suffix))
+          =/  jon=json
+            %+  fall  (de:json:html ?~(body.request.req '' q.u.body.request.req))
+            *json
+          =/  name=@t  (jstr jon 'name')
+          =/  dir-path=path  /apps/shell/desks/[(cat 3 `@ta`name '.desk')]
+          ;<  live=?  bind:m  (peek-exists:io [%& %| dir-path])
+          ?.  live
+            ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'no such desk')])
+            (pure:m ~)
+          =/  cmd=json
+            ?.  ?=([%o *] jon)  [%o ~]
+            [%o (~(del by p.jon) 'name')]
+          ;<  ~  bind:m  (poke:io [%& %& dir-path %'share.usergroups'] [[/ %json] cmd])
+          ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
           (pure:m ~)
         ::  POST /desks/sync-defaults: bootstrap the shipped "repos to sync"
         ::  list — for each entry, ensure its git_repo (polling github) and a
@@ -749,6 +786,14 @@
         ::  each entry's synced status, for the Stock tab.
         ?:  ?=([%desks %stock ~] suffix)
           ;<  lst=json  bind:m  stock-status
+          =/  bod=octs  (as-octs:mimes:html (en:json:html lst))
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+          (pure:m ~)
+        ::  /grubbery/tiles/desks/forge-repos → the forge's repos, each one
+        ::  a source a desk can follow. The "From your forge" tab.
+        ?:  ?=([%desks %'forge-repos' ~] suffix)
+          ;<  lst=json  bind:m  forge-repos
           =/  bod=octs  (as-octs:mimes:html (en:json:html lst))
           ;<  ~  bind:m
             (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
@@ -1062,15 +1107,13 @@
   ==
 +$  stock-entry
   $%  [%github name=@t repo=@t ref=@t deploy=deploy-spec]
-      [%code name=@t code=@t]
   ==
 ++  default-repos
   ^-  (list stock-entry)
-  ::  the forge ships with the kernel: its code is /code/dek/forge and a
-  ::  desk follows it, so it is live before any repo is, and the github
-  ::  entries below are housed in it. First, so @forge resolves for them.
-  :~  [%code 'forge' '/code/dek/forge']
-      [%github 'hatchery' 'gwbtc/hatchery' 'main' [%desk ~]]
+  ::  every entry is a github repo the forge mirrors. The forge itself is
+  ::  not one: it is a nexus of this shell at /apps/shell/forge. These
+  ::  entries are housed in it and find it by name.
+  :~  [%github 'hatchery' 'gwbtc/hatchery' 'main' [%desk ~]]
       [%github 'grubbery' 'gwbtc/grubbery' 'develop' [%clay %grubbery 'desk']]
   ==
 ::  deploy-json: the deploy spec as the repo's config.json carries it
@@ -1082,9 +1125,8 @@
     %desk  (pairs:enjs:format ~[['kind' s+'version'] ['file' s+'code/version.json']])
     %clay  (pairs:enjs:format ~[['kind' s+'clay'] ['desk' s+desk.d] ['dir' s+dir.d]])
   ==
-::  stock-name / stock-code: pull the name (and, for %code, the code path)
-::  out of an entry regardless of kind.
-++  stock-name  |=(e=stock-entry ?-(-.e %github name.e, %code name.e))
+::  stock-name: an entry's name.
+++  stock-name  |=(e=stock-entry name.e)
 ::  stock-app: is this app a nexus of a stock desk, one the kernel ships
 ::  (/apps/shell/desks/<stock>.desk/desk/data/<app>)?
 ++  stock-app
@@ -1111,26 +1153,38 @@
 ::  re-running is safe. The desk follows the repo's /data/tree/code and
 ::  the stock desk machinery owns the rest (version watch, sync, bill).
 ::
+::  +await-forge: the forge's root lane, waiting on /sys/link/forge until
+::  the name is claimed (the way a desk waits for an @name source)
+::
+++  await-forge
+  =/  m  (fiber:fiber:nexus ,(unit lane:tarball))
+  ^-  form:m
+  =/  link=road:tarball  [%& %& /sys/link/forge %'dest.lanes']
+  |-  ^-  form:m
+  ;<  fr=(unit lane:tarball)  bind:m  (resolve-link:io '@forge')
+  ?:  ?=([~ %| *] fr)  (pure:m fr)
+  ~&  >>  %shell-pairing-awaiting-forge
+  ;<  *  bind:m  (keep:io /forge-link link ~)
+  ;<  *  bind:m  (take-news:io /forge-link)
+  ;<  ~  bind:m  (drop:io /forge-link link)
+  $
 ++  ensure-pairing
   |=  entry=stock-entry
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   =/  name=@t  (stock-name entry)
   =/  desk-dir=path  /apps/shell/desks/[(cat 3 `@ta`name '.desk')]
-  ::  forge houses the repo instances; it is found by name. A %code entry
-  ::  (the forge itself) needs no forge.
-  ;<  fr=(unit lane:tarball)  bind:m  (resolve-link:io '@forge')
-  ?.  |(?=(%code -.entry) ?=([~ %| *] fr))
+  ::  forge houses the repo instances; it is found by name. On a fresh
+  ::  ship the name may not be claimed yet when the first entry is
+  ::  reached: wait for the link rather than skip the entry.
+  ;<  fr=(unit lane:tarball)  bind:m  await-forge
+  ?.  ?=([~ %| *] fr)
     ~&  >>>  %shell-pairing-no-forge
     (pure:m ~)
-  =/  forge=path  ?:(?=([~ %| *] fr) p.u.fr /)
+  =/  forge=path  p.u.fr
   ::  the code path the desk will follow: a github entry's by the forge's
   ::  NAME, so the desk resolves it where the forge is, now and after a move
-  =/  code=@t
-    ?-  -.entry
-      %code    code.entry
-      %github  (crip "@forge/repos/{(trip name)}.git_repo/data/tree/code")
-    ==
+  =/  code=@t  (crip "@forge/repos/{(trip name)}.git_repo/data/tree/code")
   =/  repo-dir=path  (weld forge /repos/[(cat 3 `@ta`name '.git_repo')])
   ::  ORDER MATTERS HERE, and it used to leave a user with a repo, no desk,
   ::  and nothing at all in the log.
@@ -1148,7 +1202,6 @@
   ::
   ::  1. the repo instance and its remote — no fetch yet
   ;<  ~  bind:m
-    ?.  ?=(%github -.entry)  (pure:m ~)
     ;<  has-repo=?  bind:m  (peek-exists:io [%& %| repo-dir])
     ;<  ~  bind:m
       ?:  has-repo  (pure:m ~)
@@ -1192,7 +1245,7 @@
   ::  2. the desk, BEFORE any network work. Only a %desk deploy has one:
   ::  a %clay entry (the kernel) deploys by committing its tree into a
   ::  Clay desk, which its build chat's repo_deploy does; no follower
-  =/  follower=?  ?:(?=(%github -.entry) ?=(%desk -.deploy.entry) %.y)
+  =/  follower=?  ?=(%desk -.deploy.entry)
   ;<  has-desk=?  bind:m  (peek-exists:io [%& %| desk-dir])
   ;<  ~  bind:m
     ?:  |(has-desk !follower)  (pure:m ~)
@@ -1204,7 +1257,6 @@
   ::  4. LAST, and SOFT: ask for a fresh fetch, so "sync" still means "pull
   ::  latest" when the network cooperates. Soft because a nack here would
   ::  otherwise roll back steps 1-3 with it.
-  ?.  ?=(%github -.entry)  (pure:m ~)
   ;<  *  bind:m
     %+  poke-soft:io  [%& %& repo-dir %'run.git-action']
     [[/ %json] (pairs:enjs:format ~[['command' s+'pull']])]
@@ -1236,7 +1288,6 @@
   ?.  ?=([~ %| *] fr)  (pure:m ~)
   |-  ^-  form:m
   ?~  todo  (pure:m ~)
-  ?.  ?=(%github -.i.todo)  $(todo t.todo)
   =/  repo-dir=path  (weld p.u.fr /repos/[(cat 3 `@ta`(stock-name i.todo) '.git_repo')])
   ;<  has=?  bind:m  (peek-exists:io [%& %| repo-dir])
   ;<  ~  bind:m  ?.(has (pure:m ~) (ensure-poll repo-dir))
@@ -1264,6 +1315,46 @@
 ::  stock-status: the default-repos list as json, each with a `synced` flag
 ::  (its desk exists and its source is wired). Feeds the Stock tab.
 ::
+::  +forge-repos: every repo in the forge, as a source a desk can follow.
+::
+::    name   the repo without its .git_repo suffix — the desk's name
+::    code   the source road, by the forge's NAME, so it keeps resolving
+::           if the forge moves
+::    ready  the checkout has a /code directory. A repo that has never
+::           been pulled has none yet, and the UI greys it out rather
+::           than offering an install that would follow nothing.
+::
+::  No forge, or no /repos, is an empty list, not an error: a ship that
+::  has not provisioned one yet has nothing to show, which is what the
+::  tab should say.
+::
+++  forge-repos
+  =/  m  (fiber:fiber:nexus ,json)
+  ^-  form:m
+  ;<  fr=(unit lane:tarball)  bind:m  (resolve-link:io '@forge')
+  ?.  ?=([~ %| *] fr)  (pure:m a+~)
+  =/  repos-dir=path  (weld p.u.fr /repos)
+  ;<  =view:nexus  bind:m  (peek-shallow:io [%& %| repos-dir] ~)
+  ?.  ?=([%ball *] view)  (pure:m a+~)
+  =/  kids=(list @ta)  ~(tap in ~(key by dir.ball.view))
+  =|  acc=(list json)
+  |-  ^-  form:m
+  ?~  kids  (pure:m a+(flop acc))
+  =/  nam=tape  (trip i.kids)
+  =/  len=@ud  (lent nam)
+  ?.  &((gth len 9) =(".git_repo" (slag (sub len 9) nam)))
+    $(kids t.kids)
+  =/  short=@t  (crip (scag (sub len 9) nam))
+  ;<  ready=?  bind:m
+    (peek-exists:io [%& %| (weld repos-dir /[i.kids]/data/tree/code)])
+  =/  one=json
+    %-  pairs:enjs:format
+    :~  ['name' s+short]
+        ['code' s+(crip "@forge/repos/{nam}/data/tree/code")]
+        ['ready' b+ready]
+    ==
+  $(kids t.kids, acc [one acc])
+::
 ++  stock-status
   =/  m  (fiber:fiber:nexus ,json)
   ^-  form:m
@@ -1271,37 +1362,29 @@
   =|  acc=(list json)
   |-  ^-  form:m
   ?~  todo  (pure:m a+(flop acc))
+  ::  only a %desk entry belongs here. A %clay entry is the ship's own
+  ::  source: it deploys by committing its tree into a Clay desk, the way
+  ::  a |commit does, and never becomes a desk at all. Listing it on a
+  ::  tab whose verb is "install" offered something that does not exist.
+  ::  Its repo mirror is the forge's business, not the desk installer's.
+  ?.  ?=(%desk -.deploy.i.todo)  $(todo t.todo)
   =/  name=@t  (stock-name i.todo)
   =/  desk-dir=path  /apps/shell/desks/[(cat 3 `@ta`name '.desk')]
   ;<  has-desk=?  bind:m  (peek-exists:io [%& %| desk-dir])
   ;<  src=(unit json)  bind:m
     ?.  has-desk  (pure:(fiber:fiber:nexus ,(unit json)) ~)
     (peek-as:io [%& %& desk-dir %'source.json'] ,json)
-  ::  a clay-deployed entry (the kernel) has no following desk: it is
-  ::  synced when its repo mirror exists
-  ;<  has-repo=?  bind:m
-    ?.  ?=(%github -.i.todo)  (pure:(fiber:fiber:nexus ,?) %.n)
-    ;<  fr=(unit lane:tarball)  bind:(fiber:fiber:nexus ,?)  (resolve-link:io '@forge')
-    ?.  ?=([~ %| *] fr)  (pure:(fiber:fiber:nexus ,?) %.n)
-    (peek-exists:io [%& %| (weld p.u.fr /repos/[(cat 3 `@ta`name '.git_repo')])])
+  ::  a desk entry is set up when its desk exists and follows a source.
   =/  synced=?
-    ?:  &(?=(%github -.i.todo) ?=(%clay -.deploy.i.todo))  has-repo
     ?&  has-desk
         ?=(^ src)
         ?=([%o *] u.src)
         ?=([~ %s *] (~(get by p.u.src) 'code'))
     ==
   =/  fields=(list [@t json])
-    ?-  -.i.todo
-        %github
-      :~  ['name' s+name]  ['kind' s+'github']
-          ['repo' s+repo.i.todo]  ['ref' s+ref.i.todo]  ['synced' b+synced]
-          ['deploy' (deploy-json deploy.i.todo)]
-      ==
-        %code
-      :~  ['name' s+name]  ['kind' s+'code']
-          ['code' s+code.i.todo]  ['synced' b+synced]
-      ==
+    :~  ['name' s+name]  ['kind' s+'github']
+        ['repo' s+repo.i.todo]  ['ref' s+ref.i.todo]  ['synced' b+synced]
+        ['deploy' (deploy-json deploy.i.todo)]
     ==
   $(todo t.todo, acc [(pairs:enjs:format fields) acc])
 ::  === peer-desk storefront (folded in from the retired /desks nexus) ===
@@ -1385,9 +1468,17 @@
   ^-  form:m
   =/  dir=@t    (jstr entry 'dir')       :: the desk's dir name on the peer
   =/  ename=@t  (jstr entry 'name')      :: display name (already slugged)
-  =/  codep=@t  (jstr entry 'code')      :: "/apps/<dir>/desk/code"
+  =/  codep=@t  (jstr entry 'code')      :: "/apps/shell/desks/<dir>/desk/code"
   ?:  =('' dir)  (pure:m entry)          :: malformed card — pass through
-  =/  base=path  (weld /sys/ames/ships/[s]/root /apps/[`@ta`dir])
+  ::  the desk's root on the peer is wherever its card says the code is,
+  ::  two levels up from /desk/code: never guess the layout of their ship
+  =/  codepath=path  (fall (rush codep stap) /)
+  =/  n=@ud  (lent codepath)
+  =/  desk-root=path
+    ?.  &((gth n 2) =(/desk/code (slag (sub n 2) codepath)))
+      /apps/shell/desks/[`@ta`dir]
+    `path`(scag (sub n 2) codepath)
+  =/  base=path  (weld /sys/ames/ships/[s]/root desk-root)
   ;<  cv=view:nexus  bind:m
     (peek-shallow:io [%& %| (weld base /desk/code)] ~)
   =/  [title=@t info=@t color=@t icon=(unit @ta)]
@@ -1421,7 +1512,7 @@
   =/  code-src=@t  (cat 3 s codep)
   %-  pure:m
   %-  pairs:enjs:format
-  :~  ['path' s+(cat 3 '/apps/' dir)]
+  :~  ['path' s+(spat desk-root)]
       ['name' s+ename]
       ['title' s+title]
       ['info' s+info]
@@ -1441,7 +1532,10 @@
   |=  base=path
   =/  m  (fiber:fiber:nexus ,(unit @t))
   ^-  form:m
-  =/  names=(list @ta)  ~[%'version.txt' %'version.ud' %'version.json']
+  ::  a desk's root version.json is the one a peer's share grants a read
+  ::  on; the older spellings are tried only after it, so a published desk
+  ::  costs one peek and no vetoes
+  =/  names=(list @ta)  ~[%'version.json' %'version.txt' %'version.ud']
   |-  ^-  form:m
   ?~  names  (pure:m ~)
   ;<  vv=view:nexus  bind:m  (peek:io [%& %& base i.names] ~)
@@ -1449,6 +1543,22 @@
   ?:  (is-boom:tarball sang.vv)  $(names t.names)
   =/  nun  (sang-noun:tarball sang.vv)
   ?+    p.sang.vv  $(names t.names)
+      [~ %json]
+    =/  j  ((soft json) nun)
+    ?~  j  $(names t.names)
+    =/  v=(unit @t)  (version-in-json u.j)
+    ?~  v  $(names t.names)
+    (pure:m v)
+      ::  a desk mirrors its source's version file as it found it; a
+      ::  source kept as raw text holds the same json in mime
+      [~ %mime]
+    =/  mm  ((soft mime) nun)
+    ?~  mm  $(names t.names)
+    =/  j=(unit json)  (de:json:html q.q.u.mm)
+    ?~  j  $(names t.names)
+    =/  v=(unit @t)  (version-in-json u.j)
+    ?~  v  $(names t.names)
+    (pure:m v)
       [~ %ud]
     =/  x  ((soft @ud) nun)
     ?~  x  $(names t.names)
@@ -1458,6 +1568,18 @@
     ?~  w  $(names t.names)
     ?~  u.w  $(names t.names)
     (pure:m `i.u.w)
+  ==
+::  +version-in-json: the `version` of a version.json, as text
+::
+++  version-in-json
+  |=  j=json
+  ^-  (unit @t)
+  ?.  ?=([%o *] j)  ~
+  =/  v=(unit json)  (~(get by p.j) 'version')
+  ?~  v  ~
+  ?+  -.u.v  ~
+    %n  `p.u.v
+    %s  `p.u.v
   ==
 ::  +jstr: a string field from a json object, '' if absent.
 ::
@@ -1496,13 +1618,17 @@
   ;<  sj=(unit json)  bind:m
     (peek-as:io [%& %& /apps/shell/desks/[app] %'source.json'] ,json)
   =/  code=@t  ?~(sj '' (jstr u.sj 'code'))
-  ::  publishing + source editing live in the desk's OWN page now; this list
-  ::  is just navigation, so it carries name, source, and a link to the page.
+  ::  share: the usergroups this desk is published to (its share set),
+  ::  so the Installed tab can show and change who may follow it
+  ;<  shr=(unit (set path))  bind:m
+    (peek-as:io [%& %& /apps/shell/desks/[app] %'share.usergroups'] ,(set path))
+  =/  groups=(list path)  (sort ~(tap in (fall shr ~)) aor)
   %-  pure:m  :-  ~
   %-  pairs:enjs:format
   :~  ['name' s+app]
       ['source' ?:(=('' code) ~ s+code)]
       ['url' s+(cat 3 '/grubbery/desk/' (app-slug app))]
+      ['share' a+(turn groups |=(g=path s+(spat g)))]
   ==
 ::  +desk-suffix: the extension after the last dot ('foo.desk' -> 'desk').
 ::
@@ -1568,7 +1694,7 @@
 ++  jget
   |=  [j=json k=@t]
   ^-  (unit @t)
-  ?.  ?=(%o -.j)  ~
+  ?.  ?=([%o *] j)  ~
   =/  v  (~(get by p.j) k)
   ?.(?=([~ %s *] v) ~ `p.u.v)
 ::  +suppress-alias: hide an app-declared option (alias name + path) from
@@ -2151,6 +2277,15 @@
 ::  +app-path-of: inverse — the app-root path a /sync follower watches,
 ::  from the follower's own rail.
 ::
+::  +share-road: where an app's share.usergroups lives. A desk's apps
+::  share as one desk: the file sits on the desk dir, not under the app.
+::
+++  share-road
+  |=  ap=path
+  ^-  road:tarball
+  ?:  ?=([%apps %shell %desks @ %desk %data @ ~] ap)
+    [%& %& /apps/shell/desks/[i.t.t.t.ap] %'share.usergroups']
+  [%& %& ap %'share.usergroups']
 ++  app-path-of
   |=  =rail:tarball
   ^-  (unit path)
@@ -2418,7 +2553,11 @@
   ?:  (stock-app ap)
     ;<  hidden=json  bind:m  (read-hidden rail)
     ;<  now=@da  bind:m  get-time:io
-    (do-approve-weir rail app [%o ~] u.jon hidden now)
+    ;<  ~  bind:m  (do-approve-weir rail app [%o ~] u.jon hidden now)
+    ::  the app's fibers rose before the grant and banged against the
+    ::  jail; the reboot that brings them back holding the grant is what
+    ::  the permits page does by hand after an approval
+    (reload:io [%& %| ap])
   ::  already told the user about this exact pending ask? don't re-ping on a
   ::  reload. A changed ask fails the match below and notifies afresh.
   ;<  notified=(map @t json)  bind:m  (read-notified rail)
@@ -2548,7 +2687,7 @@
   %+  murn  p.u.v
   |=  j=json
   ?:  ?=(%s -.j)  `p.j
-  ?.  ?=(%o -.j)  ~
+  ?.  ?=([%o *] j)  ~
   =/  r  (~(get by p.j) 'road')
   ?.(?=([~ %s *] r) ~ `p.u.r)
 ::  +cat-arr: pass a category's raw json array through (for the record).
@@ -2600,6 +2739,65 @@
 ::  the sub-path. Supports @'multi/segment' names. '' when the alias
 ::  has no options.
 ::
+::  +regrant-moved: an approved app's @name bindings were resolved when
+::  it was granted, and its sand set from them. When the registry moves
+::  a name, or a name it was granted against appears, the recorded path
+::  is stale and the sand with it. Re-resolve every granted app that
+::  references a name; one whose paths changed is granted again and
+::  rebooted so its fibers hold the new roads.
+::
+++  regrant-moved
+  |=  rail=rail:tarball
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  approved=(map @t json)  bind:m  (read-approved rail)
+  ;<  hidden=json  bind:m  (read-hidden rail)
+  ;<  menus=json  bind:m  (build-alias-menus hidden %.n)
+  =/  todo=(list [app=@t entry=json])  ~(tap by approved)
+  |-  ^-  form:m
+  ?~  todo  (pure:m ~)
+  =/  entry=json  entry.i.todo
+  ?.  ?=([%o *] entry)  $(todo t.todo)
+  ?.  =('granted' (fall (jget entry 'verdict') ''))  $(todo t.todo)
+  =/  bindings=json  (fall (~(get by p.entry) 'bindings') [%o ~])
+  ?.  ?=([%o *] bindings)  $(todo t.todo)
+  =/  bmap=(map @t json)  p.bindings
+  ?:  =(~ bmap)  $(todo t.todo)
+  ::  a recorded pick the registry still offers stays the user's choice;
+  ::  one that is empty or gone falls back to the registry's first option
+  =/  picks=json
+    :-  %o
+    %-  ~(gas by *(map @t json))
+    %+  murn  ~(tap by bmap)
+    |=  [n=@t v=json]
+    ^-  (unit [@t json])
+    ?.  ?=([%s *] v)  ~
+    ?:  =('' p.v)  ~
+    ?.  (offered menus n p.v)  ~
+    `[n v]
+  =/  moved=?
+    %+  lien  ~(tap by bmap)
+    |=  [n=@t v=json]
+    =/  was=@t  ?:(?=([%s *] v) p.v '')
+    !=(was (resolve-alias-ref picks menus n))
+  ?.  moved  $(todo t.todo)
+  ~&  >  [%shell-regrant-moved app.i.todo]
+  =/  granted=json  (fall (~(get by p.entry) 'declared') [%o ~])
+  ;<  now=@da  bind:m  get-time:io
+  ;<  ~  bind:m  (do-approve-weir rail app.i.todo picks granted hidden now)
+  =/  tp=(unit path)  (soft-path app.i.todo)
+  ;<  ~  bind:m  ?~(tp (pure:m ~) (reload:io [%& %| u.tp]))
+  $(todo t.todo)
+::  +offered: is this path one of the registry's options for the name
+::
+++  offered
+  |=  [menus=json n=@t p=@t]
+  ^-  ?
+  ?.  ?=([%o *] menus)  %.n
+  =/  opts=(unit json)  (~(get by p.menus) n)
+  ?~  opts  %.n
+  ?.  ?=([%a *] u.opts)  %.n
+  (lien p.u.opts |=(o=json =(p (fall (jget o 'path') ''))))
 ++  resolve-alias-ref
   |=  [picks=json menus=json ref=@t]
   ^-  @t
@@ -2689,7 +2887,7 @@
   %-  silt
   %+  murn  p.u.v
   |=  j=json
-  ?.  ?=(%o -.j)  ~
+  ?.  ?=([%o *] j)  ~
   ?.  =(`[%b &] (~(get by p.j) 'optional'))  ~
   =/  r  (~(get by p.j) 'road')
   ?.(?=([~ %s *] r) ~ `p.u.r)

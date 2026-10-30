@@ -302,7 +302,12 @@
     }
     function overlayHTML(app){
       var w=weirsState[app]; if(!w)return '<div class="d-none">No live weir recorded yet.</div>';
-      var cats=['poke','peek','make'].map(function(cat){ var roads=w[cat]||[]; if(!roads.length)return ''; return '<div class="cat-lab">may <b>'+esc(VERBS[cat]||cat)+'</b></div>'+roads.map(function(r){ return '<div class="row'+(dangerLevel(r.road)?' danger-'+dangerLevel(r.road):'')+'">'+warnMark(r.road)+'<code>'+esc(r.road)+'</code>'+(r.optional?'<span class="opt">optional</span>':'')+'<span class="stat '+esc(r.status)+'">'+esc(r.status)+'</span></div>'; }).join(''); }).filter(Boolean).join('');
+      var cats=['poke','peek','make'].map(function(cat){ var roads=w[cat]||[]; if(!roads.length)return '';
+        // a category holding / holds everything: the other roads in it are
+        // covered, and listing them beside it would only read as narrower
+        var all=roads.filter(function(r){ return r.road==='/'; })[0];
+        if(all&&roads.length>1) roads=[all];
+        return '<div class="cat-lab">may <b>'+esc(VERBS[cat]||cat)+'</b>'+(all?' <span class="d-none">everything</span>':'')+'</div>'+roads.map(function(r){ return '<div class="row'+(dangerLevel(r.road)?' danger-'+dangerLevel(r.road):'')+'">'+warnMark(r.road)+'<code>'+esc(r.road)+'</code>'+(r.optional?'<span class="opt">optional</span>':'')+'<span class="stat '+esc(r.status)+'">'+esc(r.status)+'</span></div>'; }).join(''); }).filter(Boolean).join('');
       return cats||'<div class="d-none">Fully sandboxed — no roads granted.</div>';
     }
     function bindingsHTML(app){

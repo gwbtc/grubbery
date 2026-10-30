@@ -1594,7 +1594,9 @@ function setup(root, opts) {
     const bar = document.createElement('div');
     bar.className = atNow ? 'ps-past now' : 'ps-past';
     // hidden until born answers: the bar has nothing to say without a
-    // version number, and an empty strip reads as broken chrome
+    // version number, and an empty strip reads as broken chrome.
+    // A traced name usually stays hidden: retention off releases every
+    // version on the cull, so it has a place and no past.
     bar.hidden = true;
     // NO trailing slash on the target. `kind` already tells the pane this
     // is a directory, and the slash made `back to now` land on
@@ -2384,6 +2386,37 @@ function setup(root, opts) {
     f.src = src; f.title = src; f.referrerPolicy = 'same-origin';
     f.style.cssText = 'display:block;width:100%;height:100%;border:0;background:#fff';
     root.appendChild(f);
+    // A frame was the one pane that showed NOTHING while it worked: a blank
+    // white rectangle reads as a dead pane rather than a busy one, and it is
+    // worst on goTo, where back or forward repoints the frame and the old
+    // page sits there and then empties with no signal. A veil over the
+    // frame, not psWait, which would replace the frame it is waiting for.
+    //
+    // DELAYED, so a local page that paints at once never flashes a ring;
+    // and CAPPED, because `load` does not always arrive -- past the cap
+    // whatever the frame has drawn beats a ring that spins forever.
+    let veil = null, soon = null, cap = null;
+    const unveil = () => {
+      clearTimeout(soon); clearTimeout(cap); soon = null; cap = null;
+      if (veil) { veil.remove(); veil = null; }
+    };
+    const veiling = (u) => {
+      unveil();
+      soon = setTimeout(() => {
+        psChrome();                                                           // .ps-wait rides with the workspace chrome
+        veil = document.createElement('div');
+        veil.className = 'ps-wait';
+        veil.style.cssText = 'position:absolute;inset:0;background:#fff';
+        const ring = document.createElement('div'); ring.className = 'ps-wait-ring';
+        const t = document.createElement('div'); t.className = 'ps-wait-text'; t.textContent = 'loading';
+        const b = document.createElement('div'); b.className = 'ps-wait-sub'; b.textContent = u; b.title = u;
+        veil.append(ring, t, b);
+        root.appendChild(veil);
+      }, 300);
+      cap = setTimeout(unveil, 15000);
+    };
+    root.style.position = 'relative';
+    veiling(src);
     // Links inside the page, by kind. A link to this ship navigates the
     // frame, and the pane's moment follows it (`url:` + where it went, as
     // history, so back works). A link the page marks for a new tab
@@ -2404,16 +2437,17 @@ function setup(root, opts) {
       }, true);
     };
     f.addEventListener('load', () => {
+      unveil();
       let here; try { here = f.contentWindow.location.pathname + f.contentWindow.location.search; wire(f.contentDocument); } catch (_) { return; }
       if (here === shown) return;
       shown = here;
       if (opts.ps && opts.paneId) opts.ps.navigate(opts.paneId, 'url:' + here);   // the pane follows the frame; updateContent keeps this element
     });
     return {
-      destroy() { f.remove(); },
+      destroy() { unveil(); f.remove(); },
       // the pane moved (back, forward, a typed url:): point the frame there,
       // unless it is already there because it moved itself
-      goTo(u) { if (u === shown) return; shown = u; f.src = u; },
+      goTo(u) { if (u === shown) return; shown = u; veiling(u); f.src = u; },
     };
   }
   function paneContent(ps, paneId, path) {
@@ -2766,6 +2800,9 @@ function setup(root, opts) {
     const ai = (typeof saved.active === 'number' && saved.active >= 0 && saved.active < panels.length) ? saved.active : 0;
     const settle = () => { finderTabs.select(ai); ensureRendered(tabPanels()[ai]); };
     settle(); queueMicrotask(settle);
+    // the url names a place below the root: that place is the tab you see,
+    // whatever was open last time
+    if (here !== ROOT) openOrFocusTab(here, 'dir');
   })();
 
   // refresh the active tab's listing in place after an action changed data —

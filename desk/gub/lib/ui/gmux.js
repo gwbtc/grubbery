@@ -113,18 +113,22 @@ const CSS = `
   .ps-tab-ic { font-weight:400; opacity:.85; }
   .ps-tab-x { opacity:.5; padding:0 2px; border-radius:3px; font-weight:400; }
   .ps-tab-x:hover { opacity:1; background:#d7dde3; }
-  .ps-nav { flex:1 1 auto; min-width:40px; display:flex; align-items:center; }
-  .ps-nav input { width:100%; box-sizing:border-box; border:1px solid #e2e7ee; background:#fff; border-radius:6px; padding:3px 8px; font:13px ui-monospace,Menlo,monospace; color:#1f2328; outline:none; }
-  .ps-nav input:focus { border-color:var(--ps-accent,#0969da); box-shadow:0 0 0 2px rgba(9,105,218,.15); }
+  .ps-nav { flex:1 1 auto; min-width:40px; display:flex; align-items:center; border:1px solid #e2e7ee; background:#fff; border-radius:6px; }
+  .ps-nav input { width:100%; box-sizing:border-box; border:0; background:transparent; border-radius:6px; padding:3px 8px; font:13px ui-monospace,Menlo,monospace; color:#1f2328; outline:none; }
+  .ps-nav:focus-within { border-color:var(--ps-accent,#0969da); box-shadow:0 0 0 2px rgba(9,105,218,.15); }
+  /* copy sits INSIDE the field, and stays put: .ps-chipped scrolls
+     sideways under a long path, and a plain flex child would scroll out
+     of reach with it. Sticky pins it to the left edge of the scroller. */
+  .ps-nav .ps-nav-copy { position:sticky; left:0; z-index:1; flex:none; background:#fff; padding:0 4px 0 5px; font-size:13px; border-radius:5px 0 0 5px; }
+  .ps-nav .ps-nav-copy:hover { background:#eaeef2; }
   .ps-nav input::placeholder { color:#8b949e; }
   /* an @name prefix shown as a chip: the field's border moves to the wrapper so
      the chip and the rest of the path read as one box */
   .ps-chip { display:none; flex:0 0 auto; white-space:nowrap; font:12px ui-monospace,Menlo,monospace; line-height:1; padding:4px 6px; margin:0; border:0; border-radius:4px; background:#dde7f5; color:#0a4ea8; cursor:pointer; }
   .ps-chip:hover { background:#cfdef3; }
   .ps-chip.ps-chip-abs { background:#e9edf1; color:#50575e; }
-  .ps-nav.ps-chipped { gap:4px; padding-left:4px; border:1px solid #e2e7ee; background:#fff; border-radius:6px; overflow-x:auto; scrollbar-width:none; }
+  .ps-nav.ps-chipped { gap:4px; overflow-x:auto; scrollbar-width:none; }
   .ps-nav.ps-chipped::-webkit-scrollbar { display:none; }
-  .ps-nav.ps-chipped:focus-within { border-color:var(--ps-accent,#0969da); box-shadow:0 0 0 2px rgba(9,105,218,.15); }
   .ps-chipped > .ps-chip { display:block; }
   .ps-nav.ps-chipped input { border:0; border-radius:0; box-shadow:none; padding-left:2px; }
   .ps-nav.ps-chipped input:focus { border:0; box-shadow:none; }
@@ -347,6 +351,22 @@ class Gmux extends HTMLElement {
     // refresh: re-render the current moment in place (what it shows is
     // refetched; history, tabs and scroll stay)
     const reload = btn('↻', 'refresh this moment', () => this.refresh(id));
+    // copy the moment as TEXT. The path field renders an @name as a chip,
+    // which is the right thing to read and the wrong thing to select --
+    // dragging across a chip gets you nothing to paste. The button hands
+    // over what the chip stands for.
+    const copy = btn('\u29c9', 'copy this path', async () => {
+      const v = this.#curPath(id) || (chip ? chip.get() : input.value) || '';
+      if (!v) return;
+      const tick = () => { copy.textContent = '\u2713'; setTimeout(() => { copy.textContent = '\u29c9'; }, 900); };
+      try { await navigator.clipboard.writeText(v); tick(); }
+      catch (_) {
+        // no clipboard (insecure context, or the user said no): put it in
+        // the field and select it, so the keyboard can still take it
+        if (chip) chip.set(v); else input.value = v;
+        input.focus(); input.select();
+      }
+    });
     const back = document.createElement('button'); back.className = 'ps-bar-btn'; back.textContent = '◀'; back.title = 'back (hold for history)';
     const fwd = document.createElement('button'); fwd.className = 'ps-bar-btn'; fwd.textContent = '▶'; fwd.title = 'forward (hold for history)';
     this.#wireHold(back, id, () => this.back(id), 'back');     // click = step, hold = history dropdown
@@ -363,7 +383,8 @@ class Gmux extends HTMLElement {
       if (e.key === 'Enter') { const v = (chip ? chip.get() : input.value).trim(); if (v) { this.focusPane(id); this.navigate(id, v); if (this.onNavigate) try { this.onNavigate(id, v); } catch (_) {} } }
       else if (e.key === 'Escape') { const p = this.#curPath(id) || ''; if (chip) chip.set(p); else input.value = p; input.blur(); }
     });
-    nav.appendChild(input);
+    nav.append(copy, input);                                                 // copy sits inside the field, left of the chip
+    copy.classList.add('ps-nav-copy');
     if (this.pathChip && window.attachPathChip)
       chip = window.attachPathChip(input, { parse: (v) => this.pathChip(v), alt: (h) => this.pathChipAlt && this.pathChipAlt(h) });
     // where links from this pane land is the layout's routing table (its
