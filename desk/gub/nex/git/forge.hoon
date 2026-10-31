@@ -68,25 +68,6 @@
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
-      ::  two tiles on the home page: the forge, and the github proxy it
-      ::  houses (which has no app root of its own to be found by)
-      =/  tile=json
-        :-  %a
-        :~  %-  pairs:enjs:format
-            :~  title+s+'Forge'
-                info+s+'git repos'
-                color+s+'#3d3a45'
-                image+s+'/grubbery/tiles/icon/apps/shell/forge'
-                href+s+'/grubbery/forge'
-            ==
-            %-  pairs:enjs:format
-            :~  title+s+'GitHub'
-                info+s+'The ship\'s GitHub proxy'
-                color+s+'#24292f'
-                image+s+'/grubbery/tiles/icon/apps/shell/forge/github'
-                href+s+'/grubbery/github'
-            ==
-        ==
       ::  kit bundle: weld the components into one file. Each is wrapped in a
       ::  { } block so top-level consts don't collide; define runs globally.
       ::  123={  125=}  10=newline.
@@ -103,7 +84,6 @@
           ::  repo on create (per-repo config still overrides). Forge's own
           ::  config — the one thing not scoped to a selected repo.
           [%fall %& [/ %'defaults.json'] [[/ %json] (pairs:enjs:format ~[['author_name' s+''] ['author_email' s+''] ['account' s+'']])]]
-          [%over %& [/ %'tile.json'] [[/ %json] tile]]
           ::  the forge's names: @forge is this nexus; @github is the github
           ::  proxy it houses at /github (an alias into its own tree)
           [%over %& [/ %'link.json'] [[/ %json] link-json]]

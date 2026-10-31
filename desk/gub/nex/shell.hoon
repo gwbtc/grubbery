@@ -186,6 +186,13 @@
           [%fall %& [/tiles/tools %'tile.json'] [[/ %json] tile:mcp]]
           [%fall %| /tiles/explorer empty-dir:loader]
           [%fall %& [/tiles/explorer %'tile.json'] [[/ %json] tile:explorer]]
+          ::  the forge and the github proxy it houses live under this
+          ::  shell, not under /apps, so the tile reader never finds them:
+          ::  their tiles are local ones too.
+          [%fall %| /tiles/forge empty-dir:loader]
+          [%fall %& [/tiles/forge %'tile.json'] [[/ %json] forge-tile]]
+          [%fall %| /tiles/github empty-dir:loader]
+          [%fall %& [/tiles/github %'tile.json'] [[/ %json] github-tile]]
       ==
       rows:explorer
     ::
@@ -2063,6 +2070,24 @@
       color+s+'#1a1a1a'
       href+s+'/apps/landscape'
       image+s+'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fe/Urbit_Logo.svg/3840px-Urbit_Logo.svg.png'
+  ==
+++  forge-tile
+  ^-  json
+  %-  pairs:enjs:format
+  :~  title+s+'Forge'
+      info+s+'git repos'
+      color+s+'#3d3a45'
+      href+s+'/grubbery/forge'
+      image+s+'/grubbery/tiles/icon/apps/shell/forge'
+  ==
+++  github-tile
+  ^-  json
+  %-  pairs:enjs:format
+  :~  title+s+'GitHub'
+      info+s+'The ship\'s GitHub proxy'
+      color+s+'#24292f'
+      href+s+'/grubbery/github'
+      image+s+'/grubbery/tiles/icon/apps/shell/forge/github'
   ==
 ::  each local tile is its own subdir /tiles/<name>/ holding tile.json
 ::  (and optionally icon.svg); the tile's name is the subdir name. They
