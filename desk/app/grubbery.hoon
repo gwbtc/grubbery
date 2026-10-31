@@ -4852,6 +4852,7 @@
     =.  this  (nack-pool dest-path (~(dip of pool) dest-path) ~[leaf+"culled"])
     ::  Remove from pool
     =.  pool  (~(lop of pool) dest-path)
+    =.  this  (drop-bindings-of dest)
     (load-ball-changes dest-path *bole:tarball %.y)
     ::
       %&
@@ -4860,6 +4861,7 @@
     =/  dest-path=path  (rail-to-path:tarball dest-rail)
     ::  Nack queued pokes for this file
     =.  this  (nack-pool dest-path (~(dip of pool) dest-path) ~[leaf+"culled"])
+    =.  this  (drop-bindings-of dest)
     ::  Bump and remove from pool and ball
     (delete path.dest-rail name.dest-rail)
   ==
@@ -8198,6 +8200,54 @@
     (give-simple-payload:app:server eyre-id simple-payload.upd)
   ==
 ::
+::  +drop-bindings: forget eyre bindings. Open connections on them are
+::  kicked, and the server-state grub is written once.
+::
+++  drop-bindings
+  |=  gone=(list binding:eyre)
+  ^+  this
+  ?~  gone  this
+  =/  set-gone=(set binding:eyre)  (sy gone)
+  =/  orphans=(list @ta)
+    %+  murn  ~(tap by conns)
+    |=  [eid=@ta =binding:eyre]
+    ?.  (~(has in set-gone) binding)  ~
+    `eid
+  =.  this
+    %-  emit-cards
+    %+  turn  orphans
+    |=  eid=@ta
+    ^-  card
+    [%give %kick ~[/http-response/[eid]] ~]
+  =.  conns
+    %-  ~(gas by *(map @ta binding:eyre))
+    %+  skip  ~(tap by conns)
+    |=  [eid=@ta =binding:eyre]
+    (~(has in set-gone) binding)
+  =/  st=server-state:nexus  get-server-state
+  =.  bindings.st
+    %-  ~(gas by *(map binding:eyre rail:tarball))
+    %+  skip  ~(tap by bindings.st)
+    |=  [=binding:eyre *]
+    (~(has in set-gone) binding)
+  (save-server-state st)
+::  +drop-bindings-of: forget every eyre binding whose handler is a culled
+::  grub: a request to its route would be poked at nothing and never
+::  answered. Lane %| names a subtree, %& one file.
+::
+++  drop-bindings-of
+  |=  dest=lane:tarball
+  ^+  this
+  =/  gone=(list binding:eyre)
+    %+  murn  ~(tap by bindings:get-server-state)
+    |=  [=binding:eyre handler=rail:tarball]
+    ^-  (unit binding:eyre)
+    ?-  -.dest
+      %&  ?:(=(p.dest handler) `binding ~)
+      %|  ?:(=(p.dest (scag (lent p.dest) path.handler)) `binding ~)
+    ==
+  (drop-bindings gone)
+::
 ++  handle-eyre-action
   |=  [sender=rail:tarball =wire vaz=vase]
   ^+  this
@@ -8227,26 +8277,7 @@
     (emit-card [%pass /eyre-bind %arvo %e %connect binding.act dap.bowl])
   ::
       %unbind
-    =/  orphans=(list @ta)
-      %+  murn  ~(tap by conns)
-      |=  [eid=@ta =binding:eyre]
-      ?.  =(binding binding.act)  ~
-      `eid
-    =.  this
-      %-  emit-cards
-      %+  turn  orphans
-      |=  eid=@ta
-      ^-  card
-      [%give %kick ~[/http-response/[eid]] ~]
-    =.  conns
-      %-  ~(gas by *(map @ta binding:eyre))
-      %+  skip  ~(tap by conns)
-      |=  [eid=@ta =binding:eyre]
-      =(binding binding.act)
-    ::  bindings changed, so this one writes the grub.
-    =/  st=server-state:nexus  get-server-state
-    =.  bindings.st  (~(del by bindings.st) binding.act)
-    (save-server-state st)
+    (drop-bindings ~[binding.act])
   ::
       %send
     =/  crds=(list card)
