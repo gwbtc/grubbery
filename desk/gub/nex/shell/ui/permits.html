@@ -243,7 +243,10 @@
     //    is waiting). grant — the state of the grant actually in force right
     //    now (null if never approved). An app can be BOTH: a grant is live
     //    AND it's asking for something new.
-    function isPending(r){ var ap=r.approved, dec=ap&&ap.declared, a=r.ask; return !ap||!(dec&&sameRoads(a.poke,dec.poke)&&sameRoads(a.peek,dec.peek)&&sameRoads(a.make,dec.make)); }
+    // a name share is {alias, groups}; two lists match when every alias
+    // asks for the same groups
+    function sameShare(a,b){ var f=function(l){ return JSON.stringify((l||[]).map(function(s){ return [s.alias,(s.groups||[]).slice().sort()]; }).sort()); }; return f(a)===f(b); }
+    function isPending(r){ var ap=r.approved, dec=ap&&ap.declared, a=r.ask; return !ap||!(dec&&sameRoads(a.poke,dec.poke)&&sameRoads(a.peek,dec.peek)&&sameRoads(a.make,dec.make)&&sameShare(a.share,dec.share)); }
     function grantState(r){ var ap=r.approved; if(!ap)return null; if(!nRoads(ap))return 'frozen'; return hasDrift(r.app)?'drift':'applied'; }
     function appRecords(){ return asksData.map(function(a){ var r={app:a.app,ask:a,approved:approvedState[a.app]}; r.pending=isPending(r); r.grant=grantState(r); return r; }).sort(function(x,y){ return x.app.localeCompare(y.app); }); }
     function cardChip(r){ return mode==='pending' ? (r.grant?'changed':'pending') : r.grant; }
@@ -293,9 +296,18 @@
         (reqN?'<label><input type="checkbox" class="bk-req"'+(reqC===reqN?' checked':'')+'> required</label>':'')+
         (optN?'<label><input type="checkbox" class="bk-opt"'+(optC===optN?' checked':'')+'> optional</label>':'')+
         '</div>':'';
+      // name shares: the app asks to open a name it claims to usergroups,
+      // so ships in them can resolve it here (peek on its dest.lanes,
+      // nothing more). One row per name, a box per group; the app's
+      // declared groups start ticked, every other group is offered.
+      var shareSec=(a.share&&a.share.length)?'<div class="cat-lab">open <b>names</b> to groups</div>'+a.share.map(function(s){
+        var gs=groupsList.slice(); (s.groups||[]).forEach(function(g){ if(gs.indexOf(g)<0)gs.push(g); });
+        return '<div class="row"><code>@'+esc(s.alias)+'</code> '+gs.map(function(g){ return '<label class="m-opt"><input type="checkbox" class="shg" data-alias="'+esc(s.alias)+'" value="'+esc(g)+'"'+((s.groups||[]).indexOf(g)>=0?' checked':'')+'> '+esc(g)+'</label>'; }).join(' ')+'</div>';
+      }).join(''):'';
       return '<div class="d-intro">Grant the checked paths. Uncheck any you don\'t want. Uncheck everything to freeze.</div>'+
         badBanner+
         aliasSec+
+        shareSec+
         '<div class="cat-lab">grant <b>paths</b></div>'+
         bulk+
         (secs||'<div class="d-none">nothing declared</div>');
@@ -397,7 +409,12 @@
         var granted={poke:[],peek:[],make:[]}, picks={};
         Array.prototype.forEach.call(card.querySelectorAll('.chk'),function(c){ if(c.checked&&!c.disabled)granted[c.getAttribute('data-cat')].push(c.getAttribute('data-road')); });
         Array.prototype.forEach.call(card.querySelectorAll('.pick'),function(s){ picks[s.getAttribute('data-alias')]=s.value; });
-        dirty=false; delete editSet[app]; act({action:'approve-weir',app:app,picks:picks,granted:granted});
+        // name shares: {alias: [groups]} for every declared name, an empty
+        // list meaning "open to no one"; and the same as a granted list
+        var shares={}; (a.share||[]).forEach(function(s){ shares[s.alias]=[]; });
+        Array.prototype.forEach.call(card.querySelectorAll('.shg'),function(c){ if(c.checked)shares[c.getAttribute('data-alias')].push(c.value); });
+        granted.share=Object.keys(shares).map(function(al){ return {alias:al,groups:shares[al]}; });
+        dirty=false; delete editSet[app]; act({action:'approve-weir',app:app,picks:picks,granted:granted,shares:shares});
       };
       var ca=card.querySelector('[data-act=cancel]'); if(ca)ca.onclick=function(){ delete editSet[app]; dirty=false; render(); };
       var adj=card.querySelector('[data-act=adjust]'); if(adj)adj.onclick=function(){ editSet[app]=true; render(); };

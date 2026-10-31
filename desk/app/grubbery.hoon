@@ -1378,12 +1378,15 @@
         (~(reachable si:nexus silo) lobe.pace.u.cas-pace)
       (~(reachable-shallow si:nexus silo) lobe.pace.u.cas-pace)
     `[cass.u.cas-pace pace.u.cas-pace refs]
+  ::  nothing there: the same %veto a blocked peek gets. An outsider
+  ::  learns that a path is not for them, never whether it exists.
+  ?~  snap
+    (respond-transfer %peek [wire.req %veto dest-lane])
   =/  snap-id=@uvJ  `@uvJ`(shaz eny.bowl)
   ::  Inline the payload when it's cheaper to send than to negotiate:
   ::  the subset rides in the snap, the receiver skips want/data, and
   ::  no pin is needed since no %want will ever come.
   =/  inline=(unit silo:nexus)
-    ?~  snap  ~
     =/  n-refs=@ud
       (add ~(wyt in jects.refs.u.snap) ~(wyt in nouns.refs.u.snap))
     ?:  (gth n-refs max-inline-refs)  ~
@@ -1395,8 +1398,8 @@
     =.  size  (add size (mul 128 ~(wyt by jects.send)))
     ?:  (gth size max-inline-bytes)  ~
     `send
-  =/  pinned=?  &(?=(^ snap) ?=(~ inline))
-  =?  silo  &(?=(^ snap) pinned)
+  =/  pinned=?  ?=(~ inline)
+  =?  silo  pinned
     =.  silo
       %+  roll  ~(tap in jects.refs.u.snap)
       |=  [=jobe:nexus s=_silo]
@@ -1405,9 +1408,9 @@
     |=  [=nobe:nexus s=_silo]
     (~(bump-ref si:nexus s) nobe)
   =/  expiry=@da  (add now.bowl ~m5)
-  =?  snaps.remo  &(?=(^ snap) pinned)
+  =?  snaps.remo  pinned
     (~(put by snaps.remo) [snap-id src.bowl] [dest-lane refs.u.snap expiry])
-  =?  cards  &(?=(^ snap) pinned)
+  =?  cards  pinned
     :_  cards
     [%pass /behn/snap-pin/[(scot %uv snap-id)]/[(scot %p src.bowl)] %arvo %b %wait expiry]
   (respond-transfer %peek [wire.req %snap dest-lane snap-id snap inline])
@@ -4157,6 +4160,15 @@
       :_  cards
       [%pass grub-wire %agent [target %grubbery] %poke grubbery-load+!>(req)]
     this
+  ::  a peer's poke at a grub that is not there is refused exactly as a
+  ::  vetoed one (gall nacks it, the peer reads a %pack veto): an
+  ::  outsider never learns whether a path exists. Local pokes keep
+  ::  queueing on the rail.
+  ?:  ?&  ?=([%sys %ames %ships @ ~] path.here)
+          ?=(~ (peek-grub-now dest))
+      ==
+    ~|  [%peer-vetoed name.here `dest-lane]
+    !!
   ::  /sys/ intercepts: validate and consume immediately.
   ::  Direct validation, no cache: poke payloads are transient
   ::  (never silo-resident), so the sham-keyed vale cache can only
@@ -8988,7 +9000,12 @@
       ~&  >>  [%how-rejected-no-such-group group.act]
       this
     =/  cur=weir:nexus  (read-group-weir how-rail)
-    ?.  (validate-weir-roads weir.act u.prefix)
+    ::  the shell is the names broker: it writes /sys/link for every app
+    ::  and opens a name to a group on the user's say. So it alone may
+    ::  grant a road outside its prefix, and only a peek on a name's
+    ::  dest.lanes (+name-road). Nothing else reaches past a prefix.
+    =/  broker=?  =(names-broker u.prefix)
+    ?.  (validate-how-roads weir.act u.prefix broker)
       ~&  >>  [%how-rejected-roads-outside-prefix sender group.act u.prefix]
       this
     ::  the prefixes of other registrants nested inside ours — their roads are
@@ -9000,10 +9017,15 @@
       ?:  =(u.prefix pre)  ~
       ?.  (is-prefix u.prefix pre)  ~
       `pre
+    ::  a %how is total-state: the broker's name roads are stripped
+    ::  before its new ones land, as prefix roads are
+    =/  peek-base=(set road:tarball)
+      ?.  broker  peek.cur
+      (sy (skip ~(tap in peek.cur) name-road))
     =/  new=weir:nexus
       :*  (replace-roads make.cur make.weir.act u.prefix inner)
           (replace-roads poke.cur poke.weir.act u.prefix inner)
-          (replace-roads peek.cur peek.weir.act u.prefix inner)
+          (replace-roads peek-base peek.weir.act u.prefix inner)
       ==
     =.  this  (save-file how-rail [[/ %weir] new])
     recompute-all-weirs
@@ -9037,6 +9059,8 @@
     =/  keep-road
       |=  =road:tarball
       ^-  ?
+      ::  a name road is the broker's: it stays while the broker lives
+      ?:  (name-road road)  (lien live |=(pre=path =(names-broker pre)))
       =/  pax=(unit path)  (ug-extract-dir road)
       ?~  pax  |
       (lien live |=(pre=path (is-prefix pre u.pax)))
@@ -9131,6 +9155,34 @@
     %&  path.p.p.road :: for files, the path of the parent folder
   ==
 ::
+::  +names-broker: the registrant that may open names to groups — the
+::  shell, which writes /sys/link on every app's behalf.
+::
+++  names-broker  `path`/apps/shell
+::  +name-road: a peek on one name's lanes, /sys/link/<name>/dest.lanes.
+::  The only road a registrant may grant outside its own prefix, and
+::  only the broker may.
+::
+++  name-road
+  |=  =road:tarball
+  ^-  ?
+  ?&  ?=([%& %& *] road)
+      ?=([%sys %link ^] path.p.p.road)
+      =(%'dest.lanes' name.p.p.road)
+  ==
+::  +validate-how-roads: make and poke roads sit under the prefix; a
+::  peek road sits under it too, or is a name road from the broker.
+::
+++  validate-how-roads
+  |=  [=weir:nexus prefix=path broker=?]
+  ^-  ?
+  ?.  (validate-weir-roads weir(peek ~) prefix)  |
+  %+  levy  ~(tap in peek.weir)
+  |=  =road:tarball
+  ?:  &(broker (name-road road))  &
+  =/  pax=(unit path)  (ug-extract-dir road)
+  ?~  pax  |
+  (is-prefix prefix u.pax)
 ++  validate-weir-roads
   |=  [=weir:nexus prefix=path]
   ^-  ?
