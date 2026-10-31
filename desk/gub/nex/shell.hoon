@@ -382,14 +382,11 @@
         ::  notify on reload too: a fresh install's ask predates this
         ::  follower, so there is no change-news to catch — and an ask
         ::  still pending across a reload deserves the re-ping anyway.
-        ::  Regrant FIRST: a reload drops grant.json and the app's sand
-        ::  comes up empty, so its fibers bang on their first poke and are
-        ::  rebuilt on every take until the grant is back. Nothing may sit
-        ::  in front of that.
-        ;<  did=(unit ~)  bind:m
-          ((with-timeout:io ,~) /regrant ~s30 (regrant-if-dropped rail u.ap))
-        ~?  >>  ?=(~ did)  [%shell-follower-regrant-timeout u.ap]
-        ::  then the notice, bounded: a notify whose ack never came (the
+        ::  The app's sand is the shell's to set and the kernel's to keep:
+        ::  a reload carries every directory's weir forward, so nothing is
+        ::  re-granted here. The weir changes only when a grant or an alias
+        ::  does. (grant.json is the app's to keep, if it cares.)
+        ::  The notice, bounded: a notify whose ack never came (the
         ::  notifications nexus busy or banged) used to hold the follower
         ::  here for good, deaf to every change to the files it follows
         ;<  did=(unit ~)  bind:m
@@ -2657,30 +2654,6 @@
   ;<  *  bind:m  (notify-app rail app)
   ;<  ~  bind:m  (mark-notified rail app ask)
   (pure:m ~)
-::  +regrant-if-dropped: a reload drops every file an app's on-load does
-::  not list, grant.json among them, and an approved app then reads as
-::  unapproved: here-abs fails, since a sandboxed app cannot walk to
-::  root. When the follower restarts on a reload, an app that is approved but has no
-::  grant.json gets its recorded grant applied again. Idempotent: the
-::  sand is a total replacement and grant.json a rewrite.
-::
-++  regrant-if-dropped
-  |=  [rail=rail:tarball ap=path]
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  ;<  approved=(map @t json)  bind:m  (read-approved rail)
-  =/  app=@t  (crip (spud ap))
-  =/  entry=(unit json)  (~(get by approved) app)
-  ?~  entry  (pure:m ~)
-  ?.  ?=(%o -.u.entry)  (pure:m ~)
-  ?.  =('granted' (fall (jget u.entry 'verdict') ''))  (pure:m ~)
-  ;<  gv=view:nexus  bind:m  (peek:io [%& %& ap %'grant.json'] ~)
-  ?:  ?=([%file *] gv)  (pure:m ~)
-  =/  picks=json    (fall (~(get by p.u.entry) 'bindings') [%o ~])
-  =/  granted=json  (fall (~(get by p.u.entry) 'declared') [%o ~])
-  ;<  hidden=json  bind:m  (read-hidden rail)
-  ;<  now=@da  bind:m  get-time:io
-  (do-approve-weir rail app picks granted hidden now)
 ::  +build-asks: materialize the pending-asks view into /permit/asks.json so
 ::  the UI fetches a ready grub instead of re-running read-app-weirs +
 ::  alias-menu marking on every request. Same diff-then-write discipline as
