@@ -1,18 +1,16 @@
 /<  tools  /lib/tools.hoon
-::  set-group-permissions: set weir permissions on a usergroup
-::
 ^-  tool:tools
 =<
 |%
 ++  name  'set_group_permissions'
-++  description  'Set make/poke/peek permissions on a usergroup. Each is a comma-separated list of paths. Replaces existing permissions.'
+++  description  'Set the roads the user opens to a usergroup (make/poke/peek, comma-separated paths; a path ending in / is a subtree). Replaces the user\'s own contribution; apps\' contributions are unaffected.'
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  malt
   :~  ['group' [%string 'Group name as path (e.g. "/friends")']]
-      ['make' [%string 'Comma-separated make permission paths (e.g. "/,/apps")']]
-      ['poke' [%string 'Comma-separated poke permission paths']]
-      ['peek' [%string 'Comma-separated peek permission paths']]
+      ['make' [%string 'Comma-separated make roads']]
+      ['poke' [%string 'Comma-separated poke roads']]
+      ['peek' [%string 'Comma-separated peek roads']]
   ==
 ++  required  ~['group']
 ++  handler
@@ -20,34 +18,22 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
-  =/  name-parsed=(each @t tang)
-    (mule |.((~(dog jo:json-utils [%o args.st]) /group so:dejs:format)))
-  ?:  ?=(%| -.name-parsed)
-    (pure:m [%error 'Missing required argument: group'])
-  =/  grp=path  (stab p.name-parsed)
-  =/  grp-dir=path  (grp-storage-path grp)
-  =/  parse-roads
-    |=  key=@t
-    ^-  (set road:tarball)
-    =/  raw  (~(get jo:json-utils [%o args.st]) /[key])
-    ?~  raw  ~
-    ?.  ?=([%s *] u.raw)  ~
-    %-  ~(gas in *(set road:tarball))
-    %+  murn  (split-comma p.u.raw)
-    |=  t=@t
-    ^-  (unit road:tarball)
-    =/  clean=tape  (trim (trip t))
-    ?~  clean  ~
-    =/  pax=path  (fall (rush (crip clean) stap) ~)
-    ?~  pax  ~
-    `[%& %| pax]
-  =/  =weir:nexus
-    [(parse-roads 'make') (parse-roads 'poke') (parse-roads 'peek')]
-  ;<  ~  bind:m  (over:io [%& %& grp-dir %'how.weir'] [[/ %weir] weir])
-  ;<  ~  bind:m  (reg-poke:io [%gc ~])
-  (pure:m [%text (crip "Set permissions on {(spud grp)}")])
+  =/  grp  (~(get by args.st) 'group')
+  ?.  ?=([~ %s *] grp)  (pure:m [%error 'Missing required argument: group'])
+  =/  field
+    |=  k=@t
+    ^-  [@t json]
+    =/  v  (~(get by args.st) k)
+    [k ?.(?=([~ %s *] v) [%a ~] (str-list p.u.v))]
+  =/  req=json
+    (pairs:enjs:format ~[['group' s+p.u.grp] (field 'make') (field 'poke') (field 'peek')])
+  ;<  ~  bind:m  (poke:io groups-sig [[/ %json] req])
+  (pure:m [%text (crip "Set roads on {(trip p.u.grp)}")])
 --
 |%
+::  every write to usergroups is a contribution poked at the shell's
+::  groups.sig; from a tool under the shell it lands in the user's section
+++  groups-sig  `road:tarball`[%& %& /apps/shell %'groups.sig']
 ++  split-comma
   |=  t=@t
   ^-  (list @t)
@@ -55,17 +41,12 @@
   =|  acc=(list @t)
   =|  cur=(list @)
   |-
-  ?~  tape  (flop [(crip (flop cur)) acc])
+  ?~  tape
+    =/  s=@t  (crip (flop cur))
+    (flop ?:(=('' s) acc [s acc]))
   ?:  =(i.tape ',')
     $(tape t.tape, acc [(crip (flop cur)) acc], cur ~)
   $(tape t.tape, cur [i.tape cur])
-++  grp-storage-path
-  |=  grp=path
-  ^-  path
-  ?~  grp  /sys/ames/usergroups
-  %+  weld  /sys/ames/usergroups
-  (snoc (snip `path`grp) (cat 3 (rear grp) '.grp'))
-::
 ++  trim
   |=  t=tape
   ^-  tape
@@ -73,4 +54,8 @@
   ?~  t  ~
   ?.  =(i.t ' ')  t
   $(t t.t)
+++  str-list
+  |=  t=@t
+  ^-  json
+  a+(murn (split-comma t) |=(x=@t =/(c=tape (trim (trip x)) ?~(c ~ `s+(crip c)))))
 --

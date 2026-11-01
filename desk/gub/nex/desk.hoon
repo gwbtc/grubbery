@@ -137,8 +137,6 @@
       ::
       [~ %'source.json']
     ;<  ~  bind:m  (rise-wait:io prod "%desk config: failed")
-    ;<  here=rail:tarball  bind:m  get-here-abs:io
-    ;<  ~  bind:m  (reg-register-at:io here)
     |-
     ;<  src-json=json  bind:m  (get-state-as:io ,json)
     =/  config=source-config  (json-to-source src-json)
@@ -207,8 +205,6 @@
       ::
       [~ %'share.usergroups']
     ;<  ~  bind:m  (rise-wait:io prod "%desk share: failed")
-    ;<  here=rail:tarball  bind:m  get-here-abs:io
-    ;<  ~  bind:m  (reg-register-at:io here)
     |-
     ;<  cur=(set path)  bind:m  (get-state-as:io ,(set path))
     ;<  =sage:tarball  bind:m  take-poke:io
@@ -224,26 +220,9 @@
         =/  g=(unit path)  (rush p.u.rem stap)
         ?~(g cur (~(del in cur) u.g))
       cur
+    ::  the shell's listener on this grub opens the code to the groups
+    ::  named here; the desk itself grants nothing
     ;<  ~  bind:m  (replace:io new)
-    ::  re-assert the registration before granting. The registry lives in a
-    ::  grub this nexus does not own, so a registration can be gone without
-    ::  this fiber ever knowing — and a %how from an unregistered rail is
-    ::  REFUSED with a printf and nothing else, which makes the share appear
-    ::  to succeed while granting nobody anything. Registering is idempotent
-    ::  and costs one poke, so assert it on the path that depends on it
-    ::  rather than only once at rise.
-    ::
-    ::  SOFT, because a guard must not be able to break what it guards. As a
-    ::  hard poke this killed the fiber between +replace and +apply-share:
-    ::  the share set was committed, the shell listed the desk as shared, and
-    ::  no grant was ever applied — a worse failure than the one it prevents,
-    ::  and silent in exactly the same way.
-    ;<  err=(unit tang)  bind:m  (reg-register-at-soft:io here)
-    ::  say so if it was refused. The grant that follows will then be refused
-    ::  too, with a printf on the registry's side that this fiber never sees,
-    ::  so this line is the only place the desk itself can report it.
-    ~?  >>>  ?=(^ err)  [%desk-share-not-registered path.here]
-    ;<  ~  bind:m  (apply-share path.here ~(tap in cur) ~(tap in new))
     $
       ::  asks.sig: (re)compute the desk-level ask.json from the
       ::  children's weir.json asks. Recomputes once at rise (so a reload
@@ -455,45 +434,6 @@
   ?:  =('' p.u.codp)  ~
   `[p.u.codp]
 ::
-::  +apply-share: register the follow weir with every group in the new
-::  share list, and clear it from groups that were dropped
-::
-::    The weir grants exactly what a follower needs to pull: the
-::    version file, the code tree, and the bill.
-::
-++  apply-share
-  |=  [nex-dir=path old=(list path) new=(list path)]
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  ::  what a follower needs to pull: peek the code tree and the version
-  ::  file (stable name — version.json). Stable roads, granted once — no
-  ::  re-apply when the code or version content changes.
-  =/  grant=weir:nexus
-    :+  ~  ~
-    %-  sy
-    :~  [%& %| (weld nex-dir /desk/code)]
-        [%& %& nex-dir %'version.json']
-    ==
-  ::  groups to clear: any dropped from the share list, plus /public
-  ::  always — a fresh fiber cannot know what a prior life granted,
-  ::  so the discovery group's state is asserted on every application
-  ::  rather than diffed.
-  =/  clear=(list path)
-    =|  seen=(set path)
-    =/  base=(list path)  (weld old `(list path)`~[/public])
-    |-  ^-  (list path)
-    ?~  base  ~
-    ?:  ?|((~(has in seen) i.base) ?=(^ (find ~[i.base] new)))
-      $(base t.base)
-    [i.base $(base t.base, seen (~(put in seen) i.base))]
-  =/  jobs=(list [grp=path w=weir:nexus])
-    %+  weld
-      (turn clear |=(g=path [g *weir:nexus]))
-    (turn new |=(g=path [g grant]))
-  |-  ^-  form:m
-  ?~  jobs  (pure:m ~)
-  ;<  ~  bind:m  (reg-how:io [grp.i.jobs w.i.jobs])
-  $(jobs t.jobs)
 ::  desk-slug: URL name for a desk nexus — its dir name minus the
 ::  dot-suffix ('test.desk' -> 'test'). Dots are avoided in eyre
 ::  bindings: eyre parses them as file extensions during matching.

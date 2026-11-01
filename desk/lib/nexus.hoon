@@ -256,15 +256,6 @@
       [%send =push-send:push eny=@]
       [%init eny=@ sub=@t]
   ==
-::  Usergroups registry action.
-::  Poked to /sys/ames/registry with blot [/usergroups %registry-action].
-::
-+$  registry-action
-  $%  [%register =rail:tarball pax=path]
-      [%deregister =rail:tarball clean=?]
-      [%how group=path =weir]
-      [%gc ~]
-  ==
 ::  Clay desk sync service state.
 ::  Stored as a grub at /sys/clay/main.clay-state.
 ::  Desk mirrors live at /sys/clay/desks/[desk]/.

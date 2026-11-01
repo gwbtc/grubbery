@@ -1,16 +1,14 @@
 /<  tools  /lib/tools.hoon
-::  set-group-members: set the members of a usergroup
-::
 ^-  tool:tools
 =<
 |%
 ++  name  'set_group_members'
-++  description  'Set the members of a usergroup. Replaces existing members.'
+++  description  'Set the members of a usergroup in the user\'s section of the shell\'s record (apps\' own contributions are unaffected).'
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  malt
   :~  ['group' [%string 'Group name as path (e.g. "/friends")']]
-      ['members' [%string 'Comma-separated ships (e.g. "~zod,~bus")']]
+      ['members' [%string 'Comma-separated ships (e.g. "~zod,~bus"); empty clears']]
   ==
 ++  required  ~['group' 'members']
 ++  handler
@@ -18,25 +16,18 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
-  =/  parsed=(each [@t @t] tang)
-    %-  mule  |.
-    :-  (~(dog jo:json-utils [%o args.st]) /group so:dejs:format)
-    (~(dog jo:json-utils [%o args.st]) /members so:dejs:format)
-  ?:  ?=(%| -.parsed)
+  =/  grp  (~(get by args.st) 'group')
+  =/  mem  (~(get by args.st) 'members')
+  ?.  &(?=([~ %s *] grp) ?=([~ %s *] mem))
     (pure:m [%error 'Missing required arguments: group, members'])
-  =/  [name=@t mem-text=@t]  p.parsed
-  =/  grp=path  (stab name)
-  =/  grp-dir=path  (grp-storage-path grp)
-  =/  members=(set @p)
-    %-  ~(gas in *(set @p))
-    %+  murn  (split-comma mem-text)
-    |=  t=@t
-    (slaw %p (crip (trim (trip t))))
-  ;<  ~  bind:m  (over:io [%& %& grp-dir %'who.ships'] [[/ %ships] members])
-  ;<  ~  bind:m  (reg-poke:io [%gc ~])
-  (pure:m [%text (crip "Set {(a-co:co ~(wyt in members))} members on {(spud grp)}")])
+  =/  req=json  (pairs:enjs:format ~[['group' s+p.u.grp] ['members' (str-list p.u.mem)]])
+  ;<  ~  bind:m  (poke:io groups-sig [[/ %json] req])
+  (pure:m [%text (crip "Set members on {(trip p.u.grp)}")])
 --
 |%
+::  every write to usergroups is a contribution poked at the shell's
+::  groups.sig; from a tool under the shell it lands in the user's section
+++  groups-sig  `road:tarball`[%& %& /apps/shell %'groups.sig']
 ++  split-comma
   |=  t=@t
   ^-  (list @t)
@@ -44,17 +35,12 @@
   =|  acc=(list @t)
   =|  cur=(list @)
   |-
-  ?~  tape  (flop [(crip (flop cur)) acc])
+  ?~  tape
+    =/  s=@t  (crip (flop cur))
+    (flop ?:(=('' s) acc [s acc]))
   ?:  =(i.tape ',')
     $(tape t.tape, acc [(crip (flop cur)) acc], cur ~)
   $(tape t.tape, cur [i.tape cur])
-++  grp-storage-path
-  |=  grp=path
-  ^-  path
-  ?~  grp  /sys/ames/usergroups
-  %+  weld  /sys/ames/usergroups
-  (snoc (snip `path`grp) (cat 3 (rear grp) '.grp'))
-::
 ++  trim
   |=  t=tape
   ^-  tape
@@ -62,4 +48,8 @@
   ?~  t  ~
   ?.  =(i.t ' ')  t
   $(t t.t)
+++  str-list
+  |=  t=@t
+  ^-  json
+  a+(murn (split-comma t) |=(x=@t =/(c=tape (trim (trip x)) ?~(c ~ `s+(crip c)))))
 --

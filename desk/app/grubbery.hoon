@@ -3470,6 +3470,9 @@
   |=  changed=(set lane:tarball)
   ^+  this
   ?:  =(~ changed)  this
+  ::  a group's files changed, by whatever write: the ship weirs derived
+  ::  from them are recomputed in the same event
+  =?  this  (lien ~(tap in changed) usergroups-lane)  recompute-all-weirs
   ::  If the upki file changed, give udiffs to gall subscribers
   =.  this  (maybe-give-jael changed)
   ::  For each watched lane, find subscribers and send news
@@ -3506,10 +3509,6 @@
   =.  this
     %-  ~(rep by watchers)
     |=  [[watcher=rail:tarball =wire blot=(unit blot:tarball)] acc=_this]
-    ::  the registry watches its registrants; it has no fiber, so its
-    ::  news is handled synchronously
-    ?:  =([/sys/ames %'registry'] watcher)
-      (registry-news:acc target)
     ::  self-heal: a watcher whose grub no longer exists is a leaked
     ::  subscription; drop it instead of delivering
     ?~  (peek-grub-now watcher)
@@ -6718,10 +6717,13 @@
   =.  this  (ensure-dir /sys/ames)
   =.  this  (ensure-dir /sys/ames/usergroups)
   =.  this  (ensure-dir /sys/ames/ships)
-  ::  Ensure usergroups registry exists
+  ::  the usergroup registry is gone: the shell writes every group's
+  ::  files from its own record. A ship still holding the registry grub
+  ::  loses it, and the watches it kept on its registrants.
   =/  reg-rail=rail:tarball  [/sys/ames %'registry']
-  =?  this  =(~ (peek-grub-now reg-rail))
-    (save-file reg-rail [[/usergroups %registry] *(map rail:tarball path)])
+  =?  this  ?=(^ (peek-grub-now reg-rail))
+    =.  this  (sub-wipe reg-rail)
+    (delete /sys/ames %'registry')
   =.  this  ensure-public-group
   (ensure-peer-ship our.bowl)
 ::  Ensure /sys/ames/usergroups/public.grp/ exists with who.ships and how.weir.
@@ -7999,11 +8001,6 @@
       `(enqu-take here ~ ~ %pack wir ~)
     ~
   ::
-      %ames
-    ?>  =(dest [/sys/ames %'registry'])
-    ?>  =([/usergroups %registry-action] p.sage)
-    =.  this  (handle-ames-registry here wir q.sage)
-    `(enqu-take here ~ ~ %pack wir ~)
   ==
 ::  /sys/behn/ timer service
 ::
@@ -8840,397 +8837,14 @@
     =.  last  last(eny (shaz (cat 3 eny.bowl eny.last)))
     (enqu-take sender ~ ~ %poke rel [[/ %entropy] eny.last])
   ==
-::  /sys/ames/ usergroups registry
+::  +usergroups-lane: a lane under /sys/ames/usergroups — a change to one
+::  means some group's files changed; +notify-lanes recomputes the ship
+::  weirs on it, whatever wrote (a dart, a fiber's replace, a reload).
 ::
-::  Namespace ownership + per-group weir management.
-::  - %register/%deregister: claim/release a path prefix
-::  - %how: set weir roads for a named group, scoped to owned prefix
-::  - %gc: sweep grants whose managing registrant no longer exists
-::  - %create-group/%delete-group: group lifecycle
-::  - %add-ship/%del-ship: group membership
-::
-++  handle-ames-registry
-  |=  [sender=rail:tarball =wire vaz=vase]
-  ^+  this
-  =/  reg-rail=rail:tarball  [/sys/ames %'registry']
-  =/  reg=(map rail:tarball path)
-    =/  got=(unit sang:tarball)  (peek-grub-now reg-rail)
-    ?~  got  *(map rail:tarball path)
-    =/  res  (mule |.(!<((map rail:tarball path) (need-vase:tarball u.got))))
-    ?:(?=(%| -.res) *(map rail:tarball path) p.res)
-  =/  act  !<(registry-action:nexus vaz)
-  ::  A sandboxed nexus cannot name its own absolute rail: its fibers see
-  ::  a pant relative to their own root. So an app registers the rail it
-  ::  knows - lattice and auspex send [/ %main.sig] - and grants roads in
-  ::  the relative form, [%| up lane]. Resolve both against the sender,
-  ::  whose absolute rail the kernel does know. Before this the relative
-  ::  rail collided with the root nexus's own [/ %main.sig] row, the %how
-  ::  from the app's real rail found no registrant, and every cross-ship
-  ::  grant from a desk-installed app was refused with nothing to show for
-  ::  it but a missing road.
-  ::
-  ::  A rail is relative when its path is a suffix of the sender's path:
-  ::  the sender's own absolute rail passes through unchanged, and a
-  ::  delegated registration of another grub (the shell registering a
-  ::  desk's share.usergroups) does not match and stays absolute.
-  =/  nexus-dir
-    |=  rel=path
-    ^-  (unit path)
-    =/  n=@ud  (lent path.sender)
-    =/  k=@ud  (lent rel)
-    ?:  (gth k n)  ~
-    ?.  =(rel (slag (sub n k) path.sender))  ~
-    `(scag (sub n k) path.sender)
-  =/  abs-road
-    |=  r=road:tarball
-    ^-  road:tarball
-    ?:  ?=(%& -.r)  r
-    =/  base=path
-      =/  up=@ud  p.p.r
-      =/  b=path  path.sender
-      |-  ^-  path
-      ?:  |(=(0 up) ?=(~ b))  b
-      $(up (dec up), b (snip `path`b))
-    ?-  -.q.p.r
-      %&  [%& %& [(weld base path.p.q.p.r) name.p.q.p.r]]
-      %|  [%& %| (weld base p.q.p.r)]
-    ==
-  =.  act
-    ?+    -.act  act
-        %register
-      =/  nd=(unit path)  (nexus-dir path.rail.act)
-      ?~  nd  act
-      act(rail sender, pax (weld u.nd pax.act))
-        %deregister
-      =/  nd=(unit path)  (nexus-dir path.rail.act)
-      ?~  nd  act
-      act(rail sender)
-        %how
-      %=  act
-        weir
-        :*  (~(run in make.weir.act) abs-road)
-            (~(run in poke.weir.act) abs-road)
-            (~(run in peek.weir.act) abs-road)
-        ==
-      ==
-    ==
-  ?-    -.act
-      %register
-    =/  new-prefix  pax.act
-    ::  last-writer-wins for the SAME prefix: a new registrant claiming a
-    ::  prefix evicts the row that already claimed exactly that prefix,
-    ::  which auto-heals a stale row left by a deleted nexus that never got
-    ::  to deregister.
-    ::
-    ::  It deliberately does NOT evict OVERLAPPING claims, which is what
-    ::  this did before, and that broke delegation completely: the root
-    ::  nexus registers `/`, and `/` is a prefix of every path, so the
-    ::  symmetric overlap test meant the root's own re-registration evicted
-    ::  every other registrant on the ship. After any rebuild that re-rose
-    ::  the root — which is every rebuild — `reg` held exactly one row and
-    ::  every delegated grant was refused with %how-rejected-not-registered.
-    ::  A desk sharing its code cross-ship stopped being able to, silently:
-    ::  the follower saw an empty /desk/code, no error, nothing in a log.
-    ::
-    ::  Nesting is unambiguous for everything that reads this map. %how
-    ::  looks a registrant up by its EXACT rail and scopes its roads to that
-    ::  registrant's own prefix, so a parent and a child holding nested
-    ::  prefixes never contend for a road. And stale rows do not need this
-    ::  rule anyway: the /registrant subscription below reports a
-    ::  registrant's deletion to +registry-news, and %gc sweeps grants whose
-    ::  registrant is gone.
-    =/  pruned=(map rail:tarball path)
-      %-  ~(gas by *(map rail:tarball path))
-      %+  skip  ~(tap by reg)
-      |=  [r=rail:tarball existing=path]
-      ^-  ?
-      ?:  =(r rail.act)  %.n
-      =(new-prefix existing)
-    ::  watch the registrant so its deletion reaches +registry-news;
-    ::  drop the watches of any rows the claim evicted
-    =.  this
-      %+  roll  (skip ~(tap by reg) |=([r=rail:tarball *] (~(has by pruned) r)))
-      |=  [[r=rail:tarball *] acc=_this]
-      ?:  =(r rail.act)  acc
-      (sub-del:acc [%& r] reg-rail)
-    =.  this  (sub-put [%& rail.act] reg-rail /registrant ~)
-    =/  new-reg=(map rail:tarball path)  (~(put by pruned) rail.act new-prefix)
-    (save-file reg-rail [[/usergroups %registry] new-reg])
-  ::
-      %deregister
-    =/  prefix=(unit path)  (~(get by reg) rail.act)
-    ?~  prefix  this
-    =.  this  (sub-del [%& rail.act] reg-rail)
-    =/  new-reg=(map rail:tarball path)  (~(del by reg) rail.act)
-    =.  this  (save-file reg-rail [[/usergroups %registry] new-reg])
-    ?.  clean.act  this
-    ::  Strip roads under prefix from ALL groups. Same exclusion as %how: a
-    ::  deregistering outer registrant must not take a nested registrant's
-    ::  grants with it. `new-reg` is used, not `reg`, so the row just removed
-    ::  is already gone and cannot exclude itself.
-    =/  inner=(list path)
-      %+  murn  ~(tap by new-reg)
-      |=  [r=rail:tarball pre=path]
-      ?:  =(u.prefix pre)  ~
-      ?.  (is-prefix u.prefix pre)  ~
-      `pre
-    =/  groups=(list [name=path grp=ball:tarball])
-      (find-groups / (peek-ball-now /sys/ames/usergroups))
-    |-
-    ?~  groups  recompute-all-weirs
-    =/  how-rail=rail:tarball  [(grp-storage-path name.i.groups) %'how.weir']
-    =/  cur=weir:nexus  (read-group-weir how-rail)
-    =/  new=weir:nexus
-      :*  (replace-roads make.cur ~ u.prefix inner)
-          (replace-roads poke.cur ~ u.prefix inner)
-          (replace-roads peek.cur ~ u.prefix inner)
-      ==
-    =.  this  (save-file how-rail [[/ %weir] new])
-    $(groups t.groups)
-  ::
-      %how
-    =/  prefix=(unit path)  (~(get by reg) sender)
-    ?~  prefix
-      ~&  >>  [%how-rejected-not-registered sender]
-      this
-    =/  grp-dir=path  (grp-storage-path group.act)
-    =/  how-rail=rail:tarball  [grp-dir %'how.weir']
-    =/  exists=(unit sang:tarball)  (peek-grub-now [grp-dir %'who.ships'])
-    ?~  exists
-      ~&  >>  [%how-rejected-no-such-group group.act]
-      this
-    =/  cur=weir:nexus  (read-group-weir how-rail)
-    ::  the shell is the names broker: it writes /sys/link for every app
-    ::  and opens a name to a group on the user's say. So it alone may
-    ::  grant a road outside its prefix, and only a peek on a name's
-    ::  dest.lanes (+name-road). Nothing else reaches past a prefix.
-    =/  broker=?  =(names-broker u.prefix)
-    ?.  (validate-how-roads weir.act u.prefix broker)
-      ~&  >>  [%how-rejected-roads-outside-prefix sender group.act u.prefix]
-      this
-    ::  the prefixes of other registrants nested inside ours — their roads are
-    ::  not ours to strip. See +replace-roads.
-    =/  inner=(list path)
-      %+  murn  ~(tap by reg)
-      |=  [r=rail:tarball pre=path]
-      ?:  =(r sender)  ~
-      ?:  =(u.prefix pre)  ~
-      ?.  (is-prefix u.prefix pre)  ~
-      `pre
-    ::  a %how is total-state: the broker's name roads are stripped
-    ::  before its new ones land, as prefix roads are
-    =/  peek-base=(set road:tarball)
-      ?.  broker  peek.cur
-      (sy (skip ~(tap in peek.cur) name-road))
-    =/  new=weir:nexus
-      :*  (replace-roads make.cur make.weir.act u.prefix inner)
-          (replace-roads poke.cur poke.weir.act u.prefix inner)
-          (replace-roads peek-base peek.weir.act u.prefix inner)
-      ==
-    =.  this  (save-file how-rail [[/ %weir] new])
-    recompute-all-weirs
-  ::
-      %gc
-    ::  Garbage-collect grants by manager existence, not target
-    ::  existence: a grant may legitimately point at a path its
-    ::  manager has not created yet, but a grant whose managing
-    ::  registrant is gone can never be updated or revoked again.
-    ::  Drops ownership rows for dead registrant grubs, then strips
-    ::  every group road no live prefix covers, and re-establishes the
-    ::  registrant watches +registry-news relies on — a full
-    ::  reconciliation, so it also migrates rows that predate the
-    ::  watches. Removal-only on grants, so any local sender may
-    ::  invoke it.
-    =/  rows=(list [r=rail:tarball pre=path])  ~(tap by reg)
-    =/  live=(list path)
-      %+  murn  rows
-      |=([r=rail:tarball pre=path] ?~((peek-grub-now r) ~ `pre))
-    =.  this
-      %+  roll  rows
-      |=  [[r=rail:tarball *] acc=_this]
-      ?~  (peek-grub-now r)
-        (sub-del:acc [%& r] reg-rail)
-      (sub-put:acc [%& r] reg-rail /registrant ~)
-    =/  new-reg=(map rail:tarball path)
-      %-  ~(gas by *(map rail:tarball path))
-      (skip rows |=([r=rail:tarball pre=path] =(~ (peek-grub-now r))))
-    =?  this  !=(new-reg reg)
-      (save-file reg-rail [[/usergroups %registry] new-reg])
-    =/  keep-road
-      |=  =road:tarball
-      ^-  ?
-      ::  a name road is the broker's: it stays while the broker lives
-      ?:  (name-road road)  (lien live |=(pre=path =(names-broker pre)))
-      =/  pax=(unit path)  (ug-extract-dir road)
-      ?~  pax  |
-      (lien live |=(pre=path (is-prefix pre u.pax)))
-    =/  groups=(list [name=path grp=ball:tarball])
-      (find-groups / (peek-ball-now /sys/ames/usergroups))
-    |-
-    ?~  groups  recompute-all-weirs
-    =/  how-rail=rail:tarball
-      [(grp-storage-path name.i.groups) %'how.weir']
-    =/  cur=weir:nexus  (read-group-weir how-rail)
-    =/  new=weir:nexus
-      :*  (sy (skim ~(tap in make.cur) keep-road))
-          (sy (skim ~(tap in poke.cur) keep-road))
-          (sy (skim ~(tap in peek.cur) keep-road))
-      ==
-    =?  this  !=(new cur)
-      (save-file how-rail [[/ %weir] new])
-    $(groups t.groups)
-  ==
-::
-::  +registry-news: a watched registrant grub changed. The registry
-::  subscribes to every registrant at %register, so a registrant's
-::  deletion arrives here as ordinary news. A content change is
-::  ignored; a death sweeps the ownership row, the group grants under
-::  its prefix, and the watch itself.
-::
-++  registry-news
-  |=  target=lane:tarball
-  ^+  this
-  ?.  ?=(%& -.target)  this
-  =/  r=rail:tarball  p.target
-  ?:  (grub-lives r)  this
-  =/  reg-rail=rail:tarball  [/sys/ames %'registry']
-  =.  this  (sub-del target reg-rail)
-  =/  reg=(map rail:tarball path)
-    =/  got=(unit sang:tarball)  (peek-grub-now reg-rail)
-    ?~  got  ~
-    =/  res  (mule |.(!<((map rail:tarball path) (need-vase:tarball u.got))))
-    ?:(?=(%| -.res) ~ p.res)
-  =/  pre=(unit path)  (~(get by reg) r)
-  ?~  pre  this
-  =.  this  (save-file reg-rail [[/usergroups %registry] (~(del by reg) r)])
-  =/  keep-road
-    |=  =road:tarball
-    ^-  ?
-    =/  pax=(unit path)  (ug-extract-dir road)
-    ?~  pax  %.y
-    !(is-prefix u.pre u.pax)
-  =/  groups=(list [name=path grp=ball:tarball])
-    (find-groups / (peek-ball-now /sys/ames/usergroups))
-  |-
-  ?~  groups  recompute-all-weirs
-  =/  how-rail=rail:tarball
-    [(grp-storage-path name.i.groups) %'how.weir']
-  =/  cur=weir:nexus  (read-group-weir how-rail)
-  =/  new=weir:nexus
-    :*  (sy (skim ~(tap in make.cur) keep-road))
-        (sy (skim ~(tap in poke.cur) keep-road))
-        (sy (skim ~(tap in peek.cur) keep-road))
-    ==
-  =?  this  !=(new cur)
-    (save-file how-rail [[/ %weir] new])
-  $(groups t.groups)
-::
-++  read-group-weir
-  |=  how-rail=rail:tarball
-  ^-  weir:nexus
-  =/  got=(unit sang:tarball)  (peek-grub-now how-rail)
-  ?~  got  *weir:nexus
-  =/  res  (mule |.(!<(weir:nexus (need-vase:tarball u.got))))
-  ?:(?=(%| -.res) *weir:nexus p.res)
-::
-++  is-prefix
-  |=  [pre=path full=path]
+++  usergroups-lane
+  |=  l=lane:tarball
   ^-  ?
-  ?~  pre  &
-  ?~  full  |
-  ?.  =(i.pre i.full)  |
-  $(pre t.pre, full t.full)
-::  +ug-extract-dir:
-::    a road's directory — a file's parent, or the dir itself.
-::    we ignore relative roads. normal weirs can have relative roads.
-::    usergroup weirs cannot.
-::
-++  ug-extract-dir
-  |=  =road:tarball
-  ^-  (unit path)
-  ?.  ?=(%& -.road)  ~ :: ignore relative roads
-  :-  ~
-  ?-  -.p.road
-    %|  p.p.road      :: for folders, the path
-    %&  path.p.p.road :: for files, the path of the parent folder
-  ==
-::
-::  +names-broker: the registrant that may open names to groups — the
-::  shell, which writes /sys/link on every app's behalf.
-::
-++  names-broker  `path`/apps/shell
-::  +name-road: a peek on one name's lanes, /sys/link/<name>/dest.lanes.
-::  The only road a registrant may grant outside its own prefix, and
-::  only the broker may.
-::
-++  name-road
-  |=  =road:tarball
-  ^-  ?
-  ?&  ?=([%& %& *] road)
-      ?=([%sys %link ^] path.p.p.road)
-      =(%'dest.lanes' name.p.p.road)
-  ==
-::  +validate-how-roads: make and poke roads sit under the prefix; a
-::  peek road sits under it too, or is a name road from the broker.
-::
-++  validate-how-roads
-  |=  [=weir:nexus prefix=path broker=?]
-  ^-  ?
-  ?.  (validate-weir-roads weir(peek ~) prefix)  |
-  %+  levy  ~(tap in peek.weir)
-  |=  =road:tarball
-  ?:  &(broker (name-road road))  &
-  =/  pax=(unit path)  (ug-extract-dir road)
-  ?~  pax  |
-  (is-prefix prefix u.pax)
-++  validate-weir-roads
-  |=  [=weir:nexus prefix=path]
-  ^-  ?
-  %+  levy
-    %+  weld  ~(tap in make.weir)
-    %+  weld  ~(tap in poke.weir)
-    ~(tap in peek.weir)
-  |=  =road:tarball
-  =/  pax=(unit path)  (ug-extract-dir road)
-  ?~  pax  |  :: reject relative roads
-  (is-prefix prefix u.pax)
-::
-++  replace-roads
-  |=  $:  cur=(set road:tarball)
-          new=(set road:tarball)
-          prefix=path
-          inner=(list path)
-      ==
-  ^-  (set road:tarball)
-  ::  Strip the roads this registrant OWNS, then add the ones it is claiming.
-  ::
-  ::  Owning a prefix is not the same as owning every road under it. Registrants
-  ::  nest: the shell owns /apps/shell, and a desk inside it owns
-  ::  /apps/shell/desks/<x>.desk. `inner` is the prefixes of the OTHER
-  ::  registrants that sit inside ours, and roads under those are theirs.
-  ::
-  ::  Without that exclusion the outer registrant erases the inner one's grants
-  ::  every time it re-applies its own, which the shell does whenever a desk's
-  ::  share state changes — so a desk sharing its code always lost the race and
-  ::  the grant vanished a moment after it landed:
-  ::
-  ::    [%how-written public.grp peeks=4]   <- the desk's two roads arrive
-  ::    [%how-written public.grp peeks=2]   <- the shell re-applies, they are gone
-  ::
-  ::  with nothing refused and nothing logged.
-  =/  mine
-    |=  =road:tarball
-    ^-  ?
-    =/  pax=(unit path)  (ug-extract-dir road)
-    ?~  pax  |
-    ?.  (is-prefix prefix u.pax)  |
-    ::  inside our prefix, but under a nested registrant's: not ours
-    !(lien inner |=(i=path (is-prefix i u.pax)))
-  =/  stripped=(set road:tarball)
-    %-  ~(gas in *(set road:tarball))
-    (skip ~(tap in cur) mine)
-  ::  Add new roads
-  (~(uni in stripped) new)
+  ?=([%sys %ames %usergroups *] ?-(-.l %& path.p.l, %| p.l))
 ::
 ++  recompute-all-weirs
   ^+  this

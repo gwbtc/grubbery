@@ -8,7 +8,8 @@
 // Reads come from /apps/grubbery/peers.json (the groups folded from their
 // who.ships + how.weir); the three writes go to the shell's peers POSTs,
 // since members are a ships mark and permissions are the registry's poke.
-// Deleting a group is the explorer's own row menu. The raw files stay one
+// A group's files are derived by the shell from your record and from what
+// granted apps declare; this pane edits your part. The raw files stay one
 // click away in Source.
 (function () {
   'use strict';
@@ -189,7 +190,18 @@
       });
       body.appendChild(perm);
       var foot = el('div', 'sec');
-      foot.appendChild(el('div', 'note', 'who.ships and how.weir are the files behind this pane (Source shows them); delete the group from its row menu in the tree'));
+      foot.appendChild(el('div', 'note', 'who.ships and how.weir are derived from your record and from what granted apps declare; this pane edits your part. Members and roads an app contributes stay until the app drops them.'));
+      if (!isPublic) {
+        var dbtn = el('button', 'btn', 'drop this group');
+        var dstat = el('span', 'ok', '');
+        dbtn.addEventListener('click', function () {
+          dbtn.disabled = true; dstat.textContent = '';
+          post('delete', { group: name })
+            .then(function () { body.innerHTML = ''; body.appendChild(el('div', 'empty', 'dropped from your record; the group stays only while an app still names it')); })
+            .catch(function (e) { dstat.textContent = 'failed: ' + e.message; dstat.className = 'err'; dbtn.disabled = false; });
+        });
+        foot.appendChild(dbtn); foot.appendChild(dstat);
+      }
       body.appendChild(foot);
     }
     loadGroups().then(function (gs) {
