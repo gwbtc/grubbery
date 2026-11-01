@@ -36,6 +36,10 @@
     '.pe textarea:focus,.pe .sec input:focus{border-color:#0969da;box-shadow:0 0 0 3px rgba(9,105,218,.15)}' +
     '.pe .acts{display:flex;gap:8px;align-items:center;margin-top:10px}' +
     '.pe .note{font-size:12px;color:#8b949e}' +
+    '.pe .contrib{display:flex;gap:12px;align-items:flex-start;padding:7px 0;border-top:1px solid #f0f2f4;font-size:12px}' +
+    '.pe .contrib .by{flex:0 0 220px;color:#57606a;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all}' +
+    '.pe .contrib .bits{display:flex;flex-wrap:wrap;gap:6px}' +
+    '.pe .contrib code{background:#f6f8fa;border:1px solid #e5e8eb;border-radius:5px;padding:1px 6px;font-size:11.5px}' +
     '.pe .empty{color:#8b949e;font-size:13px;text-align:center;margin:60px auto;max-width:360px;line-height:1.6}' +
     '.pe .err{color:#cf222e;font-size:12.5px;margin:12px 16px}' +
     '.pe .ok{color:#1a7f37;font-size:12px}';
@@ -147,7 +151,7 @@
         mem.appendChild(el('div', 'note', 'the public group applies to every foreign ship; it has no member list'));
       } else {
         mem.appendChild(el('label', null, 'one ~ship per line'));
-        memTa = el('textarea'); memTa.value = g.members.join('\n'); memTa.spellcheck = false;
+        memTa = el('textarea'); memTa.value = ((g.mine && g.mine.members) || []).join('\n'); memTa.spellcheck = false;
         mem.appendChild(memTa);
         var macts = el('div', 'acts');
         var msave = el('button', 'pri', 'save members');
@@ -164,16 +168,15 @@
         });
       }
       body.appendChild(mem);
-      // roads. TODO: saving does nothing yet — the registry's %how only
-      // takes roads from a registered sender, within its own prefix (see
-      // +peers-write in shell.hoon). Read-only vs shell-as-broker is open.
+      // roads: your own part. What apps, names and desks contribute is
+      // listed below, read-only, with its contributor.
       var perm = el('div', 'sec');
-      perm.appendChild(el('h4', null, 'permissions'));
-      perm.appendChild(el('div', 'note', 'roads the group may use, comma-separated: a /dir/ covers its subtree, a /dir/file.ext one grub'));
+      perm.appendChild(el('h4', null, 'roads the shell declares'));
+      perm.appendChild(el('div', 'note', 'comma-separated: a /dir/ covers its subtree, a /dir/file.ext one grub. What the shell derives from a desk you published or a name you shared is listed below instead.'));
       var inputs = {};
       ['make', 'poke', 'peek'].forEach(function (k) {
         perm.appendChild(el('label', null, k));
-        var inp = el('input'); inp.value = g[k].join(','); inp.spellcheck = false; inp.placeholder = '/path/, /path/file.ext';
+        var inp = el('input'); inp.value = ((g.mine && g.mine[k]) || []).join(','); inp.spellcheck = false; inp.placeholder = '/path/, /path/file.ext';
         inputs[k] = inp; perm.appendChild(inp);
       });
       var pacts = el('div', 'acts');
@@ -189,8 +192,35 @@
           .then(function () { psave.disabled = false; });
       });
       body.appendChild(perm);
+      // everyone's contributions, each with who made it
+      var rank = function (b) { return b === 'manual' ? 0 : b === 'shell' ? 1 : 2; };
+      var others = (g.contributions || []).slice().sort(function (a, b) { return rank(a.by) - rank(b.by) || a.by.localeCompare(b.by); });
+      var all = el('div', 'sec');
+      all.appendChild(el('h4', null, 'opened to this group, by whom'));
+      // a contributor with nothing in force is not a row
+      others = others.filter(function (c) { return (c.members || []).length || (c.make || []).length || (c.poke || []).length || (c.peek || []).length; });
+      if (!others.length) all.appendChild(el('div', 'note', 'nothing yet'));
+      others.forEach(function (c) {
+        // an app is named by its desk and nexus; the full root sits in the title
+        var who = c.by === 'manual' ? 'shell (declared)' : c.by === 'shell' ? 'shell (derived)' : c.by;
+        if (who.charAt(0) === '/') {
+          var m = who.match(/^\/apps\/shell\/desks\/([^/]+)\/desk\/data\/([^/]+)$/);
+          who = m ? m[1] + ' \u203a ' + m[2] : who;
+        }
+        var bits = [];
+        (c.members || []).forEach(function (m) { bits.push('member ' + m); });
+        ['make', 'poke', 'peek'].forEach(function (k) { (c[k] || []).forEach(function (r) { bits.push(k + ' ' + r); }); });
+        var row = el('div', 'contrib');
+        var byEl = el('span', 'by', who); if (c.by.charAt(0) === '/') byEl.title = c.by;
+        row.appendChild(byEl);
+        var list = el('span', 'bits');
+        bits.forEach(function (b) { list.appendChild(el('code', null, b)); });
+        row.appendChild(list);
+        all.appendChild(row);
+      });
+      body.appendChild(all);
       var foot = el('div', 'sec');
-      foot.appendChild(el('div', 'note', 'who.ships and how.weir are derived from your record and from what granted apps declare; this pane edits your part. Members and roads an app contributes stay until the app drops them.'));
+      foot.appendChild(el('div', 'note', "the group's who.ships and how.weir are the union of the rows above. The shell declares what you write in this pane and derives the rest from the desks you publish and the names you share. An app declares its own row in its groups.json, within what you approved on Permits."));
       if (!isPublic) {
         var dbtn = el('button', 'btn', 'drop this group');
         var dstat = el('span', 'ok', '');

@@ -902,7 +902,7 @@
           (pure:m ~)
         ::  /apps/grubbery/peers.json → every usergroup folded from its files
         ?:  ?=([%'peers.json' ~] suffix)
-          ;<  groups=json  bind:m  peers-groups
+          ;<  groups=json  bind:m  (peers-groups rail)
           =/  bod=octs  (as-octs:mimes:html (en:json:html groups))
           ;<  ~  bind:m
             (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
@@ -1017,12 +1017,26 @@
 ::  +peers-groups: every usergroup as json: name, dir (relative to
 ::  /sys/ames), public, members, and its make/poke/peek roads as text
 ++  peers-groups
+  |=  rail=rail:tarball
   =/  m  (fiber:fiber:nexus ,json)
   ^-  form:m
   ;<  ug=view:nexus  bind:m  (peek:io [%& %| /sys/ames/usergroups] ~)
   ?.  ?=([%ball *] ug)  (pure:m a+~)
+  ;<  all=(list [grp=path by=@t members=(set @p) =weir:nexus])  bind:m  (gather-groups rail)
+  ;<  rec=json  bind:m  (read-groups-record rail)
   =/  found=(list [name=path grp=ball:tarball])  (peers-find / ball.ug)
   =/  roads  |=(s=(set road:tarball) ^-(json a+(turn ~(tap in s) |=(r=road:tarball s+(crip (peers-road-text r))))))
+  =/  ships  |=(s=(set @p) ^-(json a+(turn (sort ~(tap in s) aor) |=(p=@p s+(scot %p p)))))
+  =/  part
+    |=  [by=@t members=(set @p) w=weir:nexus]
+    ^-  json
+    %-  pairs:enjs:format
+    :~  ['by' s+by]
+        ['members' (ships members)]
+        ['make' (roads make.w)]
+        ['poke' (roads poke.w)]
+        ['peek' (roads peek.w)]
+    ==
   %-  pure:m
   :-  %a
   %+  murn  found
@@ -1037,15 +1051,42 @@
     ?~  how  *weir:nexus
     =/  res  (mule |.(!<(weir:nexus (need-vase:tarball u.how))))
     ?:(?=(%| -.res) *weir:nexus p.res)
+  =/  here=(list [grp=path by=@t members=(set @p) =weir:nexus])
+    (skim all |=([g=path * * *] =(g name)))
+  ::  the shell's record part alone is editable; its name shares and
+  ::  /public base ride in the merged shell row below
+  =/  mine=json
+    =/  g=(map @t json)  (contribution rec (spat name))
+    =/  strs
+      |=  k=@t
+      ^-  (list @t)
+      =/  v  (~(get by g) k)
+      ?.  ?=([~ %a *] v)  ~
+      (murn p.u.v |=(j=json ?.(?=([%s *] j) ~ `p.j)))
+    =/  rd  |=(k=@t (sy (murn (strs k) peers-parse-road)))
+    (part 'manual' (sy (murn (strs 'members') |=(t=@t (slaw %p t)))) [(rd 'make') (rd 'poke') (rd 'peek')])
+  =/  merged=(list [by=@t members=(set @p) =weir:nexus])
+    %+  roll  here
+    |=  [[* by=@t ms=(set @p) w=weir:nexus] acc=(list [by=@t members=(set @p) =weir:nexus])]
+    ?~  (find ~[by] (turn acc |=([b=@t * *] b)))
+      (snoc acc [by ms w])
+    %+  turn  acc
+    |=  [b=@t m=(set @p) x=weir:nexus]
+    ?.  =(b by)  [b m x]
+    [b (~(uni in m) ms) [(~(uni in make.x) make.w) (~(uni in poke.x) poke.w) (~(uni in peek.x) peek.w)]]
   :-  ~
   %-  pairs:enjs:format
   :~  ['name' s+(spat name)]
       ['dir' s+(spat (slag 2 (peers-storage name)))]
       ['public' b+=(/public name)]
-      ['members' a+(turn (sort ~(tap in members) aor) |=(p=@p s+(scot %p p)))]
+      ['members' (ships members)]
       ['make' (roads make.weir)]
       ['poke' (roads poke.weir)]
       ['peek' (roads peek.weir)]
+      ::  your part, which the pane edits
+      ['mine' mine]
+      ::  every contribution, with who made it
+      ['contributions' a+(turn merged |=([by=@t ms=(set @p) w=weir:nexus] (part by ms w)))]
   ==
 ::  +peers-write: the panes' three writes. ~ on success, an error text
 ::  otherwise.
@@ -1209,36 +1250,27 @@
   ?~  rest  ~
   =/  members=(set @p)  (sy (murn (strs sg 'members') |=(t=@t (slaw %p t))))
   `[(weld u.pre u.rest) members (weir-of sg)]
-::  +apply-groups: every group's who.ships and how.weir, rewritten whole
-::  from the union of every contribution: the user's section, each app's
-::  section, the names opened (permit/share.json), the desks opened
-::  (their share.usergroups), and the shell's own /public base. A group
-::  nobody contributes to is culled; /public always stands.
-++  apply-groups
+::  +gather-groups: every contribution to usergroups, each with who made
+::  it. 'manual' is what the shell DECLARES: permit/groups.json, written
+::  through the Peers page or the tools. 'shell' is what it DERIVES: its
+::  storefront, a desk published, a name shared — each follows from a
+::  feature, not from an entry. Everything else is one app, named by its
+::  nexus root, declared in the groups.json at that root. The derivation
+::  and the Peers page both read this.
+++  gather-groups
   |=  rail=rail:tarball
-  =/  m  (fiber:fiber:nexus ,~)
+  =/  m  (fiber:fiber:nexus ,(list [grp=path by=@t members=(set @p) =weir:nexus]))
   ^-  form:m
   ;<  rec0=json  bind:m  (read-groups-record rail)
   ;<  rec=json  bind:m  (seed-groups-record rail rec0)
-  =/  empty-grp=[members=(set @p) =weir:nexus]  [~ *weir:nexus]
-  =/  add
-    |=  [u=(map path [members=(set @p) =weir:nexus]) grp=path members=(set @p) w=weir:nexus]
-    ^-  (map path [members=(set @p) =weir:nexus])
-    =/  cur  (fall (~(get by u) grp) empty-grp)
-    %+  ~(put by u)  grp
-    :-  (~(uni in members.cur) members)
-    :*  (~(uni in make.weir.cur) make.w)
-        (~(uni in poke.weir.cur) poke.w)
-        (~(uni in peek.weir.cur) peek.w)
-    ==
-  =/  fold-section
-    |=  [u=(map path [members=(set @p) =weir:nexus]) sec=json]
-    ^-  (map path [members=(set @p) =weir:nexus])
-    ?.  ?=(%o -.sec)  u
-    %+  roll  ~(tap by p.sec)
-    |=  [[gkey=@t g=json] acc=_u]
+  =/  from-user=(list [grp=path by=@t members=(set @p) =weir:nexus])
+    =/  sec=json  (user-section rec)
+    ?.  ?=(%o -.sec)  ~
+    %+  murn  ~(tap by p.sec)
+    |=  [gkey=@t g=json]
+    ^-  (unit [grp=path by=@t members=(set @p) =weir:nexus])
     =/  grp=(unit path)  (rush gkey stap)
-    ?~  grp  acc
+    ?~  grp  ~
     =/  strs
       |=  k=@t
       ^-  (list @t)
@@ -1246,15 +1278,44 @@
       =/  v  (~(get by p.g) k)
       ?.  ?=([~ %a *] v)  ~
       (murn p.u.v |=(j=json ?.(?=([%s *] j) ~ `p.j)))
-    =/  members=(set @p)  (sy (murn (strs 'members') |=(t=@t (slaw %p t))))
     =/  roads  |=(k=@t (sy (murn (strs k) peers-parse-road)))
-    (add acc u.grp members [(roads 'make') (roads 'poke') (roads 'peek')])
-  =|  union=(map path [members=(set @p) =weir:nexus])
-  =.  union  (fold-section union (user-section rec))
-  ::  each granted app's groups.json, within the prefixes it holds
+    `[u.grp 'manual' (sy (murn (strs 'members') |=(t=@t (slaw %p t)))) [(roads 'make') (roads 'poke') (roads 'peek')]]
+  =/  base=[grp=path by=@t members=(set @p) =weir:nexus]
+    :^  /public  'shell'  ~
+    :+  ~  ~
+    %-  sy
+    ^-  (list road:tarball)
+    :~  [%& %& /apps/shell %'public.json']
+        [%& %& /apps/shell/share/public %'desks.json']
+    ==
+  ;<  names=(map path (set road:tarball))  bind:m  (read-shares rail /apps/shell)
+  =/  from-names=(list [grp=path by=@t members=(set @p) =weir:nexus])
+    %-  zing
+    %+  turn  ~(tap by names)
+    |=  [grp=path rs=(set road:tarball)]
+    %+  turn  ~(tap in rs)
+    |=  r=road:tarball
+    ^-  [grp=path by=@t members=(set @p) =weir:nexus]
+    [grp 'shell' ~ [~ ~ (sy ~[r])]]
+  ;<  dv=view:nexus  bind:m  (peek-shallow:io [%& %| /apps/shell/desks] ~)
+  =/  kids=(list @ta)  ?.(?=([%ball *] dv) ~ ~(tap in ~(key by dir.ball.dv)))
+  ;<  shares=(list [path json])  bind:m  (gather-shares kids)
+  =/  from-desks=(list [grp=path by=@t members=(set @p) =weir:nexus])
+    %+  murn  shares
+    |=  [grp=path entry=json]
+    ^-  (unit [grp=path by=@t members=(set @p) =weir:nexus])
+    =/  dir=@t  (fall (jget entry 'dir') '')
+    ?:  =('' dir)  ~
+    =/  dpath=path  /apps/shell/desks/[`@ta`dir]
+    ::  the shell's grant, on the user's publish: a desk wrapper has no
+    ::  app of its own
+    :-  ~
+    :^  grp  'shell'  ~
+    :+  ~  ~
+    (sy ~[`road:tarball`[%& %| (weld dpath /desk/code)] `road:tarball`[%& %& dpath %'version.json']])
   ;<  approved=(map @t json)  bind:m  (read-approved rail)
-  ;<  from-apps=(list [grp=path members=(set @p) =weir:nexus])  bind:m
-    =/  m  (fiber:fiber:nexus ,(list [grp=path members=(set @p) =weir:nexus]))
+  ;<  from-apps=(list [grp=path by=@t members=(set @p) =weir:nexus])  bind:m
+    =/  m  (fiber:fiber:nexus ,(list [grp=path by=@t members=(set @p) =weir:nexus]))
     =/  todo=(list [app=@t entry=json])  ~(tap by approved)
     |-  ^-  form:m
     ?~  todo  (pure:m ~)
@@ -1263,42 +1324,30 @@
     ?.  =('granted' (fall (jget entry.i.todo 'verdict') ''))  $(todo t.todo)
     ;<  mine=(list [grp=path members=(set @p) =weir:nexus])  bind:m
       (app-groups u.root entry.i.todo)
-    ;<  rest=(list [grp=path members=(set @p) =weir:nexus])  bind:m  $(todo t.todo)
-    (pure:m (weld mine rest))
-  =.  union
-    %+  roll  from-apps
-    |=  [[grp=path members=(set @p) w=weir:nexus] acc=_union]
-    (add acc grp members w)
-  ::  the shell's own base for /public
-  =.  union
-    %^  add  union  /public
-    :-  ~
-    :+  ~  ~
-    %-  sy
-    ^-  (list road:tarball)
-    :~  [%& %& /apps/shell %'public.json']
-        [%& %& /apps/shell/share/public %'desks.json']
+    ;<  rest=(list [grp=path by=@t members=(set @p) =weir:nexus])  bind:m  $(todo t.todo)
+    %-  pure:m
+    %+  weld
+      (turn mine |=([grp=path members=(set @p) w=weir:nexus] [grp app.i.todo members w]))
+    rest
+  (pure:m :(weld from-user [base ~] from-names from-desks from-apps))
+::  +apply-groups: every group's who.ships and how.weir, rewritten whole
+::  from the union of every contribution (+gather-groups). A group nobody
+::  contributes to is culled; /public always stands.
+++  apply-groups
+  |=  rail=rail:tarball
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  all=(list [grp=path by=@t members=(set @p) =weir:nexus])  bind:m  (gather-groups rail)
+  =/  union=(map path [members=(set @p) =weir:nexus])
+    %+  roll  all
+    |=  [[grp=path * members=(set @p) w=weir:nexus] u=(map path [members=(set @p) =weir:nexus])]
+    =/  cur  (fall (~(get by u) grp) `[members=(set @p) =weir:nexus]`[~ *weir:nexus])
+    %+  ~(put by u)  grp
+    :-  (~(uni in members.cur) members)
+    :*  (~(uni in make.weir.cur) make.w)
+        (~(uni in poke.weir.cur) poke.w)
+        (~(uni in peek.weir.cur) peek.w)
     ==
-  ::  names opened to groups: a peek on each name's lanes
-  ;<  names=(map path (set road:tarball))  bind:m  (read-shares rail /apps/shell)
-  =.  union
-    %+  roll  ~(tap by names)
-    |=  [[grp=path rs=(set road:tarball)] acc=_union]
-    (add acc grp ~ [~ ~ rs])
-  ::  desks opened to groups: what a follower needs to pull
-  ;<  dv=view:nexus  bind:m  (peek-shallow:io [%& %| /apps/shell/desks] ~)
-  =/  kids=(list @ta)  ?.(?=([%ball *] dv) ~ ~(tap in ~(key by dir.ball.dv)))
-  ;<  shares=(list [path json])  bind:m  (gather-shares kids)
-  =.  union
-    %+  roll  shares
-    |=  [[grp=path entry=json] acc=_union]
-    =/  dir=@t  (fall (jget entry 'dir') '')
-    ?:  =('' dir)  acc
-    =/  dpath=path  /apps/shell/desks/[`@ta`dir]
-    %^  add  acc  grp
-    :-  ~
-    :+  ~  ~
-    (sy ~[`road:tarball`[%& %| (weld dpath /desk/code)] `road:tarball`[%& %& dpath %'version.json']])
   ::  write what changed
   =/  groups=(list [grp=path members=(set @p) =weir:nexus])  ~(tap by union)
   ;<  ~  bind:m
@@ -1346,6 +1395,9 @@
     %+  murn  found
     |=  [name=path grp=ball:tarball]
     ^-  (unit [@t json])
+    ::  /public is the shell's to name; the user's record carries only
+    ::  what the user adds to it
+    ?:  =(/public name)  ~
     =/  who=(unit sang:tarball)  (~(get ba:tarball grp) [/ %'who.ships'])
     =/  how=(unit sang:tarball)  (~(get ba:tarball grp) [/ %'how.weir'])
     =/  members=(set @p)
