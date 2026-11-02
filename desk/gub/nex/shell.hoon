@@ -119,10 +119,12 @@
           [%fall %& [/cache %'asks.json'] [[/ %json] [%a ~]]]
           [%fall %& [/cache %'aliases.json'] [[/ %json] [%o ~]]]
           [%fall %& [/cache %'weirs.json'] [[/ %json] [%o ~]]]
-          ::  permit/share.json: per-alias discovery visibility — the USER's
-          ::  map of @alias -> 'public' | [usergroup paths]. Absent = private
-          ::  (the default): an app never chooses its own discoverability.
-          [%fall %& [/permit %'share.json'] [[/ %json] [%o ~]]]
+          ::  permit/links.json: the USER's side of discovery, by bare name:
+          ::  {<name>: {path: <where you point it>, share: [usergroups]}}.
+          ::  `path` is a name you declare yourself, a claimant beside the
+          ::  apps'; `share` is who may resolve the name here, the single
+          ::  record of that grant whoever asked for it. Absent = private.
+          [%fall %& [/permit %'links.json'] [[/ %json] [%o ~]]]
           ::  permit/groups.json: the user's usergroup record —
           ::  {user: {<group>: {members, make, poke, peek}}}. Apps state
           ::  theirs in the groups.json at their own root. A group exists
@@ -240,20 +242,25 @@
         serve:notifications
           ::  usergroups.sig: register once, then hold every shell grant
           ::  current — the base /public grant on public.json plus the
-          ::  per-group /sys/link shares from permit/share.json — and keep
+          ::  per-group /sys/link shares from permit/links.json — and keep
           ::  public.json (inert json) an honest reflection of the /public
-          ::  group's weir. Event-driven: wakes on share.json changes, on
+          ::  group's weir. Event-driven: wakes on the link record, on
           ::  the public group's weir changing (desk grants), or a poke.
           ::
           [~ %'usergroups.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%shell groups: failed")
         ;<  *  bind:m
-          (keep:io /share (nex-road:io rail [%& /permit %'share.json']) ~)
+          (keep:io /share (nex-road:io rail [%& /permit %'links.json']) ~)
         ;<  *  bind:m
           (keep:io /groups (nex-road:io rail [%& /permit %'groups.json']) ~)
+        ::  the derived files themselves: a hand edit to a who.ships or a
+        ::  how.weir is drift, and the next derive puts it back. No loop —
+        ::  the derive writes only what differs, so its own writes are
+        ::  silent and a hand edit settles after one round.
+        ;<  *  bind:m  (keep:io /derived [%& %| /sys/ames/usergroups] ~)
         |-
         ::  every group's files, from the record: the user's section, each
-        ::  app's section, the names opened (share.json), the desks opened
+        ::  section, the names opened (the link record), the desks opened
         ::  (their share.usergroups), and the shell's own /public base.
         ;<  ~  bind:m  (apply-groups rail)
         ;<  paths=(list @t)  bind:m  scan-public
@@ -858,10 +865,20 @@
           ;<  ~  bind:m
             (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
           (pure:m ~)
-        ::  /apps/grubbery/share.json → per-alias discovery visibility map.
-        ?:  ?=([%'share.json' ~] suffix)
-          ;<  sv=(unit json)  bind:m
-            (peek-as:io (nex-road:io rail [%& /permit %'share.json']) ,json)
+        ::  /apps/grubbery/links.json → per-name discovery: who may resolve
+        ::  each name, from the link record.
+        ?:  ?=([%'links.json' ~] suffix)
+          ;<  links=(map @t json)  bind:m  (read-links rail)
+          =/  sv=(unit json)
+            :-  ~
+            :-  %o
+            %-  ~(gas by *(map @t json))
+            %+  murn  ~(tap by links)
+            |=  [nm=@t e=json]
+            ^-  (unit [@t json])
+            =/  gs=(list path)  (link-groups e)
+            ?~  gs  ~
+            `[(cat 3 '@' nm) a+(turn gs |=(g=path s+(spat g)))]
           =/  bod=octs  (as-octs:mimes:html (en:json:html (fall sv [%o ~])))
           ;<  ~  bind:m
             (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
@@ -1246,10 +1263,20 @@
   %+  murn  ~(tap by p.g)
   |=  [sub=@t sg=json]
   ^-  (unit [grp=path members=(set @p) =weir:nexus])
-  =/  rest=(unit path)  (rush sub stap)
+  ::  a sub-key is a name under the prefix, spelled with or without a
+  ::  leading slash. Absolute is fine too, as long as it IS under the
+  ::  prefix: an app never names a group outside the key it was granted.
+  =/  rest=(unit path)
+    =/  tap=tape  (trip sub)
+    ?~  tap  ~
+    (rush (crip ?:(=('/' i.tap) tap ['/' tap])) stap)
   ?~  rest  ~
+  =/  full=path
+    ?:  =(u.pre (scag (lent u.pre) u.rest))  u.rest
+    (weld u.pre u.rest)
+  ?.  =(u.pre (scag (lent u.pre) full))  ~
   =/  members=(set @p)  (sy (murn (strs sg 'members') |=(t=@t (slaw %p t))))
-  `[(weld u.pre u.rest) members (weir-of sg)]
+  `[full members (weir-of sg)]
 ::  +gather-groups: every contribution to usergroups, each with who made
 ::  it. 'manual' is what the shell DECLARES: permit/groups.json, written
 ::  through the Peers page or the tools. 'shell' is what it DERIVES: its
@@ -1373,10 +1400,27 @@
     |=  [name=path *]
     ?:  |(=(/public name) (~(has by union) name))  ~
     `name
+  ;<  ~  bind:m
+    =/  m  (fiber:fiber:nexus ,~)
+    |-  ^-  form:m
+    ?~  gone  (pure:m ~)
+    ;<  *  bind:m  (cull-soft:io [%& %| (peers-storage i.gone)])
+    $(gone t.gone)
+  ::  a category directory the last group left is itself gone: /a/b.grp
+  ::  culled leaves /a, which is no group and names nothing
+  ;<  ug2=view:nexus  bind:m  (peek:io [%& %| /sys/ames/usergroups] ~)
+  ?.  ?=([%ball *] ug2)  (pure:m ~)
+  =/  cats=(list @ta)
+    %+  murn  ~(tap by dir.ball.ug2)
+    |=  [nm=@ta sub=ball:tarball]
+    ^-  (unit @ta)
+    ?:  ?=(^ (peers-group-of ~[nm]))  ~
+    ?.  =(~ (peers-find / sub))  ~
+    `nm
   |-  ^-  form:m
-  ?~  gone  (pure:m ~)
-  ;<  *  bind:m  (cull-soft:io [%& %| (peers-storage i.gone)])
-  $(gone t.gone)
+  ?~  cats  (pure:m ~)
+  ;<  *  bind:m  (cull-soft:io [%& %| /sys/ames/usergroups/[i.cats]])
+  $(cats t.cats)
 ::  +seed-groups-record: a ship whose groups predate the record keeps
 ::  them: every group's members, and the roads of every group but
 ::  /public (whose roads are derived), become the user's section, once.
@@ -1507,15 +1551,6 @@
   ==
 ::  stock-name: an entry's name.
 ++  stock-name  |=(e=stock-entry name.e)
-::  stock-app: is this app a nexus of a stock desk, one the kernel ships
-::  (/apps/shell/desks/<stock>.desk/desk/data/<app>)?
-++  stock-app
-  |=  ap=path
-  ^-  ?
-  ?.  ?=([%apps %shell %desks @ %desk %data *] ap)  %.n
-  =/  desk=@ta  i.t.t.t.ap
-  %+  lien  default-repos
-  |=(e=stock-entry =(desk (cat 3 `@ta`(stock-name e) '.desk')))
 ::  repo-config: the config.json a git_repo instance is seeded with.
 ::
 ++  repo-config
@@ -2187,34 +2222,49 @@
     (unsuppress-alias hidden alias path)
   ;<  ~  bind:m  (put:io (nex-road:io rail [%& /permit %'hidden.json']) [[/ %json] next])
   (build-asks rail)
-::  +read-shares: permit/share.json inverted for granting — usergroup
-::  path -> set of /sys/link dest.lanes roads it may peek.
+::  +read-links: the user's link record, permit/links.json, by bare name.
+::
+++  read-links
+  |=  rail=rail:tarball
+  =/  m  (fiber:fiber:nexus ,(map @t json))
+  ^-  form:m
+  ;<  lv=(unit json)  bind:m
+    (peek-as:io (nex-road:io rail [%& /permit %'links.json']) ,json)
+  (pure:m ?~(lv ~ ?.(?=(%o -.u.lv) ~ p.u.lv)))
+::  +bare-name: a name without its @ — the key links.json uses.
+::
+++  bare-name
+  |=  nm=@t
+  ^-  @t
+  =/  t=tape  (trip nm)
+  ?~(t nm ?:(=('@' i.t) (crip t.t) nm))
+::  +link-groups: the usergroups one link record entry is open to.
+::
+++  link-groups
+  |=  e=json
+  ^-  (list path)
+  ?.  ?=(%o -.e)  ~
+  =/  v  (~(get by p.e) 'share')
+  ?:  ?=([~ %s *] v)
+    ?:(=('public' p.u.v) ~[/public] (drop (soft-path p.u.v)))
+  ?.  ?=([~ %a *] v)  ~
+  (murn p.u.v |=(g=json ?.(?=([%s *] g) ~ (soft-path p.g))))
+::  +read-shares: the link record inverted for granting — usergroup path
+::  -> the /sys/link dest.lanes roads it may peek. A name's share is a
+::  property of the NAME: one road, one record, whoever asked for it.
 ::
 ++  read-shares
   |=  [rail=rail:tarball nex-dir=path]
   =/  m  (fiber:fiber:nexus ,(map path (set road:tarball)))
   ^-  form:m
-  ;<  sv=(unit json)  bind:m
-    (peek-as:io (nex-road:io rail [%& /permit %'share.json']) ,json)
-  =/  jon=json  (fall sv [%o ~])
-  ?.  ?=(%o -.jon)  (pure:m ~)
-  =|  out=(map path (set road:tarball))
-  =/  entries=(list [al=@t v=json])  ~(tap by p.jon)
-  |-  ^-  form:m
-  ?~  entries  (pure:m out)
-  =/  road=road:tarball  (link-road al.i.entries)
-  =/  grps=(list path)
-    ?:  ?=([%s *] v.i.entries)
-      ?:  =('public' p.v.i.entries)  ~[/public]
-      (drop (soft-path p.v.i.entries))
-    ?.  ?=([%a *] v.i.entries)  ~
-    %+  murn  p.v.i.entries
-    |=(g=json ?.(?=([%s *] g) ~ (soft-path p.g)))
-  =/  o=(map path (set road:tarball))
-    %+  roll  grps
-    |=  [g=path acc=_out]
-    (~(put by acc) g (~(put in (fall (~(get by acc) g) ~)) road))
-  $(entries t.entries, out o)
+  ;<  links=(map @t json)  bind:m  (read-links rail)
+  %-  pure:m
+  %+  roll  ~(tap by links)
+  |=  [[nm=@t e=json] out=(map path (set road:tarball))]
+  =/  road=road:tarball  (link-road (cat 3 '@' nm))
+  %+  roll  (link-groups e)
+  |=  [g=path acc=_out]
+  (~(put by acc) g (~(put in (fall (~(get by acc) g) ~)) road))
 ::  +read-approved: the permit/approved grub — the map of app path -> its
 ::  consented manifest. The system of record for present grant state.
 ::
@@ -2280,7 +2330,32 @@
       (same (road-strs a 'peek') (road-strs b 'peek'))
       (same (road-strs a 'make') (road-strs b 'make'))
       (same (road-strs a 'groups') (road-strs b 'groups'))
+      =((name-shares a) (name-shares b))
   ==
+::  +name-shares: the ask's `names` as a comparable list — each claimed
+::  name with the groups it asks to be opened to, both sorted. A change
+::  here is a change of audience, so it reopens the ask like any road.
+::
+++  name-shares
+  |=  a=json
+  ^-  (list [@t (list @t)])
+  =/  v  ?.(?=(%o -.a) ~ (~(get by p.a) 'names'))
+  ?.  ?=([~ %a *] v)  ~
+  %+  sort
+    %+  murn  p.u.v
+    |=  n=json
+    ^-  (unit [@t (list @t)])
+    ?.  ?=(%o -.n)  ~
+    =/  al=@t  (fall (jget n 'alias') '')
+    ?:  =('' al)  ~
+    =/  gs  (~(get by p.n) 'groups')
+    :-  ~
+    :-  al
+    %+  sort
+      ?.  ?=([~ %a *] gs)  ~
+      (murn p.u.gs |=(g=json ?.(?=([%s *] g) ~ `p.g)))
+    aor
+  |=([x=[al=@t *] y=[al=@t *]] (aor al.x al.y))
 ::
 ++  is-settled
   |=  [ask=json approved=(map @t json)]
@@ -2351,49 +2426,73 @@
   ?:  ?&(=('approve-weir' act) ?!(=('' app)))
     ;<  hidden=json  bind:m  (read-hidden rail)
     ;<  ~  bind:m  (do-approve-weir rail app picks granted hidden now)
-    ::  the name shares the user ticked: {alias: [groups]}, written
-    ::  into permit/share.json the way the per-alias dialog writes them.
-    ::  An alias the app declared and the user left empty is removed.
+    ::  the name shares the user ticked, into the one record that holds
+    ::  them. A name the app declared and the user left empty is closed.
     =/  shares=json  (fall (~(get by p.jon) 'shares') [%o ~])
     ?.  ?=(%o -.shares)  (pure:m ~)
-    (set-alias-shares rail ~(tap by p.shares))
+    (set-link-shares rail ~(tap by p.shares))
   ?:  ?&(=('deny-weir' act) ?!(=('' app)))
     (do-deny-weir rail app now)
   ?:  =('alias-share' act)
     ?:  =('' alias)  (pure:m ~)
-    (set-alias-shares rail ~[[alias (fall (~(get by p.jon) 'share') ~)]])
+    (set-link-shares rail ~[[alias (fall (~(get by p.jon) 'share') ~)]])
+  ::  a name of your own: {alias, path} points it, {alias} alone drops it
+  ?:  =('link-set' act)
+    ?:  =('' alias)  (pure:m ~)
+    (set-user-link rail alias ?:(=('' path) ~ `path))
   ?:  ?&  ?|(=('alias-suppress' act) =('alias-unsuppress' act))
           ?!(=('' alias))
           ?!(=('' path))
       ==
     (do-suppress rail alias path =('alias-suppress' act))
   (pure:m ~)
-::  +set-alias-shares: record which usergroups may resolve each alias,
-::  in permit/share.json: alias -> [groups]. An empty or null list
-::  removes the entry. Writing share.json IS the nudge; usergroups.sig
-::  re-applies the per-group grants on the news.
+::  +set-link-shares: record which usergroups may resolve each name, in
+::  permit/links.json. An empty list closes the name; an entry left with
+::  neither a share nor a path of yours goes. Writing the record IS the
+::  nudge: usergroups.sig re-derives the group grants on the news.
 ::
-++  set-alias-shares
-  |=  [rail=rail:tarball shares=(list [alias=@t groups=json])]
+++  set-link-shares
+  |=  [rail=rail:tarball shares=(list [name=@t groups=json])]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  sv=(unit json)  bind:m
-    (peek-as:io (nex-road:io rail [%& /permit %'share.json']) ,json)
-  =/  cur=json  (fall sv [%o ~])
-  =/  mp=(map @t json)  ?.(?=(%o -.cur) ~ p.cur)
+  ;<  cur=(map @t json)  bind:m  (read-links rail)
   =/  nxt=(map @t json)
     %+  roll  shares
-    |=  [[alias=@t groups=json] acc=_mp]
-    ::  share.json keys are @names, as the alias directory spells them;
-    ::  an app's link.json gives the bare name
-    =/  key=@t  ?:(=('@' (end 3 alias)) alias (cat 3 '@' alias))
-    ?:  ?|  ?=(~ groups)
-            &(?=([%a *] groups) =(~ p.groups))
-        ==
-      (~(del by acc) key)
-    (~(put by acc) key groups)
-  ?:  =(nxt mp)  (pure:m ~)
-  (put:io (nex-road:io rail [%& /permit %'share.json']) [[/ %json] [%o nxt]])
+    |=  [[name=@t groups=json] acc=_cur]
+    =/  key=@t  (bare-name name)
+    =/  e=(map @t json)
+      =/  g  (~(get by acc) key)
+      ?.(?=([~ %o *] g) ~ p.u.g)
+    =/  empty=?  |(?=(~ groups) &(?=([%a *] groups) =(~ p.groups)))
+    =/  e2=(map @t json)
+      ?:(empty (~(del by e) 'share') (~(put by e) 'share' groups))
+    ?:(=(~ e2) (~(del by acc) key) (~(put by acc) key [%o e2]))
+  ?:  =(nxt cur)  (pure:m ~)
+  (put:io (nex-road:io rail [%& /permit %'links.json']) [[/ %json] [%o nxt]])
+::  +set-user-link: declare a name of your own, pointing at a path, or
+::  drop that declaration (path=~). Its share, if any, stays.
+::
+++  set-user-link
+  |=  [rail=rail:tarball name=@t path=(unit @t)]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  cur=(map @t json)  bind:m  (read-links rail)
+  =/  key=@t  (bare-name name)
+  =/  e=(map @t json)
+    =/  g  (~(get by cur) key)
+    ?.(?=([~ %o *] g) ~ p.u.g)
+  =/  e2=(map @t json)
+    ?~  path  (~(del by e) 'path')
+    (~(put by e) 'path' s+u.path)
+  =/  nxt=(map @t json)
+    ?:(=(~ e2) (~(del by cur) key) (~(put by cur) key [%o e2]))
+  ?:  =(nxt cur)  (pure:m ~)
+  ;<  ~  bind:m
+    (put:io (nex-road:io rail [%& /permit %'links.json']) [[/ %json] [%o nxt]])
+  ::  a name nobody claims any more leaves no /sys/link behind
+  ;<  ~  bind:m  (build-links rail)
+  ;<  ~  bind:m  (build-aliases rail)
+  (build-asks rail)
 ::  +parse-road: road text -> a road. trailing slash = directory, no
 ::  slash = file; leading ../ climbs out (one step each). Same as desks.
 ::
@@ -2704,11 +2803,35 @@
 ::  source}, ...]}. Stored user options are authoritative; app options
 ::  are derived. This is what the permission manager renders.
 ::
+::  +read-aliases: the whole alias directory — the names you declare in
+::  permit/links.json first, then the names apps claim. Yours lead, so a
+::  name you point resolves your way by default.
+::
+++  read-aliases
+  |=  rail=rail:tarball
+  =/  m  (fiber:fiber:nexus ,(map @t (list json)))
+  ^-  form:m
+  ;<  links=(map @t json)  bind:m  (read-links rail)
+  ;<  apps=(map @t (list json))  bind:m  read-app-aliases
+  %-  pure:m
+  %+  roll  ~(tap by links)
+  |=  [[nm=@t e=json] acc=_apps]
+  =/  pax=@t  ?.(?=(%o -.e) '' (fall (jget e 'path') ''))
+  ?:  =('' pax)  acc
+  =/  aname=@t  (cat 3 '@' nm)
+  =/  opt=json
+    %-  pairs:enjs:format
+    :~  ['path' s+pax]
+        ['app' s+'']
+        ['description' s+'a name you declared']
+        ['source' s+'you']
+    ==
+  (~(put by acc) aname [opt (fall (~(get by acc) aname) ~)])
 ++  build-alias-menus
-  |=  [suppressed=json show-hidden=?]
+  |=  [rail=rail:tarball suppressed=json show-hidden=?]
   =/  m  (fiber:fiber:nexus ,json)
   ^-  form:m
-  ;<  menus=(map @t (list json))  bind:m  read-app-aliases
+  ;<  menus=(map @t (list json))  bind:m  (read-aliases rail)
   ::  suppressed (hidden) options: for the directory view (show-hidden)
   ::  they stay, marked `hidden`, so they can be un-hidden; for resolution
   ::  they're dropped (a hidden option is never offered / resolvable).
@@ -2800,7 +2923,7 @@
   ?~  stale  (pure:m ~)
   ;<  ~  bind:m  (drop:io /follow [%| i.stale])
   $(stale t.stale)
-::  +take-reg-wake: wake the registry liaison — any news (share.json or
+::  +take-reg-wake: wake the group derivation — any news (the record or
 ::  the public group's weir) or any poke.
 ::
 ++  take-reg-wake
@@ -2940,18 +3063,23 @@
   |=  rail=rail:tarball
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  menus=(map @t (list json))  bind:m  read-app-aliases
+  ;<  menus=(map @t (list json))  bind:m  (read-aliases rail)
   ;<  approved=(map @t json)  bind:m  (read-approved rail)
   ::  a desk earns its /sys/link name only once the user approves it — being
   ::  reachable by name is a capability, gated like a road. Drop every opt
   ::  whose app isn't approved, and any name left with no approved claimant.
+  ::  A name you declared yourself needs no approval; it is your decision.
   ::  (Built-in names aren't here at all; root.hoon seeds those directly.)
   =/  entries=(list [nm=@t opts=(list json)])
     %+  murn  ~(tap by menus)
     |=  [nm=@t opts=(list json)]
     ^-  (unit [@t (list json)])
     =/  keep=(list json)
-      (skim opts |=(o=json (~(has by approved) (fall (jget o 'app') (fall (jget o 'path') '')))))
+      %+  skim  opts
+      |=  o=json
+      ?|  =('you' (fall (jget o 'source') ''))
+          (~(has by approved) (fall (jget o 'app') (fall (jget o 'path') '')))
+      ==
     ?~(keep ~ `[nm keep])
   =/  want=(set path)  (silt (turn entries |=([nm=@t *] (link-dir nm))))
   |-  ^-  form:m
@@ -3012,7 +3140,7 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ;<  hidden=json  bind:m  (read-hidden rail)
-  ;<  want=json    bind:m  (build-alias-menus hidden %.y)
+  ;<  want=json    bind:m  (build-alias-menus rail hidden %.y)
   ;<  cur=view:nexus  bind:m
     (peek:io (nex-road:io rail [%& /cache %'aliases.json']) `[/ %json])
   =/  have=(unit json)
@@ -3029,7 +3157,7 @@
   ^-  form:m
   ;<  approved=(map @t json)  bind:m  (read-approved rail)
   ;<  hidden=json  bind:m  (read-hidden rail)
-  ;<  want=json    bind:m  (read-approved-weirs approved hidden)
+  ;<  want=json    bind:m  (read-approved-weirs rail approved hidden)
   ;<  cur=view:nexus  bind:m
     (peek:io (nex-road:io rail [%& /cache %'weirs.json']) `[/ %json])
   =/  have=(unit json)
@@ -3055,31 +3183,9 @@
   =/  ask=json  [%o (~(put by (~(put by p.u.jon) 'app' s+app)) 'groups' gkeys)]
   ;<  approved=(map @t json)  bind:m  (read-approved rail)
   ?:  (is-settled ask approved)  (pure:m ~)
-  ::  a stock desk's app ships with the kernel: what it asks for is granted
-  ::  as it asks, no notice. The user installed grubbery; this is grubbery.
-  ?:  (stock-app ap)
-    ;<  hidden=json  bind:m  (read-hidden rail)
-    ;<  now=@da  bind:m  get-time:io
-    ::  its names and usergroups too, as it asks for them
-    ;<  names=json  bind:m  (read-app-shares app)
-    ;<  groups=json  bind:m  (read-app-group-keys ap)
-    =/  granted=json
-      [%o (~(put by (~(put by p.u.jon) 'names' names)) 'groups' groups)]
-    ;<  ~  bind:m  (do-approve-weir rail app [%o ~] granted hidden now)
-    ;<  ~  bind:m
-      %+  set-alias-shares  rail
-      ?.  ?=([%a *] names)  ~
-      %+  murn  p.names
-      |=  n=json
-      ^-  (unit [@t json])
-      =/  al=@t  (fall (jget n 'alias') '')
-      ?:  =('' al)  ~
-      ?.  ?=([%o *] n)  ~
-      `[al (fall (~(get by p.n) 'groups') [%a ~])]
-    ::  the app's fibers rose before the grant and banged against the
-    ::  jail; the reboot that brings them back holding the grant is what
-    ::  the permits page does by hand after an approval
-    (reload:io [%& %| ap])
+  ::  EVERY app asks, the ones that ship with grubbery included. An app
+  ::  shipping in the box is a reason to trust its author, not a reason
+  ::  to decide for the user what it may reach or open to other ships.
   ::  already told the user about this exact pending ask? don't re-ping on a
   ::  reload. A changed ask fails the match below and notifies afresh.
   ;<  notified=(map @t json)  bind:m  (read-notified rail)
@@ -3099,7 +3205,7 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ;<  hidden=json      bind:m  (read-hidden rail)
-  ;<  menus=json       bind:m  (build-alias-menus hidden %.n)
+  ;<  menus=json       bind:m  (build-alias-menus rail hidden %.n)
   ;<  asks=(list json)  bind:m  read-app-weirs
   =/  marked=(list json)  (turn asks |=(a=json (mark-unresolved a menus)))
   =/  want=json  [%a marked]
@@ -3320,7 +3426,7 @@
   ^-  form:m
   ;<  approved=(map @t json)  bind:m  (read-approved rail)
   ;<  hidden=json  bind:m  (read-hidden rail)
-  ;<  menus=json  bind:m  (build-alias-menus hidden %.n)
+  ;<  menus=json  bind:m  (build-alias-menus rail hidden %.n)
   =/  todo=(list [app=@t entry=json])  ~(tap by approved)
   |-  ^-  form:m
   ?~  todo  (pure:m ~)
@@ -3405,7 +3511,9 @@
       ['poke' (cat-arr granted 'poke')]
       ['peek' (cat-arr granted 'peek')]
       ['make' (cat-arr granted 'make')]
-      ['names' (cat-arr granted 'names')]
+      ::  no granted `names` here: a name's share is a property of the
+      ::  name and lives once, in permit/links.json. `declared` keeps what
+      ::  the app asked, which is what settling compares.
       ['groups' (cat-arr granted 'groups')]
       :-  'declared'
       %-  pairs:enjs:format
@@ -3505,10 +3613,10 @@
 ::  overlaid on the live weir at its target. The honest per-app picture.
 ::
 ++  read-approved-weirs
-  |=  [approved=(map @t json) hidden=json]
+  |=  [rail=rail:tarball approved=(map @t json) hidden=json]
   =/  m  (fiber:fiber:nexus ,json)
   ^-  form:m
-  ;<  menus=json  bind:m  (build-alias-menus hidden %.n)
+  ;<  menus=json  bind:m  (build-alias-menus rail hidden %.n)
   =|  out=(map @t json)
   =/  apps=(list [@t json])  ~(tap by approved)
   |-  ^-  form:m
@@ -3548,7 +3656,7 @@
   ::  fiber's time - and only an ask that names an @alias needs it.
   ;<  menus=json  bind:m
     ?:  =(~ (ref-aliases sub))  (pure:(fiber:fiber:nexus ,json) [%o ~])
-    (build-alias-menus hidden %.n)
+    (build-alias-menus rail hidden %.n)
   =/  tp=(unit path)  (soft-path app)
   ?~  tp  (pure:m ~)
   =/  target=path  u.tp
@@ -3591,15 +3699,14 @@
   ::  the name shares ride the same record: what the app asked
   ::  (link.json) and what the user ticked, so a changed ask shows up
   ::  as pending the way a changed road does. The grant itself lives in
-  ::  permit/share.json (set-alias-shares, written by the caller).
+  ::  permit/links.json (set-link-shares, written by the caller).
   ;<  names-asked=json  bind:m  (read-app-shares app)
   ;<  groups-asked=json  bind:m  (read-app-group-keys target)
-  =/  names-given=json  (cat-arr granted 'names')
   =/  ask-full=json
     [%o (~(put by (~(put by p.u.ask) 'names' names-asked)) 'groups' groups-asked)]
   =/  sub-full=json
     ?.  ?=(%o -.sub)  sub
-    [%o (~(put by (~(put by p.sub) 'names' names-given)) 'groups' groups-given)]
+    [%o (~(put by p.sub) 'groups' groups-given)]
   ::  freeze the FULL resolved binding map (amap), not just the explicit
   ::  picks — so a menu-of-one (auto-resolved, no picker) still records what
   ::  it dereferenced to, and the applied overlay shows the concrete path.

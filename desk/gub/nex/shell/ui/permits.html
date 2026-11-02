@@ -378,8 +378,7 @@
         Array.prototype.forEach.call(main.querySelectorAll('.card'),function(c){ wireCard(c); });
       } else {
         var names=Object.keys(aliasMenus).sort();
-        if(!names.length){ main.innerHTML='<div class="d-none" style="text-align:center;margin-top:60px">No aliases declared.</div>'; return; }
-        main.innerHTML=names.map(function(n){
+        main.innerHTML='<div class="card open"><div class="card-head" style="cursor:default"><span class="card-name">a name of your own</span></div><div class="card-body"><div class="d-intro">Point a name at any path on this ship. It stands beside the names apps claim, and yours resolves first.</div><div class="ali-pick"><input id="link-name" placeholder="notes" spellcheck="false"><span class="arrow">&#8594;</span><input id="link-path" placeholder="/apps/shell/desks/x.desk/desk/data/y" spellcheck="false"><button class="btn primary" id="link-add">declare</button></div></div></div>'+names.map(function(n){
           var opts=aliasMenus[n]||[];
           var body=opts.map(function(o){
             var users=Object.keys(approvedState).filter(function(app){ if(!asksData.some(function(a){return a.app===app;}))return false; var b=approvedState[app].bindings; return b&&b[n]===o.path; }).map(leafOf);
@@ -396,10 +395,19 @@
           var shareRow='<div class="share-row"><span class="share-lab">discovery</span>'
             +'<span class="share-chip '+shClass+'">'+esc(shLabel)+'</span>'
             +'<button class="btn small sh-edit" data-share="'+esc(n)+'">edit</button></div>';
-          var intro=opts.length>1?'Several apps advertise this name — you pick which one it resolves to when an app asks.':'A name apps can refer to.';
-          return '<div class="card open'+(n===selected?' sel':'')+'" id="card-'+cssid(n)+'"><div class="card-head" style="cursor:default"><span class="card-name">'+esc(n)+'</span>'+(opts.length>1?'<span class="chip chip-menu">menu · '+opts.length+'</span>':'')+'</div><div class="card-body"><div class="d-intro">'+intro+'</div>'+body+shareRow+'</div></div>';
+          var mine=opts.filter(function(o){return o.source==='you';})[0];
+          var intro=opts.length>1?'Several claim this name — you pick which one it resolves to when an app asks.':(mine?'A name you declared.':'A name apps can refer to.');
+          return '<div class="card open'+(n===selected?' sel':'')+'" id="card-'+cssid(n)+'"><div class="card-head" style="cursor:default"><span class="card-name">'+esc(n)+'</span>'+(opts.length>1?'<span class="chip chip-menu">menu · '+opts.length+'</span>':'')+'</div><div class="card-body"><div class="d-intro">'+intro+'</div>'+body+shareRow+(mine?'<div class="card-acts"><button class="btn" data-drop="'+esc(n)+'">drop your claim</button></div>':'')+'</div></div>';
         }).join('');
         Array.prototype.forEach.call(main.querySelectorAll('.sh-edit'),function(b){ b.onclick=function(){ openShareModal(b.getAttribute('data-share')); }; });
+        Array.prototype.forEach.call(main.querySelectorAll('[data-drop]'),function(b){ b.onclick=function(){ var n=b.getAttribute('data-drop'); if(confirm('Drop your name '+n+'?\n\nOnly your claim goes; a name an app declares stays.')) act({action:'link-set',alias:n.replace(/^@/,'')}); }; });
+        var addBtn=document.getElementById('link-add');
+        if(addBtn)addBtn.onclick=function(){
+          var n=(document.getElementById('link-name').value||'').trim().replace(/^@/,'');
+          var p=(document.getElementById('link-path').value||'').trim();
+          if(!n||!p)return;
+          act({action:'link-set',alias:n,path:p});
+        };
         Array.prototype.forEach.call(main.querySelectorAll('[data-hide]'),function(b){ b.onclick=function(){ var nm=b.closest('.card').querySelector('.card-name').textContent, p=b.getAttribute('data-hide'); if(confirm('Hide '+nm+' → '+p+'?\n\nThe app declares this itself, so this only stops offering it here. You can unhide it later.')) act({action:'alias-suppress',alias:nm,path:p}); }; });
         Array.prototype.forEach.call(main.querySelectorAll('[data-un]'),function(b){ b.onclick=function(){ var nm=b.closest('.card').querySelector('.card-name').textContent; act({action:'alias-unsuppress',alias:nm,path:b.getAttribute('data-un')}); }; });
       }
@@ -468,7 +476,7 @@
         fetch('/apps/grubbery/weirs.json').then(function(r){return r.json();}).then(function(d){ weirsState=d||{}; }).catch(function(){}),
         fetch('/apps/grubbery/aliases.json').then(function(r){return r.json();}).then(function(d){ aliasMenus=d||{}; }).catch(function(){}),
         fetch('/apps/grubbery/asks.json').then(function(r){return r.json();}).then(function(d){ asksData=d||[]; }).catch(function(){}),
-        fetch('/apps/grubbery/share.json').then(function(r){return r.json();}).then(function(d){ shareState=d||{}; }).catch(function(){}),
+        fetch('/apps/grubbery/links.json').then(function(r){return r.json();}).then(function(d){ shareState=d||{}; }).catch(function(){}),
         fetch('/apps/grubbery/groups.json').then(function(r){return r.json();}).then(function(d){ groupsList=d||[]; }).catch(function(){})
       ]).then(function(){ var f=firstLoad; if(firstLoad){ loadingEl.classList.remove('on'); firstLoad=false; refresh(false); } render(true); if(f&&selected){ setTimeout(function(){ centerCard(selected,false); },60); } });
     }
