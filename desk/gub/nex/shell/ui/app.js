@@ -304,12 +304,30 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     }
     updateHiddenBtn(hidden.length);
   }
+  // after the active tab has painted, build the remaining tiles in the
+  // background, one per idle tick. Building a tile creates its <img> and
+  // sets .src, which starts the download even though the node is not in
+  // the grid yet — so by the time you switch tabs its image is already
+  // loaded and the switch is instant. Idle-scheduled so it never competes
+  // with the active tab's own paint.
+  var idle = window.requestIdleCallback || function(f) { return setTimeout(f, 32); };
+  function prewarmTiles() {
+    var rest = allTiles.filter(function(t) { return !t.hidden && !tileEls[t.name]; });
+    var i = 0;
+    var step = function() {
+      if (i >= rest.length) return;
+      getTileEl(rest[i++]);   // builds the node + kicks off its image fetch
+      idle(step);
+    };
+    idle(step);
+  }
   function renderTiles(tiles) {
     tileData = {};
     tiles.forEach(function(t) { tileData[t.name] = t; });
     allTiles = tiles;
     tileEls = {};  // fresh data: drop cached nodes so edits/new tiles rebuild
     paintTiles();
+    prewarmTiles();
   }
 
   function loadTiles() {
