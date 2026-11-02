@@ -937,7 +937,7 @@ function setup(root, opts) {
   const psGhosts = async (url, args) => {
     if (!args || args.trace !== '1') return [];
     if (args.case || args.asof) return [];
-    const gurl = url.replace(PREFIX, '/grubbery/api/ghost');
+    const gurl = url.replace(PREFIX, '/grubbery/api/born') + (url.includes('?') ? '&' : '?') + 'ghosts=1';
     if (gurl === url) return [];
     try {
       const r = await fetch(gurl, { cache: 'no-store' });
@@ -2170,7 +2170,7 @@ function setup(root, opts) {
 
     const when = psWhen;
 
-    fetch(url.replace('/api/file', '/api/born').replace('/grubbery/ball', '/grubbery/api/born'), { cache: 'no-store' })
+    fetch(url.replace('/api/peek', '/api/born').replace('/grubbery/ball', '/grubbery/api/born'), { cache: 'no-store' })
       .then((r) => r.ok ? r.json() : Promise.reject(new Error('born ' + r.status)))
       .then((moments) => {
         if (!Array.isArray(moments) || !moments.length) { note('No history recorded for this path.'); return; }
@@ -2667,7 +2667,7 @@ function setup(root, opts) {
           // standing in a version, a 404 is about THAT VERSION, never about
           // the path: it is alive, so it is not struck through and not
           // watched for creation. Ask the version-aware endpoint why.
-          const probe = PREFIX.replace('/ball', '/api/kids') + ns.replace(/\/+$/, '');
+          const probe = PREFIX.replace('/ball', '/api/peek') + ns.replace(/\/+$/, '') + '/';
           let said = '';
           try { const r = await fetch(probe + '?' + vAt, { cache: 'no-store' }); if (!r.ok) said = await r.text(); } catch (_) {}
           psNoVersion(el, 'nothing to show', said || 'this path could not be read at that version',

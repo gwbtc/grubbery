@@ -52,6 +52,9 @@
     '.fv #save:not([disabled]):hover{background:#0857b8}' +
     '.fv #save[disabled]{color:#8b949e;cursor:default}' +
     '.fv #tools button[disabled]{color:#8b949e;cursor:default;background:none}' +
+    '.fv #tools button.icon{padding:3px 8px;display:inline-flex;align-items:center;color:#57606a}' +
+    '.fv #tools button.icon:hover{color:#24292f}' +
+    '.fv #tools button.icon.done{color:#1a7f37;border-color:#1a7f37}' +
     '.fv #mime-row{display:flex;align-items:center;gap:8px;padding:4px 12px;background:#f6f8fa;border-bottom:1px solid #e2e7ee}' +
     '.fv #mime-row .tool-label{font:10px/1 -apple-system,sans-serif;text-transform:uppercase;letter-spacing:.05em;color:#8b949e}' +
     '.fv #mime-input{font:11px ui-monospace,SFMono-Regular,Menlo,monospace;padding:2px 6px;border:1px solid transparent;border-radius:5px;width:200px;outline:none;background:transparent;color:#57606a}' +
@@ -131,6 +134,12 @@
       '<button id="live">Live</button>' +
       '<button id="wrap">Wrap</button>' +
       '<button id="vimbtn" title="vim keybindings in the editor">Vim</button>' +
+      '<button id="copybtn" class="icon" title="copy the file\'s text">' +
+        '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+          '<rect x="9" y="9" width="11" height="11" rx="2"/>' +
+          '<path d="M5 15V5a2 2 0 0 1 2-2h10"/>' +
+        '</svg>' +
+      '</button>' +
       '<span id="status"></span>' +
     '</div>' +
     '<div id="mime-row" style="display:none">' +
@@ -278,6 +287,7 @@
     // host adds for this file's mark, shown first; mounted on first show
     var viewer = opts.viewer || null, viewerHandle = null;
     var editBtn = $('edit'), saveBtn = $('save'), liveBtn = $('live'), wrapBtn = $('wrap'), vimBtn = $('vimbtn');
+    var copyBtn = $('copybtn');
     var status = $('status'), tools = $('tools'), mimeInput = $('mime-input');
 
     // the one error overlay (per instance), appended to <body> so it centers
@@ -431,7 +441,7 @@
       } else {
         src.className = 'dim'; src.textContent = 'binary content'; src.style.display = '';
       }
-      setupPanes(); setupWrap(); setupEditor(); renderSource();
+      setupPanes(); setupWrap(); setupCopy(); setupEditor(); renderSource();
     }
 
     // a failed read is an ERROR, never content: without the status check the
@@ -479,6 +489,38 @@
       tabMime.style.display = showTabs ? '' : 'none';
       if (viewer) { tabView.textContent = viewer.label || 'View'; tabView.style.display = ''; }
       if (viewer) show('view'); else if (!previewable) show('text'); else show('mime');
+    }
+
+    // +currentText: what Source is showing right now — the editor's buffer
+    // if one is mounted, the text we read otherwise, and for a file that
+    // isn't editable the rendered <pre>.
+    function currentText() {
+      return editable ? (ve ? ve.getValue() : edText) : (src.textContent || '');
+    }
+
+    function setupCopy() {
+      copyBtn.addEventListener('click', async function () {
+        var text = currentText();
+        var ok = true;
+        try {
+          await navigator.clipboard.writeText(text);
+        } catch (_) {
+          // no clipboard permission (or no secure context): the old way
+          var ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.cssText = 'position:fixed;top:-1000px';
+          document.body.appendChild(ta);
+          ta.select();
+          try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+          document.body.removeChild(ta);
+        }
+        copyBtn.classList.toggle('done', ok);
+        status.textContent = ok ? 'copied' : 'could not copy';
+        setTimeout(function () {
+          copyBtn.classList.remove('done');
+          if (status.textContent === 'copied' || status.textContent === 'could not copy') status.textContent = '';
+        }, 1400);
+      });
     }
 
     function setupWrap() {
@@ -617,7 +659,7 @@
 
     async function renderMime() {
       var rawUrl = q('raw=1');
-      var text = editable ? (ve ? ve.getValue() : edText) : (src.textContent || '');
+      var text = currentText();
       mimeView.textContent = '';
       var k = effectiveKind();
       // kernel serve-sandbox (detected at boot): a runnable grub whose

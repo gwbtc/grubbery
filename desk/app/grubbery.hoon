@@ -1378,10 +1378,11 @@
         (~(reachable si:nexus silo) lobe.pace.u.cas-pace)
       (~(reachable-shallow si:nexus silo) lobe.pace.u.cas-pace)
     `[cass.u.cas-pace pace.u.cas-pace refs]
-  ::  nothing there: the same %veto a blocked peek gets. An outsider
-  ::  learns that a path is not for them, never whether it exists.
+  ::  nothing there, and the caller is allowed here: the snap is empty
+  ::  and says so. Existence is not a third thing to hide — the weir
+  ::  already drew the line, and one side of it answers truthfully.
   ?~  snap
-    (respond-transfer %peek [wire.req %veto dest-lane])
+    (respond-transfer %peek [wire.req %snap dest-lane `@uvJ`0 ~ ~])
   =/  snap-id=@uvJ  `@uvJ`(shaz eny.bowl)
   ::  Inline the payload when it's cheaper to send than to negotiate:
   ::  the subset rides in the snap, the receiver skips want/data, and
@@ -7108,11 +7109,9 @@
   (ud-arg u.c)
 ::  +ball-op-jump: which jump does this endpoint perform?
 ::
-::    The URL surface is unchanged — every existing caller keeps working
-::    — but each endpoint now declares which of the three jumps it is, so
-::    authority is decided in one place instead of fourteen. The
-::    groupings are +dart-to-dest's, not new ones: %cull, %sand and %load
-::    all file under %make there, and %keep / %drop under %peek.
+::    One endpoint per dart, named after it. Authority is decided here,
+::    once. The groupings are +dart-to-dest's: %cull and %sand file
+::    under %make there, %keep and %born under %peek.
 ::
 ::    ~ means "not a namespace op" — nothing to gate, and nothing that
 ::    reads or writes a grub.
@@ -7121,28 +7120,57 @@
   |=  [method=@tas endpoint=@tas]
   ^-  (unit jump:nexus)
   ?+    [method endpoint]  ~
-      [%'GET' ?(%file %kids %tree %tar %dir %sand %weir %keep %born %ghost)]   `%peek
-      [%'POST' %poke]                                             `%poke
-      [%'PUT' ?(%file %dir %weir)]                                `%make
-      [%'POST' ?(%over %upload)]                                  `%make
-      [%'DELETE' ?(%file %dir %weir)]                             `%make
+      [%'GET' ?(%peek %keep %born)]  `%peek
+      [%'POST' %poke]                `%poke
+      [%'PUT' ?(%make %sand)]        `%make
+      [%'DELETE' ?(%cull %sand)]     `%make
   ==
-::  +ball-op-dest: which lane does this endpoint address?
+::  +api-lane: which lane does an api path address?
 ::
-::    A weir is set on a directory and the listing endpoints describe
-::    one, so those address a fold; the rest name a grub. Mirrors how
-::    each +serve- arm already interprets its api-path, so nothing
-::    about addressing changes — it is only stated once, here, instead
-::    of being implicit in fourteen handlers.
+::    The trailing slash is the whole rule: /foo/ is the FOLD at /foo,
+::    /foo the grub. Written without one, a path that holds no grub is
+::    the fold — a directory keeps working unslashed, and a grub and a
+::    fold of the same name stay tellable apart.
+::
+++  api-grub
+  |=  api-path=path
+  ^-  (unit sang:tarball)
+  ?~  api-path  ~
+  (peek-grub-now [(snip `path`api-path) (rear api-path)])
+::  +api-fold-exists: is there a directory here? +peek-ball-now answers an
+::  absent one with an empty ball, which a reader cannot tell from an empty
+::  directory — and a peek of nothing must 404, not describe a void.
+::
+++  api-fold-exists
+  |=  =fold:tarball
+  ^-  ?
+  =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
+    (~(get of born) fold)
+  ?~  node  %.n
+  =/  got=(unit [key=cass:clay val=entry:hist:nexus])
+    (ram:hon:hist:nexus fold.u.node)
+  ?~  got  %.n
+  !?=(%tomb -.pace.val.u.got)
+::
+++  api-lane
+  |=  api-path=path
+  ^-  (unit lane:tarball)
+  ?~  api-path  `[%| /]
+  ?:  =('' (rear api-path))  `[%| (snip `path`api-path)]
+  ?^  (api-grub api-path)  `[%& [(snip `path`api-path) (rear api-path)]]
+  `[%| api-path]
+::  +ball-op-dest: which lane does this endpoint address?
 ::
 ++  ball-op-dest
   |=  [endpoint=@tas api-path=path]
   ^-  (unit lane:tarball)
-  ::  born addresses either, and resolves whichever exists
-  ?:  ?=(?(%kids %tree %tar %dir %sand %weir %born %ghost) endpoint)
-    `[%| api-path]
-  ?~  api-path  ~
-  `[%& [(snip `path`api-path) (rear api-path)]]
+  ::  a weir is set on a directory, never on a grub
+  ?:  ?=(%sand endpoint)
+    =/  bare=path
+      ?:  ?&(?=(^ api-path) =('' (rear api-path)))  (snip `path`api-path)
+      api-path
+    `[%| bare]
+  (api-lane api-path)
 ::  Union two weirs
 ::
 ++  union-weirs
@@ -7326,13 +7354,56 @@
   =/  ok-json
     |=  =json
     (ok-mime [/application/json (as-octs:mimes:html (en:json:html json))])
+  ::  +gone: nothing is here. Whoever is asking was already allowed here
+  ::  by +route-http, and inside the line a weir draws the answer is the
+  ::  plain truth — the same %none a peer gets from +process-peek.
+  =/  gone
+    |=  msg=@t
+    ^-  (unit (list card:agent:gall))
+    (err 404 msg)
   ::  No src == our check — see +route-http, which gated this request from
   ::  the asker's own position before dispatching here.
   =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
   ?.  ?=([%grubbery %api @ *] site)  ~
   =/  endpoint=@tas  i.t.t.site
-  =/  api-path=path  t.t.t.site
-  ?+  [method.request.req endpoint]  ~   ::  ~ = not a sync read; needs a fiber
+  =/  raw-path=path  t.t.t.site
+  ::  the trailing slash names the fold; strip it and the handlers below
+  ::  read the path exactly as they always have
+  =/  slashed=?  ?&(?=(^ raw-path) =('' (rear raw-path)))
+  =/  api-path=path  ?.(slashed raw-path (snip `path`raw-path))
+  ::  ?as= picks which rendering of a peek you want; without it a grub
+  ::  comes back as its contents and a fold as its children. The arms
+  ::  below are the renderings, named as they were.
+  ::  %$ for anything that is not one of the read darts: no arm below
+  ::  answers it, so it is not a sync read and never reaches one of these
+  ::  handlers behind a name +ball-op-jump does not gate.
+  =/  shape=@tas
+    ?+    endpoint  %$
+        %peek
+      ::  a fold asked for by name, or anything with no grub at it, reads
+      ::  as a directory; otherwise as the grub's own contents
+      =/  natural=@tas
+        ?:  |(slashed ?=(~ (api-grub api-path)))  %kids
+        %file
+      ?+  (fall (get-key:kv:html-utils 'as' args) '')  natural
+        %tree   %tree
+        %tar    %tar
+        %weirs  %sand
+      ==
+    ::
+        %born
+      ?:(=('1' (fall (get-key:kv:html-utils 'ghosts' args) '')) %ghost %born)
+    ==
+  ::  a directory rendering of a path that holds no directory is a 404,
+  ::  not an empty listing. At a past version the arms answer for
+  ::  themselves, with 410 and what was there instead.
+  ?:  ?&  ?=(?(%kids %tree %sand) shape)
+          ?=(~ (case-arg args))
+          ?=(~ (asof-arg args))
+          !(api-fold-exists api-path)
+      ==
+    (gone 'Not found')
+  ?+  [method.request.req shape]  ~   ::  ~ = not a sync read; needs a fiber
       [%'GET' %kids]
     =/  cas=(unit @ud)  (case-arg args)
     =/  as=(unit [anchor=path cas=@ud])  (asof-arg args)
@@ -7369,10 +7440,6 @@
     (ok-json (tree-to-json:tarball (ball-to-tree:tarball u.bal)))
   ::
       [%'GET' %sand]
-    =/  =ball:tarball  (peek-ball-now api-path)
-    (ok-json (ball-weirs-to-json:nexus ball))
-  ::
-      [%'GET' %weir]
     =/  =ball:tarball  (peek-ball-now api-path)
     (ok-json (ball-weirs-to-json:nexus ball))
   ::
@@ -7469,7 +7536,7 @@
       ?~(jb ~ (peek-grub u.jb))
     ?~  content
       ?^  as  (err 410 'that file was not there in that version')
-      ?~  cas  (err 404 'Not found')
+      ?~  cas  (gone 'Not found')
       (err 410 (case-gone [%& [dir name]] u.cas))
     ::  A BOOM is the noun surviving its type: it is here, and it does not
     ::  clam with the blot it is stored under. That is not special to old

@@ -2,7 +2,7 @@
 ::
 ::  Mark for the urb-core block processor's state. Living as a grub
 ::  lets the groundwire walker peek/over it between blocks, and lets the
-::  state be scryable/served via /api/file without a bespoke endpoint.
+::  state be scryable/served via /api/peek without a bespoke endpoint.
 ::
 /<  urb  /lib/sur/urb.hoon
 |_  state=state:urb
