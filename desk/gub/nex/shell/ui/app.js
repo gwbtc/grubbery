@@ -234,6 +234,17 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
   // modal offers "unhide". The button hides itself when nothing is hidden.
   var showingHidden = false;
   var allTiles = [];
+  // which launcher tab is showing. A tile with no kind reads as 'other',
+  // so an app that never declared one lands in the junk drawer.
+  var tileTab = 'app';
+  function kindOf(t) { return t.kind || 'other'; }
+  function setTileTab(k) {
+    tileTab = k;
+    Array.prototype.forEach.call(document.querySelectorAll('#tile-tabs .ttab'), function(b) {
+      b.classList.toggle('active', b.getAttribute('data-kind') === k);
+    });
+    paintTiles();
+  }
   function toggleHiddenView() { showingHidden = !showingHidden; paintTiles(); }
   function updateHiddenBtn(n) {
     var b = document.getElementById('hidden-btn');
@@ -242,18 +253,54 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     b.textContent = showingHidden ? '← Home' : ('Hidden · ' + n);
     b.classList.toggle('active', showingHidden);
   }
+  // built tile DOM nodes are CACHED by name and reused across tab switches,
+  // so an <img> loads once and never reloads when you flip tabs. A tile is
+  // rebuilt only when its own content changes (sig mismatch) or a fresh
+  // tiles.json arrives (cache cleared in renderTiles). Because a tab only
+  // builds the nodes it actually shows, the first paint builds just the
+  // active tab — the others build lazily on first visit, so the active tab
+  // loads first with no work spent on tabs you never open.
+  var tileEls = {};  // name -> { el, sig }
+  var loadingTile = document.getElementById('loading-tile');
+  function tileSig(t) {
+    return [t.title, t.info, t.color, t.image, t.href, t.kind, t.root].join('');
+  }
+  function getTileEl(t) {
+    var c = tileEls[t.name], sig = tileSig(t);
+    if (c && c.sig === sig) return c.el;
+    var el = buildTile(t);
+    tileEls[t.name] = { el: el, sig: sig };
+    return el;
+  }
   function paintTiles() {
-    var loading = document.getElementById('loading-tile');
     var visible = allTiles.filter(function(t) { return !t.hidden; });
     var hidden = allTiles.filter(function(t) { return t.hidden; });
     if (showingHidden && !hidden.length) showingHidden = false;
-    var list = showingHidden ? hidden : visible;
-    tilesDiv.innerHTML = '';
+    // the hidden view shows every hidden tile regardless of tab; the normal
+    // view is filtered to the current tab. 'Other' is the catch-all: any
+    // kind that is not 'app' or 'utility' lands there — a missing kind, or
+    // a deliberate one like 'experiment'. So only two tabs name a kind;
+    // the third sweeps up everything else.
+    var inTab = function(t) {
+      var k = kindOf(t);
+      return tileTab === 'other' ? (k !== 'app' && k !== 'utility') : k === tileTab;
+    };
+    var list = showingHidden ? hidden : visible.filter(inTab);
+    // the tab bar is only meaningful in the normal view.
+    var tabs = document.getElementById('tile-tabs');
+    if (tabs) tabs.style.display = showingHidden ? 'none' : '';
+    // detach current children WITHOUT destroying the cached nodes (innerHTML
+    // '' would delete them and force an image reload next time).
+    while (tilesDiv.firstChild) tilesDiv.removeChild(tilesDiv.firstChild);
     if (!list.length) {
-      tilesDiv.innerHTML = '<div class="empty">' + (showingHidden ? 'no hidden tiles' : 'no tiles yet') + '</div>';
+      var empty = document.createElement('div');
+      empty.className = 'empty';
+      empty.textContent = showingHidden ? 'no hidden tiles'
+        : (tileTab === 'other' ? 'nothing here' : 'no ' + tileTab + ' tiles yet');
+      tilesDiv.appendChild(empty);
     } else {
-      list.forEach(function(t) { tilesDiv.appendChild(buildTile(t)); });
-      if (loading && !showingHidden) tilesDiv.appendChild(loading);
+      list.forEach(function(t) { tilesDiv.appendChild(getTileEl(t)); });
+      if (loadingTile && !showingHidden) tilesDiv.appendChild(loadingTile);
     }
     updateHiddenBtn(hidden.length);
   }
@@ -261,6 +308,7 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     tileData = {};
     tiles.forEach(function(t) { tileData[t.name] = t; });
     allTiles = tiles;
+    tileEls = {};  // fresh data: drop cached nodes so edits/new tiles rebuild
     paintTiles();
   }
 
@@ -307,6 +355,9 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
   function formRead() {
     var t = {};
     FIELDS.forEach(function(k) { t[k] = document.getElementById('f-' + k).value.trim(); });
+    // the fields form does not show kind, so carry the edited tile's own
+    // through — editing a tile must not silently drop it back to 'other'.
+    if (editingKind) t.kind = editingKind;
     return t;
   }
   // the colour chip and the hex box are one value
@@ -323,8 +374,10 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     if (mode === 'form') return formRead();
     try { return JSON.parse(editJson.value); } catch(e) { return null; }
   }
+  var editingKind = '';
   function openEditor(t) {
     editStatus.textContent = '';
+    editingKind = t.kind || '';
     formFill(t);
     editJson.value = JSON.stringify(t, null, 2);
     pinMode('form');

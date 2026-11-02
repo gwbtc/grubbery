@@ -81,6 +81,7 @@
       color+s+'#4a9de5'
       image+s+'/grubbery/ball/apps/shell/ui/explorer/icon.svg'
       href+s+'/grubbery/ball'
+      kind+s+'utility'
   ==
 ::  +bundles: the served bundles, one request each: the graph kit, the
 ::  editor and its style, and the page kit

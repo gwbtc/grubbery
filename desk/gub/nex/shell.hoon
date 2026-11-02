@@ -2551,6 +2551,11 @@
       color=@t
       image=@t
       href=@t
+      ::  which launcher tab the tile sits in: 'app', 'utility' or
+      ::  'other'. A tile.json that does not say lands in 'other' — the
+      ::  junk drawer is the nudge to declare one. Tiles the shell itself
+      ::  ships set theirs; see the seed constructors below.
+      kind=@t
   ==
 ::
 ::  the seed local tile
@@ -2562,6 +2567,7 @@
       color+s+'#1a1a1a'
       href+s+'/apps/landscape'
       image+s+'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fe/Urbit_Logo.svg/3840px-Urbit_Logo.svg.png'
+      kind+s+'app'
   ==
 ++  forge-tile
   ^-  json
@@ -2571,6 +2577,7 @@
       color+s+'#3d3a45'
       href+s+'/grubbery/forge'
       image+s+'/grubbery/tiles/icon/apps/shell/forge'
+      kind+s+'app'
   ==
 ++  github-tile
   ^-  json
@@ -2580,6 +2587,7 @@
       color+s+'#24292f'
       href+s+'/grubbery/github'
       image+s+'/grubbery/tiles/icon/apps/shell/forge/github'
+      kind+s+'utility'
   ==
 ::  each local tile is its own subdir /tiles/<name>/ holding tile.json
 ::  (and optionally icon.svg); the tile's name is the subdir name. They
@@ -2643,6 +2651,9 @@
       (fall (bind (~(get by m) 'color') |=(=json ?>(?=(%s -.json) p.json))) '#333')
       (fall (bind (~(get by m) 'image') |=(=json ?>(?=(%s -.json) p.json))) '')
       (fall (bind (~(get by m) 'href') |=(=json ?>(?=(%s -.json) p.json))) '')
+      ::  no 'kind' means 'other' — an undeclared tile lands in the junk
+      ::  drawer until its tile.json says app or utility.
+      (fall (bind (~(get by m) 'kind') |=(=json ?>(?=(%s -.json) p.json))) 'other')
   ==
 ::
 ++  read-app-tiles
@@ -3816,6 +3827,7 @@
       color+s+color.t
       image+s+image.t
       href+s+href.t
+      kind+s+kind.t
       root+?~(root ~ s+(crip (spud u.root)))
       hidden+b+(~(has in hidden) name.t)
   ==
