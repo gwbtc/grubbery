@@ -456,7 +456,7 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     var el = document.querySelector('[data-tile="' + name + '"]');
     var title = el ? (el.querySelector('.tile-title') || {}).textContent || name : name;
     if (!confirm('Delete ' + title + '?')) return;
-    fetch(API + '/file/' + BALL + '/tiles/' + name + '/tile.json', {method: 'DELETE'})
+    fetch(API + '/cull/' + BALL + '/tiles/' + name + '/tile.json', {method: 'DELETE'})
       .then(function() { loadTiles(); });
   }
 
@@ -480,10 +480,9 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
       editStatus.style.color = '#f87171';
       return;
     }
-    var method = isNew ? 'PUT' : 'POST';
-    var endpoint = isNew ? '/file/' : '/over/';
-    var r = await fetch(API + endpoint + BALL + '/tiles/' + editName + '/tile.json?blot=/json', {
-      method: method,
+    var force = isNew ? '' : '&force=1';
+    var r = await fetch(API + '/make/' + BALL + '/tiles/' + editName + '/tile.json?blot=/json' + force, {
+      method: 'PUT',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(parsed)
     });

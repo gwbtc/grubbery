@@ -1396,7 +1396,7 @@
     ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/plain bod]))
     (pure:m ~)
   ::  ?raw (and the default non-info, non-pretty byte serve): delegate to the
-  ::  kernel ball-peek api (/grubbery/api/file) so the serve-sandbox applies —
+  ::  kernel ball-peek api (/grubbery/api/peek) so the serve-sandbox applies —
   ::  a grub that can't itself poke/make /sys/eyre gets runnable content served
   ::  inert (text/plain + nosniff) there. We only ever served the stored bytes
   ::  here, so a 307 is transparent to fetch()/img/download consumers.
@@ -1404,7 +1404,7 @@
     =/  loc=@t
       %-  crip
       ;:  weld
-        "/grubbery/api/file"
+        "/grubbery/api/peek"
         (spud `path`tree-path)
         ?~(case-arg "" (weld "?case=" (a-co:co u.case-arg)))
       ==
