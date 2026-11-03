@@ -5537,14 +5537,26 @@
   =.  this  (ensure-dir /sys/clay/desks)
   =.  this  (ensure-dir /sys/clay/desks/base)
   =.  this  (ensure-dir /sys/clay/desks/grubbery)
-  ::  Sync all desks listed as kids of /sys/clay/desks/
-  =/  dek=(list desk)  (lss-born /sys/clay/desks)
-  ::  Update clay-state with synced desks
+  ::  Mount EVERY desk on the ship, not just base/grubbery: scry clay for
+  ::  the whole desk set and mirror each. A desk's desk.docket-0 then
+  ::  becomes an ordinary peek, which is how the launcher reads app tiles
+  ::  now that the %docket agent is on its way out. Muled: a clay that
+  ::  cannot answer the desk-set scry must not bang the rise -- we fall
+  ::  back to the desks we already mirror.
+  =/  all=(set desk)
+    =/  res=(each (set desk) tang)
+      %-  mule
+      |.  .^((set desk) %cd /(scot %p our.bowl)//(scot %da now.bowl))
+    ?:(?=(%& -.res) p.res ~)
+  =/  prior=(set desk)  (silt (lss-born /sys/clay/desks))
+  =/  dek=(list desk)  ~(tap in (~(uni in all) prior))
+  ::  Update clay-state with the full synced set
   =/  clay-rail=rail:tarball  [/sys/clay %'main.clay-state']
   =/  st=clay-state:nexus  [%0 (silt dek)]
   =.  this  (save-file clay-rail [[/ %clay-state] st])
   |-  ^+  this
   ?~  dek  this
+  =.  this  (ensure-dir /sys/clay/desks/[i.dek])
   $(dek t.dek, this (sync-clay-desk i.dek))
 ::
 ++  sync-clay-desk

@@ -40,6 +40,9 @@
 ::  page at /grubbery/explorer over the tree at /grubbery/ball, the gmux
 ::  sessions under /explorer/sessions, snaps under /explorer/snaps
 /<  explorer       /lib/shell/explorer.hoon
+::  docket: parse a classic desk's desk.docket-0 into a launcher tile,
+::  read straight from the mounted clay mirror (no %docket agent).
+/<  dock           /lib/docket.hoon
 /&  tool-bundle    /lib/tool-bundle/
 /&  tools-icon     shell/ui/tools/icon.svg
 /&  tools-html     shell/ui/tools/index.html
@@ -2587,7 +2590,7 @@
       color+s+'#1a1a1a'
       href+s+'/apps/landscape'
       image+s+'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fe/Urbit_Logo.svg/3840px-Urbit_Logo.svg.png'
-      kind+s+'app'
+      kind+s+'utility'
   ==
 ++  forge-tile
   ^-  json
@@ -3841,12 +3844,78 @@
     `r
   [%o (~(put by p.ask) 'unresolved' [%a (turn bad |=(r=@t s+r))])]
 ::
+::  +color-hex: a docket's @ux color (e.g. 0xde.dede) as a CSS hex string
+::  '#dedede', left-padded to six digits.
+++  color-hex
+  |=  c=@ux
+  ^-  @t
+  =/  s=tape  (scow %ux c)
+  =/  hx=tape  (skip (slag 2 s) |=(ch=@tD =('.' ch)))
+  =/  n=@ud  (lent hx)
+  =/  pad=tape  ?:((gte n 6) hx (weld (reap (sub 6 n) '0') hx))
+  (crip (weld "#" pad))
+::  +docket-of: parse a mirrored desk.docket-0 grub (held as mime source
+::  text) into a docket. Muled: a malformed or hostile docket source must
+::  not bang the tile build -- it just drops that desk.
+++  docket-of
+  |=  =sang:tarball
+  ^-  (unit docket:dock)
+  ::  the clay mirror reads each file typed (.^ %cr), so desk.docket-0
+  ::  usually lands as a parsed docket-0 grub -- read it straight. Fall
+  ::  back to parsing mime source for a mirror that kept it raw. Both
+  ::  muled: a bad docket drops its desk, never bangs the build.
+  =/  direct=(each docket:dock tang)
+    (mule |.(!<(docket:dock (need-vase:tarball sang))))
+  ?:  ?=(%& -.direct)  `p.direct
+  =/  parsed=(each (unit docket:dock) tang)
+    %-  mule
+    |.  ^-  (unit docket:dock)
+    =/  mim=mime  !<(mime (need-vase:tarball sang))
+    %-  from-clauses:mime:dock
+    !<((list clause:dock) (slap !>(~) (ream q.q.mim)))
+  ?:(?=(%& -.parsed) p.parsed ~)
+::  +docket-tile: a classic app's docket as a launcher tile. The href is
+::  /apps/<base>/ for a globbed app, or the %site path verbatim; the kind
+::  is 'app' (classic Landscape apps are user-facing).
+++  docket-tile
+  |=  [dk=@ta =docket:dock]
+  ^-  tile
+  =/  img=@t  ?~(image.docket '' u.image.docket)
+  =/  url=@t
+    ?-  -.href.docket
+      %site  (spat path.href.docket)
+      %glob  (cat 3 (cat 3 '/apps/' base.href.docket) '/')
+    ==
+  [dk title.docket info.docket (color-hex color.docket) img url 'app']
+::  +read-docket-tiles: a tile for every mounted clay desk that ships a
+::  desk.docket-0. The desks are mirrored under /sys/clay/desks by the
+::  mount-all sync; grubbery and the kernel desks carry no app docket.
+++  read-docket-tiles
+  =/  m  (fiber:fiber:nexus ,(list tile))
+  ^-  form:m
+  ;<  =view:nexus  bind:m  (peek-shallow:io [%& %| /sys/clay/desks] ~)
+  ?.  ?=([%ball *] view)  (pure:m ~)
+  =/  desks=(list @ta)  ~(tap in ~(key by dir.ball.view))
+  =|  acc=(list tile)
+  |-  ^-  form:m
+  ?~  desks  (pure:m (flop acc))
+  =/  dk=@ta  i.desks
+  ?:  ?=(?(%grubbery %base %kids) dk)  $(desks t.desks)
+  ;<  dv=view:nexus  bind:m
+    (peek:io [%& %& /sys/clay/desks/[dk] %'desk.docket-0'] ~)
+  ?.  ?=([%file *] dv)  $(desks t.desks)
+  =/  doc=(unit docket:dock)  (docket-of sang.dv)
+  ?~  doc  $(desks t.desks)
+  $(desks t.desks, acc [(docket-tile dk u.doc) acc])
+::
 ++  read-all-tiles
   =/  m  (fiber:fiber:nexus ,(list [tile root=(unit path)]))
   ^-  form:m
   ;<  local=(list tile)  bind:m  read-local-tiles
   =/  local-names=(set @ta)  (sy (turn local |=(t=tile name.t)))
   ;<  app-pairs=(list [tile path])  bind:m  read-app-tiles
+  ::  classic Landscape apps, read from their mounted desk.docket-0
+  ;<  docket-tiles=(list tile)  bind:m  read-docket-tiles
   ::  A root instance /apps/X whose code has moved into a desk - the same X
   ::  installed at /apps/shell/desks/<d>/desk/data/X - is dormant: it
   ::  keeps its tile.json but nothing behind it runs, and its address is
@@ -3866,12 +3935,22 @@
     (lien leaves |=(l=@ta =(l leaf)))
   ::  local tiles have no app root (not uninstallable); app tiles carry
   ::  theirs so the UI can offer uninstall.
+  =/  app-names=(set @ta)  (sy (turn app-pairs |=([t=tile *] name.t)))
   =/  merged=(list [tile (unit path)])
     %+  weld  (turn local |=(t=tile [t *(unit path)]))
     %+  murn  app-pairs
     |=  [t=tile r=path]
     ^-  (unit [tile (unit path)])
     ?:((~(has in local-names) name.t) ~ `[t `r])
+  ::  a docket tile is dropped if a native local or app tile already owns
+  ::  that name -- the grubbery-native tile wins over the classic one.
+  =.  merged
+    %+  weld  merged
+    %+  murn  docket-tiles
+    |=  t=tile
+    ^-  (unit [tile (unit path)])
+    ?:  |((~(has in local-names) name.t) (~(has in app-names) name.t))  ~
+    `[t *(unit path)]
   (pure:m (sort merged |=([a=[tile *] b=[tile *]] (aor name.-.a name.-.b))))
 ::
 ++  tiles-to-json
