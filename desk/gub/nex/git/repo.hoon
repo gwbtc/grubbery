@@ -541,28 +541,8 @@
       |=  r=git-ref:git-transport
       ?:  (~(has in have-set) hash.r)  ~
       `hash.r
-    ?~  want-hashes
-      (pure:m [%ok 'already up to date'])
-    ;<  pack-res=(each octs tang)  bind:m
-      (fetch-pack repo.cfg (build-want:git-transport want-hashes ~['side-band-64k' 'ofs-delta'] ~ have-hashes))
-    ?:  ?=(%| -.pack-res)
-      =/  msg=tape  (zing (turn (scag 1 p.pack-res) |=(=tank ~(ram re tank))))
-      (pure:m [%error (crip "fetch-pack failed: {msg}")])
-    =/  pack-body=octs  p.pack-res
-    =/  new-pack-data=octs  (extract-pack:git-transport pack-body %.y)
-    ?:  =(0 p.new-pack-data)
-      ;<  ~  bind:m  (update-refs disc ref.cfg)
-      ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
-      ;<  ~  bind:m  (reload:io data-rd)
-      (pure:m [%ok 'already up to date'])
-    =/  new-pack=pack:git-pack  (read:git-pack (from-octs:bytestream new-pack-data))
-    =/  new-entries=(list [key=hash:git-repo val=@ud])  (tap:pack-on:git-pack index.new-pack)
-    =/  idx-text=tape
-      %-  zing
-      %+  turn  new-entries
-      |=  [key=hash:git-repo val=@ud]
-      "{(print-hash-sha-1:git-transport key)} {(a-co:co val)}\0a"
-    =/  pack-num=@ud  (lent archive.object-store.repo)
+    ::  the remote's branch refs and the tip of the tracked one: read off
+    ::  discovery alone, so the no-fetch path below can use them too.
     =/  branch-refs=(list [name=@t hash=hash:git-repo])
       %+  murn  refs.disc
       |=  r=git-ref:git-transport
@@ -579,30 +559,45 @@
         ~
       (fall match 0x0)
     =/  head-text=@t  (crip (print-hash-sha-1:git-transport head-hash))
-    ::  the fetched objects and the remote-tracking refs always land; the
-    ::  LOCAL branch and the tree move only when there is nothing of ours
-    ::  to lose: a clean tree and no local commits the remote lacks. A
-    ::  dirty tree or an unpushed commit keeps local HEAD where it is and
-    ::  the tree untouched (a poll once reset a tree over a day's uncommitted
-    ::  work and a commit made seconds before); the outcome says so, and
-    ::  the merge is the user's move
-    ::  status.json is rebuilt only when the data nexus loads, so it may
-    ::  predate writes to the tree; a reload with HEAD unchanged keeps the
-    ::  tree and recomputes it before the decision is read
+    ::  nothing to FETCH is not nothing to DO. Every object the remote
+    ::  advertises can be here while local <ref> still points at an older
+    ::  commit — precisely what a pull held back by a dirty tree leaves
+    ::  behind. Answering 'already up to date' here wedged the repo: the
+    ::  only code that moved the local branch sat past this return, behind
+    ::  a non-empty pack, and that could never come true again.
+    ?~  want-hashes
+      ;<  ~  bind:m  (update-refs disc active-ref)
+      ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
+      ;<  ~  bind:m  (reload:io data-rd)
+      (advance-or-keep branch-refs active-ref head-hash data-rd ~)
+    ;<  pack-res=(each octs tang)  bind:m
+      (fetch-pack repo.cfg (build-want:git-transport want-hashes ~['side-band-64k' 'ofs-delta'] ~ have-hashes))
+    ?:  ?=(%| -.pack-res)
+      =/  msg=tape  (zing (turn (scag 1 p.pack-res) |=(=tank ~(ram re tank))))
+      (pure:m [%error (crip "fetch-pack failed: {msg}")])
+    =/  pack-body=octs  p.pack-res
+    =/  new-pack-data=octs  (extract-pack:git-transport pack-body %.y)
+    ?:  =(0 p.new-pack-data)
+      ;<  ~  bind:m  (update-refs disc active-ref)
+      ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
+      ;<  ~  bind:m  (reload:io data-rd)
+      (advance-or-keep branch-refs active-ref head-hash data-rd ~)
+    =/  new-pack=pack:git-pack  (read:git-pack (from-octs:bytestream new-pack-data))
+    =/  new-entries=(list [key=hash:git-repo val=@ud])  (tap:pack-on:git-pack index.new-pack)
+    =/  idx-text=tape
+      %-  zing
+      %+  turn  new-entries
+      |=  [key=hash:git-repo val=@ud]
+      "{(print-hash-sha-1:git-transport key)} {(a-co:co val)}\0a"
+    =/  pack-num=@ud  (lent archive.object-store.repo)
+    ::  the objects and the remote-tracking refs always land; whether the
+    ::  LOCAL branch follows is +advance-or-keep's call, the same one the
+    ::  no-fetch path above makes, so save with advance=%.n and let it decide.
+    ;<  ~  bind:m  (save-repo new-pack-data idx-text pack-num branch-refs head-text active-ref %.n)
     ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
     ;<  ~  bind:m  (reload:io data-rd)
-    ;<  clean=?  bind:m  working-tree-clean
-    ;<  ahead=@ud  bind:m  local-ahead
-    =/  advance=?  &(clean =(0 ahead))
-    ;<  ~  bind:m  (save-repo new-pack-data idx-text pack-num branch-refs head-text active-ref advance)
     =/  fetched=tape  "fetched {(scow %ud (lent want-hashes))} new objects"
-    ?.  advance
-      =/  why=tape
-        ?.  clean  "the working tree has uncommitted changes"
-        "local {(trip active-ref)} is {(scow %ud ahead)} commit(s) ahead of origin"
-      (pure:m [%ok (crip "{fetched}; local {(trip active-ref)} and the tree kept: {why}. Commit or stash, then pull, or push first.")])
-    ;<  ~  bind:m  (reload:io data-rd)
-    (pure:m [%ok (crip fetched)])
+    (advance-or-keep branch-refs active-ref head-hash data-rd `fetched)
   ::  === full clone ===
   ;<  clone-err=(unit @t)  bind:m  (do-full-clone cfg disc)
   ?^  clone-err  (pure:m [%error u.clone-err])
@@ -880,6 +875,75 @@
   ;<  ~  bind:m  (write-repo-file remote-rd [[/ %mime] [/text/plain hash-octs]])
   $(branch-refs t.branch-refs)
 ::
+::  +advance-local: fast-forward local HEAD and the local branch refs to
+::  the remote's hashes, writing no pack. The objects are already in the
+::  store; only the refs are behind.
+::
+++  advance-local
+  |=  [branch-refs=(list [name=@t hash=hash:git-repo]) ref-name=@t]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  head-octs=octs  (as-octt:bytestream "ref: refs/heads/{(trip ref-name)}")
+  ;<  head-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /data %'HEAD'])
+  ;<  ~  bind:m  (write-repo-file head-rd [[/ %mime] [/text/plain head-octs]])
+  |-
+  ?~  branch-refs  (pure:m ~)
+  =/  hash-octs=octs
+    (as-octt:bytestream (print-hash-sha-1:git-transport hash.i.branch-refs))
+  =/  bname=@ta  (crip (trip name.i.branch-refs))
+  ;<  rd=road:tarball  bind:m
+    (ancestor-road:io [/git %repo] [%& /data/refs/heads bname])
+  ;<  ~  bind:m  (write-repo-file rd [[/ %mime] [/text/plain hash-octs]])
+  $(branch-refs t.branch-refs)
+::
+::  +advance-or-keep: move the local branch and the tree to the remote's
+::  tip, or keep both and say why. The one decision a pull makes once its
+::  objects are in hand, so the fetch and no-fetch paths share it.
+::
+::    The local branch moves only when there is nothing of ours to lose:
+::    a clean tree and no local commits the remote lacks. A dirty tree or
+::    an unpushed commit keeps local HEAD and the tree untouched (a poll
+::    once reset a tree over a day's uncommitted work and a commit made
+::    seconds before); the outcome says so, and the merge is the user's move.
+::
+::    `fetched` describes what the transport did, for the message only; ~
+::    when nothing was fetched.
+::
+++  advance-or-keep
+  |=  $:  branch-refs=(list [name=@t hash=hash:git-repo])
+          active-ref=@t
+          head-hash=@ux
+          data-rd=road:tarball
+          fetched=(unit tape)
+      ==
+  =/  m  (fiber:fiber:nexus ,outcome:git-act)
+  ^-  form:m
+  =/  pre=tape  ?~(fetched "" "{u.fetched}; ")
+  ::  the remote advertises no tip for the tracked ref — there is nothing
+  ::  to fast-forward TO, so never write a zero hash over local HEAD.
+  ?:  =(0x0 head-hash)
+    %-  pure:m
+    :-  %ok
+    (crip (weld pre "origin has no {(trip active-ref)}"))
+  =/  head-text=@t  (crip (print-hash-sha-1:git-transport head-hash))
+  ;<  local=@t  bind:m  resolve-head
+  ?:  =(local head-text)
+    (pure:m [%ok ?~(fetched 'already up to date' (crip u.fetched))])
+  ;<  clean=?  bind:m  working-tree-clean
+  ;<  ahead=@ud  bind:m  local-ahead
+  ?.  &(clean =(0 ahead))
+    =/  why=tape
+      ?.  clean  "the working tree has uncommitted changes"
+      "local {(trip active-ref)} is {(scow %ud ahead)} commit(s) ahead of origin"
+    %-  pure:m
+    :-  %ok
+    %-  crip
+    :(weld pre "local {(trip active-ref)} and the tree kept: {why}. " "Commit or stash, then pull, or push first.")
+  ;<  ~  bind:m  (advance-local branch-refs active-ref)
+  ;<  ~  bind:m  (reload:io data-rd)
+  %-  pure:m
+  :-  %ok
+  (crip (weld pre "fast-forwarded {(trip active-ref)} to {(trip head-text)}"))
 ::  +save-repo: write pack + index + refs + HEAD into repo sub-nexus
 ::
 ::  pack-num is the pack slot to write (0 for full clone, N for incremental).
