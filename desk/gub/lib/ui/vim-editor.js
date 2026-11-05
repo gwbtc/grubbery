@@ -143,6 +143,7 @@
       focus: function () { if (handle.cm) handle.cm.focus(); },
       setReadOnly: function (b) { if (handle.cm) handle.cm.setOption('readOnly', !!b); },
       setLineWrapping: function (b) { if (handle.cm) handle.cm.setOption('lineWrapping', !!b); },
+      setLineNumbers: function (b) { if (handle.cm) handle.cm.setOption('lineNumbers', !!b); },
       setVim: function (b) { if (handle.cm) handle.cm.setOption('keyMap', b ? 'vim' : 'default'); },
       getCursor: function () { return handle.cm ? handle.cm.getCursor() : null; },
       setCursor: function (c) { if (handle.cm && c) handle.cm.setCursor(c); },

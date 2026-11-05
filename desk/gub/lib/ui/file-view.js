@@ -73,6 +73,13 @@
     '.fv pre.dim{color:#8b949e}' +
     '.fv pre.boom{color:#cf222e;background:#fff8f8}' +
     '.fv code{font:inherit}' +
+    // Line numbers in Source: a CSS counter over the per-line spans (Shiki
+    // emits .line; the plain fallback emits them too, see renderSource), so
+    // the toggle costs nothing to render and leaves the text selectable
+    // without the numbers coming along (user-select:none on the ::before).
+    '.fv.nums #src-display code{counter-reset:fvln}' +
+    '.fv.nums #src-display .line{counter-increment:fvln}' +
+    '.fv.nums #src-display .line::before{content:counter(fvln);display:inline-block;width:3ch;margin-right:16px;text-align:right;color:#8b949e;user-select:none}' +
     '.fv #ed{width:100%;height:100%;box-sizing:border-box}' +
     '.fv #ed .CodeMirror{height:100%;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}' +
     '.fv #missing{padding:40px 32px;color:#57606a}' +
@@ -133,6 +140,7 @@
       '<button id="save" disabled>Save</button>' +
       '<button id="live">Live</button>' +
       '<button id="wrap">Wrap</button>' +
+      '<button id="numbtn" title="line numbers in Source and the editor">Lines</button>' +
       '<button id="vimbtn" title="vim keybindings in the editor">Vim</button>' +
       '<button id="copybtn" class="icon" title="copy the file\'s text">' +
         '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
@@ -210,12 +218,26 @@
   var SHIKI_LANG = { js: 'javascript', mjs: 'javascript', ts: 'typescript',
                      json: 'json', css: 'css', hoon: 'hoon' };
 
+  // CodeMirror mode by extension, so the editor highlights from the same
+  // signal Source does rather than from the file's mime (which a grub needn't
+  // carry, and which doesn't map for hoon). Falls back to mime in VimEditor
+  // when an extension isn't listed. Only modes welded into cm.js appear here
+  // (ts has no CM mode of its own — javascript is close and is what's loaded).
+  var CM_MODE_EXT = {
+    js: 'javascript', mjs: 'javascript', ts: 'javascript', jsx: 'javascript',
+    json: { name: 'javascript', json: true },
+    css: 'css', hoon: 'hoon', html: 'htmlmixed', htm: 'htmlmixed',
+    xml: 'xml', svg: 'xml', md: 'markdown', markdown: 'markdown'
+  };
+  function cmModeForExt(e) { return CM_MODE_EXT[e] || null; }
+
   function mount(root, opts) {
     opts = opts || {};
     injectStyle();
     root.classList.add('fv');
     root.innerHTML = MARKUP;
     var wrapKey = opts.wrapKey || 'explorer-wrap';
+    var numsKey = opts.numsKey || 'explorer-nums';
     // opts.readOnly — show the file but never let it be written (past versions)
     var $ = function (id) { return root.querySelector('#' + id); };
 
@@ -286,7 +308,7 @@
     // opts.viewer = { label, mount(root, opts) -> { destroy() } }: a pane the
     // host adds for this file's mark, shown first; mounted on first show
     var viewer = opts.viewer || null, viewerHandle = null;
-    var editBtn = $('edit'), saveBtn = $('save'), liveBtn = $('live'), wrapBtn = $('wrap'), vimBtn = $('vimbtn');
+    var editBtn = $('edit'), saveBtn = $('save'), liveBtn = $('live'), wrapBtn = $('wrap'), numBtn = $('numbtn'), vimBtn = $('vimbtn');
     var copyBtn = $('copybtn');
     var status = $('status'), tools = $('tools'), mimeInput = $('mime-input');
 
@@ -441,7 +463,7 @@
       } else {
         src.className = 'dim'; src.textContent = 'binary content'; src.style.display = '';
       }
-      setupPanes(); setupWrap(); setupCopy(); setupEditor(); renderSource();
+      setupPanes(); setupWrap(); setupNums(); setupCopy(); setupEditor(); renderSource();
     }
 
     // a failed read is an ERROR, never content: without the status check the
@@ -542,17 +564,45 @@
       applyWrap();
     }
 
+    // Line numbers, toggled together for Source (CSS counter over the .line
+    // spans) and the editor (CodeMirror's own lineNumbers), so the two panes
+    // always agree. Default on — the editor already numbered by default.
+    function setupNums() {
+      var nums = true;
+      try { nums = (localStorage.getItem(numsKey) == null ? '1' : localStorage.getItem(numsKey)) === '1'; } catch (_) {}
+      var applyNums = function () {
+        root.classList.toggle('nums', nums);
+        numBtn.classList.toggle('on', nums);
+        if (ve) ve.setLineNumbers(nums);
+      };
+      numBtn.addEventListener('click', function () {
+        nums = !nums;
+        try { localStorage.setItem(numsKey, nums ? '1' : '0'); } catch (_) {}
+        applyNums();
+      });
+      applyNums();
+    }
+
     async function renderSource() {
       if (!editable) return;
       var text = ve ? ve.getValue() : edText;
       display.textContent = '';
-      var p = document.createElement('pre'); p.textContent = text; display.appendChild(p);
       if (SHIKI_LANG[ext]) {
         try {
           var hl = await getShiki(SHIKI_LANG[ext]);
-          p.outerHTML = hl.codeToHtml(text, { lang: SHIKI_LANG[ext], theme: 'github-light' });
+          display.innerHTML = hl.codeToHtml(text, { lang: SHIKI_LANG[ext], theme: 'github-light' });
+          return;
         } catch (_) {}
       }
+      // plain fallback: still wrap each line in a .line span so the line-number
+      // toggle works the same as it does over Shiki's output
+      var pre = document.createElement('pre'), code = document.createElement('code');
+      text.split('\n').forEach(function (ln, i) {
+        if (i) code.appendChild(document.createTextNode('\n'));
+        var s = document.createElement('span'); s.className = 'line'; s.textContent = ln;
+        code.appendChild(s);
+      });
+      pre.appendChild(code); display.appendChild(pre);
     }
 
     // vim keybindings default on, except on a touch/narrow device where a
@@ -588,8 +638,10 @@
         if (ve) return ve;
         ve = VimEditor.mount(ed, {
           value: clean,
+          mode: cmModeForExt(ext),
           mime: mite,
           vim: vimOn,
+          lineNumbers: root.classList.contains('nums'),
           lineWrapping: root.classList.contains('wrap'),
           onChange: function () { syncSaveBtn(); if (live) scheduleLive(); }
         });
