@@ -224,14 +224,22 @@
       [%skip ~]
     [%done kept.u.in]
   ==
-::  On crash recovery (prod is [~ tang]), log the error and wait for a
-::  poke to restart. On clean start (prod is ~), continue.
-::  Any poke restarts the process — %sig is the convention; a non-sig
-::  poke logs a warning but restarts anyway, and its payload is
-::  consumed (the restarted process never sees it).
-::  Use at the top of a process to make it restartable:
-::    ;<  ~  bind:m  (rise-wait prod "my-process: failed")
-::    ::  startup code continues here
+::  DELETE THIS ARM AND EVERY CALL TO IT. It does nothing.
+::
+::  `prod` is always ~ (see its definition in /lib/nexus.hoon), so the
+::  only branch below that waits is unreachable: every caller takes
+::  `?~ prod (pure:m ~)` and falls straight through. There are 36 call
+::  sites, all of the form
+::
+::    ;<  ~  bind:m  (rise-wait:io prod "my-process: failed")
+::
+::  and each is a no-op line above the startup code it appears to guard.
+::  Removing them does not touch `prod` itself, which stays in the +spool
+::  signature until that separate change lands.
+::
+::  Do not reason about this arm from its body alone. It reads like crash
+::  recovery -- log the error, park on a poke, restart -- and that is why
+::  it has survived; the branch is simply never taken.
 ::
 ++  rise-wait
   |=  [=prod:fiber:nexus msg=tape]
