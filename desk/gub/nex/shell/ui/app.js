@@ -346,7 +346,9 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
   // the card modal shows one tile; a pinned link also offers edit, which
   // opens the Manage Desks panel on its pin screen
   function modalMode(m, t) {
-    show('edit-edit', t && !t.root);
+    // only a pure pinned link is editable here. A grubbery desk app owns
+    // its tile, and a docket app's fields come from its desk.docket-0.
+    show('edit-edit', t && !t.root && t.source !== 'docket' && !t.own);
   }
   // the pin screen's two faces: the fields form or the raw json
   function pinMode(m) {
@@ -368,14 +370,17 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
   }
   function formFill(t) {
     FIELDS.forEach(function(k) { document.getElementById('f-' + k).value = t[k] || ''; });
+    // the Tab selector: an undeclared tile reads as 'other'. The select
+    // only offers app/utility/other, so a tile carrying another kind
+    // (e.g. a docket 'experiment') falls back to 'other' in the picker.
+    var k = t.kind || 'other';
+    document.getElementById('f-kind').value = (k === 'app' || k === 'utility') ? k : 'other';
     pickFromHex();
   }
   function formRead() {
     var t = {};
     FIELDS.forEach(function(k) { t[k] = document.getElementById('f-' + k).value.trim(); });
-    // the fields form does not show kind, so carry the edited tile's own
-    // through — editing a tile must not silently drop it back to 'other'.
-    if (editingKind) t.kind = editingKind;
+    t.kind = document.getElementById('f-kind').value;
     return t;
   }
   // the colour chip and the hex box are one value
@@ -392,10 +397,8 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     if (mode === 'form') return formRead();
     try { return JSON.parse(editJson.value); } catch(e) { return null; }
   }
-  var editingKind = '';
   function openEditor(t) {
     editStatus.textContent = '';
-    editingKind = t.kind || '';
     formFill(t);
     editJson.value = JSON.stringify(t, null, 2);
     pinMode('form');
@@ -461,10 +464,21 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
       a.textContent = t.href;
       row('Opens', a);
     }
-    if (t.root) {
+    // the tile's declared kind, shown as-is (experiment, etc.) — not collapsed
+    // to the Other *tab* it happens to live in
+    var kindLabels = { app: 'App', utility: 'Utility', experiment: 'Experiment', other: 'Other' };
+    var k = kindOf(t);
+    row('Kind', text(kindLabels[k] || (k.charAt(0).toUpperCase() + k.slice(1))));
+    // where the tile comes from
+    if (t.source === 'docket') {
+      row('Source', text('docket app'));
+    } else if (t.source === 'grubbery' || t.own) {
+      row('Source', text('grubbery'));
+    } else if (t.root) {
+      row('Source', text('grubbery desk'));
       row('App', mono(t.root));
     } else {
-      row('Kind', text('pinned link, not tied to a desk'));
+      row('Source', text('pinned link'));
     }
     if (t.color) {
       var sw = document.createElement('span');
@@ -497,12 +511,14 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
       editName = name;
       var content = {};
       FIELDS.forEach(function(k) { content[k] = t[k] || ''; });
+      content.kind = t.kind || 'other';  // carry the tab into the editor
       openPin('Edit ' + (t.title || name), content);
     };
-    // an app comes and goes with its desk, which is removed from the
-    // Installed tab; only a pinned link is deleted here
+    // an app comes and goes with its desk (grubbery desk removed from the
+    // Installed tab; a docket app from its own desk); only a pure pinned
+    // link is deleted here.
     var un = document.getElementById('edit-uninstall');
-    un.style.display = t.root ? 'none' : '';
+    un.style.display = (t.root || t.source === 'docket' || t.own) ? 'none' : '';
     un.textContent = 'delete tile';
     un.onclick = function() {
       editBack.classList.remove('open');

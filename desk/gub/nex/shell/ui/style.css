@@ -81,6 +81,8 @@
   #edit-form label { display: grid; grid-template-columns: 56px 1fr; align-items: center; gap: 12px; font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.04em; }
   #edit-form input[type=text] { width: 100%; box-sizing: border-box; font: 13px/1.4 inherit; font-family: inherit; color: #333; border: 1px solid #e0e0e0; border-radius: 8px; padding: 8px 10px; background: #fafafa; outline: none; text-transform: none; letter-spacing: 0; }
   #edit-form input[type=text]:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); background: white; }
+  #edit-form select { width: 100%; box-sizing: border-box; font: 13px/1.4 inherit; font-family: inherit; color: #333; border: 1px solid #e0e0e0; border-radius: 8px; padding: 8px 10px; background: #fafafa; outline: none; text-transform: none; letter-spacing: 0; cursor: pointer; }
+  #edit-form select:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); background: white; }
   #edit-form .color-row { display: flex; gap: 8px; align-items: center; }
   #edit-form input[type=color] { width: 36px; height: 34px; padding: 2px; border: 1px solid #e0e0e0; border-radius: 8px; background: #fafafa; cursor: pointer; }
   #edit-form #f-color { font-family: 'SF Mono', Monaco, monospace; font-size: 12px; }

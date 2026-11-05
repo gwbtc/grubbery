@@ -178,7 +178,7 @@
           ::  the user's, edited from the home page.
           [%fall %| /tiles empty-dir:loader]
           [%fall %| /tiles/landscape empty-dir:loader]
-          [%fall %& [/tiles/landscape %'tile.json'] [[/ %json] landscape-tile]]
+          [%over %& [/tiles/landscape %'tile.json'] [[/ %json] landscape-tile]]
           ::  hidden-tiles.json: the user's launcher preference — the set of
           ::  tile names hidden from the home grid, toggled from the UI. This
           ::  replaces the old hardcoded hidden set (any tile can be hidden or
@@ -199,16 +199,16 @@
           ::  is a local one, like Landscape's.
           [%over %| /tools (tools-bole:mcp ball tool-bundle)]
           [%fall %| /tiles/tools empty-dir:loader]
-          [%fall %& [/tiles/tools %'tile.json'] [[/ %json] tile:mcp]]
+          [%over %& [/tiles/tools %'tile.json'] [[/ %json] tile:mcp]]
           [%fall %| /tiles/explorer empty-dir:loader]
-          [%fall %& [/tiles/explorer %'tile.json'] [[/ %json] tile:explorer]]
+          [%over %& [/tiles/explorer %'tile.json'] [[/ %json] tile:explorer]]
           ::  the forge and the github proxy it houses live under this
           ::  shell, not under /apps, so the tile reader never finds them:
           ::  their tiles are local ones too.
           [%fall %| /tiles/forge empty-dir:loader]
-          [%fall %& [/tiles/forge %'tile.json'] [[/ %json] forge-tile]]
+          [%over %& [/tiles/forge %'tile.json'] [[/ %json] forge-tile]]
           [%fall %| /tiles/github empty-dir:loader]
-          [%fall %& [/tiles/github %'tile.json'] [[/ %json] github-tile]]
+          [%over %& [/tiles/github %'tile.json'] [[/ %json] github-tile]]
       ==
       rows:explorer
     ::
@@ -725,7 +725,7 @@
         ::  tile store, served from the tiles data ball over the namespace
         ::  /grubbery/tiles/tiles.json → all tile data
         ?:  ?=([%'tiles.json' ~] suffix)
-          ;<  tiles=(list [tile (unit path)])  bind:m  read-all-tiles
+          ;<  tiles=(list [tile (unit path) ?])  bind:m  read-all-tiles
           ;<  hidden=(set @t)  bind:m  (read-hidden-tiles rail)
           =/  =json  (tiles-to-json tiles hidden)
           =/  body=octs  (as-octs:mimes:html (en:json:html json))
@@ -2579,6 +2579,11 @@
       ::  junk drawer is the nudge to declare one. Tiles the shell itself
       ::  ships set theirs; see the seed constructors below.
       kind=@t
+      ::  system-owned: a tile the shell itself ships and the loader keeps
+      ::  current (%over), not a user's pinned link. The card shows its
+      ::  source as "grubbery" and withholds edit/delete — the constructor
+      ::  is the source of truth, so a hand edit would just revert on load.
+      own=?
   ==
 ::
 ::  the seed local tile
@@ -2591,6 +2596,7 @@
       href+s+'/apps/landscape'
       image+s+'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fe/Urbit_Logo.svg/3840px-Urbit_Logo.svg.png'
       kind+s+'utility'
+      own+b+&
   ==
 ++  forge-tile
   ^-  json
@@ -2601,6 +2607,7 @@
       href+s+'/grubbery/forge'
       image+s+'/grubbery/tiles/icon/apps/shell/forge'
       kind+s+'app'
+      own+b+&
   ==
 ++  github-tile
   ^-  json
@@ -2611,6 +2618,7 @@
       href+s+'/grubbery/github'
       image+s+'/grubbery/tiles/icon/apps/shell/forge/github'
       kind+s+'utility'
+      own+b+&
   ==
 ::  each local tile is its own subdir /tiles/<name>/ holding tile.json
 ::  (and optionally icon.svg); the tile's name is the subdir name. They
@@ -2677,6 +2685,8 @@
       ::  no 'kind' means 'other' — an undeclared tile lands in the junk
       ::  drawer until its tile.json says app or utility.
       (fall (bind (~(get by m) 'kind') |=(=json ?>(?=(%s -.json) p.json))) 'other')
+      ::  'own' marks a shell-shipped tile; a user's pinned link has none.
+      (fall (bind (~(get by m) 'own') |=(=json ?>(?=(%b -.json) p.json))) %.n)
   ==
 ::
 ++  read-app-tiles
@@ -3886,7 +3896,7 @@
       %site  (spat path.href.docket)
       %glob  (cat 3 (cat 3 '/apps/' base.href.docket) '/')
     ==
-  [dk title.docket info.docket (color-hex color.docket) img url 'app']
+  [dk title.docket info.docket (color-hex color.docket) img url 'app' %.n]
 ::  +read-docket-tiles: a tile for every mounted clay desk that ships a
 ::  desk.docket-0. The desks are mirrored under /sys/clay/desks by the
 ::  mount-all sync; grubbery and the kernel desks carry no app docket.
@@ -3909,7 +3919,7 @@
   $(desks t.desks, acc [(docket-tile dk u.doc) acc])
 ::
 ++  read-all-tiles
-  =/  m  (fiber:fiber:nexus ,(list [tile root=(unit path)]))
+  =/  m  (fiber:fiber:nexus ,(list [tile root=(unit path) docket=?]))
   ^-  form:m
   ;<  local=(list tile)  bind:m  read-local-tiles
   =/  local-names=(set @ta)  (sy (turn local |=(t=tile name.t)))
@@ -3936,29 +3946,33 @@
   ::  local tiles have no app root (not uninstallable); app tiles carry
   ::  theirs so the UI can offer uninstall.
   =/  app-names=(set @ta)  (sy (turn app-pairs |=([t=tile *] name.t)))
-  =/  merged=(list [tile (unit path)])
-    %+  weld  (turn local |=(t=tile [t *(unit path)]))
+  ::  each entry carries its SOURCE as a flag: a root path means a grubbery
+  ::  desk app, `docket` means a classic app read from its desk.docket-0,
+  ::  and neither means a pure pinned link. The UI shows this, and a docket
+  ::  tile is read-only (its fields come from the desk, not the user).
+  =/  merged=(list [tile root=(unit path) docket=?])
+    %+  weld  (turn local |=(t=tile [t *(unit path) %.n]))
     %+  murn  app-pairs
     |=  [t=tile r=path]
-    ^-  (unit [tile (unit path)])
-    ?:((~(has in local-names) name.t) ~ `[t `r])
+    ^-  (unit [tile (unit path) ?])
+    ?:((~(has in local-names) name.t) ~ `[t `r %.n])
   ::  a docket tile is dropped if a native local or app tile already owns
   ::  that name -- the grubbery-native tile wins over the classic one.
   =.  merged
     %+  weld  merged
     %+  murn  docket-tiles
     |=  t=tile
-    ^-  (unit [tile (unit path)])
+    ^-  (unit [tile (unit path) ?])
     ?:  |((~(has in local-names) name.t) (~(has in app-names) name.t))  ~
-    `[t *(unit path)]
+    `[t *(unit path) %.y]
   (pure:m (sort merged |=([a=[tile *] b=[tile *]] (aor name.-.a name.-.b))))
 ::
 ++  tiles-to-json
-  |=  [tiles=(list [t=tile root=(unit path)]) hidden=(set @t)]
+  |=  [tiles=(list [t=tile root=(unit path) docket=?]) hidden=(set @t)]
   ^-  json
   :-  %a
   %+  turn  tiles
-  |=  [t=tile root=(unit path)]
+  |=  [t=tile root=(unit path) docket=?]
   %-  pairs:enjs:format
   :~  name+s+name.t
       title+s+title.t
@@ -3967,6 +3981,11 @@
       image+s+image.t
       href+s+href.t
       kind+s+kind.t
+      ::  source: where the tile comes from, for the card's origin row.
+      ::  a shell-shipped tile is 'grubbery'; a classic app 'docket'; a
+      ::  grubbery desk 'desk' (it carries a root); a pure pinned link 'link'.
+      source+s+?:(own.t 'grubbery' ?:(docket 'docket' ?~(root 'link' 'desk')))
+      own+b+own.t
       root+?~(root ~ s+(crip (spud u.root)))
       hidden+b+(~(has in hidden) name.t)
   ==

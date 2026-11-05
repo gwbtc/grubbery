@@ -42,6 +42,7 @@
       image+s+'/grubbery/tools/icon.svg'
       href+s+'/grubbery/tools'
       kind+s+'utility'
+      own+b+&
   ==
 ::  +send-json: 200 a json body on an eyre connection
 ::
