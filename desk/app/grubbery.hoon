@@ -608,6 +608,15 @@
       abet:(expire-snap:hc t.t.wire error.sign)
     [cards this]
     ::
+      [%behn %clay-desk @ ~]
+    ?>  ?=([%behn %wake *] sign)
+    ::  one deferred desk mirror, in its own event (see +sync-clay). A
+    ::  wake that errored is reported and dropped: the desk simply stays
+    ::  unmirrored until the next rise, which is louder than retrying.
+    =^  cards  state
+      abet:(wake-clay-desk:hc `@tas`i.t.t.wire error.sign)
+    [cards this]
+    ::
       [%behn %timer @ *]
     ?>  ?=([%behn %wake *] sign)
     ::  profiling, under +dbg: how long this wake's whole event took
@@ -3705,11 +3714,28 @@
   ?:  ?=(%here -.dart)
     (handle-dart here dart ~ ~)
   =/  [=jump:nexus dest=(unit lane:tarball)]  (dart-to-dest here dart)
-  ::  %node dart with an unresolvable road — drop at admission.
-  ::  Past this point a %node dart always carries a resolved dest.
+  ::  a road into the peer tree under OUR OWN ship names nothing. We are
+  ::  not our own peer (+ensure-peer-ship refuses to make us one), so the
+  ::  road resolves to no place and the dart dies here. It is not
+  ::  rewritten to the local lane it looks like it means: a caller that
+  ::  addressed us as a peer has a bug, and quietly rerouting it would
+  ::  hide the bug and hand the dart a path its own weir never granted.
+  ::  Sent on to ames instead, it came back from our own ship and was
+  ::  admitted as our unweired ship.sig — the whole ball, to any grub
+  ::  that could reach /sys/ames/ships/.
+  =?  dest  ?=(^ dest)  ?:((self-peer-lane u.dest) ~ dest)
+  ::  %node dart with an unresolvable road — refused at admission, and
+  ::  the caller is TOLD. It gets the same %veto intake a blocked dart
+  ::  gets: from where the caller stands a road that names nothing and a
+  ::  road it may not take are the same answer, and either way its fiber
+  ::  has to move. Dropping in silence left the fiber waiting forever —
+  ::  an HTTP request on the other end of it hung with no response.
   ?:  &(?=(%node -.dart) ?=(~ dest))
     ~&  >>  [%node-bad-road here road.dart]
-    this
+    ?:  ?=([%sys %ames %ships @ ~] path.here)
+      ~|  [%peer-bad-road name.here road.dart]
+      !!
+    (enqu-take here ~ ~ %veto dart)
   =/  =filt:nexus  (allowed jump here dest)
   ?+    filt  (handle-dart here dart filt dest)
       [~ %|]
@@ -3748,6 +3774,17 @@
     ==
   ==
 ::
+::  +self-peer-lane: does this lane address US in the peer tree? The
+::  peer tree is the inbound face — one directory per ship whose darts
+::  arrive here — and we never arrive at ourselves, so such a lane
+::  names no place at all.
+::
+++  self-peer-lane
+  |=  =lane:tarball
+  ^-  ?
+  =/  remote=(unit [@p lane:tarball])  (resolve-remote lane)
+  ?~  remote  %.n
+  =(our.bowl -.u.remote)
 ::  +resolve-remote: check if a lane is under /sys/ames/ships/ and
 ::  extract the target ship and real (non-ames) dest lane.
 ::
@@ -5554,10 +5591,49 @@
   =/  clay-rail=rail:tarball  [/sys/clay %'main.clay-state']
   =/  st=clay-state:nexus  [%0 (silt dek)]
   =.  this  (save-file clay-rail [[/ %clay-state] st])
+  ::  ONE DESK PER EVENT. Mirroring a desk reads every file typed (.^ %cr),
+  ::  so a desk the size of %landscape or %groups builds its whole glob
+  ::  tree into one bole. All of them in a single event never frees any of
+  ::  it: the loom is exhausted mid-event and the ship bails %meme before
+  ::  it can finish (a pill boot died this way at every loom size -- 2GB in
+  ::  4 minutes, 8GB in 16, growth at a constant rate because the work is
+  ::  proportional to total desk content).
+  ::
+  ::  So only the two desks grubbery itself needs are mirrored here, on
+  ::  load. Every other desk is handed to its own behn wake, a millisecond
+  ::  apart: the delay is not a throttle, it is how you get a new event --
+  ::  each wake lands on its own, and the loom is reclaimed between them.
+  ::  The desks all still arrive -- we want them -- just not in one breath.
+  ::  (both directories are ensured at the top of this arm)
+  =.  this  (sync-clay-desk %base)
+  =.  this  (sync-clay-desk %grubbery)
+  =/  rest=(list desk)  (skip dek |=(d=desk ?=(?(%base %grubbery) d)))
+  =|  i=@ud
   |-  ^+  this
-  ?~  dek  this
-  =.  this  (ensure-dir /sys/clay/desks/[i.dek])
-  $(dek t.dek, this (sync-clay-desk i.dek))
+  ?~  rest  this
+  ::  the directory is made now so a listing shows the desk as pending
+  ::  rather than appearing out of nowhere a few seconds later
+  =.  this  (ensure-dir /sys/clay/desks/[i.rest])
+  =.  this
+    %-  emit-card
+    :*  %pass
+        /behn/clay-desk/[i.rest]
+        %arvo  %b  %wait
+        (add now.bowl (mul +(i) (div ~s1 1.000)))
+    ==
+  $(rest t.rest, i +(i))
+::
+::  +wake-clay-desk: mirror one desk, woken by its own behn timer so the
+::  work gets a fresh event and the loom is reclaimed afterward.
+::
+++  wake-clay-desk
+  |=  [dek=desk error=(unit tang)]
+  ^+  this
+  ?^  error
+    %-  (slog leaf+"%sync-clay: no mirror for {<dek>}" u.error)
+    this
+  ~?  dbg  "sync-clay: deferred mirror of {<dek>}"
+  (sync-clay-desk dek)
 ::
 ++  sync-clay-desk
   |=  dek=desk
@@ -6738,7 +6814,13 @@
     =.  this  (sub-wipe reg-rail)
     (delete /sys/ames %'registry')
   =.  this  ensure-public-group
-  (ensure-peer-ship our.bowl)
+  ::  a ship that still holds a directory for ITSELF under the peer tree
+  ::  loses it: we are not our own peer, and that directory was the one
+  ::  unweired place a dart addressed to us could come back to.
+  =/  self-dir=path  /sys/ames/ships/[(scot %p our.bowl)]
+  ?.  ?=(^ (~(get of born) self-dir))  this
+  =.  this  (sub-wipe [self-dir %'ship.sig'])
+  (cull [%| self-dir])
 ::  Ensure /sys/ames/usergroups/public.grp/ exists with who.ships and how.weir.
 ::  The public group's weir applies to all foreign ships regardless of membership.
 ::
@@ -6783,6 +6865,15 @@
 ++  ensure-peer-ship
   |=  src=@p
   ^+  this
+  ::  OUR OWN SHIP IS NOT A PEER. /sys/ames/ships is the inbound face:
+  ::  one directory per ship whose darts arrive here, carrying the weir
+  ::  we judge them by. We never arrive at ourselves, so there is
+  ::  nothing to represent, and a directory for us could only be an
+  ::  unweired place inside the peer tree — the thing a loopback dart
+  ::  used to land on. +ship-sig-rail still names us: it is an identity,
+  ::  not a grub, and a caller with no weir above it is unrestricted,
+  ::  which is what local privilege means.
+  ?:  =(src our.bowl)  this
   =/  ship-ta=@ta  (scot %p src)
   =/  ship-dir=path  /sys/ames/ships/[ship-ta]
   ::  Always ensure dir, /root, and ship.sig exist
@@ -6792,8 +6883,6 @@
     =/  ship-rail=rail:tarball  [ship-dir %'ship.sig']
     =.  this  (save-file ship-rail [[/ %sig] ~])
     (spawn-proc ship-rail ~)
-  ::  Set weir (our ship gets none — full access)
-  ?:  =(src our.bowl)  this
   =/  =weir:nexus  (compute-peer-weir src)
   =.  this  (set-weir ship-dir `weir)
   ::  Aggregate man pages from this ship's usergroups
