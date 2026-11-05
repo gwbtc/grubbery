@@ -1047,6 +1047,44 @@
       bins.old  vale.old  (remo-12-to-remo remo.old)  upki.old  last.old
       conns.old
   ==
+::  state-14: the take queue outlives its event. Draining to empty spends
+::  one event's loom on a whole cascade; with a budget the leftover takes
+::  wait here and a behn wake drains the next batch. Empty means nothing
+::  is owed, which is every ship that never hit the budget.
+::
+::  $take is NOT frozen here, and does not join the freeze chain
+::  load -> dart -> pend -> take. +on-save empties `owed` the way
+::  +bang-pool neutralizes the pool, so it is always ~ in a saved state
+::  and the live type never molds an older shape. Loads still persist in
+::  exactly one place.
+::
++$  state-14
+  $:  %14
+      =born:nexus
+      =peak:nexus
+      =silo:nexus
+      =subs:nexus
+      =pool:nexus
+      =code:nexus
+      =bins:nexus
+      =vale:nexus
+      =remo:nexus
+      =upki:nexus
+      =last:nexus
+      conns=(map @ta binding:eyre)
+      owed=(qeu take:nexus)
+  ==
+++  state-13-to-14
+  |=  old=state-13
+  ^-  state-14
+  :*  %14
+      born.old  peak.old  silo.old  subs.old  pool.old  code.old
+      bins.old  vale.old  remo.old  upki.old  last.old  conns.old
+      ::  nothing was owed before there was a place to owe it from: a
+      ::  cascade either finished inside its event or bailed and rolled
+      ::  the whole event back.
+      ~
+  ==
 ::  Every null reference goes. A version that referenced nothing was one
 ::  of two things and neither survives: +init's placeholder, a leftover
 ::  of the old [%file ~] / [%fold ~] kind sentinel, and the marker a

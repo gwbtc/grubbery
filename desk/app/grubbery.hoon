@@ -59,7 +59,8 @@
 /=  t-  /tests/loader
 |%
 +$  versioned-state
-  $%  state-13:migrations
+  $%  state-14:migrations
+      state-13:migrations
       state-12:migrations
       state-11:migrations
       state-10:migrations
@@ -89,6 +90,24 @@
 ::  warning, error.
 ::
 ++  dbg  ^-(? |)
+::  +take-budget: how many takes one event drains before it stops and
+::  resumes in the next. A deep cascade -- a take that queues takes that
+::  queue takes -- spends one event's loom with nothing reclaimed until
+::  it returns, and a long enough chain exhausts the loom and bails
+::  %meme. Stopping hands the rest to a fresh event with a fresh loom.
+::
+::  The floor is 1: a budget of one take per event is the slowest legal
+::  setting, not a way to switch the budget off. +abet clamps, so a 0
+::  here still drains one take at a time rather than draining forever.
+::
+::  Handling ONE take is atomic, so this is the finest cut available --
+::  a single take too big for the loom is not helped by any budget.
+::
+++  take-budget  ^-(@ud 50)
+::  +take-pause: how long to wait before the next batch. Not a throttle:
+::  the wait is how you get another event at all. Keep it small.
+::
+++  take-pause  ^-(@dr (div ~s1 1.000))
 ::  +took: time a computation on the console, but only under +dbg. A bare
 ::  %bout hint prints on every event, whatever priority it is given.
 ::
@@ -127,7 +146,7 @@
 ::  reference, and it only changes with the agent itself.
 ::
 =/  sut-hash=@uv  (sham q:sut)
-=|  state-13:migrations
+=|  state-14:migrations
 =*  state  -
 ::
 =<
@@ -146,14 +165,30 @@
   ::  without carrying continuations across the upgrade
   ::
   =.  pool  (bang-pool:hc pool %.y)
+  ::  parked takes do not cross an upgrade either. $take holds a $dart,
+  ::  so keeping them would make `owed` a SECOND place loads persist and
+  ::  put it in the freeze chain load -> dart -> pend -> take. Dropping
+  ::  them here keeps that chain where migrations.hoon says it is, and
+  ::  costs nothing: before `owed` existed a cascade either finished in
+  ::  its event or bailed and rolled back, so in-flight takes never
+  ::  survived an upgrade anyway. Emptied at save, `owed` is always ~ on
+  ::  load, so its live type never molds an older shape.
+  =.  owed  ~
   !>(state)
 ::
 ++  on-load
   |=  old-state=vase
   ^-  (quip card _this)
   =/  old  !<(versioned-state old-state)
-  ?:  ?=(%13 -.old)
+  ?:  ?=(%14 -.old)
     =.  state  old
+    =^  start-cards  state
+      abet:cold-start:hc
+    [start-cards this]
+  ::  %13 -> %14: the take queue gets a place to wait between events.
+  ?:  ?=(%13 -.old)
+    ~>  %slog.[0 leaf+"grubbery: migrating state %13 -> %14"]
+    =.  state  (state-13-to-14:migrations old)
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
@@ -161,24 +196,24 @@
   ::  reference goes, and a rail left with no versions goes with them --
   ::  peak still holds its number.
   ?:  ?=(%12 -.old)
-    ~>  %slog.[0 leaf+"grubbery: migrating state %12 -> %13"]
-    =.  state  (state-12-to-13:migrations old)
+    ~>  %slog.[0 leaf+"grubbery: migrating state %12 -> %13 -> %14"]
+    =.  state  (state-13-to-14:migrations (state-12-to-13:migrations old))
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
   ::  %11 -> %12: the %firm load carries the labels to set on the
   ::  version it promotes. A queued %firm carried none, so it gets none.
   ?:  ?=(%11 -.old)
-    ~>  %slog.[0 leaf+"grubbery: migrating state %11 -> %12 -> %13"]
-    =.  state  (state-12-to-13:migrations (state-11-to-12:migrations old))
+    ~>  %slog.[0 leaf+"grubbery: migrating state %11 -> %12 -> %13 -> %14"]
+    =.  state  (state-13-to-14:migrations (state-12-to-13:migrations (state-11-to-12:migrations old)))
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
   ::  %10 -> %11: a %file cite carries the grub's position. A queued
   ::  peek is given its reader's, where its mark resolved from before.
   ?:  ?=(%10 -.old)
-    ~>  %slog.[0 leaf+"grubbery: migrating state %10 -> %11 -> %12 -> %13"]
-    =.  state  (state-12-to-13:migrations (state-11-to-12:migrations (state-10-to-11:migrations old)))
+    ~>  %slog.[0 leaf+"grubbery: migrating state %10 -> %11 -> %12 -> %13 -> %14"]
+    =.  state  (state-13-to-14:migrations (state-12-to-13:migrations (state-11-to-12:migrations (state-10-to-11:migrations old))))
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
@@ -186,8 +221,8 @@
   ::  but a suspended process is typed by it, so +proc-9-to-proc-10 replaces
   ::  live continuations with a crash tang and the reload rebuilds them.
   ?:  ?=(%9 -.old)
-    ~>  %slog.[0 leaf+"grubbery: migrating state %9 -> %10 -> %11 -> %12 -> %13"]
-    =.  state  (state-12-to-13:migrations (state-11-to-12:migrations (state-10-to-11:migrations (state-9-to-10:migrations old))))
+    ~>  %slog.[0 leaf+"grubbery: migrating state %9 -> %10 -> %11 -> %12 -> %13 -> %14"]
+    =.  state  (state-13-to-14:migrations (state-12-to-13:migrations (state-11-to-12:migrations (state-10-to-11:migrations (state-9-to-10:migrations old)))))
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
@@ -223,8 +258,9 @@
       (state-6-to-7:migrations as-6)
     ~>  %slog.[0 leaf+"grubbery: migrating state %7 -> %8"]
     (state-7-to-8:migrations as-7)
-  ~>  %slog.[0 leaf+"grubbery: migrating state %8 -> %9 -> %10 -> %11 -> %12 -> %13"]
+  ~>  %slog.[0 leaf+"grubbery: migrating state %8 -> %9 -> %10 -> %11 -> %12 -> %13 -> %14"]
   =.  state
+    %-  state-13-to-14:migrations
     %-  state-12-to-13:migrations
     %-  state-11-to-12:migrations
     (state-10-to-11:migrations (state-9-to-10:migrations (state-8-to-9:migrations as-8)))
@@ -606,6 +642,15 @@
     ?>  ?=([%behn %wake *] sign)
     =^  cards  state
       abet:(expire-snap:hc t.t.wire error.sign)
+    [cards this]
+    ::
+      [%behn %drain ~]
+    ?>  ?=([%behn %wake *] sign)
+    ::  resume a cascade the budget cut short (see +abet). The wake only
+    ::  moves `owed` back into the live queue; +abet drains it, and parks
+    ::  whatever is still left for the next wake.
+    =^  cards  state
+      abet:resume-owed:hc
     [cards this]
     ::
       [%behn %clay-desk @ ~]
@@ -1777,12 +1822,41 @@
   ::  own start take any more, so the loop this used to contain cannot
   ::  form. A crash or a %fail bangs the grub (see +process-do-next), and
   ::  it is rebuilt only when a later take needs it.
+  ::
+  ::  +take-budget takes at most, then stop: the rest go to `owed`, and a
+  ::  behn wake drains them in their own event with their own loom. A
+  ::  cascade -- a take that queues takes that queue takes -- otherwise
+  ::  spends one event's loom with nothing reclaimed until it returns.
+  ::  The cut is only ever BETWEEN takes, since handling one is atomic.
+  =|  done=@ud
   |-
   ?:  =(~ takes)
+    ?:  =(~ owed)
+      ::  one line per EVENT, not per batch: every poke, request, sign and
+      ::  wake ends here. Under +dbg, where per-event traces belong.
+      ~?  dbg  "abet: 0 takes left, stopping until next input"
+      [(flop cards) state]
+    ::  owed work and nothing live: make sure a wake is coming for it, so
+    ::  parked takes can never be stranded by an event that ends quiet.
+    ~&  >  "abet: {<(lent ~(tap to owed))>} takes owed, waking to drain"
+    =.  cards
+      :_  cards
+      [%pass /behn/drain %arvo %b %wait (add now.bowl take-pause)]
+    [(flop cards) state]
+  ?:  =(done (max 1 take-budget))
+    ::  budget spent with takes still queued: park them and ask behn for
+    ::  another event. Every completed operation is already in the
+    ::  namespace, so stopping here leaves consistent state.
+    =/  left=@ud  (lent ~(tap to takes))
+    ~&  >  "abet: suspending with {<left>} takes left"
+    =.  owed  (~(gas to owed) ~(tap to takes))
+    =.  cards
+      :_  cards
+      [%pass /behn/drain %arvo %b %wait (add now.bowl take-pause)]
     [(flop cards) state]
   =^  [here=rail:tarball =take:fiber:nexus]  takes  ~(get to takes)
   =.  this  (process-take here take)
-  $
+  $(done +(done))
 ::  Drop hist entries matching a lose spec: the entries are DELETED and
 ::  their silo refs released. Absence at a cass is the terminal state; a
 ::  dropped top gets a fresh absence above it so the file reads as gone
@@ -2090,6 +2164,20 @@
 ++  emit-cards
   |=  cadz=(list card)
   this(cards (welp (flop cadz) cards))
+::
+::  +resume-owed: move the parked takes back into the live queue. +abet
+::  does the draining, so this is the whole of it.
+::
+++  resume-owed
+  ^+  this
+  ?:  =(~ owed)  this
+  =/  back=(list take:nexus)  ~(tap to owed)
+  ~&  >  "abet: resuming with {<(lent back)>} takes left"
+  =.  owed  ~
+  |-  ^+  this
+  ?~  back  this
+  ::  a $take is [here [give in]], which is +enqu-take's sample exactly
+  $(back t.back, this (enqu-take i.back))
 ::
 ++  enqu-take
   |=  [here=rail:tarball give=(unit give:nexus) in=(unit pend:fiber:nexus)]
