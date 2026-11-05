@@ -28,7 +28,13 @@
       '.fgv-log .who{color:#57606a;font-size:12px;white-space:nowrap}' +
       '.fgv-log .ref{display:inline-block;margin-left:6px;padding:0 5px;border:1px solid #d0d7de;border-radius:10px;font-size:11px;color:#57606a}' +
       '.fgv-empty{padding:14px;color:#8b949e}' +
-      '.fgv-st{padding:10px 12px}.fgv-st .st-head{margin-bottom:10px}.fgv-st .st-ahead{color:#9a6700;margin-left:8px}' +
+      '.fgv-st{padding:10px 12px}' +
+      '.fgv-st .st-head{display:flex;align-items:center;gap:8px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid #eaeef2;flex-wrap:wrap}' +
+      '.fgv-st .st-head select{font:inherit;padding:3px 24px 3px 8px;border:1px solid #d0d7de;border-radius:6px;background:#fff;cursor:pointer;max-width:260px}' +
+      '.fgv-st .st-head select:disabled{opacity:.6;cursor:default}' +
+      '.fgv-st .st-head code{color:#57606a;background:#eaeef2;padding:1px 6px;border-radius:4px}' +
+      '.fgv-st .st-head .busy{color:#9a6700;font-size:12px}' +
+      '.fgv-st .st-ahead{color:#9a6700;margin-left:8px}' +
       '.fgv-st .st-group{margin-bottom:10px}.fgv-st .st-title{font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}' +
       '.fgv-st .ok{color:#1a7f37}.fgv-st .warn{color:#9a6700}.fgv-st .muted{color:#57606a}' +
       '.fgv-st .st-file{display:flex;gap:8px;padding:2px 0}.fgv-st .st-mark{display:inline-block;width:16px;text-align:center;border-radius:4px;background:#eaeef2;font-size:11px}' +
@@ -50,7 +56,19 @@
       '.fgv-set label{display:block;margin-bottom:8px}.fgv-set label span{display:block;font-size:12px;color:#57606a;margin-bottom:2px}' +
       '.fgv-set input{width:100%;box-sizing:border-box;font:inherit;padding:5px 8px;border:1px solid #d0d7de;border-radius:6px;background:#fff}' +
       '.fgv-set button{font:inherit;padding:5px 12px;border:1px solid #0969da;border-radius:6px;background:#0969da;color:#fff;cursor:pointer}.fgv-set button:disabled{opacity:.5;cursor:default}' +
-      '.fgv-set .note{margin-left:10px;color:#57606a;font-size:12px}';
+      '.fgv-set .note{margin-left:10px;color:#57606a;font-size:12px}' +
+      // blame: one row per source line — a commit gutter (filled only at the
+      // first line of each commit run), a line number, then the code
+      '.fgv-blame{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;background:#fff}' +
+      '.fgv-blame .bl-row{display:flex;align-items:flex-start}' +
+      '.fgv-blame .bl-row.start{border-top:1px solid #eaeef2}' +
+      '.fgv-blame .bl-gut{flex:0 0 240px;display:flex;gap:8px;padding:1px 8px;color:#57606a;overflow:hidden;white-space:nowrap;border-right:1px solid #eaeef2}' +
+      '.fgv-blame .bl-sha{color:#0969da}' +
+      '.fgv-blame .bl-when{color:#8b949e}' +
+      '.fgv-blame .bl-sum{overflow:hidden;text-overflow:ellipsis}' +
+      '.fgv-blame .bl-no{flex:0 0 48px;text-align:right;padding:1px 10px;color:#8b949e;user-select:none}' +
+      '.fgv-blame .bl-code{flex:1;white-space:pre;overflow-x:auto;padding:1px 10px}' +
+      '.fgv-blame .bl-row:hover{background:#f6f8fa}';
     document.head.appendChild(s);
   }
   function get(url) { return fetch(url, { headers: { Accept: 'application/json' }, cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }); }
@@ -115,19 +133,38 @@
   // ---- forge-status: where HEAD sits, staged/unstaged/untracked, the stash ----
   window.Viewers['forge-status'] = { label: 'status', mount: function (root, opts) {
     css();
-    var url = opts.url, st = {}, cur = {}, stash = [];
+    var args = opts.args || {}, api = args.api || '/grubbery/forge/api';
+    var url = opts.url, st = {}, cur = {}, stash = [], branches = [], busy = false;
     var box = el('div', 'fgv'), pane = el('div', 'fgv-st'); box.appendChild(pane); root.appendChild(box);
+    // checkout <target> through the serial queue; HEAD moves and current.json
+    // repaints every pane (this one included). target = a branch name.
+    function checkout(target) {
+      if (!target || !args.repo || busy) return;
+      busy = true; draw();
+      fetch(api + '/run', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ repo: args.repo, command: 'checkout ' + target }) })
+        .then(function (r) { if (!r.ok) throw new Error('run ' + r.status); })
+        .catch(function () { busy = false; draw(); });
+    }
     function draw() {
       pane.textContent = '';
-      if (cur.hash) {
-        var h = el('div', 'st-head');
-        h.appendChild(document.createTextNode(cur.branch ? 'on ' : ''));
-        h.appendChild(el('b', null, cur.branch || 'detached'));
-        h.appendChild(document.createTextNode(' @ '));
-        h.appendChild(el('code', 'mono', (cur.hash || '').slice(0, 7)));
-        if (cur.remote && cur.remote !== cur.hash) h.appendChild(el('span', 'st-ahead', '↑ ahead of remote'));
-        pane.appendChild(h);
+      var h = el('div', 'st-head');
+      h.appendChild(document.createTextNode(cur.branch ? 'on ' : (cur.hash ? 'detached ' : '')));
+      if (cur.branch || branches.length) {
+        var sel = el('select'), seen = false;
+        if (!cur.branch) { var d = el('option', null, 'detached'); d.value = ''; d.selected = true; d.disabled = true; sel.appendChild(d); }
+        branches.forEach(function (b) { var o = el('option', null, b); o.value = b; if (b === cur.branch) { o.selected = true; seen = true; } sel.appendChild(o); });
+        if (cur.branch && !seen) { var o = el('option', null, cur.branch); o.value = cur.branch; o.selected = true; sel.appendChild(o); }
+        sel.disabled = busy;
+        sel.addEventListener('change', function () { var b = sel.value; if (b && b !== cur.branch) checkout(b); });
+        h.appendChild(sel);
+      } else if (cur.branch) {
+        h.appendChild(el('b', null, cur.branch));
       }
+      h.appendChild(document.createTextNode(' @ '));
+      h.appendChild(el('code', 'mono', (cur.hash || '').slice(0, 7)));
+      if (busy) h.appendChild(el('span', 'busy', ' checking out...'));
+      else if (cur.remote && cur.remote !== cur.hash) h.appendChild(el('span', 'st-ahead', '↑ ahead of remote'));
+      if (cur.hash || branches.length) pane.appendChild(h);
       var any = false;
       [['staged', st.staged || [], 'ok'], ['unstaged', st.unstaged || [], 'warn'], ['untracked', st.untracked || [], 'muted']].forEach(function (g) {
         if (!g[1].length) return; any = true;
@@ -146,15 +183,16 @@
         pane.appendChild(sg);
       }
     }
-    Promise.all([get(url), get(sibling(url, 'current.json')), get(sibling(url, 'stash.json'))])
-      .then(function (r) { st = r[0] || st; cur = r[1] || cur; stash = Array.isArray(r[2]) ? r[2] : stash; draw(); });
+    Promise.all([get(url), get(sibling(url, 'current.json')), get(sibling(url, 'stash.json')), get(sibling(url, 'branches.json'))])
+      .then(function (r) { st = r[0] || st; cur = r[1] || cur; stash = Array.isArray(r[2]) ? r[2] : stash; branches = Array.isArray(r[3]) ? r[3] : branches; draw(); });
     return {
       destroy: function () { box.remove(); },
       onUpdate: function (ev) {
         if (!ev.body || typeof ev.body !== 'object') return;
         if (ends(ev.path, 'status.json')) st = ev.body;
-        else if (ends(ev.path, 'current.json')) cur = ev.body;
+        else if (ends(ev.path, 'current.json')) { cur = ev.body; busy = false; }
         else if (ends(ev.path, 'stash.json') && Array.isArray(ev.body)) stash = ev.body;
+        else if (ends(ev.path, 'branches.json') && Array.isArray(ev.body)) branches = ev.body;
         else return;
         draw();
       }
@@ -191,6 +229,80 @@
       destroy: function () { box.remove(); },
       onUpdate: function (ev) { if (ends(ev.path, 'run.git-action') && ev.body && typeof ev.body === 'object') { queue = ev.body; draw(); } }
     };
+  } };
+
+  // ---- forge-blame: git blame for the file in view, GitHub-style. A PER-FILE
+  // viewer: the explorer hands it the open grub's url; the path after
+  // /data/tree/ is the repo-relative target. Content comes from the grub (raw);
+  // blame comes from the backend. Backend contract (not a materialized grub
+  // like commits.json — blame is transient, computed on request):
+  //   GET {api}/blame?repo=<repo>&path=<relpath>
+  //     -> text/plain, the output of `git blame --line-porcelain -- <relpath>`
+  // If that endpoint isn't there (or 404s), the file still renders, without the
+  // gutter, so the tab degrades instead of breaking.
+  window.Viewers['forge-blame'] = { label: 'blame', mount: function (root, opts) {
+    css();
+    var args = opts.args || {}, url = opts.url, api = args.api || '/grubbery/forge/api';
+    var box = el('div', 'fgv fgv-blame'); root.appendChild(box);
+    function note(msg) { box.textContent = ''; box.appendChild(el('div', 'fgv-empty', msg)); }
+    var clean = String(url || '').replace(/\?.*$/, '');
+    var m = clean.match(/\/data\/tree\/(.+)$/);
+    var rel = m ? decodeURIComponent(m[1]) : '';
+    if (!rel || !args.repo) { note('blame needs a file inside a repo'); return { destroy: function () { box.remove(); } }; }
+    note('loading blame…');
+    // backend returns JSON: [{text, commit, author, when}, ...] one per line,
+    // in file order (see +do-blame). Fall back to the raw file if it fails.
+    var sep = url.indexOf('?') >= 0 ? '&' : '?';
+    Promise.all([
+      fetch(api + '/blame?repo=' + encodeURIComponent(args.repo) + '&path=' + encodeURIComponent(rel)).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }),
+      fetch(url + sep + 'raw=1').then(function (r) { return r.ok ? r.text() : null; }).catch(function () { return null; })
+    ]).then(function (res) {
+      var blame = res[0], content = res[1];
+      if (blame && blame.length) { renderBlame(blame); return; }
+      if (content != null) { renderFileOnly(content); return; }
+      note('blame unavailable');
+    }).catch(function (e) { note('blame failed: ' + ((e && e.message) || e)); });
+
+    // the commit hash comes back as dotted hex (scot %ux, "0xab.cdef"); show a
+    // 7-char git-style short id
+    function shortId(c) { return String(c || '').replace(/^0x/, '').replace(/\./g, '').slice(0, 7); }
+    // `when` is a Unix timestamp in milliseconds -> YYYY-MM-DD
+    function dateOf(w) {
+      var n = +w; if (!n) return '';
+      var d = new Date(n);
+      return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+    }
+    function renderBlame(rows) {
+      box.textContent = '';
+      var prev = null;
+      rows.forEach(function (r, i) {
+        var start = r.commit !== prev;
+        var row = el('div', 'bl-row' + (start ? ' start' : ''));
+        var gut = el('div', 'bl-gut');
+        if (start) {
+          gut.appendChild(el('span', 'bl-sha', shortId(r.commit)));
+          gut.appendChild(el('span', 'bl-when', dateOf(r.when)));
+          gut.appendChild(el('span', 'bl-sum', r.author || ''));
+        }
+        row.appendChild(gut);
+        row.appendChild(el('div', 'bl-no', String(i + 1)));
+        row.appendChild(el('div', 'bl-code', r.text === '' ? ' ' : r.text));
+        box.appendChild(row);
+        prev = r.commit;
+      });
+    }
+    function renderFileOnly(content) {
+      box.textContent = '';
+      box.appendChild(el('div', 'fgv-empty', 'blame unavailable — showing file only'));
+      content.replace(/\n$/, '').split('\n').forEach(function (t, i) {
+        var row = el('div', 'bl-row');
+        row.appendChild(el('div', 'bl-gut'));
+        row.appendChild(el('div', 'bl-no', String(i + 1)));
+        row.appendChild(el('div', 'bl-code', t === '' ? ' ' : t));
+        box.appendChild(row);
+      });
+    }
+    return { destroy: function () { box.remove(); } };
   } };
 
   // (forge-docs, the handbook pane, lives in docs-pane.js)

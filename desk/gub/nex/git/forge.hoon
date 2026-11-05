@@ -20,6 +20,7 @@
 /<  git-repo  /lib/git/repository.hoon
 /<  git-transport  /lib/git/transport.hoon
 /<  load-repo  /lib/git/load-repo.hoon
+/<  git-blame  /lib/git/blame.hoon
 /&  icon        forge/icon.svg
 /&  forge-html  forge/index.html
 /&  forge-js    forge/app.js
@@ -163,6 +164,8 @@
               [%api %defaults ~]  (do-defaults rail eyre-id jon)
               [%api %run ~]     (do-run rail eyre-id jon)
           ==
+        ?:  ?=([%api %blame ~] suffix)
+          (do-blame rail eyre-id args)
         ?:  ?=([%api %viewers ~] suffix)
           (do-viewers rail eyre-id args)
         ?:  ?=([%api %defaults ~] suffix)
@@ -1054,6 +1057,8 @@
   ^-  form:m
   =/  pax=(unit @t)  (quay-get args 'path')
   =/  segs=path  ?~(pax / (fall (mole |.((stab u.pax))) /))
+  ::  'file' or 'dir' (browse.js viewerFor); blame is a file-only tab
+  =/  kind=@t  (fall (quay-get args 'kind') 'file')
   ;<  here=rail:tarball  bind:m  get-here-abs:io
   =/  repos=path  (weld (snip `path`path.here) /repos)
   =/  follow  |=(p=path (pairs:enjs:format ~[['road' s+(spat p)] ['body' b+%.y]]))
@@ -1074,11 +1079,15 @@
   ::  (its docs tab names the repo's clanker chat by name)
   ?:  ?=([%repos @ ~] segs)
     (send-json rail eyre-id (layout (crip "/grubbery/forge/repo/{(trip i.t.segs)}/layout.json")))
+  ::  working-tree files answer empty (below): the explorer renders them
+  ::  itself. Blame is NOT wired as the file viewer -- it walks git history
+  ::  synchronously and must never run on a file-open, let alone the request
+  ::  path. It belongs behind an explicit action that caches its result.
   ::  the panes the forge page has: status, history, run, settings
   =/  ui=path  /data/ui
   =/  rule=(unit [repo=@ta view=@t rails=(list rail:tarball)])
     ?+  segs  ~
-      [%repos @ %data %ui %'status.json' ~]   `[i.t.segs 'forge-status' ~[[ui %'status.json'] [ui %'current.json'] [ui %'stash.json']]]
+      [%repos @ %data %ui %'status.json' ~]   `[i.t.segs 'forge-status' ~[[ui %'status.json'] [ui %'current.json'] [ui %'stash.json'] [ui %'branches.json']]]
       [%repos @ %data %ui %'commits.json' ~]  `[i.t.segs 'forge-log' ~[[ui %'commits.json'] [ui %'current.json'] [ui %'branches.json']]]
       [%repos @ %'run.git-action' ~]          `[i.t.segs 'forge-run' ~[[/ %'run.git-action']]]
       [%repos @ %'config.json' ~]             `[i.t.segs 'forge-settings' ~[[/ %'config.json'] [/ %'poll.json']]]
@@ -1114,5 +1123,48 @@
     %+  poke:io  (nex-road:io rail [%& /repos/[`@ta`repo] %'run.git-action'])
     [[/ %json] (pairs:enjs:format ~[['command' s+command]])]
   (respond rail eyre-id 200 'ok')
+::  +do-blame: GET /api/blame?repo=&path=[&commit=] — per-line blame as JSON.
+::  Pure: loads the object store and runs +blame:git-blame (no git queue, no
+::  await). `path` is normalised to a leading slash and parsed under mule so a
+::  malformed path is a clean 400, never a crash.
+::
+++  do-blame
+  |=  [=rail:tarball eyre-id=@ta args=quay:eyre]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  repo=@ta  `@ta`(fall (quay-get args 'repo') '')
+  =/  raw=@t    (fall (quay-get args 'path') '')
+  =/  commit=(unit @t)  (quay-get args 'commit')
+  ?:  |(=('' repo) =('' raw))
+    (respond rail eyre-id 400 'repo and path required')
+  ::  parse the path leniently -- git filenames carry uppercase and dots,
+  ::  which +stab's segment grammar rejects. Split on '/', each piece a knot.
+  =/  bare=@t  ?:(=('/' (end 3 raw)) (rsh 3 raw) raw)
+  =/  segs=(unit (list @t))
+    (rush bare (most fas (cook crip (star ;~(less fas prn)))))
+  ?~  segs  (respond rail eyre-id 400 'bad path')
+  =/  fp=path  (turn u.segs |=(s=@t `@ta`s))
+  ;<  eff=(unit @t)  bind:m  (resolve-commit rail repo commit)
+  ?~  eff  (respond rail eyre-id 404 'no such commit')
+  ~>  %slog.[0 leaf+"blame: loading repo store {<repo>} ..."]
+  ;<  store=(unit repository:git-repo)  bind:m
+    (load-repo-from-ns:load-repo rail /repos/[repo]/data)
+  ?~  store  (respond rail eyre-id 404 'no such repo')
+  =/  ch=(unit @ux)  (rust (trip u.eff) parse-hash-sha-1:git-transport)
+  ?~  ch  (respond rail eyre-id 400 'bad commit')
+  ~>  %slog.[0 leaf+"blame: repo loaded, walking history for {<fp>}"]
+  =/  rows=(list [text=@t commit=@t author=@t when=@da])
+    ~>(%bout.[1 %blame-total] (blame:~(. git-blame u.store) u.ch fp))
+  =/  =json
+    :-  %a
+    %+  turn  rows
+    |=  [text=@t commit=@t author=@t when=@da]
+    %-  pairs:enjs:format
+    :~  ['text' s+text]
+        ['commit' s+commit]
+        ['author' s+author]
+        ['when' (time:enjs:format when)]
+    ==
+  (send-json rail eyre-id json)
 ::
 --
