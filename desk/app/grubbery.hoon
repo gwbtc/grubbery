@@ -90,6 +90,21 @@
 ::  warning, error.
 ::
 ++  dbg  ^-(? |)
+::  +mem: the loom gauge. Flip to & and recompile to make +gage print
+::  vere's memory report at each instrumented step -- INSIDE the event,
+::  which is the only place it helps: an install is one event, so |mass
+::  (a card to vere) cannot be delivered until it is over, and a boot
+::  that bails %meme is never over.
+::
+::  Off by default. Each probe is several lines of output.
+::
+++  mem  ^-(? |)
+::  +tak: the take queue's own traces -- what +abet suspended, resumed
+::  and owed. Flip to & and recompile to watch a cascade get cut into
+::  events. Separate from +dbg because it is loud in a different way:
+::  +dbg follows the build, this follows the drain.
+::
+++  tak  ^-(? |)
 ::  +take-budget: how many takes one event drains before it stops and
 ::  resumes in the next. A deep cascade -- a take that queues takes that
 ::  queue takes -- spends one event's loom with nothing reclaimed until
@@ -115,6 +130,15 @@
   |*  [lab=@tas tap=(trap)]
   ?.  dbg  $:tap
   ~>(%bout.[1 lab] $:tap)
+::  +gage: print the loom's state on the way INTO a computation, under
+::  +mem. The %meme hint is read before the formula runs (hint_fore), so
+::  a label reads as "entering lab" -- the free space it reports is what
+::  lab had to work with. Bracket a step with two gages to see its cost.
+::
+++  gage
+  |*  [lab=@tas tap=(trap)]
+  ?.  mem  $:tap
+  ~>(%meme.[1 leaf+(trip lab)] $:tap)
 :: The subject all code gets compiled against (/nex, /mar or /lib)
 ::
 ++  sut
@@ -653,15 +677,6 @@
       abet:resume-owed:hc
     [cards this]
     ::
-      [%behn %clay-desk @ ~]
-    ?>  ?=([%behn %wake *] sign)
-    ::  one deferred desk mirror, in its own event (see +sync-clay). A
-    ::  wake that errored is reported and dropped: the desk simply stays
-    ::  unmirrored until the next rise, which is louder than retrying.
-    =^  cards  state
-      abet:(wake-clay-desk:hc `@tas`i.t.t.wire error.sign)
-    [cards this]
-    ::
       [%behn %timer @ *]
     ?>  ?=([%behn %wake *] sign)
     ::  profiling, under +dbg: how long this wake's whole event took
@@ -932,27 +947,29 @@
   --
 ++  cold-start
   ^-  _this
-  =.  this  bootstrap-marcs
+  ::  every step is gauged: under +mem each prints the loom on the way in,
+  ::  so the last line before a %meme names what could not finish.
+  =.  this  (gage %bootstrap-marcs |.(bootstrap-marcs))
   ::  /code source is mirrored and built here without a reload cascade;
   ::  the single reload from root below makes every other code
   ::  namespace fresh on the way down (reload-child-nexuses), before
   ::  anything it governs is touched
-  =.  this  (sync-gub %.n)
-  =.  this  carry-behn-state
+  =.  this  (gage %sync-gub |.((sync-gub %.n)))
+  =.  this  (gage %carry-behn-state |.(carry-behn-state))
   ::  the shell's spelling: a ship still holding it at /apps/shell.shell
   ::  has it moved to /apps/shell before the root rows run
-  =.  this  migrate-shell
-  =.  this  (reload-nexus-at / root)
-  =.  this  (spawn-all-files / (peek-bole-now /))
-  =.  this  sync-dill
-  =.  this  sync-clay
-  =.  this  sync-jael
-  =.  this  sync-bowl
-  =.  this  sync-peer
-  =.  this  sync-gall
-  =.  this  sync-lick
-  =.  this  sync-eyre
-  sync-push
+  =.  this  (gage %migrate-shell |.(migrate-shell))
+  =.  this  (gage %reload-nexus-at-root |.((reload-nexus-at / root)))
+  =.  this  (gage %spawn-all-files |.((spawn-all-files / (peek-bole-now /))))
+  =.  this  (gage %sync-dill |.(sync-dill))
+  =.  this  (gage %sync-clay |.(sync-clay))
+  =.  this  (gage %sync-jael |.(sync-jael))
+  =.  this  (gage %sync-bowl |.(sync-bowl))
+  =.  this  (gage %sync-peer |.(sync-peer))
+  =.  this  (gage %sync-gall |.(sync-gall))
+  =.  this  (gage %sync-lick |.(sync-lick))
+  =.  this  (gage %sync-eyre |.(sync-eyre))
+  (gage %sync-push |.(sync-push))
 ::  +put-pace: write a pace into a born tree at the given dest lane.
 ::  Used to record remote peek results.
 ::
@@ -1834,11 +1851,11 @@
     ?:  =(~ owed)
       ::  one line per EVENT, not per batch: every poke, request, sign and
       ::  wake ends here. Under +dbg, where per-event traces belong.
-      ~?  dbg  "abet: 0 takes left, stopping until next input"
+      ~?  tak  "abet: 0 takes left, stopping until next input"
       [(flop cards) state]
     ::  owed work and nothing live: make sure a wake is coming for it, so
     ::  parked takes can never be stranded by an event that ends quiet.
-    ~&  >  "abet: {<(lent ~(tap to owed))>} takes owed, waking to drain"
+    ~?  tak  "abet: {<(lent ~(tap to owed))>} takes owed, waking to drain"
     =.  cards
       :_  cards
       [%pass /behn/drain %arvo %b %wait (add now.bowl take-pause)]
@@ -1848,7 +1865,7 @@
     ::  another event. Every completed operation is already in the
     ::  namespace, so stopping here leaves consistent state.
     =/  left=@ud  (lent ~(tap to takes))
-    ~&  >  "abet: suspending with {<left>} takes left"
+    ~?  tak  "abet: suspending with {<left>} takes left"
     =.  owed  (~(gas to owed) ~(tap to takes))
     =.  cards
       :_  cards
@@ -2172,7 +2189,7 @@
   ^+  this
   ?:  =(~ owed)  this
   =/  back=(list take:nexus)  ~(tap to owed)
-  ~&  >  "abet: resuming with {<(lent back)>} takes left"
+  ~?  tak  "abet: resuming with {<(lent back)>} takes left"
   =.  owed  ~
   |-  ^+  this
   ?~  back  this
@@ -5058,7 +5075,7 @@
   ::  Record tree from parent up, notify
   =/  old-born=born:nexus  born
   =.  this  (record-trees parent)
-  =.  this  (notify old-born)
+  =.  this  (gage %set-weir-notify |.((notify old-born)))
   ::  Re-check subscriptions from watchers under this weir
   (audit-weir dest)
 ::  Walk up from a grub's rail, revealing path segments while allowed.
@@ -5342,6 +5359,30 @@
   $(dirs t.dirs)
 ::  Ensure a directory exists in the namespace.
 ::
+::  TODO: the reload flag belongs to the OPERATION, not the call site.
+::
+::    +load-ball-changes takes reload=? and every caller picks a constant.
+::    The correct value depends on what encloses the write: during
+::    +cold-start a per-write reload is redundant (it ends with one
+::    reload of the whole tree, which is why +sync-gub passes %.n), while
+::    the same write from a live poke must reload. +ensure-dir cannot
+::    know which it is in, so whatever it passes is wrong half the time
+::    -- and it passes %.y, the wrong one for cold-start, where it is
+::    called most.
+::
+::    It should be a property of `this` -- a deferral set for the
+::    duration of cold-start and read inside +load-ball-changes, with
+::    the reloads done once at the end -- which also drops the parameter
+::    from every arm that currently just passes it along. The invariant
+::    is unchanged either way: a write that changes code always reloads,
+::    except while an operation that will reload everything is running.
+::
+::    Measured, NOT the cost of +ensure-dir: an empty directory adds no
+::    rails, +ball-diff compares rails only, so `affected` is empty and
+::    the flag is never read on this path. Flipping it to %.n made no
+::    difference to a 2GB install. The cost is elsewhere in
+::    +load-ball-changes.
+::
 ++  ensure-dir
   |=  here=fold:tarball
   ^+  this
@@ -5482,13 +5523,14 @@
   |=  [here=fold:tarball =bole:tarball reload=?]
   ^+  this
   =/  old-born=born:nexus  born
-  =/  old-ball=ball:tarball  (peek-ball-now here)
-  =.  this  (sync-bole here bole)
-  =?  this  !=(~ here)  (record-trees (snip `path`here))
-  =/  new-ball=ball:tarball  (peek-ball-now here)
-  =.  this  (deregister-code-under here new-ball)
-  =.  this  (rebuild-changed here old-ball new-ball reload)
-  (notify old-born)
+  =/  old-ball=ball:tarball  (gage %lbc-peek-old |.((peek-ball-now here)))
+  =.  this  (gage %lbc-sync-bole |.((sync-bole here bole)))
+  =?  this  !=(~ here)
+    (gage %lbc-record-trees |.((record-trees (snip `path`here))))
+  =/  new-ball=ball:tarball  (gage %lbc-peek-new |.((peek-ball-now here)))
+  =.  this  (gage %lbc-deregister |.((deregister-code-under here new-ball)))
+  =.  this  (gage %lbc-rebuild |.((rebuild-changed here old-ball new-ball reload)))
+  (gage %lbc-notify |.((notify old-born)))
 ::  +deregister-code-under: drop lodes whose directory under here is
 ::  gone or no longer carries the /code neck; release their artifacts.
 ::
@@ -5658,70 +5700,25 @@
 ++  sync-clay
   ^+  this
   ~?  dbg  "sync-clay: start"
-  ::  Ensure /sys/clay/desks directory structure exists
-  =.  this  (ensure-dir /sys/clay/desks)
-  =.  this  (ensure-dir /sys/clay/desks/base)
-  =.  this  (ensure-dir /sys/clay/desks/grubbery)
-  ::  Mount EVERY desk on the ship, not just base/grubbery: scry clay for
-  ::  the whole desk set and mirror each. A desk's desk.docket-0 then
-  ::  becomes an ordinary peek, which is how the launcher reads app tiles
-  ::  now that the %docket agent is on its way out. Muled: a clay that
-  ::  cannot answer the desk-set scry must not bang the rise -- we fall
-  ::  back to the desks we already mirror.
-  =/  all=(set desk)
-    =/  res=(each (set desk) tang)
-      %-  mule
-      |.  .^((set desk) %cd /(scot %p our.bowl)//(scot %da now.bowl))
-    ?:(?=(%& -.res) p.res ~)
-  =/  prior=(set desk)  (silt (lss-born /sys/clay/desks))
-  =/  dek=(list desk)  ~(tap in (~(uni in all) prior))
-  ::  Update clay-state with the full synced set
-  =/  clay-rail=rail:tarball  [/sys/clay %'main.clay-state']
-  =/  st=clay-state:nexus  [%0 (silt dek)]
-  =.  this  (save-file clay-rail [[/ %clay-state] st])
-  ::  ONE DESK PER EVENT. Mirroring a desk reads every file typed (.^ %cr),
-  ::  so a desk the size of %landscape or %groups builds its whole glob
-  ::  tree into one bole. All of them in a single event never frees any of
-  ::  it: the loom is exhausted mid-event and the ship bails %meme before
-  ::  it can finish (a pill boot died this way at every loom size -- 2GB in
-  ::  4 minutes, 8GB in 16, growth at a constant rate because the work is
-  ::  proportional to total desk content).
+  ::  MIRRORS NOTHING. The directory and the clay-state grub exist; no desk
+  ::  is read here.
   ::
-  ::  So only the two desks grubbery itself needs are mirrored here, on
-  ::  load. Every other desk is handed to its own behn wake, a millisecond
-  ::  apart: the delay is not a throttle, it is how you get a new event --
-  ::  each wake lands on its own, and the loom is reclaimed between them.
-  ::  The desks all still arrive -- we want them -- just not in one breath.
-  ::  (both directories are ensured at the top of this arm)
-  =.  this  (sync-clay-desk %base)
-  =.  this  (sync-clay-desk %grubbery)
-  =/  rest=(list desk)  (skip dek |=(d=desk ?=(?(%base %grubbery) d)))
-  =|  i=@ud
-  |-  ^+  this
-  ?~  rest  this
-  ::  the directory is made now so a listing shows the desk as pending
-  ::  rather than appearing out of nowhere a few seconds later
-  =.  this  (ensure-dir /sys/clay/desks/[i.rest])
-  =.  this
-    %-  emit-card
-    :*  %pass
-        /behn/clay-desk/[i.rest]
-        %arvo  %b  %wait
-        (add now.bowl (mul +(i) (div ~s1 1.000)))
-    ==
-  $(rest t.rest, i +(i))
-::
-::  +wake-clay-desk: mirror one desk, woken by its own behn timer so the
-::  work gets a fresh event and the loom is reclaimed afterward.
-::
-++  wake-clay-desk
-  |=  [dek=desk error=(unit tang)]
-  ^+  this
-  ?^  error
-    %-  (slog leaf+"%sync-clay: no mirror for {<dek>}" u.error)
-    this
-  ~?  dbg  "sync-clay: deferred mirror of {<dek>}"
-  (sync-clay-desk dek)
+  ::  This arm used to scry clay for every desk on the ship and mirror each
+  ::  one, reading every file typed (.^ %cr). On-load is atomic, so all of
+  ::  that spent a single event's loom and a pill boot with fourteen desks
+  ::  bailed %meme at 2GB and at 8GB alike -- the work is proportional to
+  ::  total desk content, so no loom size is enough.
+  ::
+  ::  Nothing needs a mirror to exist at on-load. /code comes from +sync-gub,
+  ::  which scries the grubbery desk directly, not from this mirror. The only
+  ::  reader is the shell's docket tiles, and it skips %grubbery, %base and
+  ::  %kids. A desk arrives when something asks for it -- the shell when it
+  ::  builds its tile store, or +mount-to-grubbery by hand -- and the clay
+  ::  subscription +sync-clay-desk leaves behind keeps it current from then on.
+  =.  this  (ensure-dir /sys/clay/desks)
+  =/  known=(set desk)  (silt (lss-born /sys/clay/desks))
+  =/  clay-rail=rail:tarball  [/sys/clay %'main.clay-state']
+  (save-file clay-rail [[/ %clay-state] [%0 known]])
 ::
 ++  sync-clay-desk
   |=  dek=desk
@@ -6891,21 +6888,25 @@
 ::
 ++  sync-peer
   ^+  this
-  =.  this  (ensure-dir /sys/ames)
-  =.  this  (ensure-dir /sys/ames/usergroups)
-  =.  this  (ensure-dir /sys/ames/ships)
+  =.  this  (gage %peer-dirs |.((ensure-dir /sys/ames)))
+  =.  this  (gage %peer-dirs-ug |.((ensure-dir /sys/ames/usergroups)))
+  =.  this  (gage %peer-dirs-ships |.((ensure-dir /sys/ames/ships)))
   ::  the usergroup registry is gone: the shell writes every group's
   ::  files from its own record. A ship still holding the registry grub
   ::  loses it, and the watches it kept on its registrants.
   =/  reg-rail=rail:tarball  [/sys/ames %'registry']
+  =.  this  (gage %peer-registry-check |.(this))
   =?  this  ?=(^ (peek-grub-now reg-rail))
     =.  this  (sub-wipe reg-rail)
     (delete /sys/ames %'registry')
-  =.  this  ensure-public-group
+  =.  this  (gage %ensure-public-group |.(ensure-public-group))
   ::  a ship that still holds a directory for ITSELF under the peer tree
   ::  loses it: we are not our own peer, and that directory was the one
   ::  unweired place a dart addressed to us could come back to.
+  ::  reap the guest directories nobody named (see +cull-stale-peers)
+  =.  this  (gage %cull-stale-peers |.(cull-stale-peers))
   =/  self-dir=path  /sys/ames/ships/[(scot %p our.bowl)]
+  =.  this  (gage %peer-self-check |.(this))
   ?.  ?=(^ (~(get of born) self-dir))  this
   =.  this  (sub-wipe [self-dir %'ship.sig'])
   (cull [%| self-dir])
@@ -6944,9 +6945,9 @@
       Each permission is a set of path prefixes. A request is allowed if its destination matches any prefix in the relevant set. An empty set means that category is blocked.
       '''
     (save-file man-rail [[/ %mime] default-man])
-  ::  Enforce the group's own grant at its own directory: an unenrolled
-  ::  asker is judged standing here, so the walk needs a weir to read.
-  (set-weir pub-dir `compute-public-weir)
+  ::  No weir here. A usergroup is data; the grant it declares is
+  ::  enforced where askers stand, under /sys/ames/ships.
+  this
 ::  Ensure /sys/ames/ships/~ship/ exists with ship.sig and computed weir.
 ::  Our ship gets no weir (full access). Foreign ships get weir from usergroups.
 ::
@@ -6971,6 +6972,11 @@
     =/  ship-rail=rail:tarball  [ship-dir %'ship.sig']
     =.  this  (save-file ship-rail [[/ %sig] ~])
     (spawn-proc ship-rail ~)
+  ::  when this ship was last heard from. +cull-stale-peers reads it to
+  ::  drop the directories of ships nobody grouped and nobody has talked
+  ::  to -- an eyre guest's identity is a fresh comet per session, so
+  ::  without this they accumulate forever.
+  =.  this  (save-file [ship-dir %'last.time'] [[/ %time] now.bowl])
   =/  =weir:nexus  (compute-peer-weir src)
   =.  this  (set-weir ship-dir `weir)
   ::  Aggregate man pages from this ship's usergroups
@@ -7115,27 +7121,43 @@
   =/  src=(map @p (set path))  (build-peer-src read-peer-who)
   =/  groups=(set path)  (fall (~(get by src) ship) ~)
   !=(~ (~(del in groups) /public))
-::  +compute-public-weir: the weir every unenrolled asker answers to
+::  +peer-stale: how long a ship may go unheard before +cull-stale-peers
+::  will drop its directory. Grouped ships are never dropped, however
+::  quiet; this only reaps askers nobody named.
 ::
-++  compute-public-weir
-  ^-  weir:nexus
-  (fall (~(get by read-peer-how) /public) *weir:nexus)
-::  +public-grp-rail: the position an unenrolled asker is judged from
+++  peer-stale  ~d30
+::  +cull-stale-peers: drop the directory of every ship that is in no
+::  usergroup and has not been heard from in +peer-stale.
 ::
-::    An unenrolled asker has the authority of the public group and no
-::    other, so it is judged standing in the public group's own
-::    directory. No synthetic ship: /sys/ames/ships holds ships, and a
-::    usergroup is not one.
+::    An eyre guest's identity is a fresh comet per session, and every
+::    asker gets a directory, so without this they accumulate forever.
+::    Dropping one costs nothing: the next request from that ship
+::    recreates it, and its weir is /public's grant either way.
 ::
-::    how.weir is the group's stored grant and doubles as the position's
-::    name, so this introduces no file. The enforced copy is the weir
-::    +set-weir puts on the group directory — the same config-file /
-::    set-weir pair every peer directory already uses, so a weir walk
-::    from here composes upward through /sys/ames/usergroups and
-::    /sys/ames exactly as one from a ship directory does.
+::    Never our own ship, never a grouped ship, and never one whose
+::    last.time is missing or unreadable -- absence is not evidence of
+::    staleness, so an unreadable stamp is left alone and stays loud.
 ::
-++  public-grp-dir   `path`(grp-storage-path /public)
-++  public-grp-rail  `rail:tarball`[public-grp-dir %'how.weir']
+++  cull-stale-peers
+  ^+  this
+  =/  ships-ball=ball:tarball  (peek-ball-now /sys/ames/ships)
+  =/  kids=(list [@ta ball:tarball])  ~(tap by dir.ships-ball)
+  |-  ^+  this
+  ?~  kids  this
+  =/  ship-name=@ta  -.i.kids
+  =/  ship=(unit @p)  (slaw %p ship-name)
+  ?~  ship  $(kids t.kids)
+  ?:  =(u.ship our.bowl)  $(kids t.kids)
+  ?:  (peer-grouped u.ship)  $(kids t.kids)
+  =/  ship-dir=path  /sys/ames/ships/[ship-name]
+  =/  got=(unit sang:tarball)  (peek-grub-now [ship-dir %'last.time'])
+  ?~  got  $(kids t.kids)
+  =/  res=(each @da tang)  (mule |.(!<(@da (need-vase:tarball u.got))))
+  ?:  ?=(%| -.res)  $(kids t.kids)
+  ?:  (lth (sub now.bowl p.res) peer-stale)  $(kids t.kids)
+  ~&  >  "cull-stale-peers: dropping {<u.ship>}, last heard {<p.res>}"
+  =.  this  (sub-wipe [ship-dir %'ship.sig'])
+  $(kids t.kids, this (cull [%| ship-dir]))
 ::  +asker-rail: the position an HTTP request's authority comes from
 ::
 ::    The HTTP counterpart of the first two lines of +take-remote-load,
@@ -7156,8 +7178,10 @@
   ^-  [rail:tarball _this]
   ?:  =(src our.bowl)
     [(ship-sig-rail src) this]
-  ?.  (peer-grouped src)
-    [public-grp-rail this]
+  ::  an unenrolled asker is an ordinary ship in no groups, and
+  ::  +compute-peer-weir-from already unions every ship's weir with
+  ::  /public's grant -- so it needs no position of its own, and no
+  ::  usergroup carries a weir for it to stand in.
   =.  this  (ensure-peer-ship src)
   [(ship-sig-rail src) this]
 ::  +asker-allowed: pre-check an HTTP op so a veto becomes a 403
@@ -9104,9 +9128,8 @@
 ::
 ++  recompute-all-weirs
   ^+  this
-  ::  The public group's own directory carries its grant too (unenrolled
-  ::  askers are judged there), and the loop below only walks ship dirs.
-  =.  this  (set-weir public-grp-dir `compute-public-weir)
+  ::  Only ship directories carry weirs. /public's grant reaches every
+  ::  ship through +compute-peer-weir-from, which unions it in.
   =/  ships-ball=ball:tarball  (peek-ball-now /sys/ames/ships)
   =/  kids=(list [@ta ball:tarball])  ~(tap by dir.ships-ball)
   |-
