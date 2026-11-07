@@ -59,6 +59,12 @@
     .chip-menu { color: #b5892e; background: #fbf3e2; }
 
     /* cards */
+    .side-desk { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #8a93a0; font-weight: 700; padding: 12px 16px 4px; }
+    .desk-group { border-left: 2px solid #e2e7ee; padding-left: 12px; margin-bottom: 18px; }
+    .desk-head { display: flex; align-items: center; gap: 10px; padding: 2px 2px 8px; }
+    .desk-name { font-size: 13px; font-weight: 700; color: #111; }
+    .desk-count { font-size: 11px; color: #8a93a0; }
+    .desk-head .desk-all { margin-left: auto; }
     .card { background: white; border: 1px solid #e2e7ee; border-radius: 14px; overflow: hidden; margin-bottom: 12px; }
     .card.open { border-color: #cfdcec; box-shadow: 0 3px 14px rgba(40,60,90,0.07); }
     .card.sel { border-color: #9cc0ea; box-shadow: 0 3px 16px rgba(74,120,190,0.16); }
@@ -205,6 +211,28 @@
       var i=p.lastIndexOf('/'); return i===-1?p:p.slice(i+1);
     }
     function cssid(p){ return String(p).replace(/[^a-z0-9]/gi,'_'); }
+    // the desk an app was installed by, from its path. The desk is the unit
+    // of trust — you chose to install it, and everything under it arrived in
+    // one act — so its apps are ruled on together. An app that is not under a
+    // desk (the shell's own, a hand-made nexus) answers for itself: '' here,
+    // and it renders ungrouped.
+    // A desk install is /apps/shell/desks/<desk>.desk/desk/data/<app>. The
+    // '.desk' is the wrapper's suffix, not part of the name, so it goes.
+    function deskOf(p){
+      var m=String(p||'').match(/^\/apps\/shell\/desks\/([^\/]+)\/desk\/data\/[^\/]+$/);
+      return m?m[1].replace(/\.desk$/,''):'';
+    }
+    // the groups of a record list, desks first (each with its apps), then the
+    // ungrouped ones, both in the order the records already arrived in
+    function byDesk(recs){
+      var order=[], at={};
+      recs.forEach(function(r){
+        var d=deskOf(r.app);
+        if(!at[d]){ at[d]={desk:d,recs:[]}; order.push(at[d]); }
+        at[d].recs.push(r);
+      });
+      return order.sort(function(x,y){ return (x.desk?0:1)-(y.desk?0:1); });
+    }
     function roadOf(it){ return typeof it==='string'?it:(it&&it.road)||''; }
     function whyOf(it){ return typeof it==='string'?'':(it&&it.why)||''; }
     function optOf(it){ return typeof it==='object'&&it&&it.optional; }
@@ -372,7 +400,10 @@
       if(mode!=='aliases'){
         var recs=modeRecs();
         if(!recs.length){ sb.innerHTML='<div class="side-empty">Nothing '+(mode==='pending'?'pending':'applied')+'.</div>'; return; }
-        sb.innerHTML='<div class="side-lab">'+mode+' · '+recs.length+'</div>'+recs.map(function(r){ var c=cardChip(r); return '<div class="side-row'+(r.app===selected?' sel':'')+'" data-sel="'+esc(r.app)+'"><span class="side-name" title="'+esc(r.app)+'">'+esc(leafOf(r.app))+'</span><span class="chip chip-'+c+'">'+c+'</span></div>'; }).join('');
+        var row=function(r){ var c=cardChip(r); return '<div class="side-row'+(r.app===selected?' sel':'')+'" data-sel="'+esc(r.app)+'"><span class="side-name" title="'+esc(r.app)+'">'+esc(leafOf(r.app))+'</span><span class="chip chip-'+c+'">'+c+'</span></div>'; };
+        sb.innerHTML='<div class="side-lab">'+mode+' · '+recs.length+'</div>'+byDesk(recs).map(function(g){
+          return (g.desk?'<div class="side-desk">'+esc(g.desk)+'</div>':'')+g.recs.map(row).join('');
+        }).join('');
       } else {
         var names=Object.keys(aliasMenus).sort();
         if(!names.length){ sb.innerHTML='<div class="side-empty">No aliases.</div>'; return; }
@@ -387,8 +418,19 @@
         var warn=mode!=='pending'?'':'<div class="warn-card"><b>Warning</b> — these permissions sandbox an app\'s backend (its ship-side processes). Two things they do not cover:<ul><li><b>The frontend.</b> Opening any HTML file from an app\'s desk in your browser while logged in gives that page full access to your ship through your session — regardless of these settings, and regardless of whether the backend can talk to eyre at all.</li><li><b>Reads, even from the backend.</b> Dotket (.^) is not currently neutralized (WIP): any grub can scry the namespace reachable via dotket, bypassing the read restrictions here.</li></ul></div>';
         if(!recs.length){ main.innerHTML=warn+'<div class="d-none" style="text-align:center;margin-top:60px">Nothing '+(mode==='pending'?'pending — all caught up.':'applied yet.')+'</div>'; return; }
         if(selected===null||!recs.some(function(r){return r.app===selected;})){ selected=recs[0].app; }
-        main.innerHTML=warn+recs.map(function(r){ var c=cardChip(r); return '<div class="card open'+(r.app===selected?' sel':'')+'" id="card-'+cssid(r.app)+'" data-sel="'+esc(r.app)+'"><div class="card-head"><span class="card-name">'+esc(leafOf(r.app))+'</span><span class="chip chip-'+c+'">'+c+'</span><span class="card-sub">'+esc(cardSummary(r))+'</span></div><div class="card-body">'+cardBody(r)+'</div></div>'; }).join('');
+        var cardFor=function(r){ var c=cardChip(r); return '<div class="card open'+(r.app===selected?' sel':'')+'" id="card-'+cssid(r.app)+'" data-sel="'+esc(r.app)+'"><div class="card-head"><span class="card-name">'+esc(leafOf(r.app))+'</span><span class="chip chip-'+c+'">'+c+'</span><span class="card-sub">'+esc(cardSummary(r))+'</span></div><div class="card-body">'+cardBody(r)+'</div></div>'; };
+        main.innerHTML=warn+byDesk(recs).map(function(g){
+          if(!g.desk)return g.recs.map(cardFor).join('');
+          // one head per desk, with the whole-desk action beside it. Only
+          // pending cards carry checklists, so only pending gets the button.
+          var all=mode==='pending'?'<button class="btn primary desk-all" data-desk="'+esc(g.desk)+'">grant all '+g.recs.length+'</button>':'';
+          return '<div class="desk-group" data-desk="'+esc(g.desk)+'">'
+            +'<div class="desk-head"><span class="desk-name">'+esc(g.desk)+'</span>'
+            +'<span class="desk-count">'+g.recs.length+' app'+(g.recs.length>1?'s':'')+'</span>'
+            +all+'</div>'+g.recs.map(cardFor).join('')+'</div>';
+        }).join('');
         Array.prototype.forEach.call(main.querySelectorAll('.card'),function(c){ wireCard(c); });
+        Array.prototype.forEach.call(main.querySelectorAll('.desk-all'),function(b){ b.onclick=function(){ grantDesk(b.getAttribute('data-desk'),b); }; });
       } else {
         var names=Object.keys(aliasMenus).sort();
         main.innerHTML='<div class="card open"><div class="card-head" style="cursor:default"><span class="card-name">a name of your own</span></div><div class="card-body"><div class="d-intro">Point a name at any path on this ship. It stands beside the names apps claim, and yours resolves first.</div><div class="ali-new"><span class="fld name"><span class="at">@</span><input id="link-name" placeholder="notes" spellcheck="false" autocomplete="off"></span><span class="arrow">&#8594;</span><span class="fld path"><input id="link-path" placeholder="/apps/shell/desks/x.desk/desk/data/y" spellcheck="false" autocomplete="off"></span><button class="btn primary" id="link-add">declare</button></div></div></div>'+names.map(function(n){
@@ -430,6 +472,45 @@
         Array.prototype.forEach.call(main.querySelectorAll('[data-un]'),function(b){ b.onclick=function(){ var nm=b.closest('.card').querySelector('.card-name').textContent; act({action:'alias-unsuppress',alias:nm,path:b.getAttribute('data-un')}); }; });
       }
     }
+    // what one card's "apply selected" would send. Reading it off the DOM is
+    // the point: the checklist has already decided what a road defaults to,
+    // and a road you denied before is sitting there unchecked. The whole-desk
+    // button sends exactly this for each card, so it can never re-grant one.
+    function collectGrant(card,a){
+      var granted={poke:[],peek:[],make:[]}, picks={};
+      Array.prototype.forEach.call(card.querySelectorAll('.chk'),function(c){ if(c.checked&&!c.disabled)granted[c.getAttribute('data-cat')].push(c.getAttribute('data-road')); });
+      Array.prototype.forEach.call(card.querySelectorAll('.pick'),function(s){ picks[s.getAttribute('data-alias')]=s.value; });
+      // name shares: {alias: [groups]} for every declared name, an empty
+      // list meaning "open to no one"; and the same as a granted list
+      var shares={}; (a.names||[]).forEach(function(s){ shares[s.alias]=[]; });
+      Array.prototype.forEach.call(card.querySelectorAll('.shg'),function(c){ if(c.checked)shares[c.getAttribute('data-alias')].push(c.value); });
+      granted.names=Object.keys(shares).map(function(al){ return {alias:al,groups:shares[al]}; });
+      granted.groups=[];
+      Array.prototype.forEach.call(card.querySelectorAll('.pfx'),function(c){ if(c.checked)granted.groups.push(c.value); });
+      return {action:'approve-weir',app:a.app,picks:picks,granted:granted,shares:shares};
+    }
+    // grant every pending app of one desk, in one pass. Each app is still its
+    // own approve-weir poke — the kernel has no batch, and one app failing
+    // must not take the others with it — but the reload, reread and rebuild
+    // happen once at the end instead of once per app.
+    function grantDesk(desk,btn){
+      var cards=Array.prototype.slice.call(document.querySelectorAll('.desk-group[data-desk="'+desk+'"] .card'));
+      var bodies=cards.map(function(card){
+        var a=asksData.filter(function(x){return x.app===card.getAttribute('data-sel');})[0];
+        return a?collectGrant(card,a):null;
+      }).filter(Boolean);
+      if(!bodies.length)return;
+      if(!confirm('Grant '+bodies.length+' app'+(bodies.length>1?'s':'')+' of '+desk+'?\n\nThis applies each app\'s selected permissions, exactly as its own button would.'))return;
+      btn.disabled=true; btn.textContent='granting…';
+      cards.forEach(function(card){ card.classList.add('applying'); Array.prototype.forEach.call(card.querySelectorAll('button,input,select'),function(e){ e.disabled=true; }); });
+      var post=function(b){ return fetch('/apps/grubbery/permits',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(b)}).catch(function(){}); };
+      bodies.reduce(function(p,b){ return p.then(function(){ return post(b); }); },Promise.resolve())
+        .then(function(){ bodies.forEach(function(b){ delete editSet[b.app]; }); dirty=false; return load(); })
+        .then(function(){
+          bodies.forEach(function(b){ fetch('/apps/grubbery/permits/reload',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({app:b.app})}).catch(function(){}); });
+          refresh(true);
+        });
+    }
     function wireCard(card){
       if(!card)return; var app=card.getAttribute('data-sel'); var a=asksData.filter(function(x){return x.app===app;})[0]; if(!a)return;
       var setg=function(o,v){ Array.prototype.forEach.call(card.querySelectorAll('.chk'),function(c){ if((c.getAttribute('data-opt')==='1')===o&&!c.disabled)c.checked=v; }); };
@@ -438,17 +519,8 @@
       if(op)op.onchange=function(){ setg(true,this.checked); };
       Array.prototype.forEach.call(card.querySelectorAll('.chk,.pick'),function(e){ e.addEventListener('change',function(){ dirty=true; }); });
       var ap=card.querySelector('[data-act=approve]'); if(ap)ap.onclick=function(){
-        var granted={poke:[],peek:[],make:[]}, picks={};
-        Array.prototype.forEach.call(card.querySelectorAll('.chk'),function(c){ if(c.checked&&!c.disabled)granted[c.getAttribute('data-cat')].push(c.getAttribute('data-road')); });
-        Array.prototype.forEach.call(card.querySelectorAll('.pick'),function(s){ picks[s.getAttribute('data-alias')]=s.value; });
-        // name shares: {alias: [groups]} for every declared name, an empty
-        // list meaning "open to no one"; and the same as a granted list
-        var shares={}; (a.names||[]).forEach(function(s){ shares[s.alias]=[]; });
-        Array.prototype.forEach.call(card.querySelectorAll('.shg'),function(c){ if(c.checked)shares[c.getAttribute('data-alias')].push(c.value); });
-        granted.names=Object.keys(shares).map(function(al){ return {alias:al,groups:shares[al]}; });
-        granted.groups=[];
-        Array.prototype.forEach.call(card.querySelectorAll('.pfx'),function(c){ if(c.checked)granted.groups.push(c.value); });
-        dirty=false; delete editSet[app]; act({action:'approve-weir',app:app,picks:picks,granted:granted,shares:shares});
+        var body=collectGrant(card,a);
+        dirty=false; delete editSet[app]; act(body);
       };
       var ca=card.querySelector('[data-act=cancel]'); if(ca)ca.onclick=function(){ delete editSet[app]; dirty=false; render(); };
       var adj=card.querySelector('[data-act=adjust]'); if(adj)adj.onclick=function(){ editSet[app]=true; render(); };
