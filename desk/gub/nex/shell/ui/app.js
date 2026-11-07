@@ -905,11 +905,9 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
               '<div class="papp-title">' + escP(rp.name) + '</div>' +
               '<div class="papp-sub">' + escP(rp.code) + '</div>' +
             '</div>' +
-            (rp.ready
-              ? '<button class="papp-get">Get</button>'
-              : '<button class="papp-get" disabled title="this repo has no /code yet">no code</button>');
+            '<button class="papp-get">Get</button>';
           var b = row.querySelector('button');
-          if (rp.ready) b.onclick = function() {
+          b.onclick = function() {
             openInstall({ name: rp.name, code: rp.code, title: rp.name, source: 'your forge' }, b);
           };
           box.appendChild(row);

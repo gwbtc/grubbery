@@ -1775,13 +1775,19 @@
   ?.  &((gth len 9) =(".git_repo" (slag (sub len 9) nam)))
     $(kids t.kids)
   =/  short=@t  (crip (scag (sub len 9) nam))
-  ;<  ready=?  bind:m
+  ::  a /code directory is the whole question. A repo in the forge is a git
+  ::  repo and owes this system no declaration about itself; what makes one
+  ::  offerable here is that a desk could follow it, and that means a
+  ::  checkout with /code in it. Anything else -- the ship's own source, a
+  ::  library, a repo never pulled -- is not a desk source and is not
+  ::  listed. The tab has always described itself this way.
+  ;<  has-code=?  bind:m
     (peek-exists:io [%& %| (weld repos-dir /[i.kids]/data/tree/code)])
+  ?.  has-code  $(kids t.kids)
   =/  one=json
     %-  pairs:enjs:format
     :~  ['name' s+short]
         ['code' s+(crip "@forge/repos/{nam}/data/tree/code")]
-        ['ready' b+ready]
     ==
   $(kids t.kids, acc [one acc])
 ::
