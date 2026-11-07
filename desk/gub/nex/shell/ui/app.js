@@ -125,6 +125,35 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     }).then(function() { if (cb) cb(); });
   }
 
+  // profile: who this ship is. The @p for now; the panel is where a filled-in
+  // profile, and the choice of who it is published to, will live.
+  var profShip = '';
+  function openProfile() {
+    document.getElementById('profile-backdrop').classList.add('open');
+    document.getElementById('prof-copied').textContent = '';
+    fetch('/apps/grubbery/profile.json')
+      .then(function(r) { return r.json(); })
+      .then(function(p) {
+        profShip = (p && p.ship) || '';
+        document.getElementById('prof-ship').textContent = profShip || 'unknown';
+      })
+      .catch(function() {
+        document.getElementById('prof-ship').textContent = 'could not read';
+      });
+  }
+  function closeProfile(e) {
+    if (e.target === document.getElementById('profile-backdrop')) closeProfileNow();
+  }
+  function closeProfileNow() {
+    document.getElementById('profile-backdrop').classList.remove('open');
+  }
+  function copyShip() {
+    if (!profShip) return;
+    var say = function(t) { document.getElementById('prof-copied').textContent = t; };
+    if (navigator.clipboard) navigator.clipboard.writeText(profShip).then(function() { say('copied'); }, function() { say('could not copy'); });
+    else say('could not copy');
+  }
+
   function openBell(e) {
     e.preventDefault();
     document.getElementById('bell-backdrop').classList.add('open');

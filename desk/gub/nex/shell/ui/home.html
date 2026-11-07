@@ -9,12 +9,28 @@
 <body>
   <div id="app">
     <div id="header">
+      <button id="profile-btn" onclick="openProfile()" title="Profile">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-user"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+      </button>
       <a id="bell" href="#" onclick="openBell(event)" title="Notifications">
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-bell"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
         <span id="bell-count" style="display:none"></span>
       </a>
       <button id="add-btn" class="hdr-btn" onclick="openAdd()">Manage Desks</button>
       <button id="hidden-btn" class="hdr-btn" onclick="toggleHiddenView()" style="display:none">Hidden</button>
+    </div>
+    <div id="profile-backdrop" onclick="closeProfile(event)">
+      <div id="profile-panel">
+        <div id="profile-head">
+          <span>Profile</span>
+          <button class="hdr-btn" onclick="closeProfileNow()">close</button>
+        </div>
+        <div id="profile-body">
+          <div class="prof-label">this ship</div>
+          <button id="prof-ship" class="prof-ship" onclick="copyShip()">…</button>
+          <div id="prof-copied" class="prof-copied"></div>
+        </div>
+      </div>
     </div>
     <div id="bell-backdrop" onclick="closeBell(event)">
       <div id="bell-panel">

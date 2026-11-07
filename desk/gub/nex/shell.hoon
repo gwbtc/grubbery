@@ -869,6 +869,17 @@
           ;<  ~  bind:m
             (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
           (pure:m ~)
+        ::  /apps/grubbery/profile.json → who this ship is. Only the @p for
+        ::  now; a profile the user fills in and publishes to a usergroup is
+        ::  the obvious next thing to answer here.
+        ?:  ?=([%'profile.json' ~] suffix)
+          =/  bod=octs
+            %-  as-octs:mimes:html
+            %-  en:json:html
+            (pairs:enjs:format ~[['ship' s+(scot %p our)]])
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+          (pure:m ~)
         ::  /apps/grubbery/link.json → per-name discovery: who may resolve
         ::  each name, from the link record.
         ?:  ?=([%'link.json' ~] suffix)
