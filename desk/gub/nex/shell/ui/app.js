@@ -11,7 +11,10 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
   // here; they resolve by being granted.
   function sameRoads(a, b) { a = (a || []).slice().sort(); b = (b || []).slice().sort(); return a.length === b.length && a.every(function(x, i) { return x === b[i]; }); }
   function roadsOf(x) { return (x || []).map(function(r) { return typeof r === 'string' ? r : r.road; }); }
-  function pendingAsks() {
+  // the asks nobody has ruled on: never approved, or approved against a
+  // different declaration than the one standing now. The bell counts these
+  // and the tiles warn on them, so the test lives in one place.
+  function unansweredAsks() {
     return Promise.all([
       fetch('/apps/grubbery/asks.json').then(function(r) { return r.json(); }).catch(function() { return []; }),
       fetch('/apps/grubbery/approved.json').then(function(r) { return r.json(); }).catch(function() { return {}; })
@@ -20,7 +23,12 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
       return asks.filter(function(a) {
         var ap = approved[a.app], dec = ap && ap.declared;
         return !ap || !(dec && sameRoads(roadsOf(a.poke), roadsOf(dec.poke)) && sameRoads(roadsOf(a.peek), roadsOf(dec.peek)) && sameRoads(roadsOf(a.make), roadsOf(dec.make)));
-      }).map(function(a) {
+      });
+    });
+  }
+  function pendingAsks() {
+    return unansweredAsks().then(function(asks) {
+      return asks.map(function(a) {
         var n = roadsOf(a.poke).length + roadsOf(a.peek).length + roadsOf(a.make).length;
         var leaf = a.app.split('/').pop();
         return { id: 'ask:' + a.app, app: leaf, created_ms: 0, mack: null, ask: true,
@@ -202,6 +210,8 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
   var editName = '';
   var isNew = false;
   var tileData = {};
+  // app root -> its weir.json ask is unanswered. Filled by loadTiles.
+  var needsGrant = {};
 
   function buildTile(t) {
     var d = document.createElement('div');
@@ -212,6 +222,20 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     bg.className = 'tile-bg';
     bg.style.background = t.color || '#333';
     d.appendChild(bg);
+    // an app whose weir.json nobody has ruled on is running sandboxed: it
+    // reaches nothing it asked for, so the page it serves is liable to be
+    // half-dead in ways that look like bugs. Say so on the face of the tile
+    // rather than leaving the user to discover it by clicking.
+    if (t.root && needsGrant[t.root]) {
+      d.classList.add('ungranted');
+      var warn = document.createElement('a');
+      warn.className = 'tile-warn';
+      warn.href = '/apps/grubbery/permits?app=' + encodeURIComponent(t.root);
+      warn.onclick = function(e) { e.stopPropagation(); };
+      warn.title = 'Review and grant this app\'s permissions';
+      warn.textContent = '⚠ WARNING: Outstanding permission requests. Interface may not function as expected.';
+      d.appendChild(warn);
+    }
     if (t.image) {
       var img = document.createElement('img');
       img.className = 'tile-img';
@@ -292,7 +316,10 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
   var tileEls = {};  // name -> { el, sig }
   var loadingTile = document.getElementById('loading-tile');
   function tileSig(t) {
-    return [t.title, t.info, t.color, t.image, t.href, t.kind, t.root].join('');
+    // the warning is part of what a tile shows, so granting an app has to
+    // rebuild its tile even though nothing in tiles.json moved
+    return [t.title, t.info, t.color, t.image, t.href, t.kind, t.root,
+            !!(t.root && needsGrant[t.root])].join('');
   }
   function getTileEl(t) {
     var c = tileEls[t.name], sig = tileSig(t);
@@ -360,9 +387,17 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
   }
 
   function loadTiles() {
-    fetch('/grubbery/tiles/tiles.json')
-      .then(function(r) { return r.json(); })
-      .then(renderTiles)
+    Promise.all([
+      fetch('/grubbery/tiles/tiles.json').then(function(r) { return r.json(); }),
+      // a failed read must not cost us the tiles: no warnings is the safe
+      // way to be wrong here, since the grid still works without them
+      unansweredAsks().catch(function() { return []; })
+    ])
+      .then(function(res) {
+        needsGrant = {};
+        (res[1] || []).forEach(function(a) { needsGrant[a.app] = true; });
+        renderTiles(res[0]);
+      })
       .catch(function() { tilesDiv.innerHTML = '<div class="empty">failed to load tiles</div>'; });
   }
 

@@ -57,6 +57,9 @@
   .tile-title { font-size: 18px; font-weight: 600; color: rgba(255,255,255,0.85); }
   .tile-pin { font-size: 11px; font-weight: 400; color: rgba(255,255,255,0.6); margin-left: 8px; vertical-align: 2px; }
   .tile-desc { font-size: 11px; color: rgba(255,255,255,0.7); margin-top: 4px; display: none; }
+  .tile-warn { position: absolute; top: 0; left: 0; right: 0; z-index: 3; display: block; padding: 8px 10px; background: #f6c343; color: #3a2d00; font-size: 10px; font-weight: 600; line-height: 1.35; text-decoration: none; }
+  .tile-warn:hover { background: #ffd65c; }
+  .tile.ungranted .tile-bg { filter: saturate(0.5); }
   .tile:hover .tile-desc { display: block; }
   .tile-actions { position: absolute; top: 16px; right: 20px; z-index: 4; display: none; gap: 4px; }
   .tile:hover .tile-actions { display: flex; }
