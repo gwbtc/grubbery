@@ -737,7 +737,9 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
           row.className = 'papp';
           row.innerHTML =
             '<div class="papp-body">' +
-              '<div class="papp-title">' + escP(it.name) + '</div>' +
+              '<div class="papp-title">' + escP(it.title || it.name) +
+                (it.setup === 'boot' ? '<span class="stock-badge ok">pre-installed</span>' : '') +
+              '</div>' +
               '<div class="papp-sub">' + escP(it.repo) + ' · ' + escP(it.ref) + '</div>' +
             '</div>' +
             (it.synced

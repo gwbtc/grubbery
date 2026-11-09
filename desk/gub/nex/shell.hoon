@@ -321,12 +321,12 @@
           [~ %'bootstrap.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%shell bootstrap: failed")
         ;<  ~  bind:m  ensure-polls
-        ::  every nexus reload: each stock entry's repo and desk, made if missing,
+        ::  every nexus reload: each %boot entry's repo and desk, made if missing,
         ::  and its source re-pointed at the forge as it stands now. A
         ::  stock entry added later, or a forge that moved, is taken up by
         ::  the next reload with no one's hand on it. Idempotent; the network
         ::  is touched last and softly.
-        ;<  ~  bind:m  sync-defaults
+        ;<  ~  bind:m  (sync-stock %.y)
         ;<  done=?  bind:m
           (peek-exists:io (nex-road:io rail [%& / %'bootstrapped.json']))
         ?:  done  (pure:m ~)
@@ -684,7 +684,7 @@
           ::  syncing every stock entry touches the network once per entry, and
           ::  an HTTP request held open across that stalls the server.
           ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'syncing')])
-          ;<  ~  bind:m  sync-defaults
+          ;<  ~  bind:m  (sync-stock %.n)
           (pure:m ~)
         ::  POST /desks/sync {name}: sync ONE stock desk — find its entry and
         ::  run the same +ensure-pairing the "Sync all" path uses per entry.
@@ -1544,16 +1544,31 @@
   $%  [%desk ~]
       [%clay desk=@tas dir=@t]
   ==
+::  how a stock entry comes to be on a ship.
+::
+::    %boot   the shell sets it up when the ship boots, and the apps it
+::            brings are granted what they ask: installing the ship was the
+::            decision. The grants are ordinary grants, shown on the permits
+::            page and narrowed or dropped there like any other.
+::    %offer  listed under Recommended. Installed when the user asks, and
+::            its apps ask for their permissions like any other install.
+::
++$  setup  ?(%boot %offer)
 +$  stock-entry
-  $%  [%github name=@t repo=@t ref=@t deploy=deploy-spec]
+  $%  [%github name=@t title=@t repo=@t ref=@t deploy=deploy-spec =setup]
   ==
 ++  default-repos
   ^-  (list stock-entry)
   ::  every entry is a github repo the forge mirrors. The forge itself is
   ::  not one: it is a nexus of this shell at /apps/shell/forge. These
   ::  entries are housed in it and find it by name.
-  :~  [%github 'hatchery' 'gwbtc/hatchery' 'main' [%desk ~]]
-      [%github 'grubbery' 'gwbtc/grubbery' 'develop' [%clay %grubbery 'desk']]
+  ::
+  ::  grubbery is the ship's own source: its mirror deploys by committing
+  ::  into the grubbery desk and never becomes a desk, so %boot here sets
+  ::  up a mirror and nothing that could ask for a permission.
+  :~  [%github 'gw-suite' 'Groundwire Suite' 'gwbtc/gw-suite' 'main' [%desk ~] %boot]
+      [%github 'hatchery' 'Hatchery' 'gwbtc/hatchery' 'main' [%desk ~] %offer]
+      [%github 'grubbery' 'Grubbery' 'gwbtc/grubbery' 'develop' [%clay %grubbery 'desk'] %boot]
   ==
 ::  deploy-json: the deploy spec as the repo's config.json carries it
 ::  (and the forge copies into the repo clanker's config for repo_deploy)
@@ -1732,14 +1747,18 @@
   ?~  todo  ~
   ?:  =(nom (stock-name i.todo))  `i.todo
   $(todo t.todo)
-::  sync-defaults: run ensure-pairing over the whole default-repos list.
+::  sync-stock: run ensure-pairing over the stock list. Boot takes the
+::  %boot entries only; Install all on the Recommended tab takes every
+::  entry.
 ::
-++  sync-defaults
+++  sync-stock
+  |=  boot-only=?
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   =/  todo=(list stock-entry)  default-repos
   |-  ^-  form:m
   ?~  todo  (pure:m ~)
+  ?:  &(boot-only !=(%boot setup.i.todo))  $(todo t.todo)
   ;<  ~  bind:m  (ensure-pairing i.todo)
   $(todo t.todo)
 ::  stock-status: the default-repos list as json, each with a `synced` flag
@@ -1818,8 +1837,9 @@
         ?=([~ %s *] (~(get by p.u.src) 'code'))
     ==
   =/  fields=(list [@t json])
-    :~  ['name' s+name]  ['kind' s+'github']
+    :~  ['name' s+name]  ['title' s+title.i.todo]  ['kind' s+'github']
         ['repo' s+repo.i.todo]  ['ref' s+ref.i.todo]  ['synced' b+synced]
+        ['setup' s+setup.i.todo]
         ['deploy' (deploy-json deploy.i.todo)]
     ==
   $(todo t.todo, acc [(pairs:enjs:format fields) acc])
@@ -3315,8 +3335,56 @@
   =/  have=(unit json)
     ?.  ?=([%file *] cur)  ~
     (mole |.(!<(json (need-vase:tarball sang.cur))))
+  ::  a %boot entry's apps are answered on the same scan that found them,
+  ::  so the page never shows them pending and then grants them out from
+  ::  under it
+  ;<  ~  bind:m  (auto-consent rail marked)
   ?:  =(`want have)  (pure:m ~)
   (put:io (nex-road:io rail [%& /cache %'asks.json']) [[/ %json] want])
+::  +auto-consent: grant, once, the asks of apps under a %boot stock entry.
+::  Only an app with no approved entry at all is touched: a grant the user
+::  has since narrowed, frozen or dropped stands, and a later change to
+::  that app's ask pends like any other. Granted at install, not always
+::  granted.
+::
+++  auto-consent
+  |=  [rail=rail:tarball asks=(list json)]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  approved=(map @t json)  bind:m  (read-approved rail)
+  ;<  hidden=json             bind:m  (read-hidden rail)
+  ;<  now=@da                 bind:m  get-time:io
+  =/  todo=(list [app=@t ask=json])
+    %+  murn  asks
+    |=  a=json
+    ^-  (unit [@t json])
+    =/  app=@t  (fall (jget a 'app') '')
+    ?:  =('' app)                 ~
+    ?:  (~(has by approved) app)  ~
+    ?.  (under-boot-entry app)    ~
+    `[app a]
+  |-  ^-  form:m
+  ?~  todo  (pure:m ~)
+  ~?  dbg  [%shell-auto-consent app.i.todo]
+  ::  the ask itself as the granted set: everything it declared
+  ;<  ~  bind:m  (do-approve-weir rail app.i.todo [%o ~] ask.i.todo hidden now)
+  =/  tp=(unit path)  (soft-path app.i.todo)
+  ;<  ~  bind:m  ?~(tp (pure:m ~) (reload:io [%& %| u.tp]))
+  $(todo t.todo)
+::  +under-boot-entry: is this app under the desk of a %boot stock entry?
+::  Compared as text: the app is a cord here and the prefix is built as
+::  one.
+::
+++  under-boot-entry
+  |=  app=@t
+  ^-  ?
+  %+  lien  default-repos
+  |=  e=stock-entry
+  ^-  ?
+  ?.  =(%boot setup.e)  %.n
+  =/  pre=@t
+    (crip "/apps/shell/desks/{(trip (stock-name e))}.desk/desk/data/")
+  =(pre (end [3 (met 3 pre)] app))
 ::  +read-app-weirs: scan /apps for each app's weir.json — its complete
 ::  declared permission ask ({poke, peek, make} lists of target roads,
 ::  some `@alias` refs). Returns one json per app {app, path, poke,
