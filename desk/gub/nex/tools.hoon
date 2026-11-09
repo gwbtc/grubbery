@@ -87,7 +87,7 @@
       ;<  src-view=view:nexus  bind:m
         (peek:io (nex-road:io rail [%| /code/lib/tools]) ~)
       ?.  ?=([%ball *] src-view)  (pure:m ~)
-      =/  pairs=(list [sub=path file=@ta])  (ball-code-files ~ ball.src-view)
+      =/  pairs=(list [sub=path file=@ta])  (ball-code-files:nex-tools ~ ball.src-view)
       =/  result=(map @t tool:nex-tools)  ~
       |-
       ?~  pairs  (pure:m result)
@@ -108,17 +108,6 @@
       ::  you get; falling back is a /code-level mar/nex affordance, not
       ::  this engine's. Scanning /apps for app-shipped tools is mcp's.
       (scan-own rail)
-    ::  +ball-code-files: every file in a ball, with its subpath
-    ::
-    ++  ball-code-files
-      |=  [sub=path bal=ball:tarball]
-      ^-  (list [path @ta])
-      =/  here=(list [path @ta])
-        ?~  fil.bal  ~
-        (turn ~(tap by contents.u.fil.bal) |=([n=@ta *] [sub n]))
-      %+  roll  ~(tap by dir.bal)
-      |=  [[nam=@ta kid=ball:tarball] acc=_here]
-      (weld acc (ball-code-files (snoc sub nam) kid))
     ::  +await-tool: look up a compiled tool handler by name in this
     ::  instance's own seeded /code (or by an absolute /-prefixed source
     ::  location — an explicit address, which the weir governs). No

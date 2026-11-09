@@ -166,6 +166,20 @@
     $(t t.t.t, acc [(flop cur) acc], cur ~)
   $(t t.t, cur [i.t cur])
 ::
+::  +ball-code-files: every file under a ball with its subpath, so a
+::  tools directory may nest: lib/tools/temp/cull-paths.hoon is the
+::  tool temp__cull_paths (+derive-name) and back (+name-to-place).
+::
+++  ball-code-files
+  |=  [sub=path bal=ball:tarball]
+  ^-  (list [path @ta])
+  =/  here=(list [path @ta])
+    ?~  fil.bal  ~
+    (turn ~(tap by contents.u.fil.bal) |=([n=@ta *] [sub n]))
+  %+  roll  ~(tap by dir.bal)
+  |=  [[nam=@ta kid=ball:tarball] acc=_here]
+  (weld acc (ball-code-files (snoc sub nam) kid))
+::
 ++  derive-name
   |=  [sub=path file=@ta]
   ^-  @t

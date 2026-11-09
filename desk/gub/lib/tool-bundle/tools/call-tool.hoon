@@ -43,14 +43,14 @@
     ?.  ?=([~ %s *] v)  ~
     ?:  =('' p.u.v)  ~
     (rush p.u.v stap)
-  ::  Convert underscores to hyphens for filename lookup
-  =/  file-name=@ta
-    (crip (turn (trip tool-name) |=(c=@t ?:(=(c '_') '-' c))))
+  ::  the name as a place under lib/tools: temp__cull_paths is
+  ::  temp/cull-paths, the same rule the tools nexus follows
+  =/  [sub=path arm=@ta]  (name-to-place:tools tool-name)
   ::  Look up compiled tool from bins — try our own nexus /code first,
   ::  addressed by nex-road from this file's rail (placement-independent).
   ;<  res=built:nexus  bind:m
     ?^  at  (pure:(fiber:fiber:nexus ,built:nexus) [%tang ~])
-    (get-code-full:io [%| 1 [%& /code/lib/tools file-name]])
+    (get-code-full:io [%| 1 [%& (weld /code/lib/tools sub) arm]])
   =/  root-got=(unit tool:tools)
     ?.  ?=(%vase -.res)  ~
     =/  r=(each tool:tools tang)  (mule |.(!<(tool:tools vase.res)))
