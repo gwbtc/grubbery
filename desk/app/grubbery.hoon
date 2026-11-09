@@ -7329,11 +7329,70 @@
 ::    ~ means "not a namespace op" — nothing to gate, and nothing that
 ::    reads or writes a grub.
 ::
+::  +wash-tang: a tang as flat lines, for reporting a failed build.
+::  Flopped first: a tang is innermost-frame-first, and the line you
+::  need is the outermost. Same shape as strandio and as the forge's
+::  own +format-told.
+::
+++  wash-tang
+  |=  =tang
+  ^-  wall
+  (zing (turn (flop tang) (cury wash [0 80])))
+::  +ball-bangs: every banged grub and directory under a ball, with the
+::  tang that banged it. A lump carries its own bang, and one per grub in
+::  its contents; both are reported, told apart by kind.
+::
+++  ball-bangs
+  |=  [sub=path bal=ball:tarball]
+  ^-  (list [where=path kind=@tas =tang])
+  =/  here=(list [where=path kind=@tas =tang])
+    ?~  fil.bal  ~
+    %+  weld
+      ^-  (list [where=path kind=@tas =tang])
+      ?~  bang.u.fil.bal  ~
+      ~[[sub %dir u.bang.u.fil.bal]]
+    ^-  (list [where=path kind=@tas =tang])
+    %+  murn  ~(tap by contents.u.fil.bal)
+    |=  [n=@ta e=[=sang:tarball gain=? bang=(unit tang)]]
+    ^-  (unit [where=path kind=@tas =tang])
+    ?~  bang.e  ~
+    `[(snoc sub n) %grub u.bang.e]
+  %+  roll  ~(tap by dir.bal)
+  |=  [[nam=@ta kid=ball:tarball] acc=_here]
+  (weld acc (ball-bangs (snoc sub nam) kid))
+::  +pool-procs: every fiber under a path as the kernel holds it: crashed
+::  or live, and the depth of its held (next) and skipped (skip) intakes
+::  with the kinds of what it skipped. A fiber parked on a dart shows as
+::  live with a skip queue full of %poke -- the only materialized trace
+::  of "where it is waiting", since the position itself is a closure.
+::
+++  pool-procs
+  |=  [sub=path pp=pool:nexus]
+  ^-  (list [where=path crashed=? next=@ud skip=@ud kinds=(list [@tas @ud])])
+  =/  here=(list [where=path crashed=? next=@ud skip=@ud kinds=(list [@tas @ud])])
+    ?~  fil.pp  ~
+    %+  turn  ~(tap by proc.u.fil.pp)
+    |=  [n=@ta pr=proc:fiber:nexus]
+    ^-  [where=path crashed=? next=@ud skip=@ud kinds=(list [@tas @ud])]
+    =/  tally=(map @tas @ud)
+      %+  roll  ~(tap to skip.pr)
+      |=  [t=take:fiber:nexus acc=(map @tas @ud)]
+      =/  k=@tas  ?~(in.t %start -.u.in.t)
+      (~(put by acc) k +((fall (~(get by acc) k) 0)))
+    :*  (snoc sub n)
+        ?=(%| -.process.pr)
+        (lent ~(tap to next.pr))
+        (lent ~(tap to skip.pr))
+        ~(tap by tally)
+    ==
+  %+  roll  ~(tap by dir.pp)
+  |=  [[nam=@ta kid=pool:nexus] acc=_here]
+  (weld acc (pool-procs (snoc sub nam) kid))
 ++  ball-op-jump
   |=  [method=@tas endpoint=@tas]
   ^-  (unit jump:nexus)
   ?+    [method endpoint]  ~
-      [%'GET' ?(%peek %keep %born)]  `%peek
+      [%'GET' ?(%peek %keep %born %build %bang %queue %procs)]  `%peek
       [%'POST' %poke]                `%poke
       [%'PUT' ?(%make %sand)]        `%make
       [%'DELETE' ?(%cull %sand)]     `%make
@@ -7606,6 +7665,11 @@
     ::
         %born
       ?:(=('1' (fall (get-key:kv:html-utils 'ghosts' args) '')) %ghost %born)
+    ::
+        %build  %build
+        %bang   %bang
+        %queue  %queue
+        %procs  %procs
     ==
   ::  a directory rendering of a path that holds no directory is a 404,
   ::  not an empty listing. At a past version the arms answer for
@@ -7617,6 +7681,144 @@
       ==
     (gone 'Not found')
   ?+  [method.request.req shape]  ~   ::  ~ = not a sync read; needs a fiber
+      ::  GET /grubbery/api/build/<code namespace> -- what compiled and what
+      ::  did not, straight from the kernel. The shell's check_bin answers
+      ::  the same question better for one file, but it is an MCP tool: a
+      ::  shell that will not compile cannot report why it will not compile.
+      ::  This arm has no such dependency -- gall serves it, so it answers
+      ::  while every nexus on the ship is banged.
+      ::
+      ::  The path is the code namespace itself (/code, or a desk's
+      ::  /apps/.../desk/code). Failures first and in full: a tang is what
+      ::  you came for. ?all=1 adds the ones that built.
+      ::
+      [%'GET' %build]
+    =/  ns=(unit lode:nexus)  (~(get by code) api-path)
+    ?~  ns  (gone (crip "no code namespace at {(spud api-path)}"))
+    =/  want-all=?  =('1' (fall (get-key:kv:html-utils 'all' args) ''))
+    ::  sorted by source: an unordered tap shuffles between calls, and
+    ::  this is read by eye and diffed against the last run
+    =/  rows=(list [rail:tarball built:nexus])
+      %+  sort
+        %+  murn  ~(tap by keys.u.ns)
+        |=  [r=rail:tarball k=@uv]
+        ^-  (unit [rail:tarball built:nexus])
+        =/  e=(unit [refs=@ud =built:nexus])  (~(get by bins) k)
+        ?~  e  ~
+        `[r built.u.e]
+      |=  [a=[r=rail:tarball *] b=[r=rail:tarball *]]
+      (aor (spud (snoc path.r.a name.r.a)) (spud (snoc path.r.b name.r.b)))
+    =/  bad=(list [rail:tarball built:nexus])
+      (skim rows |=([* b=built:nexus] ?=([%tang *] b)))
+    =/  show=(list [rail:tarball built:nexus])  ?:(want-all rows bad)
+    %-  ok-json
+    %-  pairs:enjs:format
+    :~  ['namespace' s+(crip (spud api-path))]
+        ['total' (numb:enjs:format (lent rows))]
+        ['failed' (numb:enjs:format (lent bad))]
+      ::
+        :-  'files'
+        :-  %a
+        %+  turn  show
+        |=  [r=rail:tarball b=built:nexus]
+        ^-  json
+        %-  pairs:enjs:format
+        :~  ['source' s+(crip (spud (snoc path.r name.r)))]
+            ['status' s+(scot %tas -.b)]
+          ::
+            ::  ?= on the whole value, not on -.b: testing the tag alone
+            ::  leaves b unrefined, and reading tang.b off an unrefined
+            ::  $% sends the compiler fusing through tank's recursion
+            :-  'error'
+            ?.  ?=([%tang *] b)  ~
+            a+(turn (wash-tang tang.b) |=(l=tape s+(crip l)))
+        ==
+    ==
+  ::
+      ::  GET /grubbery/api/bang/<path> -- every banged grub and directory
+      ::  under here, with the tang that banged it. The companion to
+      ::  /build: that one says what would not COMPILE, this one says what
+      ::  is not RUNNING. A banged nexus serves nothing, so the shell can
+      ::  never report its own bang; gall serves this.
+      ::
+      [%'GET' %bang]
+    ?.  (api-fold-exists api-path)  (gone 'nothing there')
+    =/  hits=(list [where=path kind=@tas =tang])
+      (ball-bangs api-path (peek-ball-now api-path))
+    %-  ok-json
+    %-  pairs:enjs:format
+    :~  ['path' s+(crip (spud api-path))]
+        ['banged' (numb:enjs:format (lent hits))]
+      ::
+        :-  'hits'
+        :-  %a
+        %+  turn  hits
+        |=  [where=path kind=@tas =tang]
+        ^-  json
+        %-  pairs:enjs:format
+        :~  ['where' s+(crip (spud where))]
+            ['kind' s+(scot %tas kind)]
+            ['error' a+(turn (wash-tang tang) |=(l=tape s+(crip l)))]
+        ==
+    ==
+  ::
+      ::  GET /grubbery/api/queue -- how much work is pending and whose it
+      ::  is. `takes` is the live queue +abet drains; `owed` is what a spent
+      ::  budget parked for the next behn wake. Both are agent state and
+      ::  neither was readable from anywhere, so "why is the ship busy" has
+      ::  only ever been answerable by guessing. Grouped by the grub each
+      ::  take addresses: a queue that is thousands deep against ONE grub is
+      ::  a loop, and against many is a backlog, and those want opposite
+      ::  fixes.
+      ::
+      [%'GET' %queue]
+    =/  live=(list take:nexus)  ~(tap to takes)
+    =/  park=(list take:nexus)  ~(tap to owed)
+    =/  tally
+      |=  ts=(list take:nexus)
+      ^-  (list [@t @ud])
+      =/  cnt=(map @t @ud)
+        %+  roll  ts
+        |=  [t=take:nexus acc=(map @t @ud)]
+        =/  k=@t  (crip (spud (snoc path.here.t name.here.t)))
+        (~(put by acc) k +((fall (~(get by acc) k) 0)))
+      %+  sort  ~(tap by cnt)
+      |=([a=[* n=@ud] b=[* n=@ud]] (gth n.a n.b))
+    =/  rows  |=(l=(list [@t @ud]) ^-(json a+(turn (scag 20 l) |=([k=@t n=@ud] (pairs:enjs:format ~[['grub' s+k] ['takes' (numb:enjs:format n)]])))))
+    %-  ok-json
+    %-  pairs:enjs:format
+    :~  ['takes' (numb:enjs:format (lent live))]
+        ['owed' (numb:enjs:format (lent park))]
+        ['budget' (numb:enjs:format take-budget)]
+        ['live-by-grub' (rows (tally live))]
+        ['owed-by-grub' (rows (tally park))]
+    ==
+  ::
+      ::  GET /grubbery/api/procs/<path> -- the fibers under here as the
+      ::  kernel holds them: crashed or live, held and skipped intake
+      ::  depth, and what kinds were skipped. See +pool-procs.
+      ::
+      [%'GET' %procs]
+    =/  rows  (pool-procs api-path (~(dip of pool) api-path))
+    %-  ok-json
+    %-  pairs:enjs:format
+    :~  ['path' s+(crip (spud api-path))]
+        ['fibers' (numb:enjs:format (lent rows))]
+      ::
+        :-  'procs'
+        :-  %a
+        %+  turn  rows
+        |=  [where=path crashed=? next=@ud skip=@ud kinds=(list [@tas @ud])]
+        ^-  json
+        %-  pairs:enjs:format
+        :~  ['where' s+(crip (spud where))]
+            ['crashed' b+crashed]
+            ['next' (numb:enjs:format next)]
+            ['skip' (numb:enjs:format skip)]
+            ['skipped' a+(turn kinds |=([k=@tas n=@ud] (pairs:enjs:format ~[['kind' s+(scot %tas k)] ['n' (numb:enjs:format n)]])))]
+        ==
+    ==
+  ::
       [%'GET' %kids]
     =/  cas=(unit @ud)  (case-arg args)
     =/  as=(unit [anchor=path cas=@ud])  (asof-arg args)
