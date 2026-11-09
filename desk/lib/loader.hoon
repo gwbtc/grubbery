@@ -34,6 +34,15 @@
 ::
 ++  empty-dir  [`[~ ~ %.n ~] ~]
 ::
+::  +as-json: a /& import (mime) as json, for a row that writes a JSON
+::  file the nexus ships: tile.json, weir.json, link.json, a layout.
+::  Crashes the build on malformed JSON, which is when you want to know.
+::
+++  as-json
+  |=  m=mime
+  ^-  json
+  (need (de:json:html q.q.m))
+::
 ++  manifest
   |=  ver=@ud
   ^-  row
