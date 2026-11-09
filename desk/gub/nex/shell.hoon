@@ -3304,8 +3304,11 @@
   =/  ask=json  [%o (~(put by (~(put by p.u.jon) 'app' s+app)) 'groups' gkeys)]
   ;<  approved=(map @t json)  bind:m  (read-approved rail)
   ?:  (is-settled ask approved)  (pure:m ~)
-  ::  EVERY app asks, the ones that ship with grubbery included. An app
-  ::  shipping in the box is a reason to trust its author, not a reason
+  ::  an app under a %boot stock entry is answered by +auto-consent on the
+  ::  same scan that found it: nothing to tell the user
+  ?:  (under-boot-entry app)  (pure:m ~)
+  ::  every other app asks, the ones that ship with grubbery included. An
+  ::  app shipping in the box is a reason to trust its author, not a reason
   ::  to decide for the user what it may reach or open to other ships.
   ::  already told the user about this exact pending ask? don't re-ping on a
   ::  reload. A changed ask fails the match below and notifies afresh.
