@@ -124,5 +124,18 @@
   ++  serve-static
     |=  [eyre-id=@ta suffix=path]
     (serve-file eyre-id / ?~(suffix 'index.html' i.suffix))
+  ::  +send-to-kernel: a file of this nexus is the kernel's to serve, at
+  ::  /grubbery/api/peek under its absolute path, which its link name
+  ::  finds. A 307 keeps the browser's url and is transparent to fetch
+  ::  and script tags. The kernel answers 404 for a file it does not have.
+  ::
+  ++  send-to-kernel
+    |=  [eyre-id=@ta name=@t file=path]
+    =/  m  (fiber:fiber:nexus ,~)
+    ^-  form:m
+    ;<  root=(unit lane:tarball)  bind:m  (resolve-link:io name)
+    ?.  ?=([~ %| *] root)  (reply eyre-id 404 'Not found')
+    =/  loc=@t  (crip "/grubbery/api/peek{(spud p.u.root)}{(spud file)}")
+    (send-simple:http-res:io eyre-id [[307 ~[['location' loc]]] ~])
   --
 --

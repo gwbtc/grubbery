@@ -2104,11 +2104,12 @@
     ^-  form:m
     (send eyre-id %kick ~)
   --
-::  Standard HTTP dispatcher loop for nexuses with /requests/ sub-dir.
-::  Spawns per-request processes, forwards responses, handles cancels.
+::  +http-dispatch: the request loop of a nexus that serves HTTP. Eyre
+::  pokes the bound grub once per request; each becomes a grub under
+::  /requests, named by its eyre id, that the nexus runs as its own
+::  fiber. A cancel culls that grub; an eyre action goes to the kernel.
 ::
 ++  http-dispatch
-  |=  label=@tas
   =/  m  (fiber ,~)
   ^-  form:m
   |-

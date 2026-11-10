@@ -101,9 +101,9 @@
     $(lines t.lines)
   ::  Try each import rune: /<  /&  /$  /%
   =/  parsed=(unit import)
-    =/  try  (rust line import-rule)
+    =/  try  (rust line ;~(sfix import-rule trailing))
     ?^  try  try
-    (rust line mime-rule)
+    (rust line ;~(sfix mime-rule trailing))
   ?~  parsed
     ::  Not an import — rest is body
     [%& [(flop imports) (of-wain:format lines)]]
@@ -129,6 +129,9 @@
 ::    /$  name  %a  %b     tube import (mark conversion gate)
 ::
 ++  seg  (cook crip (plus ;~(pose aln hep dot)))
+::  an optional trailing comment after an import
+::
+++  trailing  (punt ;~(plug (plus ace) col col (star prn)))
 ::
 ++  import-rule
   ;~  pose
