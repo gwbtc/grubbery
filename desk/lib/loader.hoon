@@ -32,7 +32,14 @@
       [%load %| from=fold:tarball to=fold:tarball =fold-load]
   ==
 ::
-++  empty-dir  [`[~ ~ %.n ~] ~]
+++  empty-dir  (dir ~)
+::  +dir: a directory holding these children and nothing else: a layout
+::  a nexus states as a value, for a row here or for +ensure-fold:io.
+::
+++  dir
+  |=  kids=(list [@ta bole:tarball])
+  ^-  bole:tarball
+  [`[~ ~ %.n ~] (malt kids)]
 ::
 ::  +as-json: a /& import (mime) as json, for a row that writes a JSON
 ::  file the nexus ships: tile.json, weir.json, link.json, a layout.

@@ -617,6 +617,32 @@
   ;<  =view:nexus  bind:m  (peek road ~)
   (pure:m !?=(?(%none %miss %veto %tomb) -.view))
 ::
+::  +ensure-fold: a directory with at least this layout. Nothing there:
+::  made as the bole says. A directory there: every child directory the
+::  bole names and it lacks is made the same way, down the tree; what is
+::  there is kept, files included. The loader's %fall for a directory at
+::  runtime, so a layout can be stated once and asked for on every cause.
+::
+++  ensure-fold
+  |=  [=road:tarball =bole:tarball]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  cur=view:nexus  bind:m  (peek-shallow road ~)
+  ?.  ?=([%ball *] cur)  (make road &+bole)
+  =/  kid
+    |=  n=@ta
+    ^-  road:tarball
+    =/  at  |=(=lane:tarball ^-(path ?-(-.lane %| p.lane, %& (snoc path.p.lane name.p.lane))))
+    ?-  -.road
+      %&  [%& %| (snoc (at p.road) n)]
+      %|  [%| p.p.road %| (snoc (at q.p.road) n)]
+    ==
+  =/  kids=(list [n=@ta b=bole:tarball])  ~(tap by dir.bole)
+  |-  ^-  form:m
+  ?~  kids  (pure:m ~)
+  ;<  ~  bind:m  (ensure-fold (kid n.i.kids) b.i.kids)
+  $(kids t.kids)
+::
 ++  cull
   |=  =road:tarball
   =/  m  (fiber ,~)

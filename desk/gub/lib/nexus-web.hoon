@@ -107,16 +107,22 @@
     |=  [eyre-id=@ta jon=json]
     =/  bod=octs  (as-octs:mimes:html (en:json:html jon))
     (send-simple:http-res:io eyre-id [[200 ['content-type' 'application/json'] ~] `bod])
-  ::  +serve-static: a %mime file at the nexus root, index.html by default
+  ::  +serve-file: a %mime grub of this nexus as the response, named by
+  ::  its dir under the nexus root and its filename, or a 404. Called
+  ::  from a request fiber, one dir below the root.
   ::
-  ++  serve-static
-    |=  [eyre-id=@ta suffix=path]
+  ++  serve-file
+    |=  [eyre-id=@ta dir=path filename=@ta]
     =/  m  (fiber:fiber:nexus ,~)
     ^-  form:m
-    =/  filename=@ta  ?~(suffix 'index.html' i.suffix)
-    ;<  v=view:nexus  bind:m  (peek:io [%| 1 %& ~ filename] `[/ %mime])
+    ;<  v=view:nexus  bind:m  (peek:io [%| 1 %& dir filename] `[/ %mime])
     ?.  ?=([%file *] v)  (reply eyre-id 404 'Not found')
     =/  =mime  !<(mime (need-vase:tarball sang.v))
     (send-simple:http-res:io eyre-id (mime-response:http-utils mime))
+  ::  +serve-static: a file at the nexus root, index.html by default
+  ::
+  ++  serve-static
+    |=  [eyre-id=@ta suffix=path]
+    (serve-file eyre-id / ?~(suffix 'index.html' i.suffix))
   --
 --
