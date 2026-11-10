@@ -16,7 +16,6 @@
 /<  nex-mcp   /lib/mcp-rpc.hoon
 /<  tools     /lib/tools.hoon
 |%
-++  srv  ~(. http-res:io [%| 1 %& ~ %'http.sig'])
 ::  +tools-bole: the /tools mount. The live tools/code subtree is read
 ::  from the shell's ball and the bundle merged onto it, bundle winning
 ::  name conflicts, so a reseed updates bundle tools without deleting
@@ -50,7 +49,7 @@
   |=  [eyre-id=@ta jon=json]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  %-  send-simple:srv
+  %-  send-simple:http-res:io
   :-  eyre-id
   :-  [200 ~[['content-type' 'application/json']]]
   `(as-octs:mimes:html (en:json:html jon))
@@ -343,7 +342,7 @@
     (get-state-as:io ,[src=@p inbound-request:eyre])
   ;<  our=@p  bind:m  get-our:io
   ?.  =(src our)
-    (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
+    (send-simple:http-res:io eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
   =/  [site=path qargs=quay:eyre]  (parse-url:http-utils url.request.req)
   =/  suffix=path
     %+  skip  (slag (lent `path`/grubbery/tools) site)
@@ -361,7 +360,7 @@
     =/  accept=tape
       (trip (fall (get-header:http 'accept' header-list.request.req) ''))
     ?:  ?=(^ (find "text/event-stream" accept))
-      %+  send-simple:srv  eyre-id
+      %+  send-simple:http-res:io  eyre-id
       :-  [405 ~[['allow' 'POST']]]
       `(as-octs:mimes:html 'Method Not Allowed')
     ::  which tools nexus the data routes are about: ?path=<abs>, default
@@ -388,10 +387,10 @@
     ?:  ?=([%api %src ~] suffix)
       =/  tool-name=(unit @t)  (quay-get qargs 'tool')
       ?~  tool-name
-        (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'tool required')])
+        (send-simple:http-res:io eyre-id [[400 ~] `(as-octs:mimes:html 'tool required')])
       ;<  res=(unit [pax=path txt=@t])  bind:m  (find-tool-src at u.tool-name)
       ?~  res
-        (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'not found')])
+        (send-simple:http-res:io eyre-id [[404 ~] `(as-octs:mimes:html 'not found')])
       %+  send-json  eyre-id
       (pairs:enjs:format ~[['path' s+(spat pax.u.res)] ['text' s+txt.u.res]])
     ::  a one-segment suffix that names a file of the page is that file;
@@ -404,29 +403,29 @@
       ?:  ?=([%file *] fv)  (pure:(fiber:fiber:nexus ,view:nexus) fv)
       (peek:io (nex-road:io rail [%& /ui/tools %'index.html']) `[/ %mime])
     ?.  ?=([%file *] fv)
-      (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
+      (send-simple:http-res:io eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
     =/  =mime  !<(mime (need-vase:tarball sang.fv))
-    (send-simple:srv eyre-id (mime-response:http-utils mime))
+    (send-simple:http-res:io eyre-id (mime-response:http-utils mime))
   ::  Parse JSON body
   =/  bod=(unit octs)  body.request.req
   ?~  bod
-    (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing body')])
+    (send-simple:http-res:io eyre-id [[400 ~] `(as-octs:mimes:html 'Missing body')])
   =/  parsed=(unit json)  (de:json:html q.u.bod)
   ?~  parsed
-    (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Invalid JSON')])
+    (send-simple:http-res:io eyre-id [[400 ~] `(as-octs:mimes:html 'Invalid JSON')])
   ::  tools/call: create tool grub, watch for result, respond
   =/  method=(unit json)  (~(get jo:json-utils u.parsed) /method)
   ?:  ?=([~ %s %'tools/call'] method)
     =/  id=(unit json)  (~(get jo:json-utils u.parsed) /id)
     =/  params=(unit json)  (~(get jo:json-utils u.parsed) /params)
     ?~  params
-      (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing params')])
+      (send-simple:http-res:io eyre-id [[400 ~] `(as-octs:mimes:html 'Missing params')])
     =/  tool-name=(unit json)  (~(get jo:json-utils u.params) /name)
     =/  arguments=(unit json)  (~(get jo:json-utils u.params) /arguments)
     ?~  tool-name
-      (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing tool name')])
+      (send-simple:http-res:io eyre-id [[400 ~] `(as-octs:mimes:html 'Missing tool name')])
     ?.  ?=([%s *] u.tool-name)
-      (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Invalid tool name')])
+      (send-simple:http-res:io eyre-id [[400 ~] `(as-octs:mimes:html 'Invalid tool name')])
     ::  Delegate the run to the /tools child nexus: subscribe to the
     ::  run grub, poke the child's main.sig to spawn it, await %done,
     ::  then poke the child to cull it. The run executes under the
@@ -477,7 +476,7 @@
     =/  json-bytes=octs
       (as-octs:mimes:html (en:json:html rpc-result))
     ;<  ~  bind:m
-      %-  send-simple:srv
+      %-  send-simple:http-res:io
       [eyre-id [[200 ~[['content-type' 'application/json']]] `json-bytes]]
     ::  requester-owned GC: tell the child to cull the finished run.
     ;<  ~  bind:m  (drop:io /watch run-road)
@@ -489,8 +488,8 @@
   ;<  dynamic=(map @t tool:tools)  bind:m  (get-dynamic-tools rail)
   ;<  response=(unit json)  bind:m  (handle-request:nex-mcp u.parsed dynamic)
   ?~  response
-    (send-simple:srv eyre-id [[202 ~] ~])
+    (send-simple:http-res:io eyre-id [[202 ~] ~])
   =/  json-bytes=octs  (as-octs:mimes:html (en:json:html u.response))
-  %-  send-simple:srv
+  %-  send-simple:http-res:io
   [eyre-id [[200 ~[['content-type' 'application/json']]] `json-bytes]]
 --

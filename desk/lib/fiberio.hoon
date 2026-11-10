@@ -2041,18 +2041,13 @@
   =/  m  (fiber ,~)
   ^-  form:m
   (poke server-road [[/ %eyre-action] act])
-::  HTTP response helpers. Sends poke server-road directly: the
-::  /sys/eyre intercept consumes %send in the sending event, so the
-::  dispatcher relay (main.sig) only added an eval cycle plus a second
-::  validation of the response. Nothing consumes from=main.sig (cancel
-::  routing is conns -> %handle-http-cancel -> dispatcher cull), and
-::  the dispatcher's %eyre-action branch stays for direct pokes. The
-::  door sample is retained so existing call sites compile unchanged.
-::  Usage: =/  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])
-::         (send-simple:srv eyre-id payload)
+::  HTTP response helpers. Every send pokes server-road: the /sys/eyre
+::  intercept consumes a %send in the sending event, so a response never
+::  passes through the handler's binding grub. A request fiber answers
+::  with (send-simple:http-res:io eyre-id payload).
 ::
 ++  http-res
-  |_  main=road:tarball
+  |%
   ++  send
     |=  [eyre-id=@ta =eyre-update:nexus]
     =/  m  (fiber ,~)

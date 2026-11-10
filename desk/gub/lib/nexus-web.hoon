@@ -13,7 +13,7 @@
 ::
 ::    /<  nw  /lib/nexus-web.hoon
 ::    ...
-::    ++  web           ~(. web:nw [%| 1 %& ~ %'web.sig'])
+::    ++  reply         reply:web:nw
 ::    ++  reply         reply:web
 ::    ++  send-json     send-json:web
 ::    ++  serve-static  serve-static:web
@@ -96,18 +96,17 @@
   ?:  =(0 up)  base
   ?~  base  ~
   $(up (dec up), base (snip `path`base))
-::  +web: eyre replies through the nexus's web.sig road
+::  +web: eyre replies, a step above +http-res:io.
 ::
 ++  web
-  |_  road=road:tarball
-  ++  srv  ~(. http-res:io road)
+  |%
   ++  reply
     |=  [eyre-id=@ta code=@ud msg=@t]
-    (send-simple:srv eyre-id [[code ~] `(as-octs:mimes:html msg)])
+    (send-simple:http-res:io eyre-id [[code ~] `(as-octs:mimes:html msg)])
   ++  send-json
     |=  [eyre-id=@ta jon=json]
     =/  bod=octs  (as-octs:mimes:html (en:json:html jon))
-    (send-simple:srv eyre-id [[200 ['content-type' 'application/json'] ~] `bod])
+    (send-simple:http-res:io eyre-id [[200 ['content-type' 'application/json'] ~] `bod])
   ::  +serve-static: a %mime file at the nexus root, index.html by default
   ::
   ++  serve-static
@@ -118,6 +117,6 @@
     ;<  v=view:nexus  bind:m  (peek:io [%| 1 %& ~ filename] `[/ %mime])
     ?.  ?=([%file *] v)  (reply eyre-id 404 'Not found')
     =/  =mime  !<(mime (need-vase:tarball sang.v))
-    (send-simple:srv eyre-id (mime-response:http-utils mime))
+    (send-simple:http-res:io eyre-id (mime-response:http-utils mime))
   --
 --

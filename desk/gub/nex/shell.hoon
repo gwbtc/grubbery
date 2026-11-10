@@ -481,7 +481,7 @@
         ;<  [src=@p req=inbound-request:eyre]  bind:m  (get-state-as:io ,[src=@p inbound-request:eyre])
         ;<  our=@p  bind:m  get-our:io
         ?.  =(src our)
-          ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
+          ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
           (pure:m ~)
         =/  prefix=path  /grubbery/tiles
         =/  site=path  site:(parse-url:http-utils url.request.req)
@@ -505,9 +505,9 @@
             *json
           ;<  err=(unit @t)  bind:m  (peers-write rail i.t.suffix jon)
           ?^  err
-            ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html u.err)])
+            ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[400 ~] `(as-octs:mimes:html u.err)])
             (pure:m ~)
-          ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `(as-octs:mimes:html '{"ok":true}')])
+          ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[200 ~[['content-type' 'application/json']]] `(as-octs:mimes:html '{"ok":true}')])
           (pure:m ~)
         ::  POST /apps/grubbery/permits → a user permission action, applied
         ::  directly (we are already gated to src==our, the authenticated
@@ -527,7 +527,7 @@
           ::  (the response waits for the fiber). The page requests them through
           ::  POST /permits/refresh the moment this returns, and reloads when
           ::  that completes.
-          ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
+          ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
           (pure:m ~)
         ::  POST /permits/refresh {full}: the slow work, on the page's schedule
         ::  rather than the user's. The follower sweep (new installs get their
@@ -551,7 +551,7 @@
             ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-asks rail)
             ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-aliases rail)
             (build-weirs rail)
-          ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
+          ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
           (pure:m ~)
         ::  POST /permits/reload {app}: reboot an app after a grant, so the
         ::  fibers that crashed while jailed come back holding what was
@@ -566,7 +566,7 @@
           ;<  ~  bind:m
             ?~  tp  (pure:(fiber:fiber:nexus ,~) ~)
             (reload:io [%& %| u.tp])
-          ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
+          ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
           (pure:m ~)
         ::  POST /uninstall {root}: delete an installed app from its tile.
         ::  A desk-nested root uninstalls the WHOLE desk (the UI says so
@@ -590,12 +590,12 @@
             ?:  ?=([%apps @ ~] u.rt)  `u.rt
             ~
           ?~  target
-            ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'bad root')])
+            ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[400 ~] `(as-octs:mimes:html 'bad root')])
             (pure:m ~)
           ;<  err=(unit tang)  bind:m  (cull-soft:io [%& %| u.target])
           ~?  >>>  ?=(^ err)  [%shell-uninstall-failed u.target]
           =/  code=@ud  ?~(err 200 500)
-          ;<  ~  bind:m  (send-simple:srv eyre-id [[code ~] `(as-octs:mimes:html ?~(err 'ok' 'failed'))])
+          ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[code ~] `(as-octs:mimes:html ?~(err 'ok' 'failed'))])
           (pure:m ~)
         ::  POST /visibility {name, hidden}: hide or show a tile by name. The
         ::  hidden set is the user's own launcher preference (replaces the old
@@ -607,14 +607,14 @@
           =/  name=@t  (fall (jget jon 'name') '')
           =/  hide=?  &(?=([%o *] jon) =([~ %b %.y] (~(get by p.jon) 'hidden')))
           ?:  =('' name)
-            ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'name required')])
+            ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[400 ~] `(as-octs:mimes:html 'name required')])
             (pure:m ~)
           ;<  cur=(set @t)  bind:m  (read-hidden-tiles rail)
           =/  next=(set @t)  ?:(hide (~(put in cur) name) (~(del in cur) name))
           ;<  ~  bind:m
             %+  over:io  (nex-road:io rail [%& / %'hidden-tiles.json'])
             [[/ %json] [%a (turn ~(tap in next) |=(n=@t s+n))]]
-          ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
+          ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
           (pure:m ~)
         ::  POST /desks/peers {add|del: ship}: forward to our own peers.json
         ::  fiber (folded in from the retired /desks nexus).
@@ -623,7 +623,7 @@
             %+  fall  (de:json:html ?~(body.request.req '' q.u.body.request.req))
             *json
           ;<  ~  bind:m  (poke:io (nex-road:io rail [%& / %'peers.json']) [[/ %json] jon])
-          ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
+          ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
           (pure:m ~)
         ::  POST /desks/add {name, code}: install a peer's shared desk as a
         ::  local cross-ship /desk. Make a trusted [/ %desk] wrapper (weir ~ —
@@ -637,22 +637,22 @@
           =/  name=@t  (jstr jon 'name')
           =/  code=@t  (jstr jon 'code')
           ?:  =('' name)
-            ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'name required')])
+            ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[400 ~] `(as-octs:mimes:html 'name required')])
             (pure:m ~)
           ?:  =('' code)
-            ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'code required')])
+            ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[400 ~] `(as-octs:mimes:html 'code required')])
             (pure:m ~)
           =/  dir-path=path
             /apps/shell/desks/[(cat 3 `@ta`name '.desk')]
           ;<  live=?  bind:m  (peek-exists:io [%& %| dir-path])
           ?:  live
-            ;<  ~  bind:m  (send-simple:srv eyre-id [[409 ~] `(as-octs:mimes:html 'a desk by that name already exists')])
+            ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[409 ~] `(as-octs:mimes:html 'a desk by that name already exists')])
             (pure:m ~)
           ;<  ~  bind:m
             (make:io [%& %| dir-path] &+`bole:tarball`[`[`[/ %desk] ~ %.n ~] ~])
           =/  source=json  (pairs:enjs:format ~[['code' s+code]])
           ;<  ~  bind:m  (poke:io [%& %& dir-path %'source.json'] [[/ %json] source])
-          ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'created')])
+          ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[200 ~] `(as-octs:mimes:html 'created')])
           (pure:m ~)
         ::  POST /desks/share {name, add|remove: <group>}: publish a desk to
         ::  a usergroup, or stop. Forwarded to the desk's share.usergroups,
@@ -665,13 +665,13 @@
           =/  dir-path=path  /apps/shell/desks/[(cat 3 `@ta`name '.desk')]
           ;<  live=?  bind:m  (peek-exists:io [%& %| dir-path])
           ?.  live
-            ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'no such desk')])
+            ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[404 ~] `(as-octs:mimes:html 'no such desk')])
             (pure:m ~)
           =/  cmd=json
             ?.  ?=([%o *] jon)  [%o ~]
             [%o (~(del by p.jon) 'name')]
           ;<  ~  bind:m  (poke:io [%& %& dir-path %'share.usergroups'] [[/ %json] cmd])
-          ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
+          ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
           (pure:m ~)
         ::  POST /desks/sync-defaults: bootstrap the shipped "repos to sync"
         ::  list — for each entry, ensure its git_repo (polling github) and a
@@ -683,7 +683,7 @@
           ::  answer first, for the reason spelled out at /desks/sync below:
           ::  syncing every stock entry touches the network once per entry, and
           ::  an HTTP request held open across that stalls the server.
-          ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'syncing')])
+          ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[200 ~] `(as-octs:mimes:html 'syncing')])
           ;<  ~  bind:m  (sync-stock %.n)
           (pure:m ~)
         ::  POST /desks/sync {name}: sync ONE stock desk — find its entry and
@@ -696,7 +696,7 @@
           =/  match=(unit stock-entry)  (find-stock name)
           ?~  match
             ;<  ~  bind:m
-              (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'no such stock desk')])
+              (send-simple:http-res:io eyre-id [[404 ~] `(as-octs:mimes:html 'no such stock desk')])
             (pure:m ~)
           ::  ANSWER FIRST, then do the work. +ensure-pairing touches the
           ::  network, and holding an HTTP request open across that is how this
@@ -706,7 +706,7 @@
           ::  page, which is the one page a user needs in order to fix anything.
           ::  The caller learns the outcome from /desks/stock, which reports each
           ::  entry's synced flag; it does not need this response to carry it.
-          ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'syncing')])
+          ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[200 ~] `(as-octs:mimes:html 'syncing')])
           ;<  ~  bind:m  (ensure-pairing u.match)
           (pure:m ~)
         ::  POST /desks/delete {app}: cull a desk from /desks/<app>.
@@ -716,11 +716,11 @@
             *json
           =/  app=@t  (jstr jon 'app')
           ?:  =('' app)
-            ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'app required')])
+            ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[400 ~] `(as-octs:mimes:html 'app required')])
             (pure:m ~)
           ;<  ~  bind:m
             (cull:io (nex-road:io rail [%| /desks/[(crip (trip app))]]))
-          ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'deleted')])
+          ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[200 ~] `(as-octs:mimes:html 'deleted')])
           (pure:m ~)
         ::  tile store, served from the tiles data ball over the namespace
         ::  /grubbery/tiles/tiles.json → all tile data
@@ -730,7 +730,7 @@
           =/  =json  (tiles-to-json tiles hidden)
           =/  body=octs  (as-octs:mimes:html (en:json:html json))
           ;<  ~  bind:m
-            (send-simple:srv eyre-id [[200 ['content-type' 'application/json'] ~] `body])
+            (send-simple:http-res:io eyre-id [[200 ['content-type' 'application/json'] ~] `body])
           (pure:m ~)
         ::  /grubbery/tiles/icon/<nexus-root-path> → serve a nexus's icon
         ::  file. The path may be deep (a desk-install's desk/data/<nexus>).
@@ -758,10 +758,10 @@
             ?:  (is-boom:tarball s)  out
             `[n s]
           ?~  icon-file
-            ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
+            ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
             (pure:m ~)
           =/  =mime  !<(mime (need-vase:tarball sang.u.icon-file))
-          ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils mime))
+          ;<  ~  bind:m  (send-simple:http-res:io eyre-id (mime-response:http-utils mime))
           (pure:m ~)
         ::  static assets: the shell's javascript and stylesheet
         ?:  |(?=([%'app.js' ~] suffix) ?=([%'style.css' ~] suffix))
@@ -770,11 +770,11 @@
           ;<  fv=view:nexus  bind:m
             (peek:io (nex-road:io rail [%& /ui fname]) `[/ %mime])
           ?.  ?=([%file *] fv)
-            ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
+            ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
             (pure:m ~)
           =/  =mime  !<(mime (need-vase:tarball sang.fv))
           ;<  ~  bind:m
-            (send-simple:srv eyre-id [[200 ~[['content-type' ctype]]] `q.mime])
+            (send-simple:http-res:io eyre-id [[200 ~[['content-type' ctype]]] `q.mime])
           (pure:m ~)
         ::  /apps/grubbery/permits → the read-only permissions page
         ?:  ?=([%permits ~] suffix)
@@ -787,17 +787,17 @@
           ;<  fv=view:nexus  bind:m
             (peek:io (nex-road:io rail [%& /ui %'permits.html']) `[/ %mime])
           ?.  ?=([%file *] fv)
-            ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
+            ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
             (pure:m ~)
           =/  =mime  !<(mime (need-vase:tarball sang.fv))
           ;<  ~  bind:m
-            (send-simple:srv eyre-id [[200 ~[['content-type' 'text/html']]] `q.mime])
+            (send-simple:http-res:io eyre-id [[200 ~[['content-type' 'text/html']]] `q.mime])
           (pure:m ~)
         ?:  ?=([%'approved.json' ~] suffix)
           ;<  approved=(map @t json)  bind:m  (read-approved rail)
           =/  bod=octs  (as-octs:mimes:html (en:json:html [%o approved]))
           ;<  ~  bind:m
-            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+            (send-simple:http-res:io eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
           (pure:m ~)
         ::  /apps/grubbery/weirs.json → ground truth: the live weir on each
         ::  governed dir, with the registry's intention overlaid per road.
@@ -806,7 +806,7 @@
             (peek-as:io (nex-road:io rail [%& /cache %'weirs.json']) ,json)
           =/  bod=octs  (as-octs:mimes:html (en:json:html (fall wv [%o ~])))
           ;<  ~  bind:m
-            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+            (send-simple:http-res:io eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
           (pure:m ~)
         ::  /apps/grubbery/aliases.json → the alias directory as menus:
         ::  app-declared link.json options merged with your stored ones.
@@ -816,7 +816,7 @@
           ;<  lst=json  bind:m  gather-peers
           =/  bod=octs  (as-octs:mimes:html (en:json:html lst))
           ;<  ~  bind:m
-            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+            (send-simple:http-res:io eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
           (pure:m ~)
         ::  /grubbery/tiles/desks/taken → every /desks child name, for
         ::  install-name availability checks.
@@ -829,14 +829,14 @@
           =/  lst=json  a+(turn names |=(n=@ta `json`s+`@t`n))
           =/  bod=octs  (as-octs:mimes:html (en:json:html lst))
           ;<  ~  bind:m
-            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+            (send-simple:http-res:io eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
           (pure:m ~)
         ::  /grubbery/tiles/desks/list → your local desks, for the publish UI.
         ?:  ?=([%desks %list ~] suffix)
           ;<  lst=json  bind:m  discover-desks
           =/  bod=octs  (as-octs:mimes:html (en:json:html lst))
           ;<  ~  bind:m
-            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+            (send-simple:http-res:io eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
           (pure:m ~)
         ::  /grubbery/tiles/desks/stock → the vendored default-repos list with
         ::  each entry's synced status, for the Stock tab.
@@ -844,7 +844,7 @@
           ;<  lst=json  bind:m  stock-status
           =/  bod=octs  (as-octs:mimes:html (en:json:html lst))
           ;<  ~  bind:m
-            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+            (send-simple:http-res:io eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
           (pure:m ~)
         ::  /grubbery/tiles/desks/forge-repos → the forge's repos, each one
         ::  a source a desk can follow. The "From your forge" tab.
@@ -852,14 +852,14 @@
           ;<  lst=json  bind:m  forge-repos
           =/  bod=octs  (as-octs:mimes:html (en:json:html lst))
           ;<  ~  bind:m
-            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+            (send-simple:http-res:io eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
           (pure:m ~)
         ?:  ?=([%'aliases.json' ~] suffix)
           ;<  av=(unit json)  bind:m
             (peek-as:io (nex-road:io rail [%& /cache %'aliases.json']) ,json)
           =/  bod=octs  (as-octs:mimes:html (en:json:html (fall av [%o ~])))
           ;<  ~  bind:m
-            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+            (send-simple:http-res:io eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
           (pure:m ~)
         ::  /apps/grubbery/asks.json → each app's declared weir.json ask.
         ?:  ?=([%'asks.json' ~] suffix)
@@ -867,7 +867,7 @@
             (peek-as:io (nex-road:io rail [%& /cache %'asks.json']) ,json)
           =/  bod=octs  (as-octs:mimes:html (en:json:html (fall av [%a ~])))
           ;<  ~  bind:m
-            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+            (send-simple:http-res:io eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
           (pure:m ~)
         ::  /apps/grubbery/profile.json → who this ship is. Only the @p for
         ::  now; a profile the user fills in and publishes to a usergroup is
@@ -878,7 +878,7 @@
             %-  en:json:html
             (pairs:enjs:format ~[['ship' s+(scot %p our)]])
           ;<  ~  bind:m
-            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+            (send-simple:http-res:io eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
           (pure:m ~)
         ::  /apps/grubbery/link.json → per-name discovery: who may resolve
         ::  each name, from the link record.
@@ -896,7 +896,7 @@
             `[(cat 3 '@' nm) a+(turn gs |=(g=path s+(spat g)))]
           =/  bod=octs  (as-octs:mimes:html (en:json:html (fall sv [%o ~])))
           ;<  ~  bind:m
-            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+            (send-simple:http-res:io eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
           (pure:m ~)
         ::  /apps/grubbery/groups.json → the ship's usergroups (names).
         ?:  ?=([%'groups.json' ~] suffix)
@@ -917,27 +917,27 @@
           =/  bod=octs
             (as-octs:mimes:html (en:json:html a+(turn names |=(g=@t s+g))))
           ;<  ~  bind:m
-            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+            (send-simple:http-res:io eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
           (pure:m ~)
         ::  /icon.svg → the shell's favicon
         ?:  ?=([%'icon.svg' ~] suffix)
           =/  bod=octs  (as-octs:mimes:html shell-icon)
           ;<  ~  bind:m
-            (send-simple:srv eyre-id [[200 ~[['content-type' 'image/svg+xml']]] `bod])
+            (send-simple:http-res:io eyre-id [[200 ~[['content-type' 'image/svg+xml']]] `bod])
           (pure:m ~)
         ::  === peers: the explorer mounted on /sys/ames, with panes ===
         ::  /apps/grubbery/peers.js → the panes (groups, group)
         ?:  ?=([%'peers.js' ~] suffix)
           =/  bod=octs  q.peers-js
           ;<  ~  bind:m
-            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/javascript']]] `bod])
+            (send-simple:http-res:io eyre-id [[200 ~[['content-type' 'application/javascript']]] `bod])
           (pure:m ~)
         ::  /apps/grubbery/peers.json → every usergroup folded from its files
         ?:  ?=([%'peers.json' ~] suffix)
           ;<  groups=json  bind:m  (peers-groups rail)
           =/  bod=octs  (as-octs:mimes:html (en:json:html groups))
           ;<  ~  bind:m
-            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+            (send-simple:http-res:io eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
           (pure:m ~)
         ::  /apps/grubbery/peers-viewer?path=&kind= → which pane a path under
         ::  /sys/ames opens in (the explorer asks per tab; see +peers-viewer)
@@ -947,7 +947,7 @@
           =/  pick=(unit json)  (peers-viewer pax =(`'dir' (~(get by args) 'kind')))
           =/  bod=octs  (as-octs:mimes:html ?~(pick '' (en:json:html u.pick)))
           ;<  ~  bind:m
-            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+            (send-simple:http-res:io eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
           (pure:m ~)
         ::  /apps/grubbery/peers[/<path>] → the explorer's browse page, mounted
         ::  here and rooted at /sys/ames: the ships and usergroups directories,
@@ -955,7 +955,7 @@
         ?:  ?=([%peers *] suffix)
           (serve-explorer-page eyre-id peers-mount)
         ::  default → serve the home page (static file, /<-imported home-html)
-        ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils home-html))
+        ;<  ~  bind:m  (send-simple:http-res:io eyre-id (mime-response:http-utils home-html))
         (pure:m ~)
       ==
     --
@@ -964,7 +964,6 @@
 ::  helper core, where the nexus core above can see it.
 ::
 ++  dbg  ^-(? |)
-++  srv  ~(. http-res:io [%| 1 %& ~ %'http.sig'])
 ::  === peers: usergroups + ships as the explorer mounted on /sys/ames ===
 ::  The page is the explorer's browse page with one declaration injected:
 ::  route /apps/grubbery/peers, root /sys/ames, and a viewer endpoint.
@@ -997,7 +996,7 @@
     ?~  at  (weld decl page)
     :(weld (scag u.at page) decl (slag u.at page))
   ;<  ~  bind:m
-    (send-simple:srv eyre-id [[200 ~[['content-type' 'text/html']]] `(as-octs:mimes:html (crip out))])
+    (send-simple:http-res:io eyre-id [[200 ~[['content-type' 'text/html']]] `(as-octs:mimes:html (crip out))])
   (pure:m ~)
 ::  +peers-viewer: the pane for a path relative to /sys/ames, dirs only
 ++  peers-viewer

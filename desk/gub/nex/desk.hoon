@@ -354,10 +354,9 @@
     =/  cut=tape  (scag (fall (find "?" raw) (lent raw)) raw)
     =/  slashed=?  &(?=(^ cut) =('/' `@`(rear cut)))
     ?:  ?&(=('GET' method.request.req) ?=(~ suffix) !slashed)
-      =/  main-road  (nex-road:io rail [%& ~ %'main.sig'])
       =/  loc=@t  (crip (weld (spud prefix) "/"))
-      ;<  ~  bind:m  (~(send-header http-res:io main-road) eyre-id [301 ~[['location' loc]]])
-      ;<  ~  bind:m  (~(send-data http-res:io main-road) eyre-id ~)
+      ;<  ~  bind:m  (send-header:http-res:io eyre-id [301 ~[['location' loc]]])
+      ;<  ~  bind:m  (send-data:http-res:io eyre-id ~)
       (pure:m ~)
     ?:  =('POST' method.request.req)
       (handle-post eyre-id suffix req rail)
@@ -1445,7 +1444,7 @@
   |=  [eyre-id=@ta =rail:tarball code=@ud msg=@t]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  %+  ~(send-simple http-res:io (nex-road:io rail [%& ~ %'main.sig']))
+  %+  send-simple:http-res:io
     eyre-id
   [[code ~] `(as-octs:mimes:html msg)]
 ::
@@ -1550,7 +1549,7 @@
           ['reason' ?~(text s+reason ~)]
       ==
     =/  bod=octs  (as-octs:mimes:html (en:json:html json))
-    ;<  ~  bind:m  (~(send-simple http-res:io (nex-road:io rail [%& ~ %'main.sig'])) eyre-id (mime-response:http-utils [/application/json bod]))
+    ;<  ~  bind:m  (send-simple:http-res:io eyre-id (mime-response:http-utils [/application/json bod]))
     (pure:m ~)
   ?:  ?=([%raw ?(%code %data) *] suffix)
     ::  raw bytes of one file, in its mark's mime form — for <img> etc.
@@ -1568,7 +1567,7 @@
     ?~  got
       ;<  ~  bind:m  (respond eyre-id rail 404 'no mime form')
       (pure:m ~)
-    ;<  ~  bind:m  (~(send-simple http-res:io (nex-road:io rail [%& ~ %'main.sig'])) eyre-id (mime-response:http-utils u.got))
+    ;<  ~  bind:m  (send-simple:http-res:io eyre-id (mime-response:http-utils u.got))
     (pure:m ~)
   ?:  ?=([%tree ?(%code %data) *] suffix)
     ::  file tree of an axis — its live dir, or /checkout when checked out
@@ -1595,7 +1594,7 @@
           ['necks' a+necks]
       ==
     =/  bod=octs  (as-octs:mimes:html (en:json:html json))
-    ;<  ~  bind:m  (~(send-simple http-res:io (nex-road:io rail [%& ~ %'main.sig'])) eyre-id (mime-response:http-utils [/application/json bod]))
+    ;<  ~  bind:m  (send-simple:http-res:io eyre-id (mime-response:http-utils [/application/json bod]))
     (pure:m ~)
   ?:  =(/source-diff suffix)
     ::  incoming endpoint: how far ahead the source is from our head. Peeks
@@ -1611,7 +1610,7 @@
         (pairs:enjs:format ~[['hasSource' b+|] ['sourceVersion' ~] ['ownVersion' ~] ['changes' [%a ~]]])
       =/  bod=octs  (as-octs:mimes:html (en:json:html json))
       ;<  ~  bind:m
-        (~(send-simple http-res:io (nex-road:io rail [%& ~ %'main.sig'])) eyre-id (mime-response:http-utils [/application/json bod]))
+        (send-simple:http-res:io eyre-id (mime-response:http-utils [/application/json bod]))
       (pure:m ~)
     =/  code-path=path           (parse-path code.u.config)
     =/  code-road=road:tarball   [%& %| code-path]
@@ -1639,7 +1638,7 @@
       ==
     =/  bod=octs  (as-octs:mimes:html (en:json:html json))
     ;<  ~  bind:m
-      (~(send-simple http-res:io (nex-road:io rail [%& ~ %'main.sig'])) eyre-id (mime-response:http-utils [/application/json bod]))
+      (send-simple:http-res:io eyre-id (mime-response:http-utils [/application/json bod]))
     (pure:m ~)
   ?:  =(/state suffix)
     ::  data endpoint: source, version, the world snapshot list, sharing,
@@ -1665,7 +1664,7 @@
           ['dirty' b+!(top-is-snap desk-born)]
       ==
     =/  bod=octs  (as-octs:mimes:html (en:json:html json))
-    ;<  ~  bind:m  (~(send-simple http-res:io (nex-road:io rail [%& ~ %'main.sig'])) eyre-id (mime-response:http-utils [/application/json bod]))
+    ;<  ~  bind:m  (send-simple:http-res:io eyre-id (mime-response:http-utils [/application/json bod]))
     (pure:m ~)
   ::  everything else is a static asset from /ui — the shell (index.html)
   ::  for the page route, or style.css / app.js by name.
@@ -1676,7 +1675,7 @@
     (respond eyre-id rail 404 'Not found')
   =/  =mime  !<(mime (need-vase:tarball sang.fv))
   ;<  ~  bind:m
-    (~(send-simple http-res:io (nex-road:io rail [%& ~ %'main.sig'])) eyre-id (mime-response:http-utils mime))
+    (send-simple:http-res:io eyre-id (mime-response:http-utils mime))
   (pure:m ~)
 ::
 ::  snaps-to-json: the world snapshot list from an axis's born — each
@@ -1942,8 +1941,7 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   =/  hed=response-header:http  [303 ~[['location' './']]]
-  =/  main-road  (nex-road:io rail [%& ~ %'main.sig'])
-  ;<  ~  bind:m  (~(send-header http-res:io main-road) eyre-id hed)
-  ;<  ~  bind:m  (~(send-data http-res:io main-road) eyre-id ~)
+  ;<  ~  bind:m  (send-header:http-res:io eyre-id hed)
+  ;<  ~  bind:m  (send-data:http-res:io eyre-id ~)
   (pure:m ~)
 --

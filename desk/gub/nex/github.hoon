@@ -482,10 +482,9 @@
       ['Content-Type' 'application/json']
   ==
 ::
-++  web  ~(. web:nw [%| 1 %& ~ %'web.sig'])
-++  reply         reply:web
-++  send-json     send-json:web
-++  serve-static  serve-static:web
+++  reply         reply:web:nw
+++  send-json     send-json:web:nw
+++  serve-static  serve-static:web:nw
 ++  jget          jget:nw
 ++  jnum          jnum:nw
 ++  post-json     post-json:nw

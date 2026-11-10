@@ -139,12 +139,11 @@
           [[%requests ~] @]
         ;<  ~  bind:m  (rise-wait:io prod "%forge request: failed")
         =/  eyre-id=@ta  name.rail
-        =/  s  ~(. http-res:io (nex-road:io rail [%& / %'main.sig']))
         ;<  [src=@p req=inbound-request:eyre]  bind:m
           (get-state-as:io ,[src=@p inbound-request:eyre])
         ;<  our=@p  bind:m  get-our:io
         ?.  =(src our)
-          ;<  ~  bind:m  (send-simple:s eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
+          ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
           (pure:m ~)
         =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
         =/  suffix=path
@@ -154,7 +153,7 @@
           =/  body=@t  ?~(body.request.req '' q.u.body.request.req)
           =/  jon=json  (fall (de:json:html body) *json)
           ?+    suffix
-            ;<  ~  bind:m  (send-simple:s eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
+            ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
             (pure:m ~)
               [%api %add ~]     (do-add rail eyre-id jon)
               [%api %src ~]     (do-src rail eyre-id jon)
@@ -223,7 +222,7 @@
             ?^  got  short.u.got
             (crip (scag (sub (lent (trip repo)) 9) (trip repo)))
           =/  txt=@t  (fill-repo q.q.repo-layout short)
-          ;<  ~  bind:m  (send-simple:s eyre-id (mime-response:http-utils [/application/json (as-octs:mimes:html txt)]))
+          ;<  ~  bind:m  (send-simple:http-res:io eyre-id (mime-response:http-utils [/application/json (as-octs:mimes:html txt)]))
           (pure:m ~)
         ?:  ?=([%repo @ %docs *] suffix)
           ::  the url carries the SHORT repo name (as the workspace does); the
@@ -239,7 +238,7 @@
             ;<  fv=view:nexus  bind:m
               (peek:io (nex-road:io rail [%& / %'docs-reader.html']) `[/ %mime])
             ?.  ?=([%file *] fv)  (respond rail eyre-id 404 'reader missing')
-            ;<  ~  bind:m  (send-simple:s eyre-id (mime-response:http-utils !<(mime (need-vase:tarball sang.fv))))
+            ;<  ~  bind:m  (send-simple:http-res:io eyre-id (mime-response:http-utils !<(mime (need-vase:tarball sang.fv))))
             (pure:m ~)
             ::  nav + coverage are read from the data nexus's precomputed ui/
             ::  grubs (the git trick) — no per-request fold or source reads.
@@ -335,7 +334,7 @@
               (load-repo-from-ns:load-repo rail /repos/[repo]/data)
             =/  span=(unit (list @t))  (pin-span-at store eff file from to)
             =/  txt=@t  ?~(span '' (of-wain:format u.span))
-            ;<  ~  bind:m  (send-simple:s eyre-id (mime-response:http-utils [/text/plain (as-octs:mimes:html txt)]))
+            ;<  ~  bind:m  (send-simple:http-res:io eyre-id (mime-response:http-utils [/text/plain (as-octs:mimes:html txt)]))
             (pure:m ~)
           ==
         ::  page URLs serve the shell; anything else is a static file
@@ -346,7 +345,7 @@
         ;<  fv=view:nexus  bind:m
           (peek:io (nex-road:io rail [%& / filename]) `[/ %mime])
         ?.  ?=([%file *] fv)
-          ;<  ~  bind:m  (send-simple:s eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
+          ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
           (pure:m ~)
         =/  =mime  !<(mime (need-vase:tarball sang.fv))
         ::  the page is told where the forge lives, so its links into the
@@ -357,7 +356,7 @@
           ;<  here=rail:tarball  bind:m  get-here-abs:io
           =/  decl=tape  "<script>window.FORGE_ROOT = \"{(spud (snip `path`path.here))}\";</script>\0a"
           (pure:m [p.mime (as-octs:mimes:html (crip (weld decl (trip q.q.mime))))])
-        ;<  ~  bind:m  (send-simple:s eyre-id (mime-response:http-utils page))
+        ;<  ~  bind:m  (send-simple:http-res:io eyre-id (mime-response:http-utils page))
         (pure:m ~)
       ==
     --
@@ -447,7 +446,7 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ;<  ~  bind:m
-    %+  ~(send-simple http-res:io (nex-road:io rail [%& / %'main.sig']))
+    %+  send-simple:http-res:io
       eyre-id
     [[code ~] `(as-octs:mimes:html msg)]
   (pure:m ~)
@@ -458,7 +457,7 @@
   ^-  form:m
   =/  bod=octs  (as-octs:mimes:html (en:json:html jon))
   ;<  ~  bind:m
-    %+  ~(send-simple http-res:io (nex-road:io rail [%& / %'main.sig']))
+    %+  send-simple:http-res:io
       eyre-id
     [[200 ~[['content-type' 'application/json']]] `bod]
   (pure:m ~)
