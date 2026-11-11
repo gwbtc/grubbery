@@ -2734,7 +2734,15 @@
   ?~  roots  (pure:m (flop acc))
   =/  root=path  i.roots
   =/  leaf=@ta  (rear root)
-  =/  slug=@ta  (app-slug leaf)
+  ::  a tile is named by the app's address, not by its file: every app
+  ::  ships a tile.json, and two desks shipping the same app are two
+  ::  tiles. A desk's app is <desk>/<app>, a root app just <app>.
+  =/  slug=@ta
+    ?:  ?=([%apps %shell %desks @ %desk %data @ ~] root)
+      `@ta`(crip "{(trip (app-slug i.t.t.t.root))}/{(trip (app-slug leaf))}")
+    ?:  ?=([%apps @ %desk %data @ ~] root)
+      `@ta`(crip "{(trip i.t.root)}/{(trip (app-slug leaf))}")
+    (app-slug leaf)
   ;<  kid-view=view:nexus  bind:m
     (peek:io [%& %& [root %'tile.json']] `[/ %json])
   ?.  ?=([%file *] kid-view)

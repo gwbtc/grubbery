@@ -1564,6 +1564,62 @@
     %wait  [%wait ~]
     %skip  [%skip ~]
   ==
+::  +with-inbox: run a computation, and take the inputs `pick` picks
+::  out meanwhile instead of letting the computation skip them. A
+::  skipped input is run again at every later step of the fiber, so a
+::  grub doing work per message while messages keep arriving pays for
+::  its whole backlog on every step. One taken here is consumed once
+::  and handed back, in order, with the result. The check sits in front
+::  of every intake the computation steps through, as +with-timeout's.
+::
+::  pick is any gate from an input to the thing to keep: a text frame
+::  on a websocket, a poke with a given blot, a wave on a wire.
+::
+::  What is taken is held in this continuation, not in the process's
+::  queues: a take the kernel keeps outlives a crash and a rebuild, an
+::  item taken here does not. Use it where the source can resend, or
+::  file each item before acting on it. A durable variant is possible
+::  here: on picking an item, emit a make for it as <dir>/<seq> in the
+::  same step (an output carries darts), consume the %made ack on that
+::  wire the way frames are consumed, and have the owner list <dir> on
+::  restart. One make per item; not built until something needs it.
+::
+++  with-inbox
+  |*  [item=mold result=mold]
+  =/  m   (fiber ,[result (list item)])
+  =/  mr  (fiber ,result)
+  |=  [pick=$-(input (unit item)) computation=form:mr]
+  =|  got=(list item)
+  |=  =input
+  ^-  output:m
+  =/  it=(unit item)  (pick input)
+  ?^  it
+    [~ q.state.input %cont ..$(got [u.it got])]
+  =/  c-res=output:mr  (computation input)
+  ?:  ?=(%cont -.next.c-res)
+    [darts.c-res state.c-res %cont ..$(computation self.next.c-res)]
+  ?:  ?=(%done -.next.c-res)
+    [darts.c-res state.c-res %done [value.next.c-res (flop got)]]
+  ?:  ?=(%fail -.next.c-res)
+    [darts.c-res state.c-res %fail err.next.c-res]
+  :+  darts.c-res  state.c-res
+  ?-  -.next.c-res
+    %wait  [%wait ~]
+    %skip  [%skip ~]
+  ==
+::  +ws-frames-for: a +with-inbox picker: the text frames on this socket
+::
+++  ws-frames-for
+  |=  wid=@ud
+  |=  =input
+  ^-  (unit @t)
+  ?.  ?=([~ %poke * *] in.input)  ~
+  ?.  =([/ %ws-frame] p.sage.u.in.input)  ~
+  =/  [w=@ud msg=ws-message:nexus]  !<([@ud ws-message:nexus] q.sage.u.in.input)
+  ?.  =(w wid)  ~
+  ?~  message.msg  ~
+  =/  bytes=octs  u.message.msg
+  `q.bytes
 ::  Convenience accessors
 ::
 ::  Bowl reads (+get-our/+get-time/+get-entropy) poke /sys/bowl.sig and
