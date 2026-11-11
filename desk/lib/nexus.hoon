@@ -92,7 +92,6 @@
       [%none ~]
       [%miss ~]
       [%veto ~]
-      [%tomb ~]
   ==
 +$  cite
   ::  at: the grub's position, where its mark resolves from. The path it
@@ -102,7 +101,6 @@
       [%none ~]
       [%miss ~]
       [%veto ~]
-      [%tomb ~]
   ==
 :: dart payload
 ::
@@ -294,7 +292,7 @@
         [%held =wire err=(unit tang)] :: response to firm
         [%seek =wire res=(each (list [=rail:tarball =cass:clay]) tang)] :: response to seek
         [%peep =wire res=(each (list [=cass:clay =sage:tarball]) tang)] :: response to peep
-        [%born =wire res=(each (list [=cass:clay tags=(set @t) tomb=?]) tang)] :: hist metadata
+        [%born =wire res=(each (list [=cass:clay tags=(set @t)]) tang)] :: hist metadata
 
         [%fell =wire]                 :: subscription canceled (weir change, deletion, etc)
         [%news =wire =wave] :: subscription wave (initial or update)
@@ -321,7 +319,7 @@
         [%gain =wire err=(unit tang)]
         [%held =wire err=(unit tang)]
         [%seek =wire res=(each (list [=rail:tarball =cass:clay]) tang)]
-        [%born =wire res=(each (list [=cass:clay tags=(set @t) tomb=?]) tang)]
+        [%born =wire res=(each (list [=cass:clay tags=(set @t)]) tang)]
         [%fell =wire]
         [%veto =dart]
         [%here =wire =here]
@@ -458,15 +456,14 @@
 ::  with a peak above born's top is a path that no longer exists -- the
 ::  absence is READ FROM THE PAIR, never stored.
 ::
-::  %tomb is no longer minted locally and survives only as a type for
-::  histories written before state 9 and for the farm's remote protocol.
-::  TODO: reintroduce a tomb that carries the hash of what it replaced,
-::  as remote scry's does, so a history can say "this cass was X and was
-::  dropped" and a remote holder of X can verify it.
+::  There is no tomb pace: a dropped version is simply absent, and its
+::  number lives on in $peak. It might be nice to have one that carries
+::  the hash of what it replaced, as remote scry's does, so a history
+::  could say "this cass was X and was dropped" and a remote holder of
+::  X could verify it.
 +$  pace
   $%  [%firm lobe=jobe]
       [%temp lobe=jobe]
-      [%tomb ~]
   ==
 ++  hist
   =<  hist
@@ -627,7 +624,6 @@
     ?~  fold-top  ~
     =/  got=(unit pace:hist)  (get-pace:hist fold.node u.fold-top)
     ?~  got  ~
-    ?:  ?=(%tomb -.u.got)  ~
     =/  jot  (~(get by jects.silo) lobe.u.got)
     ?~  jot  ~
     ?.  ?=(%tree -.ject.u.jot)  ~
@@ -662,11 +658,9 @@
     ::  record of a gained path past its death, so born's top is no
     ::  longer the question -- without this the rebuild reads that
     ::  record and puts the grub back, and the cull never took.
-    =/  mark=(unit cass:clay)  (~(get-file pk peak) [dir name])
-    ?:  ?&(?=(^ mark) (gth ud.u.mark ud.u.cas))  out
+    ?:  (~(gone-file pk peak) [dir name] u.cas)  out
     =/  val=(unit pace:hist)  (get-pace:hist sk u.cas)
     ?~  val  out
-    ?:  ?=(%tomb -.u.val)  out
     (~(put by out) name lobe.u.val)
   ::  dir: each child's latest tree lobe + weir from existing tree
   =/  dir-map=(map @ta [jobe weir=(unit weir)])
@@ -677,12 +671,10 @@
     =/  cas=(unit cass:clay)  (top-fold fold.u.kid-node)
     ?~  cas  out
     ::  gone, the same way a grub is
-    =/  mark=(unit cass:clay)  (~(get-fold pk peak) (snoc dir name))
-    ?:  ?&(?=(^ mark) (gth ud.u.mark ud.u.cas))  out
+    ?:  (~(gone-fold pk peak) (snoc dir name) u.cas)  out
     =/  got=(unit pace:hist)
       (get-pace:hist fold.u.kid-node u.cas)
     ?~  got  out
-    ?:  ?=(%tomb -.u.got)  out
     =/  kid-weir=(unit weir)
       ?~  existing-tree  ~
       =/  entry  (~(get by dir.u.existing-tree) name)
@@ -713,7 +705,6 @@
       ?~  fold-cas  ~
       (get-pace:hist fold.node u.fold-cas)
     ?~  cur-pace  ~
-    ?:  ?=(%tomb -.u.cur-pace)  ~
     `lobe.u.cur-pace
   ?:  =(`new-lobe cur-lobe)
     [%.n born silo]
@@ -862,6 +853,21 @@
       (fall (~(get of peak) dir) [~ ~])
     ?:  &(?=(^ fold.node) (gte ud.u.fold.node ud.cass))  peak
     (~(put of peak) dir node(fold `cass))
+  ::  +gone-file / +gone-fold: is this rail dead? A death is a number
+  ::  in peak above born's top, never a version: retention may keep a
+  ::  gained path's record past its death, so born's top is not the
+  ::  question. Every tree rebuild asks this before it reads a record.
+  ::
+  ++  gone-file
+    |=  [here=rail:tarball top=cass:clay]
+    ^-  ?
+    =/  mark=(unit cass:clay)  (get-file here)
+    &(?=(^ mark) (gth ud.u.mark ud.top))
+  ++  gone-fold
+    |=  [here=fold:tarball top=cass:clay]
+    ^-  ?
+    =/  mark=(unit cass:clay)  (get-fold here)
+    &(?=(^ mark) (gth ud.u.mark ud.top))
   --
 ::  +si: Pure operations on silo (content-addressed object store)
 ::
@@ -914,7 +920,6 @@
     |-
     ?~  entries  silo
     =/  pv=pace:^hist  pace.val.i.entries
-    ?:  ?=(%tomb -.pv)  $(entries t.entries)
     $(entries t.entries, silo (drop-ject lobe.pv))
   ::  Increment noun refcount by lobe (must exist).
   ::
@@ -1149,7 +1154,6 @@
     =/  prev-leaf=(unit leaf)
       =/  prev-pace=(unit pace:^hist)  (get-pace:^hist hist file-cass)
       ?~  prev-pace  ~
-      ?:  ?=(%tomb -.u.prev-pace)  ~
       =/  got  (~(get by jects.silo) lobe.u.prev-pace)
       ?~  got  ~
       ?.  ?=(%leaf -.ject.u.got)  ~
@@ -1639,14 +1643,12 @@
           ['da' s+(scot %da da.key)]
           :-  'pace'
           ?-  -.pace.val
-            %tomb  s+'tomb'
             %firm
           s+(cat 3 'firm+' (scot %uv lobe.pace.val))
             %temp
           s+(cat 3 'temp+' (scot %uv lobe.pace.val))
           ==
           :-  'tags'
-          ?:  ?=(%tomb -.pace.val)  ~
           a+(turn ~(tap in tags.val) |=(t=@t s+t))
       ==
   ==
@@ -1669,14 +1671,12 @@
                 ['da' s+(scot %da da.key)]
                 :-  'pace'
                 ?-  -.pace.val
-                  %tomb  s+'tomb'
                   %firm
                 s+(cat 3 'firm+' (scot %uv lobe.pace.val))
                   %temp
                 s+(cat 3 'temp+' (scot %uv lobe.pace.val))
                 ==
                 :-  'tags'
-                ?:  ?=(%tomb -.pace.val)  ~
                 a+(turn ~(tap in tags.val) |=(t=@t s+t))
             ==
         ==

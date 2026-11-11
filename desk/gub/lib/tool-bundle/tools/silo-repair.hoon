@@ -1,5 +1,5 @@
 /<  tools  /lib/tools.hoon
-::  silo-repair: tomb audit-damaged versions in place, then re-audit
+::  silo-repair: drop audit-damaged versions, then re-audit
 ::
 !:
 ^-  tool:tools
@@ -8,8 +8,8 @@
 ++  description
   ^~  %-  crip
   ;:  weld
-    "Repair the silo: tomb every version the audit reports as "
-    "referenced-but-absent — in place, at the runtime level. Latest "
+    "Repair the silo: drop every version the audit reports as "
+    "referenced-but-absent, at the runtime level. Latest "
     "versions are never touched. Explicitly triggered, never "
     "automatic. Re-runs the audit afterward and returns it as the "
     "receipt (expect 0 remaining)."

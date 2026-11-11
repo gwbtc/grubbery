@@ -67,7 +67,5 @@
     (pure:m [%text (crip "Nothing at {label}")])
   ?:  ?=(%veto -.view)
     (pure:m [%error (crip "Blocked: no permission to peek {label}")])
-  ?:  ?=(%tomb -.view)
-    (pure:m [%error (crip "Tombstoned: data at {label} has been removed")])
   (pure:m [%text (crip "Peeked {label}: {<-.view>}")])
 --

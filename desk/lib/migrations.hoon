@@ -686,6 +686,8 @@
   |=  [here=path p=pend-10]
   ^-  pend-11
   ?.  ?=(%peek -.p)  p
+  ::  a %tomb answer was a dead path; a dead path answers %none
+  ?:  ?=(%tomb -.cite.p)  [%peek wire.p [%none ~]]
   ?.  ?=(%file -.cite.p)  [%peek wire.p cite.p]
   [%peek wire.p [%file cass.cite.p lobe.cite.p conv.cite.p here]]
 ++  state-8-to-9
@@ -876,7 +878,7 @@
 ::
 +$  pend-11
   $%  [%poke =from =bask:tarball]
-      [%peek =wire =cite]
+      [%peek =wire cite=cite-14]
       [%peep =wire res=(each (list [=cass:clay lobe=jobe]) tang)]
       [%code =wire res=(each (axal (map @ta @uv)) (each @uv tang))]
       [%news =wire =wave]
@@ -913,7 +915,7 @@
       =peak:nexus
       =silo:nexus
       =subs:nexus
-      =pool:nexus
+      pool=pool-14
       =code:nexus
       =bins:nexus
       =vale:nexus
@@ -943,14 +945,14 @@
 ::
 ++  pool-11-to-pool
   |=  p=pool-11
-  ^-  pool:nexus
+  ^-  pool-14
   :-  ?~  fil.p  ~
       `[bang.u.fil.p (~(run by proc.u.fil.p) proc-11-to-proc)]
   (~(run by dir.p) pool-11-to-pool)
 ::
 ++  proc-11-to-proc
   |=  p=proc-11
-  ^-  proc:fiber:nexus
+  ^-  proc-14
   :+  ?:  ?=(%| -.process.p)  process.p
       |+~[leaf+"migrated: process rebuilt on load (%firm gained tags)"]
     (takes-11-to-takes next.p)
@@ -958,18 +960,18 @@
 ::
 ++  takes-11-to-takes
   |=  q=(qeu take-11)
-  ^-  (qeu take)
-  (~(gas to *(qeu take)) (turn ~(tap to q) take-11-to-take))
+  ^-  (qeu take-14)
+  (~(gas to *(qeu take-14)) (turn ~(tap to q) take-11-to-take))
 ::
 ++  take-11-to-take
   |=  t=take-11
-  ^-  take
+  ^-  take-14
   ?~  in.t  [give.t ~]
   [give.t `(pend-11-to-pend u.in.t)]
 ::
 ++  pend-11-to-pend
   |=  p=pend-11
-  ^-  pend
+  ^-  pend-14
   ?.  ?=(%veto -.p)  p
   [%veto (dart-11-to-dart dart.p)]
 ::
@@ -985,6 +987,177 @@
   ?.  ?=(%firm -.l)  l
   [%firm ~]
 ::
++|  %frozen-14
+::  %15 has no tomb pace; a dropped version is absent, its number in
+::  $peak. The chain pace -> entry -> hist -> born freezes here, and so
+::  does remo, whose staged peeks hold a pace; states %13 and %14 hold
+::  these.
+::
++$  pace-14
+  $%  [%firm lobe=jobe:nexus]
+      [%temp lobe=jobe:nexus]
+      [%tomb ~]
+  ==
++$  entry-14  [pace=pace-14 tags=(set @t)]
++$  hist-14   ((mop cass:clay entry-14) cor:hist:nexus)
+++  hon-14    ((on cass:clay entry-14) cor:hist:nexus)
++$  born-14   (axal [fold=hist-14 file=(map @ta hist-14)])
+::  a peek answer could say %tomb; now a dead path answers %none. The
+::  pool's queued takes and the owed queue hold pends, so they freeze.
+::
++$  cite-14
+  $%  [%file =cass:clay lobe=jobe:nexus conv=(unit blot:tarball) at=path]
+      [%ball =wave:nexus lobe=jobe:nexus deep=?]
+      [%none ~]
+      [%miss ~]
+      [%veto ~]
+      [%tomb ~]
+  ==
++$  pend-14
+  $%  [%poke =from =bask:tarball]
+      [%peek =wire cite=cite-14]
+      [%peep =wire res=(each (list [=cass:clay lobe=jobe]) tang)]
+      [%code =wire res=(each (axal (map @ta @uv)) (each @uv tang))]
+      [%news =wire =wave]
+      [%kept =wire =kept]
+      [%made =wire err=(unit tang)]
+      [%gone =wire err=(unit tang)]
+      [%pack =wire err=(unit tang)]
+      [%sand =wire err=(unit tang)]
+      [%load =wire err=(unit tang)]
+      [%lost =wire err=(unit tang)]
+      [%gain =wire err=(unit tang)]
+      [%held =wire err=(unit tang)]
+      [%seek =wire res=(each (list [=rail:tarball =cass:clay]) tang)]
+      [%born =wire res=(each (list [=cass:clay tags=(set @t) tomb=?]) tang)]
+      [%fell =wire]
+      [%veto =dart]
+      [%here =wire =here]
+  ==
++$  take-14  [give=(unit give) in=(unit pend-14)]
++$  otake-14  [here=rail:tarball take-14]                        ::  the kernel's take, owed between events
++$  proc-14
+  $:  process=(each * tang)
+      next=(qeu take-14)
+      skip=(qeu take-14)
+  ==
++$  pipe-14  [bang=(unit tang) proc=(map @ta proc-14)]
++$  pool-14  (axal pipe-14)
++$  snap-14   [=cass:clay pace=pace-14 refs=lobes:nexus]
++$  peek-14   [ship=@p dest=lane:tarball deep=? blot=(unit blot:tarball) snap=(unit snap-14) snap-id=@uvJ]
++$  peeks-14  (map [rail:tarball wire] peek-14)
++$  remo-14   [peeks=peeks-14 snaps=snaps:remo:nexus]
+::  state-15: the tomb pace is gone from the type. Nothing minted one
+::  since %9 except a silo repair, so a stored history should hold none;
+::  one that does loses that entry, which referenced nothing anyway.
+::
++$  state-15
+  $:  %15
+      =born:nexus
+      =peak:nexus
+      =silo:nexus
+      =subs:nexus
+      =pool:nexus
+      =code:nexus
+      =bins:nexus
+      =vale:nexus
+      =remo:nexus
+      =upki:nexus
+      =last:nexus
+      conns=(map @ta binding:eyre)
+      owed=(qeu take:nexus)
+  ==
+++  state-14-to-15
+  |=  old=state-14
+  ^-  state-15
+  :*  %15
+      (born-14-to-born born.old)
+      peak.old  silo.old  subs.old  (pool-14-to-pool pool.old)  code.old
+      bins.old  vale.old  (remo-14-to-remo remo.old)  upki.old  last.old
+      conns.old  (owed-14-to-owed owed.old)
+  ==
+++  owed-14-to-owed
+  |=  q=(qeu otake-14)
+  ^-  (qeu take:nexus)
+  %-  ~(gas to *(qeu take:nexus))
+  (turn ~(tap to q) |=(t=otake-14 [here.t (take-14-to-take +.t)]))
+++  pool-14-to-pool
+  |=  p=pool-14
+  ^-  pool:nexus
+  :-  ?~  fil.p  ~
+      `[bang.u.fil.p (~(run by proc.u.fil.p) proc-14-to-proc)]
+  (~(run by dir.p) pool-14-to-pool)
+++  proc-14-to-proc
+  |=  p=proc-14
+  ^-  proc:fiber:nexus
+  :+  ?:  ?=(%| -.process.p)  process.p
+      |+~[leaf+"migrated: process rebuilt on load (no tomb)"]
+    (takes-14-to-takes next.p)
+  (takes-14-to-takes skip.p)
+++  takes-14-to-takes
+  |=  q=(qeu take-14)
+  ^-  (qeu take)
+  (~(gas to *(qeu take)) (turn ~(tap to q) take-14-to-take))
+++  take-14-to-take
+  |=  t=take-14
+  ^-  take
+  ?~  in.t  [give.t ~]
+  [give.t `(pend-14-to-pend u.in.t)]
+::  a %born answer carried a tomb flag per entry and a peek could answer
+::  %tomb; neither exists. A dead path answers %none.
+::
+++  pend-14-to-pend
+  |=  p=pend-14
+  ^-  pend
+  ?:  ?=(%born -.p)
+    :+  %born  wire.p
+    ?:  ?=(%| -.res.p)  res.p
+    [%& (turn p.res.p |=([=cass:clay tags=(set @t) *] [cass tags]))]
+  ?:  ?=(%peek -.p)
+    [%peek wire.p ?:(?=(%tomb -.cite.p) [%none ~] cite.p)]
+  p
+++  born-14-to-born
+  |=  b=born-14
+  ^-  born:nexus
+  :-  ?~  fil.b  ~
+      =/  files=(map @ta hist:nexus)
+        %-  ~(gas by *(map @ta hist:nexus))
+        %+  murn  ~(tap by file.u.fil.b)
+        |=  [nom=@ta h=hist-14]
+        ^-  (unit [@ta hist:nexus])
+        =/  kept=hist:nexus  (hist-14-to-hist h)
+        ?:  =(~ kept)  ~
+        `[nom kept]
+      `[(hist-14-to-hist fold.u.fil.b) files]
+  (~(run by dir.b) born-14-to-born)
+++  hist-14-to-hist
+  |=  h=hist-14
+  ^-  hist:nexus
+  %+  gas:hon:hist:nexus  *hist:nexus
+  %+  murn  (tap:hon-14 h)
+  |=  [key=cass:clay val=entry-14]
+  ^-  (unit [cass:clay entry:hist:nexus])
+  ?-  -.pace.val
+    %tomb  ~
+    %firm  `[key [[%firm lobe.pace.val] tags.val]]
+    %temp  `[key [[%temp lobe.pace.val] tags.val]]
+  ==
+++  remo-14-to-remo
+  |=  r=remo-14
+  ^-  remo:nexus
+  :_  snaps.r
+  %-  ~(run by peeks.r)
+  |=  p=peek-14
+  ^-  peek:remo:nexus
+  :*  ship.p  dest.p  deep.p  blot.p
+      ?~  snap.p  ~
+      ?-  -.pace.u.snap.p
+        %tomb  ~
+        %firm  `[cass.u.snap.p [%firm lobe.pace.u.snap.p] refs.u.snap.p]
+        %temp  `[cass.u.snap.p [%temp lobe.pace.u.snap.p] refs.u.snap.p]
+      ==
+      snap-id.p
+  ==
 +|  %frozen-12
 ::  %13 makes emptiness unrepresentable: a version always references
 ::  content. The chain pace -> entry -> hist -> born freezes here, and
@@ -1024,15 +1197,15 @@
 ::
 +$  state-13
   $:  %13
-      =born:nexus
+      born=born-14
       =peak:nexus
       =silo:nexus
       =subs:nexus
-      =pool:nexus
+      pool=pool-14
       =code:nexus
       =bins:nexus
       =vale:nexus
-      =remo:nexus
+      remo=remo-14
       =upki:nexus
       =last:nexus
       conns=(map @ta binding:eyre)
@@ -1060,19 +1233,19 @@
 ::
 +$  state-14
   $:  %14
-      =born:nexus
+      born=born-14
       =peak:nexus
       =silo:nexus
       =subs:nexus
-      =pool:nexus
+      pool=pool-14
       =code:nexus
       =bins:nexus
       =vale:nexus
-      =remo:nexus
+      remo=remo-14
       =upki:nexus
       =last:nexus
       conns=(map @ta binding:eyre)
-      owed=(qeu take:nexus)
+      owed=(qeu otake-14)
   ==
 ++  state-13-to-14
   |=  old=state-13
@@ -1101,11 +1274,11 @@
 ::
 ++  remo-12-to-remo
   |=  r=remo-12
-  ^-  remo:nexus
+  ^-  remo-14
   :_  snaps.r
   %-  ~(run by peeks.r)
   |=  p=peek-12
-  ^-  peek:remo:nexus
+  ^-  peek-14
   :*  ship.p
       dest.p
       deep.p
@@ -1126,14 +1299,14 @@
 ::
 ++  born-12-to-born
   |=  b=born-12
-  ^-  born:nexus
+  ^-  born-14
   :-  ?~  fil.b  ~
-      =/  files=(map @ta hist:nexus)
-        %-  ~(gas by *(map @ta hist:nexus))
+      =/  files=(map @ta hist-14)
+        %-  ~(gas by *(map @ta hist-14))
         %+  murn  ~(tap by file.u.fil.b)
         |=  [nom=@ta h=hist-12]
-        ^-  (unit [@ta hist:nexus])
-        =/  kept=hist:nexus  (hist-12-to-hist h)
+        ^-  (unit [@ta hist-14])
+        =/  kept=hist-14  (hist-12-to-hist h)
         ?:  =(~ kept)  ~
         `[nom kept]
       `[(hist-12-to-hist fold.u.fil.b) files]
@@ -1141,11 +1314,11 @@
 ::
 ++  hist-12-to-hist
   |=  h=hist-12
-  ^-  hist:nexus
-  %+  gas:hon:hist:nexus  *hist:nexus
+  ^-  hist-14
+  %+  gas:hon-14  *hist-14
   %+  murn  (tap:hon-12 h)
   |=  [key=cass:clay val=entry-12]
-  ^-  (unit [cass:clay entry:hist:nexus])
+  ^-  (unit [cass:clay entry-14])
   ?:  ?=(%tomb -.pace.val)  `[key [[%tomb ~] tags.val]]
   ?~  p.pace.val  ~
   :+  ~  key

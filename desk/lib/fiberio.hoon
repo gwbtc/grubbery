@@ -615,7 +615,7 @@
   =/  m  (fiber ,?)
   ^-  form:m
   ;<  =view:nexus  bind:m  (peek road ~)
-  (pure:m !?=(?(%none %miss %veto %tomb) -.view))
+  (pure:m !?=(?(%none %miss %veto) -.view))
 ::
 ::  +ensure-fold: a directory with at least this layout. Nothing there:
 ::  made as the bole says. A directory there: every child directory the
@@ -782,11 +782,11 @@
     [%done res.u.in]
   ==
 ::  +born: read hist metadata at dest — file (%&) or fold (%|).
-::  Pure metadata: revision, tags, tombstone flag per entry.
+::  Pure metadata: revision and tags per entry.
 ::
 ++  born
   |=  =road:tarball
-  =/  m  (fiber ,(each (list [=cass:clay tags=(set @t) tomb=?]) tang))
+  =/  m  (fiber ,(each (list [=cass:clay tags=(set @t)]) tang))
   ^-  form:m
   ;<  =wire  bind:m  (nonce /born)
   ;<  ~  bind:m  (send-dart %node wire road %born ~)

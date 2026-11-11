@@ -29,17 +29,15 @@
         =/  clean=tape  ?:(&(!=(~ t) =('/' (rear t))) (snip t) t)
         ?~  clean  /
         (stab (crip clean))
-      ;<  res=(each (list [=cass:clay tags=(set @t) tomb=?]) tang)  bind:m
+      ;<  res=(each (list [=cass:clay tags=(set @t)]) tang)  bind:m
         (born:io [%& %| dir-pax])
       ?:  ?=(%| -.res)
         (pure:m [%error (crip "no history: {<p.res>}")])
       =/  entries  p.res
       =/  total=@ud  (lent entries)
-      =/  tombs=@ud
-        (lent (skim entries |=([* * tomb=?] tomb)))
       =/  latest=tape
         ?~  entries  "none"
-        =/  last  (rear `(list [=cass:clay tags=(set @t) tomb=?])`entries)
+        =/  last  (rear `(list [=cass:clay tags=(set @t)])`entries)
         <cass.last>
       %-  pure:m
       :-  %text
@@ -47,7 +45,6 @@
       ;:  weld
         "fold hist for {<dir-pax>}:\0a"
         "  total entries (makes+culls ever): {<total>}\0a"
-        "  tombstoned: {<tombs>}\0a"
         "  latest cass: {latest}"
       ==
     --

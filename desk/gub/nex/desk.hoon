@@ -411,7 +411,7 @@
 ::  born hist metadata, as returned by born:io
 ::
 +$  binfo  (list binfo-entry)
-+$  binfo-entry  [=cass:clay tags=(set @t) tomb=?]
++$  binfo-entry  [=cass:clay tags=(set @t)]
 ::
 ::  the OPENING state (which usergroups may peek the code) lives in the
 ::  share.usergroups grub, not here.
@@ -843,7 +843,7 @@
 ::  — no version-derived tagging. Every live-mutating action snapshots
 ::  first, so this is the universal "save the world" primitive.
 ::
-::  wipe-history: tombstone every firmed revision of the /desk fold
+::  wipe-history: drop every firmed revision of the /desk fold
 ::  except the live top — a clean slate before the baseline snapshot.
 ::
 ++  wipe-history
@@ -920,9 +920,7 @@
     ?~  a  `e
     ?:((gth ud.cass.e ud.cass.u.a) `e a)
   ?~  top  %.n
-  ?&  !tomb.u.top
-      ?=(^ (skim ~(tap in tags.u.top) num-tag))
-  ==
+  ?=(^ (skim ~(tap in tags.u.top) num-tag))
 ::
 ::  +version-text: render a version file's content as text, by mark.
 ::  ~ for marks with no text rendering.
@@ -1166,12 +1164,11 @@
   ^-  (list @ud)
   ?:  ?=(%| -.hist)  ~
   %+  murn  p.hist
-  |=  [=cass:clay tags=(set @t) tomb=?]
+  |=  [=cass:clay tags=(set @t)]
   ^-  (unit @ud)
-  ?:  tomb  ~
   =/  ns=(list @ud)  (murn ~(tap in tags) |=(t=@t (rush t dem)))
   ?~(ns ~ `i.ns)
-::  clear-snap: tombstone world snapshot N (one /desk fold revision)
+::  clear-snap: drop world snapshot N (one /desk fold revision)
 ::
 ++  clear-snap
   |=  [=rail:tarball n=@ud]
@@ -1688,9 +1685,8 @@
   ?:  ?=(%| -.res)  ~
   =/  snaps=(list [n=@ud da=@da tags=(list @t)])
     %+  murn  p.res
-    |=  [=cass:clay tags=(set @t) tomb=?]
+    |=  [=cass:clay tags=(set @t)]
     ^-  (unit [n=@ud da=@da tags=(list @t)])
-    ?:  tomb  ~
     =/  ns=(list @ud)  (murn ~(tap in tags) |=(t=@t (rush t dem)))
     ?~(ns ~ `[i.ns da.cass (user-tags tags)])
   %+  turn  (sort snaps |=([a=[n=@ud *] b=[n=@ud *]] (gth n.a n.b)))

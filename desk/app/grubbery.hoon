@@ -59,7 +59,8 @@
 /=  t-  /tests/loader
 |%
 +$  versioned-state
-  $%  state-14:migrations
+  $%  state-15:migrations
+      state-14:migrations
       state-13:migrations
       state-12:migrations
       state-11:migrations
@@ -170,7 +171,7 @@
 ::  reference, and it only changes with the agent itself.
 ::
 =/  sut-hash=@uv  (sham q:sut)
-=|  state-14:migrations
+=|  state-15:migrations
 =*  state  -
 ::
 =<
@@ -204,15 +205,22 @@
   |=  old-state=vase
   ^-  (quip card _this)
   =/  old  !<(versioned-state old-state)
-  ?:  ?=(%14 -.old)
+  ?:  ?=(%15 -.old)
     =.  state  old
+    =^  start-cards  state
+      abet:cold-start:hc
+    [start-cards this]
+  ::  %14 -> %15: no tomb pace; a dropped version is absent.
+  ?:  ?=(%14 -.old)
+    ~>  %slog.[0 leaf+"grubbery: migrating state %14 -> %15"]
+    =.  state  (state-14-to-15:migrations old)
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
   ::  %13 -> %14: the take queue gets a place to wait between events.
   ?:  ?=(%13 -.old)
-    ~>  %slog.[0 leaf+"grubbery: migrating state %13 -> %14"]
-    =.  state  (state-13-to-14:migrations old)
+    ~>  %slog.[0 leaf+"grubbery: migrating state %13 -> %14 -> %15"]
+    =.  state  (state-14-to-15:migrations (state-13-to-14:migrations old))
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
@@ -220,24 +228,24 @@
   ::  reference goes, and a rail left with no versions goes with them --
   ::  peak still holds its number.
   ?:  ?=(%12 -.old)
-    ~>  %slog.[0 leaf+"grubbery: migrating state %12 -> %13 -> %14"]
-    =.  state  (state-13-to-14:migrations (state-12-to-13:migrations old))
+    ~>  %slog.[0 leaf+"grubbery: migrating state %12 -> %13 -> %14 -> %15"]
+    =.  state  (state-14-to-15:migrations (state-13-to-14:migrations (state-12-to-13:migrations old)))
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
   ::  %11 -> %12: the %firm load carries the labels to set on the
   ::  version it promotes. A queued %firm carried none, so it gets none.
   ?:  ?=(%11 -.old)
-    ~>  %slog.[0 leaf+"grubbery: migrating state %11 -> %12 -> %13 -> %14"]
-    =.  state  (state-13-to-14:migrations (state-12-to-13:migrations (state-11-to-12:migrations old)))
+    ~>  %slog.[0 leaf+"grubbery: migrating state %11 -> %12 -> %13 -> %14 -> %15"]
+    =.  state  (state-14-to-15:migrations (state-13-to-14:migrations (state-12-to-13:migrations (state-11-to-12:migrations old))))
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
   ::  %10 -> %11: a %file cite carries the grub's position. A queued
   ::  peek is given its reader's, where its mark resolved from before.
   ?:  ?=(%10 -.old)
-    ~>  %slog.[0 leaf+"grubbery: migrating state %10 -> %11 -> %12 -> %13 -> %14"]
-    =.  state  (state-13-to-14:migrations (state-12-to-13:migrations (state-11-to-12:migrations (state-10-to-11:migrations old))))
+    ~>  %slog.[0 leaf+"grubbery: migrating state %10 -> %11 -> %12 -> %13 -> %14 -> %15"]
+    =.  state  (state-14-to-15:migrations (state-13-to-14:migrations (state-12-to-13:migrations (state-11-to-12:migrations (state-10-to-11:migrations old)))))
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
@@ -245,8 +253,8 @@
   ::  but a suspended process is typed by it, so +proc-9-to-proc-10 replaces
   ::  live continuations with a crash tang and the reload rebuilds them.
   ?:  ?=(%9 -.old)
-    ~>  %slog.[0 leaf+"grubbery: migrating state %9 -> %10 -> %11 -> %12 -> %13 -> %14"]
-    =.  state  (state-13-to-14:migrations (state-12-to-13:migrations (state-11-to-12:migrations (state-10-to-11:migrations (state-9-to-10:migrations old)))))
+    ~>  %slog.[0 leaf+"grubbery: migrating state %9 -> %10 -> %11 -> %12 -> %13 -> %14 -> %15"]
+    =.  state  (state-14-to-15:migrations (state-13-to-14:migrations (state-12-to-13:migrations (state-11-to-12:migrations (state-10-to-11:migrations (state-9-to-10:migrations old))))))
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
@@ -282,8 +290,9 @@
       (state-6-to-7:migrations as-6)
     ~>  %slog.[0 leaf+"grubbery: migrating state %7 -> %8"]
     (state-7-to-8:migrations as-7)
-  ~>  %slog.[0 leaf+"grubbery: migrating state %8 -> %9 -> %10 -> %11 -> %12 -> %13 -> %14"]
+  ~>  %slog.[0 leaf+"grubbery: migrating state %8 -> %9 -> %10 -> %11 -> %12 -> %13 -> %14 -> %15"]
   =.  state
+    %-  state-14-to-15:migrations
     %-  state-13-to-14:migrations
     %-  state-12-to-13:migrations
     %-  state-11-to-12:migrations
@@ -1050,7 +1059,6 @@
   |-  ^+  hits
   ?~  entries  ^$(jobs t.jobs)
   =/  [key=cass:clay val=entry:hist:nexus]  i.entries
-  ?:  ?=(%tomb -.pace.val)  $(entries t.entries)
   =/  root=jobe:nexus  lobe.pace.val
   =/  absent=?  !(~(has by jects.silo) root)
   ?.  |(absent (~(has in broken) root))
@@ -1098,8 +1106,8 @@
   =/  ver=tape  (a-co:co ud.cass.h)
   =/  lob=tape  (scow %uv lobe.h)
   (crip "{fil}  v{ver}{?:(latest.h "  LATEST" "")}  %{(trip kind.h)}  {lob}")
-::  +repair-silo: tomb every audit-damaged version in place. The
-::  content is gone; the tomb makes the books say so instead of
+::  +repair-silo: drop every audit-damaged version. The content is
+::  gone; dropping the version makes the books say so instead of
 ::  booming readers. Latest versions are never touched. Explicitly
 ::  triggered only (%silo-repair poke) — never automatic.
 ::
@@ -1130,17 +1138,18 @@
   =.  this
     |-
     ?~  todo  this
-    =.  this  (tomb-version [pax name cass]:i.todo)
+    =.  this  (drop-version [pax name cass]:i.todo)
     $(todo t.todo)
   ?:  =(born.before born)
     ~?  dbg  [%silo-repair-remaining-latest-guarded (lent dmg)]
     this
   $(rounds +(rounds))
-::  +tomb-version: rewrite one hist entry's pace to %tomb, releasing
-::  the ref the pace held (cascade prints for already-absent lobes
-::  are expected and tolerated — that's the corpse being buried)
+::  +drop-version: remove one hist entry whose content is gone,
+::  releasing the ref the pace held (cascade prints for already-absent
+::  lobes are expected and tolerated — that's the corpse being buried).
+::  A dropped version is simply absent; its number lives on in $peak.
 ::
-++  tomb-version
+++  drop-version
   |=  [pax=path name=(unit @ta) =cass:clay]
   ^+  this
   =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
@@ -1154,12 +1163,10 @@
     this
   =/  ent=(unit entry:hist:nexus)  (get:hon:hist:nexus sk cass)
   ?~  ent  this
-  ?:  ?=(%tomb -.pace.u.ent)  this
-  ~?  dbg  [%silo-tombed pax name ud=ud.cass]
+  ~?  dbg  [%silo-dropped pax name ud=ud.cass]
   =?  silo  %.y
     (~(drop-ject si:nexus silo) lobe.pace.u.ent)
-  =/  new-hist=hist:nexus
-    (put:hon:hist:nexus sk cass u.ent(pace [%tomb ~]))
+  =/  new-hist=hist:nexus  +:(del:hon:hist:nexus sk cass)
   =.  born
     ?~  name  (~(put of born) pax u.node(fold new-hist))
     (~(put of born) pax u.node(file (~(put by file.u.node) u.name new-hist)))
@@ -1193,7 +1200,6 @@
   ::  send %peek intake to the requesting fiber.
   ~?  dbg  [%peek-discharged ship.pk dest.pk key=key peeks-remaining=~(wyt by peeks.remo)]
   =/  =cite:nexus
-    ?:  ?=(%tomb -.pace.u.snap.pk)  [%none ~]
     ?-  -.dest.pk
       %|  [%ball *wave:nexus lobe.pace.u.snap.pk deep.pk]
         %&
@@ -1444,7 +1450,6 @@
       ==
     ?~  cas-pace  ~
     =/  refs=lobes:nexus
-      ?:  ?=(%tomb -.pace.u.cas-pace)  [~ ~]
       ?:  deep.req
         (~(reachable si:nexus silo) lobe.pace.u.cas-pace)
       (~(reachable-shallow si:nexus silo) lobe.pace.u.cas-pace)
@@ -1922,7 +1927,6 @@
   ?:  &(drop !=(key.i.entries (fall (top:hist:nexus sk) key.i.entries)))
     =.  silo
       =/  pv=pace:hist:nexus  pace.val.i.entries
-      ?:  ?=(%tomb -.pv)  silo
       (~(drop-ject si:nexus silo) lobe.pv)
     $(entries t.entries)
   $(entries t.entries, kept [i.entries kept])
@@ -1974,12 +1978,10 @@
     ::  matched top: demote to %temp and clear tags, keep the tree
     =/  pv=pace:hist:nexus  pace.val.i.entries
     =/  demoted=pace:hist:nexus
-      ?:  ?=(%tomb -.pv)  pv
       [%temp lobe.pv]
     $(entries t.entries, kept [[key.i.entries [demoted ~]] kept])
   =.  silo
     =/  pv=pace:hist:nexus  pace.val.i.entries
-    ?:  ?=(%tomb -.pv)  silo
     (~(drop-ject si:nexus silo) lobe.pv)
   $(entries t.entries)
 ::  Set gain flag on a lane: single file or recursive on directory.
@@ -2001,7 +2003,6 @@
     =/  got=(unit [key=cass:clay val=entry:hist:nexus])
       (ram:hon:hist:nexus u.fh)
     ?~  got  this
-    ?:  ?=(%tomb -.pace.val.u.got)  this
     =/  jot  (~(get by jects.silo) lobe.pace.val.u.got)
     ?~  jot  this
     ?.  ?=(%leaf -.ject.u.jot)  this
@@ -2047,7 +2048,6 @@
     (ram:hon:hist:nexus u.fh)
   ?~  got  this
   ?-    -.pace.val.u.got
-      %tomb  this
       %firm
     ?:  =(tags tags.val.u.got)  this
     =/  new-hist=hist:nexus
@@ -2074,7 +2074,6 @@
     (ram:hon:hist:nexus fold.u.node)
   ?~  got  this
   ?-    -.pace.val.u.got
-      %tomb  this
       %firm
     ?:  =(tags tags.val.u.got)  this
     =/  new-hist=hist:nexus
@@ -2166,7 +2165,6 @@
   ^-  (list [=rail:tarball =cass:clay])
   %+  murn  (tap:hon:hist:nexus hist)
   |=  [key=cass:clay val=entry:hist:nexus]
-  ?:  ?=(%tomb -.pace.val)  ~
   =/  jot  (~(get by jects.silo) lobe.pace.val)
   ?~  jot  ~
   =/  jt=ject:nexus  ject.u.jot
@@ -2427,7 +2425,6 @@
   =/  got=(unit [key=cass:clay val=entry:hist:nexus])
     (ram:hon:hist:nexus u.fh)
   ?~  got  %.n
-  ?:  ?=(%tomb -.pace.val.u.got)  %.n
   =/  jot  (~(get by jects.silo) lobe.pace.val.u.got)
   ?~  jot  %.n
   ?.  ?=(%leaf -.ject.u.jot)  %.n
@@ -2572,7 +2569,6 @@
     (ram:hon:hist:nexus fold.u.node)
   ?~  got  *bole:tarball
   =/  =pace:hist:nexus  pace.val.u.got
-  ?:  ?=(%tomb -.pace)  *bole:tarball
   (peek-bole lobe.pace)
 ::  Shallow peek: resolve files at this level, subdirs as empty balls.
 ::  No recursion — O(files at this level) instead of O(all files).
@@ -2638,7 +2634,6 @@
     (ram:hon:hist:nexus u.sok)
   ?~  got  %.n
   =/  =pace:hist:nexus  pace.val.u.got
-  ?:  ?=(%tomb -.pace)  %.n
   %.y
 ::
 ++  peek-grub-now
@@ -2653,7 +2648,6 @@
     (ram:hon:hist:nexus u.sok)
   ?~  got  ~
   =/  =pace:hist:nexus  pace.val.u.got
-  ?:  ?=(%tomb -.pace)  ~
   (peek-grub lobe.pace)
 ::  Peek the current ball at a fold (born lookup + peek-ball).
 ::
@@ -2667,7 +2661,6 @@
     (ram:hon:hist:nexus fold.u.node)
   ?~  got  *ball:tarball
   =/  =pace:hist:nexus  pace.val.u.got
-  ?:  ?=(%tomb -.pace)  *ball:tarball
   (peek-ball lobe.pace)
 ::  Look up a directory's weir from its parent's tree ject.
 ::
@@ -2684,7 +2677,6 @@
     (ram:hon:hist:nexus fold.u.parent-node)
   ?~  parent-got  ~
   =/  =pace:hist:nexus  pace.val.u.parent-got
-  ?:  ?=(%tomb -.pace)  ~
   =/  jot  (~(get by jects.silo) lobe.pace)
   ?~  jot  ~
   ?.  ?=(%tree -.ject.u.jot)  ~
@@ -2705,7 +2697,6 @@
     (ram:hon:hist:nexus fold.u.node)
   ?~  got  ~
   =/  =pace:hist:nexus  pace.val.u.got
-  ?:  ?=(%tomb -.pace)  ~
   =/  jot  (~(get by jects.silo) lobe.pace)
   ?~  jot  ~
   ?.  ?=(%tree -.ject.u.jot)  ~
@@ -2722,7 +2713,6 @@
     (ram:hon:hist:nexus fold.u.node)
   ?~  got  *ball:tarball
   =/  =pace:hist:nexus  pace.val.u.got
-  ?:  ?=(%tomb -.pace)  *ball:tarball
   (peek-ball-shallow lobe.pace)
 ::  List file names at a directory (from born).
 ::
@@ -2904,7 +2894,6 @@
   ?~  cas  this
   =/  pv=(unit pace:hist:nexus)  (get-pace:hist:nexus u.sok u.cas)
   ?~  pv  this
-  ?:  ?=(%tomb -.u.pv)  this
   =/  [new-jobe=jobe:nexus new-silo=silo:nexus]
     (~(set-bang si:nexus silo) lobe.u.pv err)
   =/  new-cass=cass:clay  (~(next-cass bo:nexus now.bowl born) u.cas)
@@ -2933,7 +2922,6 @@
   ?~  cas  this
   =/  pv=(unit pace:hist:nexus)  (get-pace:hist:nexus fold.u.node u.cas)
   ?~  pv  this
-  ?:  ?=(%tomb -.u.pv)  this
   =/  [new-jobe=jobe:nexus new-silo=silo:nexus]
     (~(set-bang si:nexus silo) lobe.u.pv err)
   =/  new-cass=cass:clay  (~(next-cass bo:nexus now.bowl born) u.cas)
@@ -3018,7 +3006,6 @@
     ?~  fold-cas  this
     =/  pv=(unit pace:hist:nexus)  (get-pace:hist:nexus fold.u.fil.bor u.fold-cas)
     ?~  pv  this
-    ?:  ?=(%tomb -.u.pv)  this
     =/  cleared  (~(clear-bang si:nexus silo) lobe.u.pv)
     ?~  cleared  this
     =/  new-cass=cass:clay  (~(next-cass bo:nexus now.bowl born) u.fold-cas)
@@ -3043,7 +3030,6 @@
     ?~  cas  $(files t.files)
     =/  pv=(unit pace:hist:nexus)  (get-pace:hist:nexus sok u.cas)
     ?~  pv  $(files t.files)
-    ?:  ?=(%tomb -.u.pv)  $(files t.files)
     =/  cleared  (~(clear-bang si:nexus silo) lobe.u.pv)
     ?~  cleared  $(files t.files)
     =/  here=rail:tarball  [pax name]
@@ -4048,10 +4034,10 @@
         ==
       ?~  sk
         (enqu-take here ~ ~ %born wire.dart |+~[leaf+"no history at dest"])
-      =/  entries=(list [=cass:clay tags=(set @t) tomb=?])
+      =/  entries=(list [=cass:clay tags=(set @t)])
         %+  turn  (tap:hon:hist:nexus u.sk)
         |=  [key=cass:clay val=entry:hist:nexus]
-        [key tags.val ?=(%tomb -.pace.val)]
+        [key tags.val]
       (enqu-take here ~ ~ %born wire.dart &+entries)
       ::      ::
         %lose
@@ -4162,12 +4148,10 @@
       ?^  case.load.dart
         =/  cp  (resolve-case:nexus u.case.load.dart fold.u.node)
         ?~  cp  ~
-        ?:  ?=(%tomb -.pace.u.cp)  ~
         `lobe.pace.u.cp
       =/  got=(unit [key=cass:clay val=entry:hist:nexus])
         (ram:hon:hist:nexus fold.u.node)
       ?~  got  ~
-      ?:  ?=(%tomb -.pace.val.u.got)  ~
       `lobe.pace.val.u.got
     ?~  root-lobe
       ::  empty answer: a cased peek that found nothing is a %miss (the
@@ -4195,13 +4179,11 @@
       ?^  case.load.dart
         =/  cp  (resolve-case:nexus u.case.load.dart sk)
         ?~  cp  ~
-        ?:  ?=(%tomb -.pace.u.cp)  ~
         `lobe.pace.u.cp
       ::  Current: get lobe from born pace
       =/  got=(unit [key=cass:clay val=entry:hist:nexus])
         (ram:hon:hist:nexus sk)
       ?~  got  ~
-      ?:  ?=(%tomb -.pace.val.u.got)  ~
       `lobe.pace.val.u.got
     ?~  src-lobe
       ::  a cased peek that found nothing is a %miss (that revision isn't
@@ -4386,7 +4368,6 @@
         ==
       ==
     ?.  match  ~
-    ?:  ?=(%tomb -.pace.val)  ~
     `[key lobe.pace.val]
   ::  Bump silo refs for all matched lobes (pace lobes are jects)
   =.  silo
@@ -4565,7 +4546,6 @@
         %none  [%none ~]
         %miss  [%miss ~]
         %veto  [%veto ~]
-        %tomb  [%tomb ~]
           %file
         =/  jot  (~(get by jects.silo) lobe.cite)
         ?~  jot  [%none ~]
@@ -4950,7 +4930,6 @@
       =/  latest=(unit [key=cass:clay val=entry:hist:nexus])
         (ram:hon:hist:nexus u.sk)
       ?~  latest  $(force %.y)
-      ?:  ?=(%tomb -.pace.val.u.latest)  $(force %.y)
       ~|("make failed: file {(spud (snoc path.dest-rail name.dest-rail))} already exists" !!)
     ::  Convert mark if blot override is set
     =/  =bask:tarball
@@ -5059,7 +5038,6 @@
     ?~  fold-top  [~ %.n ~ ~ ~]
     =/  pac=(unit pace:hist:nexus)  (get-pace:hist:nexus fold.node u.fold-top)
     ?~  pac  [~ %.n ~ ~ ~]
-    ?:  ?=(%tomb -.u.pac)  [~ %.n ~ ~ ~]
     =/  jot  (~(get by jects.silo) lobe.u.pac)
     ?~  jot  [~ %.n ~ ~ ~]
     ?.  ?=(%tree -.ject.u.jot)  [~ %.n ~ ~ ~]
@@ -5106,7 +5084,6 @@
       (ram:hon:hist:nexus fold.u.fil.sub)
     ?~  fold-top  ~
     =/  =pace:hist:nexus  pace.val.u.fold-top
-    ?:  ?=(%tomb -.pace)  ~
     =/  jot  (~(get by jects.silo) lobe.pace)
     ?~  jot  ~
     =/  jt=ject:nexus  ject.u.jot
@@ -5204,7 +5181,6 @@
   =/  got=(unit pace:hist:nexus)
     (get-pace:hist:nexus fold.u.fil.parent-born u.fold-top)
   ?~  got  ~
-  ?:  ?=(%tomb -.u.got)  ~
   =/  jot  (~(get by jects.silo) lobe.u.got)
   ?~  jot  ~
   ?.  ?=(%tree -.ject.u.jot)  ~
@@ -5237,7 +5213,6 @@
     (ram:hon:hist:nexus fold.u.node)
   ?~  got  [~ ~]
   =/  =pace:hist:nexus  pace.val.u.got
-  ?:  ?=(%tomb -.pace)  [~ ~]
   =/  jot  (~(get by jects.silo) lobe.pace)
   ?~  jot  [~ ~]
   =/  jt=ject:nexus  ject.u.jot
@@ -5465,7 +5440,6 @@
   =/  got=(unit [key=cass:clay val=entry:hist:nexus])
     (ram:hon:hist:nexus fold.u.node)
   ?~  got  this
-  ?:  ?=(%tomb -.pace.val.u.got)  this
   =/  jot  (~(get by jects.silo) lobe.pace.val.u.got)
   ?~  jot  this
   ?.  ?=(%tree -.ject.u.jot)  this
@@ -5493,7 +5467,6 @@
   ?~  top  %.n
   =/  pc=(unit pace:hist:nexus)  (get-pace:hist:nexus fold.u.node u.top)
   ?~  pc  %.n
-  ?:  ?=(%tomb -.u.pc)  %.n
   =/  jot  (~(get by jects.silo) lobe.u.pc)
   ?~  jot  %.n
   ?.  ?=(%tree -.ject.u.jot)  %.n
@@ -5662,17 +5635,17 @@
     =/  res  (resolve-built here %nex neck)
     ?~  res  `[neck 0v0 /]
     `[neck ckey.u.res namespace.u.res]
-  ::  File lobes from born (skip deleted/tombed)
+  ::  File lobes from born, the dead ones left out
   =/  fil=(map @ta jobe:nexus)
     %-  ~(rep by file.settled-node)
     |=  [[name=@ta sk=hist:nexus] out=(map @ta jobe:nexus)]
     =/  cas=(unit cass:clay)  (top:hist:nexus sk)
     ?~  cas  out
+    ?:  (~(gone-file pk:nexus peak) [here name] u.cas)  out
     =/  val=(unit pace:hist:nexus)  (get-pace:hist:nexus sk u.cas)
     ?~  val  out
-    ?:  ?=(%tomb -.u.val)  out
     (~(put by out) name lobe.u.val)
-  ::  Dir lobes from born (skip deleted/tombed/null-lobe)
+  ::  Dir lobes from born, the dead ones left out
   =/  dir-map=(map @ta [jobe:nexus weir=(unit weir:nexus)])
     %-  ~(rep by dir.settled-born)
     |=  [[name=@ta kid=born:nexus] out=(map @ta [jobe:nexus weir=(unit weir:nexus)])]
@@ -5680,10 +5653,10 @@
     ?~  kid-node  out
     =/  cas=(unit cass:clay)  (top:hist:nexus fold.u.kid-node)
     ?~  cas  out
+    ?:  (~(gone-fold pk:nexus peak) (snoc here name) u.cas)  out
     =/  got=(unit pace:hist:nexus)
       (get-pace:hist:nexus fold.u.kid-node u.cas)
     ?~  got  out
-    ?:  ?=(%tomb -.u.got)  out
     =/  kid-weir=(unit weir:nexus)
       =/  kid-bol=(unit bole:tarball)  (~(get by dir.bol) name)
       ?~  kid-bol  ~
@@ -6072,7 +6045,6 @@
   ^-  (unit leaf:nexus)
   =/  pv=(unit pace:hist:nexus)  (get-pace:hist:nexus sok cas)
   ?~  pv  ~
-  ?:  ?=(%tomb -.u.pv)  ~
   =/  got  (~(get by jects.silo) lobe.u.pv)
   ?~  got  ~
   ?.  ?=(%leaf -.ject.u.got)  ~
@@ -6148,7 +6120,6 @@
   ?~  sk  ~
   =/  top=(unit [key=cass:clay val=entry:hist:nexus])  (ram:hon:hist:nexus u.sk)
   ?~  top  ~
-  ?:  ?=(%tomb -.pace.val.u.top)  ~
   `[[fold name] sang lobe.pace.val.u.top]
 ::  and clam all grubs with that mark through validate-vase.
 ::  On success, updates grubs in ball with clammed vases.
@@ -6196,7 +6167,6 @@
     =/  top=(unit [key=cass:clay val=entry:hist:nexus])
       (ram:hon:hist:nexus sk)
     ?~  top  ~
-    ?:  ?=(%tomb -.pace.val.u.top)  ~
     =/  entry  (~(get by jects.silo) lobe.pace.val.u.top)
     ?~  entry  ~
     ?.  ?=(%leaf -.ject.u.entry)  ~
@@ -6268,7 +6238,6 @@
     =/  top=(unit [key=cass:clay val=entry:hist:nexus])
       (ram:hon:hist:nexus sk)
     ?~  top  ~
-    ?:  ?=(%tomb -.pace.val.u.top)  ~
     =/  entry  (~(get by jects.silo) lobe.pace.val.u.top)
     ?~  entry  ~
     ?.  ?=(%leaf -.ject.u.entry)  ~
@@ -6342,7 +6311,6 @@
     =/  top=(unit [key=cass:clay val=entry:hist:nexus])
       (ram:hon:hist:nexus fold.node)
     ?~  top  ~
-    ?:  ?=(%tomb -.pace.val.u.top)  ~
     =/  entry  (~(get by jects.silo) lobe.pace.val.u.top)
     ?~  entry  ~
     ?.  ?=(%tree -.ject.u.entry)  ~
@@ -7222,7 +7190,6 @@
   ?~  sk  ~
   =/  cp  (resolve-case:nexus [%ud cas] u.sk)
   ?~  cp  ~
-  ?:  ?=(%tomb -.pace.u.cp)  ~
   `lobe.pace.u.cp
 ::  +jobe-under: a descendant's ject INSIDE an ancestor's version.
 ::
@@ -7310,7 +7277,6 @@
   ?~  sk  'no such version'
   =/  cp  (resolve-case:nexus [%ud cas] u.sk)
   ?~  cp  'no such version'
-  ?:  ?=(%tomb -.pace.u.cp)  'that version was dropped'
   'this version references an object that is not in the silo; that cannot happen, and means something is broken'
 ::  +case-arg: the ?case= a request asked for, if any and if a number
 ::
@@ -7422,7 +7388,7 @@
   =/  got=(unit [key=cass:clay val=entry:hist:nexus])
     (ram:hon:hist:nexus fold.u.node)
   ?~  got  %.n
-  !?=(%tomb -.pace.val.u.got)
+  %.y
 ::
 ++  api-lane
   |=  api-path=path
@@ -7898,14 +7864,11 @@
     ::  every row to find it.
     ::
     ::  There is no `empty`: a version always references content.
-    =/  broken=?
-      ?:  ?=(%tomb -.pace.val)  %.n
-      !(~(has by jects.silo) lobe.pace.val)
+    =/  broken=?  !(~(has by jects.silo) lobe.pace.val)
     %-  pairs:enjs:format
     :~  ['ud' (numb:enjs:format ud.key)]
         ['da' s+(scot %da da.key)]
         ['tags' [%a (turn ~(tap in tags.val) |=(t=@t s+t))]]
-        ['tomb' b+?=(%tomb -.pace.val)]
         ['firm' b+?=(%firm -.pace.val)]
         ['broken' b+broken]
     ==
