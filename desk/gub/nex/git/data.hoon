@@ -186,7 +186,20 @@
         ;<  *  bind:m  (keep:io /tree [%| 0 %| /tree] ~)
         |-  ^-  form:m
         ;<  *  bind:m  (take-news:io /tree)
-        ;<  ~  bind:m  (reload:io [%| 0 %| /])
+        ::  one change is one reload. A checkout or a pull writes the
+        ::  tree a file at a time and every write is a wave, so the
+        ::  waves are drained until the tree has been quiet for a second
+        ::  and the reload runs once. A wave that lands while the reload
+        ::  waits is taken by it, not skipped: skipped, each would run the
+        ::  whole reload again, and a reload is every grub of this nexus
+        ::  (wes, 2026-11-11: 1,200 waves queued, one 2,800-take reload
+        ::  each, and nothing else on the ship got a turn for hours).
+        ;<  ~  bind:m  (quiet-tree ~s1)
+        |-  ^-  form:m
+        ;<  [* late=(list ~)]  bind:m
+          ((with-inbox:io ,~ ,~) tree-news (reload:io [%| 0 %| /]))
+        ?~  late  ^$
+        ;<  ~  bind:m  (quiet-tree ~s1)
         $
       ::  everything under tree/ is a git blob and must be a %mime grub.
       ::  a non-mime grub (e.g. %hoon source) would bang ball-to-files on
@@ -204,6 +217,25 @@
 ::  helper core, where the nexus core above can see it.
 ::
 ++  dbg  ^-(? |)
+::  +tree-news: a +with-inbox picker, a wave of the working tree
+::
+++  tree-news
+  |=  =input:fiber:nexus
+  ^-  (unit ~)
+  ?.  ?=([~ %news * *] in.input)  ~
+  ?.(=(/tree wire.u.in.input) ~ `~)
+::  +quiet-tree: take waves of the tree until none has come for `span`
+::
+++  quiet-tree
+  |=  span=@dr
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  |-  ^-  form:m
+  ;<  w=wire  bind:m  (nonce:io /quiet)
+  ;<  got=(unit wave:nexus)  bind:m
+    ((with-timeout:io ,wave:nexus) w span (take-news:io /tree))
+  ?~  got  (pure:m ~)
+  $
 ::  +read-tree-head: which commit tree/ was last materialized from.
 ::  ~ means never recorded — treat as needing checkout.
 ::

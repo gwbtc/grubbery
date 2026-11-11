@@ -1,0 +1,77 @@
+/* contacts: the shell's people record. Light, quiet, like the github nexus. */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  font-family: Inter, -apple-system, sans-serif;
+  font-size: 13px; line-height: 1.5;
+  background: #f6f7f9; color: #1f2328;
+  display: flex; flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+}
+header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 20px; background: white;
+  border-bottom: 1px solid #e4e7eb; flex-shrink: 0;
+}
+#brand-icon { width: 22px; height: 22px; border-radius: 6px; }
+h1 { font-size: 15px; font-weight: 650; letter-spacing: -0.01em; }
+#status { margin-left: auto; font-size: 11px; }
+.muted { color: #79808a; font-size: 12px; font-family: "SF Mono", Menlo, monospace; }
+main {
+  flex: 1; display: flex; flex-direction: column; gap: 16px;
+  width: 100%; max-width: 780px; margin: 0 auto; padding: 20px;
+}
+.panel {
+  background: white; border: 1px solid #e4e7eb; border-radius: 12px;
+  padding: 18px 20px; box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+.panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 12px; }
+h2 {
+  font-size: 11px; font-weight: 650; color: #79808a;
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+input, textarea {
+  font-family: inherit; font-size: 13px; color: #1f2328;
+  height: 32px; padding: 0 10px;
+  background: #f6f8fa; border: 1px solid #dfe3e8; border-radius: 8px;
+  outline: none;
+}
+input:focus, textarea:focus {
+  background: white; border-color: #6947b8;
+  box-shadow: 0 0 0 3px rgba(105, 71, 184, 0.12);
+}
+button {
+  font-family: inherit; font-size: 12.5px; font-weight: 550;
+  height: 32px; padding: 0 14px; border-radius: 8px;
+  border: 1px solid #dfe3e8; background: white; color: #1f2328; cursor: pointer;
+}
+button:hover { background: #f6f8fa; }
+button.primary { background: #6947b8; border-color: #6947b8; color: white; }
+button.primary:hover { background: #5b3da3; }
+button.danger { color: #b42318; }
+button.danger:hover { background: #fef3f2; }
+#add-form { display: flex; gap: 8px; }
+#add-ship { width: 200px; font-family: "SF Mono", Menlo, monospace; }
+
+/* the field grid: a label, an input, per key */
+.fields { display: grid; grid-template-columns: 110px 1fr; gap: 8px 12px; align-items: center; }
+.fields label { font-size: 12px; color: #79808a; font-weight: 500; text-align: right; }
+.fields .actions { grid-column: 2; display: flex; gap: 8px; margin-top: 4px; }
+.fields .newkey { display: flex; gap: 8px; grid-column: 1 / -1; }
+.fields .newkey input:first-child { width: 110px; }
+.fields .newkey input:last-child { flex: 1; }
+
+/* people */
+.person { border-top: 1px solid #eef0f3; padding: 12px 0; }
+.person:first-child { border-top: none; }
+.person-row { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+.person-name { font-weight: 600; }
+.person-ship { font-family: "SF Mono", Menlo, monospace; color: #79808a; font-size: 12px; }
+.person-labels { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+.label { font-size: 11px; color: #4b3f72; background: #efeaf9; border-radius: 6px; padding: 1px 8px; }
+.person-body { margin-top: 10px; display: none; }
+.person.open .person-body { display: block; }
+.person-body h3 { font-size: 11px; color: #79808a; text-transform: uppercase; letter-spacing: 0.06em; margin: 10px 0 6px; }
+.profile-kv { display: grid; grid-template-columns: 110px 1fr; gap: 4px 12px; font-size: 12.5px; }
+.profile-kv .k { color: #79808a; text-align: right; }
+.empty { padding: 24px; color: #79808a; font-size: 13px; text-align: center; }

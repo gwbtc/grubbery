@@ -1,0 +1,38 @@
+<!doctype html>
+<html>
+<head>
+  <title>contacts</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/svg+xml" href="/grubbery/contacts/icon.svg">
+  <link rel="stylesheet" href="/grubbery/contacts/style.css">
+</head>
+<body>
+  <header>
+    <img id="brand-icon" src="/grubbery/contacts/icon.svg" alt="">
+    <h1>contacts</h1>
+    <span id="status" class="muted"></span>
+  </header>
+  <main>
+    <section class="panel" id="me-panel">
+      <div class="panel-head">
+        <h2>your profile</h2>
+        <span id="me-ship" class="muted"></span>
+      </div>
+      <form id="me-form" class="fields"></form>
+    </section>
+    <section class="panel grow">
+      <div class="panel-head">
+        <h2>people</h2>
+        <form id="add-form">
+          <input id="add-ship" placeholder="~sampel-palnet" spellcheck="false">
+          <button type="submit">Add</button>
+        </form>
+        <button type="button" id="sync-ames" title="Add every ship ames knows that is not here yet">Import peers</button>
+      </div>
+      <div id="people"></div>
+    </section>
+  </main>
+  <script src="/grubbery/contacts/app.js"></script>
+</body>
+</html>

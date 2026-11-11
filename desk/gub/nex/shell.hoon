@@ -25,6 +25,9 @@
 ::  notifications: the service (lib/shell/notifications), its page at
 ::  /grubbery/inbox, and its tools nexus (push_notify)
 /<  notifications  /lib/shell/notifications.hoon
+::  contacts: the people record (lib/shell/contacts): profiles and
+::  overlays under /contacts; /sys/link/contacts points at it
+/<  contacts       /lib/shell/contacts.hoon
 /<  nib            /lib/inbox.hoon
 /<  nex-tools      /lib/tools.hoon
 /&  notif-bundle   /lib/notifications-bundle/
@@ -32,6 +35,12 @@
 /&  notif-html     shell/ui/notifications/index.html
 /&  notif-js       shell/ui/notifications/app.js
 /&  notif-css      shell/ui/notifications/style.css
+::  contacts: the page of the people record (lib/shell/contacts), at
+::  /grubbery/contacts
+/&  contacts-icon  shell/ui/contacts/icon.svg
+/&  contacts-html  shell/ui/contacts/index.html
+/&  contacts-js    shell/ui/contacts/app.js
+/&  contacts-css   shell/ui/contacts/style.css
 ::  tools: the MCP endpoint (lib/shell/mcp), its page at /grubbery/tools
 ::  on the kit (tab-group, modal-dialog), and its tools nexus seeded
 ::  from the tool bundle
@@ -81,6 +90,11 @@
           [%over %& [/ui/notifications %'app.js'] [[/ %mime] notif-js]]
           [%over %& [/ui/notifications %'style.css'] [[/ %mime] notif-css]]
           [%over %& [/ui/notifications %'icon.svg'] [[/ %mime] notif-icon]]
+          [%fall %| /ui/contacts empty-dir:loader]
+          [%over %& [/ui/contacts %'index.html'] [[/ %mime] contacts-html]]
+          [%over %& [/ui/contacts %'app.js'] [[/ %mime] contacts-js]]
+          [%over %& [/ui/contacts %'style.css'] [[/ %mime] contacts-css]]
+          [%over %& [/ui/contacts %'icon.svg'] [[/ %mime] contacts-icon]]
           ::  /ui/tools: the tools page (lib/shell/mcp), at /grubbery/tools
           [%fall %| /ui/tools empty-dir:loader]
           [%over %& [/ui/tools %'index.html'] [[/ %mime] tools-html]]
@@ -194,6 +208,14 @@
           [%fall %& [/notifications %'registry.json'] [[/ %json] [%o ~]]]
           [%fall %& [/notifications %'inbox.inbox'] [[/ %inbox] *inbox:nib]]
           [%over %| /notifications/tools (seed-tools:nex-tools notif-bundle)]
+          ::  /contacts: the people record (see lib/shell/contacts). One
+          ::  file per ship in each of two directories, the profile that
+          ::  ship publishes and your overlay on it; /sys/link/contacts
+          ::  points here.
+          [%fall %| /contacts empty-dir:loader]
+          [%fall %& [/contacts %'main.sig'] [[/ %sig] ~]]
+          [%fall %| /contacts/profiles empty-dir:loader]
+          [%fall %| /contacts/overlays empty-dir:loader]
           ::  /tools: the tools nexus the MCP endpoint serves (lib/shell/mcp):
           ::  the bundle over whatever tools were added at runtime. Its tile
           ::  is a local one, like Landscape's.
@@ -209,6 +231,9 @@
           [%over %& [/tiles/forge %'tile.json'] [[/ %json] forge-tile]]
           [%fall %| /tiles/github empty-dir:loader]
           [%over %& [/tiles/github %'tile.json'] [[/ %json] github-tile]]
+          ::  contacts: the people record is a service of the shell too
+          [%fall %| /tiles/contacts empty-dir:loader]
+          [%over %& [/tiles/contacts %'tile.json'] [[/ %json] contacts-tile]]
       ==
       rows:explorer
     ::
@@ -227,6 +252,7 @@
         ;<  ~  bind:m  (bind-http:io [~ /apps/grubbery])
         ;<  ~  bind:m  (bind-http:io [~ /grubbery/tiles])
         ;<  ~  bind:m  (bind-http:io [~ /grubbery/inbox])
+        ;<  ~  bind:m  (bind-http:io [~ /grubbery/contacts])
         ;<  ~  bind:m  (bind-http:io [~ /grubbery/tools])
         ;<  ~  bind:m  (bind-http:io [~ /grubbery/ball])
         ;<  ~  bind:m  (bind-http:io [~ /grubbery/explorer])
@@ -243,6 +269,12 @@
           [[%notifications ~] %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%shell notifications: failed")
         serve:notifications
+          ::  contacts/main.sig: the people record's poke loop (set, del,
+          ::  profile); lib/shell/contacts does the work
+          ::
+          [[%contacts ~] %'main.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%shell contacts: failed")
+        serve:contacts
           ::  usergroups.sig: register once, then hold every shell grant
           ::  current — the base /public grant on public.json plus the
           ::  per-group /sys/link shares from permit/link.json — and keep
@@ -488,6 +520,9 @@
         ::  /grubbery/inbox[/<file>] → the notifications page
         ?:  ?=([%grubbery %inbox *] site)
           (serve-page:notifications rail)
+        ::  /grubbery/contacts[/<file>] → the people record's page
+        ?:  ?=([%grubbery %contacts *] site)
+          (serve-page:contacts rail)
         ::  /grubbery/tools → the MCP endpoint and its page
         ?:  ?=([%grubbery %tools *] site)
           (serve-request:mcp rail)
@@ -2632,6 +2667,17 @@
       href+s+'/apps/landscape'
       image+s+'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fe/Urbit_Logo.svg/3840px-Urbit_Logo.svg.png'
       kind+s+'utility'
+      own+b+&
+  ==
+++  contacts-tile
+  ^-  json
+  %-  pairs:enjs:format
+  :~  title+s+'Contacts'
+      info+s+'people'
+      color+s+'#6947b8'
+      href+s+'/grubbery/contacts'
+      image+s+'/grubbery/contacts/icon.svg'
+      kind+s+'app'
       own+b+&
   ==
 ++  forge-tile

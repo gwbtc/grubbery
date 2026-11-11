@@ -109,6 +109,10 @@
         ::  @notifications/main.sig is the shell's notifications/main.sig.
         [%fall %| /sys/link/notifications [`[~ ~ %.n ~] ~]]
         [%fall %& [/sys/link/notifications %'dest.lanes'] [[/ %lanes] ~[`lane:tarball`[%| /apps/shell/notifications]]]]
+        ::  contacts: the people record is a service of the shell (its
+        ::  /contacts directory), so @contacts is that.
+        [%fall %| /sys/link/contacts [`[~ ~ %.n ~] ~]]
+        [%fall %& [/sys/link/contacts %'dest.lanes'] [[/ %lanes] ~[`lane:tarball`[%| /apps/shell/contacts]]]]
     ==
 ::
 ++  on-file
