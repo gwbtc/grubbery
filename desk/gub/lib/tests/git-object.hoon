@@ -73,6 +73,43 @@
   =/  obj2=object:git-obj  (parse-raw:git-obj %sha-1 raw2)
   (expect-eq:test !>(obj) !>(obj2))
 ::
+::  +test-tree-entry-dot: a tree entry named '.' is refused
+::
+++  test-tree-entry-dot
+  |.  ^-  tang
+  =/  h1  `hash:git-obj`0x1111.1111.1111.1111.1111.1111.1111.1111.1111.1111
+  =/  raw=raw-object:git-obj
+    (obj-to-raw:git-obj %sha-1 [%tree 0 ~[['.' 0x81a4 h1]]])
+  (expect-fail:test |.((parse-raw:git-obj %sha-1 raw)))
+::
+::  +test-tree-entry-dotdot: a tree entry named '..' is refused
+::
+++  test-tree-entry-dotdot
+  |.  ^-  tang
+  =/  h1  `hash:git-obj`0x1111.1111.1111.1111.1111.1111.1111.1111.1111.1111
+  =/  raw=raw-object:git-obj
+    (obj-to-raw:git-obj %sha-1 [%tree 0 ~[['..' 0x81a4 h1]]])
+  (expect-fail:test |.((parse-raw:git-obj %sha-1 raw)))
+::
+::  +test-tree-entry-slash: a tree entry name containing '/' is refused
+::
+++  test-tree-entry-slash
+  |.  ^-  tang
+  =/  h1  `hash:git-obj`0x1111.1111.1111.1111.1111.1111.1111.1111.1111.1111
+  =/  raw=raw-object:git-obj
+    (obj-to-raw:git-obj %sha-1 [%tree 0 ~[['a/b' 0x81a4 h1]]])
+  (expect-fail:test |.((parse-raw:git-obj %sha-1 raw)))
+::
+::  +test-tree-entry-duplicate: one name twice in a tree is refused
+::
+++  test-tree-entry-duplicate
+  |.  ^-  tang
+  =/  h1  `hash:git-obj`0x1111.1111.1111.1111.1111.1111.1111.1111.1111.1111
+  =/  h2  `hash:git-obj`0x2222.2222.2222.2222.2222.2222.2222.2222.2222.2222
+  =/  raw=raw-object:git-obj
+    (obj-to-raw:git-obj %sha-1 [%tree 0 ~[['file' 0x81a4 h1] ['file' 0x4000 h2]]])
+  (expect-fail:test |.((parse-raw:git-obj %sha-1 raw)))
+::
 ::  +test-empty-tree-roundtrip: tree with no entries
 ::
 ++  test-empty-tree-roundtrip
