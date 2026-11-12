@@ -2427,13 +2427,16 @@
   =/  r  (~(get by p.j) 'road')
   ?.(?=([~ %s *] r) ~ `p.u.r)
 ::  +narrow-to-ask: the granted roads that the app's own ask declares, per
-::  category, as bare road strings.
+::  category, as bare road strings. Every other key of the grant (the
+::  usergroups and name shares Permits sends) passes through as it came.
 ::
 ++  narrow-to-ask
   |=  [granted=json ask=json]
   ^-  json
   :-  %o
-  %-  ~(gas by *(map @t json))
+  %-  %~  gas  by
+      ?.  ?=(%o -.granted)  *(map @t json)
+      p.granted
   %+  turn  `(list @t)`~['poke' 'peek' 'make']
   |=  cat=@t
   =/  ok=(set @t)  (silt (road-strs ask cat))
