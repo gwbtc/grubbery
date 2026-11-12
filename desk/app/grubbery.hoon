@@ -8764,12 +8764,15 @@
       =/  seg=path  i.segs
       =/  dir=path  (snip seg)
       =/  nam=@ta   (rear seg)
-      ::  Try /mar/clay/[desk]/ then /mar/clay/base/
+      ::  Try /mar/clay/[desk]/ then /mar/clay/base/, each resolved
+      ::  from the sender's position like any other mark: its app's
+      ::  own /code first, root /code last. So an app can ship the
+      ::  typed marc for an agent it pokes.
       =/  res=(unit built:nexus)
-        (get-built / %mar [(weld /clay/[dek] dir) nam])
+        (get-built path.sender %mar [(weld /clay/[dek] dir) nam])
       ?^  res  res
       =/  res=(unit built:nexus)
-        (get-built / %mar [(weld /clay/base dir) nam])
+        (get-built path.sender %mar [(weld /clay/base dir) nam])
       ?^  res  res
       $(segs t.segs)
     =/  =marc:tarball
