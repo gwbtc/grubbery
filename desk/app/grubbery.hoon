@@ -8053,7 +8053,7 @@
   ::  and the tree read (%ct, which clay-tree issues and which crashes the
   ::  same way on a missing desk path); a %cy or %cs of a directory has no
   ::  file and goes through as asked
-  ?:  &(?=(%cx %ct) !.^(? %cu at))
+  ?:  &(?=(?(%cx %ct) i.pat) !.^(? %cu at))
     (fail "no such file")
   ?:  &(=('g' vane) !=(%gu i.pat) !.^(? %gu /(scot %p our.bowl)/[i.t.pat]/(scot %da now.bowl)/$))
     (fail "no such agent")
