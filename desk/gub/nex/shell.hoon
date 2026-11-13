@@ -123,6 +123,16 @@
           [%fall %| /permit empty-dir:loader]
           [%fall %& [/permit %'approved.json'] [[/ %json] [%o ~]]]
           [%fall %& [/permit %'hidden.json'] [[/ %json] [%o ~]]]
+          ::  the ship's update window (+update-window), off until set
+          :+  %fall  %&
+          :-  [/permit %'update-window.json']
+          :-  [/ %json]
+          %-  pairs:enjs:format
+          :~  ['on' b+%.n]  ['start' (numb:enjs:format 120)]
+              ['end' (numb:enjs:format 300)]  ['offset' (numb:enjs:format 0)]
+          ==
+          ::  the kiln syncs the window paused, to resume when it opens
+          [%fall %& [/permit %'update-held.json'] [[/ %json] [%o ~]]]
           ::  permit/notified: app path -> the pending ask we last notified
           ::  about (same road-shape as an approved manifest's `declared`).
           ::  Dedups the "wants permissions" banner so a still-pending ask
@@ -162,6 +172,8 @@
           ::  again automatically. The marker is NOT seeded here — its absence
           ::  is what signals "first boot".
           [%fall %& [/ %'bootstrap.sig'] [[/ %sig] ~]]
+          ::  update-window.sig: holds and releases updates (+update-window)
+          [%fall %& [/ %'update-window.sig'] [[/ %sig] ~]]
           ::  /sync: one pure-follower grub per app, mirroring /apps. Each
           ::  follows its app's files by subscription and pings the scanner
           ::  to reconcile — so /sys/link (and the asks) stay current without a
@@ -346,6 +358,32 @@
         ::  rebuild on every sweep, not only when a new app appeared.
         ;<  ~  bind:m  (build-share rail)
         $
+          ::  update-window.sig: the ship's update window (+update-window).
+          ::  Outside it every desk is held and every kiln sync but %base's
+          ::  is paused. Inside it, or with the window off, they run. It
+          ::  wakes at each edge of the window and at any change to it.
+          ::
+          [~ %'update-window.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%shell update window: failed")
+        =/  file=road:tarball  (nex-road:io rail [%& /permit %'update-window.json'])
+        ;<  *  bind:m  (keep:io /window file ~)
+        |-
+        =*  again  $
+        ;<  cfg=(unit json)  bind:m  (peek-as:io file ,json)
+        ;<  now=@da  bind:m  get-time:io
+        =/  win=(unit window)  ?~(cfg ~ (json-window u.cfg))
+        =/  open=?  |(?=(~ win) (window-open u.win now))
+        ~?  dbg  [%shell-update-window ?~(win %off ?:(open %open %closed))]
+        ;<  ~  bind:m  ?:(open (release-updates rail) (hold-updates rail))
+        ::  news of a change that lands while the above runs is not taken
+        ::  by the wait below, so a setting that moved meanwhile goes again
+        ;<  cfg2=(unit json)  bind:m  (peek-as:io file ,json)
+        ?.  =(cfg cfg2)  again
+        ;<  ~  bind:m
+          ?~  win  (pure:(fiber:fiber:nexus ,~) ~)
+          (set-timer:io /window-edge (window-edge u.win now))
+        ;<  *  bind:m  (take-news-or-wake-on:io /window /window-edge)
+        again
           ::  bootstrap.sig: the stock desks, held current at every nexus reload.
           ::  /bootstrapped.json marks that the first run happened. The
           ::  manual POST /desks/sync-defaults does the same on demand.
@@ -542,6 +580,31 @@
           ?^  err
             ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[400 ~] `(as-octs:mimes:html u.err)])
             (pure:m ~)
+          ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[200 ~[['content-type' 'application/json']]] `(as-octs:mimes:html '{"ok":true}')])
+          (pure:m ~)
+        ::  GET /apps/grubbery/update-window: the ship's update window
+        ?:  &(=('GET' method.request.req) ?=([%update-window ~] suffix))
+          ;<  cfg=(unit json)  bind:m
+            (peek-as:io (nex-road:io rail [%& /permit %'update-window.json']) ,json)
+          =/  bod=octs  (as-octs:mimes:html (en:json:html (fall cfg ~)))
+          ;<  ~  bind:m
+            (send-simple:http-res:io eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+          (pure:m ~)
+        ::  POST /apps/grubbery/update-window {on, start, end, offset}: set it.
+        ::  update-window.sig follows the file and acts on the change.
+        ?:  &(=('POST' method.request.req) ?=([%update-window ~] suffix))
+          =/  jon=json
+            %+  fall  (de:json:html ?~(body.request.req '' q.u.body.request.req))
+            *json
+          ?.  ?&  ?=(%o -.jon)
+                  ?|  !=(`b+%.y (~(get by p.jon) 'on'))
+                      ?=(^ (json-window jon))
+                  ==
+              ==
+            ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[400 ~] `(as-octs:mimes:html 'want {on, start, end, offset}: minutes of the day, offset east of UTC')])
+            (pure:m ~)
+          ;<  ~  bind:m
+            (put:io (nex-road:io rail [%& /permit %'update-window.json']) [[/ %json] jon])
           ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[200 ~[['content-type' 'application/json']]] `(as-octs:mimes:html '{"ok":true}')])
           (pure:m ~)
         ::  POST /apps/grubbery/permits → a user permission action, applied
@@ -1795,6 +1858,155 @@
   ?:  &(boot-only !=(%boot setup.i.todo))  $(todo t.todo)
   ;<  ~  bind:m  (ensure-pairing i.todo)
   $(todo t.todo)
+::  +update-window: when the ship may update. /permit/update-window.json
+::  holds {on, start, end, offset}: start and end are minutes of the day
+::  in the user's own time, offset is that time's minutes east of UTC,
+::  and a window may run past midnight. start equal to end is the whole
+::  day. Outside the window update-window.sig holds every desk and
+::  pauses every kiln sync but %base's. Off, nothing is held.
+::
++$  window  [start=@ud end=@ud east=? off=@ud]
+::  +json-window: the window, or ~ when it is off or unreadable
+::
+++  json-window
+  |=  jon=json
+  ^-  (unit window)
+  ?.  ?=(%o -.jon)  ~
+  ?.  =(`b+%.y (~(get by p.jon) 'on'))  ~
+  =/  num
+    |=  k=@t
+    ^-  (unit [? @ud])
+    =/  v  (~(get by p.jon) k)
+    ?.  ?=([~ %n *] v)  ~
+    =/  t=@t  p.u.v
+    ?:  =('-' (end 3 t))
+      (bind (rush (rsh 3 t) dem) |=(n=@ud [%.n n]))
+    (bind (rush t dem) |=(n=@ud [%.y n]))
+  =/  s  (num 'start')
+  =/  e  (num 'end')
+  =/  o  (num 'offset')
+  ?.  ?&(?=([~ %.y @] s) ?=([~ %.y @] e) ?=(^ o))  ~
+  ?.  ?&((lth +.u.s 1.440) (lth +.u.e 1.440) (lth +.u.o 1.440))  ~
+  `[+.u.s +.u.e -.u.o +.u.o]
+::  +local-minute: the minute of the day in the window's own time
+::
+++  local-minute
+  |=  [win=window now=@da]
+  ^-  @ud
+  =/  utc=@ud  (div (mod now ~d1) ~m1)
+  ?:  east.win  (mod (add utc off.win) 1.440)
+  (mod (sub (add utc 1.440) off.win) 1.440)
+::
+++  window-open
+  |=  [win=window now=@da]
+  ^-  ?
+  =/  l=@ud  (local-minute win now)
+  ?:  =(start.win end.win)  %.y
+  ?:  (lth start.win end.win)
+    &((gte l start.win) (lth l end.win))
+  |((gte l start.win) (lth l end.win))
+::  +window-edge: when the window next opens or closes, on a minute
+::
+++  window-edge
+  |=  [win=window now=@da]
+  ^-  @da
+  =/  l=@ud  (local-minute win now)
+  =/  gap
+    |=  x=@ud
+    ^-  @ud
+    =/  d=@ud  (mod (sub (add x 1.440) l) 1.440)
+    ?:(=(0 d) 1.440 d)
+  (add (sub now (mod now ~m1)) (mul ~m1 (min (gap start.win) (gap end.win))))
+::  +hold-updates: hold every desk and pause every kiln sync but %base's,
+::  recording each paused sync's publisher so +release-updates can
+::  resume it. A desk already held is left alone, and a sync paused
+::  already is no longer in kiln's sources but stays recorded.
+::
+++  hold-updates
+  |=  rail=rail:tarball
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  ~  bind:m  (hold-desks %.y)
+  ;<  src=*  bind:m  (typed-scry:io * %noun /gx/hood/kiln/sources/noun)
+  =/  syncs=(list [dek=desk her=ship rem=desk])
+    %+  skip  ~(tap by ;;((map desk [ship desk]) src))
+    |=([d=desk *] =(%base d))
+  ?~  syncs  (pure:m ~)
+  ;<  held=(map @t json)  bind:m  (read-update-held rail)
+  =/  more=(map @t json)
+    %-  ~(gas by held)
+    %+  turn  syncs
+    |=  [dek=desk her=ship rem=desk]
+    [dek (pairs:enjs:format ~[['ship' s+(scot %p her)] ['desk' s+rem]])]
+  ;<  ~  bind:m  (write-update-held rail more)
+  =/  todo=(list [dek=desk her=ship rem=desk])  syncs
+  |-  ^-  form:m
+  ?~  todo  (pure:m ~)
+  ~?  dbg  [%shell-update-pause dek.i.todo]
+  ;<  *  bind:m  (gall-poke-or-nack:io %hood [%kiln-pause dek.i.todo])
+  $(todo t.todo)
+::  +release-updates: release every desk and resume every kiln sync the
+::  window paused, from the publisher it was recorded with
+::
+++  release-updates
+  |=  rail=rail:tarball
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  ~  bind:m  (hold-desks %.n)
+  ;<  held=(map @t json)  bind:m  (read-update-held rail)
+  ?:  =(~ held)  (pure:m ~)
+  =/  todo=(list [dek=@t jon=json])  ~(tap by held)
+  |-  ^-  form:m
+  ?~  todo  (write-update-held rail ~)
+  =/  her=(unit @p)
+    ?.  ?=(%o -.jon.i.todo)  ~
+    (biff (jget jon.i.todo 'ship') (cury slaw %p))
+  =/  rem=@t  ?.(?=(%o -.jon.i.todo) '' (fall (jget jon.i.todo 'desk') ''))
+  ?:  |(?=(~ her) =('' rem))  $(todo t.todo)
+  ~?  dbg  [%shell-update-resume dek.i.todo]
+  ;<  *  bind:m
+    (gall-poke-or-nack:io %hood [%kiln-install [`@tas`dek.i.todo u.her `@tas`rem]])
+  $(todo t.todo)
+::  +hold-desks: set every desk's hold.json and re-poke its source.json, so
+::  a parked source process wakes and follows again. A desk already set
+::  is left alone. The poke is bounded: a process still retrying an
+::  unreachable source takes none, and checks hold.json before it pulls.
+::
+++  hold-desks
+  |=  hold=?
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  dv=view:nexus  bind:m  (peek-shallow:io [%& %| /apps/shell/desks] ~)
+  =/  desks=(list @ta)
+    ?.  ?=([%ball *] dv)  ~
+    ~(tap in ~(key by dir.ball.dv))
+  |-  ^-  form:m
+  ?~  desks  (pure:m ~)
+  =/  dir=path  /apps/shell/desks/[i.desks]
+  ;<  cur=(unit json)  bind:m  (peek-as:io [%& %& dir %'hold.json'] ,json)
+  ?:  =(b+hold (fall cur b+%.n))  $(desks t.desks)
+  ~?  dbg  [%shell-update-hold i.desks hold]
+  ;<  ~  bind:m  (over:io [%& %& dir %'hold.json'] [[/ %json] b+hold])
+  ;<  src=(unit json)  bind:m  (peek-as:io [%& %& dir %'source.json'] ,json)
+  ;<  *  bind:m
+    ?~  src  (pure:(fiber:fiber:nexus ,(unit ~)) ~)
+    %+  (with-timeout:io ,~)  /hold-poke
+    [~s10 (poke:io [%& %& dir %'source.json'] [[/ %json] u.src])]
+  $(desks t.desks)
+::
+++  read-update-held
+  |=  rail=rail:tarball
+  =/  m  (fiber:fiber:nexus ,(map @t json))
+  ^-  form:m
+  ;<  jon=(unit json)  bind:m
+    (peek-as:io (nex-road:io rail [%& /permit %'update-held.json']) ,json)
+  (pure:m ?.(?=([~ %o *] jon) ~ p.u.jon))
+::
+++  write-update-held
+  |=  [rail=rail:tarball held=(map @t json)]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  (put:io (nex-road:io rail [%& /permit %'update-held.json']) [[/ %json] [%o held]])
 ::  stock-status: the default-repos list as json, each with a `synced` flag
 ::  (its desk exists and its source is wired). Feeds the Stock tab.
 ::

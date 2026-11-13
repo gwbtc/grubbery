@@ -21,9 +21,20 @@
   #profile-head > span { font-size: 15px; font-weight: 700; color: #111; }
   #profile-body { padding: 18px 16px 20px; }
   .prof-label { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: #777; margin-bottom: 8px; }
-  #profile-btn { display: flex; align-items: center; padding: 7px 9px; border-radius: 8px; border: 1px solid #ddd; background: none; color: #555; cursor: pointer; }
-  #profile-btn svg { width: 16px; height: 16px; display: block; }
-  #profile-btn:hover { background: #f5f5f5; color: #111; }
+  .icon-btn { display: flex; align-items: center; padding: 7px 9px; border-radius: 8px; border: 1px solid #ddd; background: none; color: #555; cursor: pointer; }
+  .icon-btn svg { width: 16px; height: 16px; display: block; }
+  .icon-btn:hover { background: #f5f5f5; color: #111; }
+  .set-item { display: block; width: 100%; box-sizing: border-box; text-align: left; font: inherit; font-size: 14px; font-weight: 600; color: #111; text-decoration: none; background: white; border: 1px solid #ddd; border-radius: 10px; padding: 11px 14px; margin-bottom: 10px; cursor: pointer; }
+  .set-item:hover { background: #f5f5f5; }
+  .set-sub { display: block; font-size: 12px; font-weight: 400; color: #777; margin-top: 2px; }
+  #set-menu .prof-label { margin-top: 18px; }
+  .win-on { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #111; }
+  .win-on input { accent-color: #6947b8; }
+  .win-times { display: flex; gap: 14px; margin: 14px 0 10px; font-size: 13px; color: #555; }
+  .win-times input { font: inherit; font-size: 13px; color: #333; border: 1px solid #e0e0e0; border-radius: 8px; padding: 6px 8px; margin-left: 6px; }
+  .win-times input:disabled { color: #aaa; background: #f6f6f6; }
+  .win-note { font-size: 12px; color: #777; line-height: 1.45; }
+  .win-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 16px; font-size: 12px; color: #7a5ac0; }
   .prof-ship { font-family: ui-monospace, Menlo, monospace; font-size: 15px; color: #111; background: #f4f2f8; border: 1px solid #ddd; border-radius: 10px; padding: 10px 14px; width: 100%; text-align: left; cursor: pointer; white-space: nowrap; overflow-x: auto; }
   .prof-ship:hover { background: #ece7f6; border-color: #7a5ac0; }
   .prof-copied { font-size: 12px; color: #7a5ac0; height: 16px; margin-top: 8px; }
