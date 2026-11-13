@@ -496,11 +496,10 @@
         ;<  ~  bind:m  (rise-wait:io prod "%shell mirror: failed")
         =/  s=@t  (mirror-ship name.rail)
         ?~  (slaw %p s)  (pure:m ~)
-        ::  a peer on an older grubbery keeps its storefront under
-        ::  /apps/shell.shell (the shell installed as a desk app): both
-        ::  roads are kept, and whichever answers is read.
+        ::  only the shell's own place: a peer whose storefront is still
+        ::  under /apps/shell.shell refuses nothing we can use, and asking
+        ::  there filled every current peer's console with refusals
         ;<  *  bind:m  (keep:io /pub (peer-pub-road s) ~)
-        ;<  *  bind:m  (keep-soft:io /pub-legacy (peer-pub-road-legacy s) ~ ~s30)
         ;<  ~  bind:m  (refresh-mirror s)
         |-
         ;<  ~  bind:m  take-pub-news
@@ -2220,14 +2219,7 @@
   |=  s=@t
   ^-  road:tarball
   [%& %& /sys/ames/ships/[s]/root/apps/shell/share/public %'desks.json']
-::  +peer-pub-road-legacy: the same storefront on a peer whose shell is
-::  still a desk app at /apps/shell.shell.
-::
-++  peer-pub-road-legacy
-  |=  s=@t
-  ^-  road:tarball
-  [%& %& /sys/ames/ships/[s]/root/apps/'shell.shell'/share/public %'desks.json']
-::  +take-pub-news: wake on news from either storefront keep.
+::  +take-pub-news: wake on news from the storefront keep.
 ::
 ++  take-pub-news
   =/  m  (fiber:fiber:nexus ,~)
@@ -2237,7 +2229,7 @@
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %news * *]
-    ?:  |(=(/pub wire.u.in) =(/pub-legacy wire.u.in))  [%done ~]
+    ?:  =(/pub wire.u.in)  [%done ~]
     [%skip ~]
   ==
 ::
@@ -2621,9 +2613,6 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ;<  pv=view:nexus  bind:m  (peek:io (peer-pub-road s) ~)
-  ;<  pv=view:nexus  bind:m
-    ?:  ?=([%file *] pv)  (pure:(fiber:fiber:nexus ,view:nexus) pv)
-    (peek:io (peer-pub-road-legacy s) ~)
   ?.  ?=([%file *] pv)
     ~&  >>  [%shell-peer-unreachable s]
     (pure:m ~)
