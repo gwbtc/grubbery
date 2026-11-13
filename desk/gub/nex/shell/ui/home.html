@@ -9,26 +9,43 @@
 <body>
   <div id="app">
     <div id="header">
-      <button id="profile-btn" onclick="openProfile()" title="Profile">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-user"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+      <button id="settings-btn" class="icon-btn" onclick="openSettings()" title="Settings">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-settings"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
       </button>
       <a id="bell" href="#" onclick="openBell(event)" title="Notifications">
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-bell"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
         <span id="bell-count" style="display:none"></span>
       </a>
-      <button id="add-btn" class="hdr-btn" onclick="openAdd()">Manage Desks</button>
+      <button id="add-btn" class="icon-btn" onclick="openAdd('ships')" title="Install apps">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-plus"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+      </button>
       <button id="hidden-btn" class="hdr-btn" onclick="toggleHiddenView()" style="display:none">Hidden</button>
     </div>
     <div id="profile-backdrop" onclick="closeProfile(event)">
       <div id="profile-panel">
         <div id="profile-head">
-          <span>Profile</span>
+          <button id="set-back" class="hdr-btn" onclick="setMenu()" style="display:none">back</button>
+          <span id="set-title">Settings</span>
           <button class="hdr-btn" onclick="closeProfileNow()">close</button>
         </div>
         <div id="profile-body">
-          <div class="prof-label">this ship</div>
-          <button id="prof-ship" class="prof-ship" onclick="copyShip()">…</button>
-          <div id="prof-copied" class="prof-copied"></div>
+          <div id="set-menu">
+            <button class="set-item" onclick="setWindow()">Update Window<span class="set-sub">When this ship takes app updates</span></button>
+            <a class="set-item" href="/apps/grubbery/permits">Permission Management<span class="set-sub">What each app may reach</span></a>
+            <button class="set-item" onclick="closeProfileNow(); openAdd('mine')">Installed Apps<span class="set-sub">The apps on this ship</span></button>
+            <div class="prof-label">this ship</div>
+            <button id="prof-ship" class="prof-ship" onclick="copyShip()">…</button>
+            <div id="prof-copied" class="prof-copied"></div>
+          </div>
+          <div id="set-window" style="display:none">
+            <label class="win-on"><input type="checkbox" id="win-on" onchange="winNote()"> Only update during a daily window</label>
+            <div class="win-times">
+              <label>From <input type="time" id="win-start"></label>
+              <label>to <input type="time" id="win-end"></label>
+            </div>
+            <div class="win-note" id="win-note"></div>
+            <div class="win-foot"><span id="win-msg"></span><button class="hdr-btn primary" onclick="saveWindow()">Save</button></div>
+          </div>
         </div>
       </div>
     </div>
@@ -53,7 +70,6 @@
             <button class="dtab" data-tab="ships" onclick="addTab('ships')">Install</button>
             <button class="dtab" data-tab="mine" onclick="addTab('mine')">Installed</button>
           </div>
-          <a class="hdr-btn" href="/apps/grubbery/permits">Sandbox Settings</a>
           <button class="hdr-btn" onclick="closeGetNow()">close</button>
         </div>
         <div id="get-slider">
