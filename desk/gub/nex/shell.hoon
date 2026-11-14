@@ -501,10 +501,10 @@
         ::  roads are kept, and whichever answers is read.
         ;<  *  bind:m  (keep:io /pub (peer-pub-road s) ~)
         ;<  *  bind:m  (keep-soft:io /pub-legacy (peer-pub-road-legacy s) ~ ~s30)
-        ;<  ~  bind:m  (refresh-mirror s)
+        ;<  ~  bind:m  (refresh-mirror-coalesced s)
         |-
         ;<  ~  bind:m  take-pub-news
-        ;<  ~  bind:m  (refresh-mirror s)
+        ;<  ~  bind:m  (refresh-mirror-coalesced s)
         $
           ::
           [[%ui %requests ~] @]
@@ -2613,6 +2613,29 @@
   ?~  fp  ~
   =/  =rail:tarball  [(flop t.fp) i.fp]
   ?:(=(0 ups) `[%& %& rail] `[%| ups %& rail])
+::
+::  +refresh-mirror-coalesced: refresh, then once more if storefront news
+::  came in meanwhile. News during a refresh is taken, not skipped: a
+::  skipped news woke a whole refresh of its own later, so a burst of
+::  them queued a refresh each (gwbtc/grubbery#117). A refresh reads the
+::  storefront as it is now, so one more covers any number of them.
+::
+++  refresh-mirror-coalesced
+  |=  s=@t
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  [* news=(list ~)]  bind:m
+    ((with-inbox:io ,~ ,~) pub-news (refresh-mirror s))
+  ?~  news  (pure:m ~)
+  (refresh-mirror-coalesced s)
+::  +pub-news: a +with-inbox picker for news from either storefront keep
+::
+++  pub-news
+  |=  =input:fiber:nexus
+  ^-  (unit ~)
+  ?.  ?=([~ %news * *] in.input)  ~
+  ?.  |(=(/pub wire.u.in.input) =(/pub-legacy wire.u.in.input))  ~
+  `~
 ::
 ::  +refresh-mirror: pull the peer's public.json into this mirror grub
 ::
