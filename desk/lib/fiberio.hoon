@@ -1527,6 +1527,12 @@
 ::  still passes through the timeout check first (strandio's
 ::  +set-timeout idiom).
 ::
+::  On timeout every peek the computation sent is abandoned with a
+::  +stop-wire on its wire. An abandoned request still gets its answer,
+::  and with nothing left to take it the answer sat in the skip queue for
+::  good, hydrated again at every later step of the fiber
+::  (gwbtc/grubbery#116).
+::
 ++  with-timeout
   |*  result=mold
   =/  m   (fiber ,(unit result))
@@ -1536,6 +1542,7 @@
   =.  wire  (weld /timeout wire)
   ;<  now=@da  bind:m  get-time
   ;<  ~        bind:m  (set-timer wire (add now time))
+  =|  sent=(set ^wire)
   |=  input
   ^-  output:m
   ::  our own deadline fired before the computation finished
@@ -1543,8 +1550,16 @@
           =([/ %timer-wake] p.sage.u.in)
           =(wire !<(^wire q.sage.u.in))
       ==
-    [~ q.state %done ~]
+    :_  [q.state %done ~]
+    (turn ~(tap ^in sent) stop-wire)
   =/  c-res=output:mr  (computation +<)
+  ::  peeks are what the kernel stages for a remote answer
+  =.  sent
+    %-  ~(gas ^in sent)
+    %+  murn  darts.c-res
+    |=  d=dart:nexus
+    ?.  &(?=(%node -.d) ?=(%peek -.load.d))  ~
+    `wire.d
   ?:  ?=(%cont -.next.c-res)
     [darts.c-res state.c-res %cont ..$(computation self.next.c-res)]
   ?:  ?=(%done -.next.c-res)
@@ -1564,6 +1579,15 @@
     %wait  [%wait ~]
     %skip  [%skip ~]
   ==
+::  +stop-wire: the dart that tells the kernel this grub has given up on
+::  its own request on `wire`. The kernel takes it before any weir check
+::  and neither delivers nor acks it, so it costs no permission and
+::  leaves nothing in the skip queue. The road is never read.
+::
+++  stop-wire
+  |=  =wire
+  ^-  dart:nexus
+  [%node /stop [%& %& /sys %'bowl.sig'] %poke [/ %stop-wire] wire]
 ::  +with-inbox: run a computation, and take the inputs `pick` picks
 ::  out meanwhile instead of letting the computation skip them. A
 ::  skipped input is run again at every later step of the fiber, so a

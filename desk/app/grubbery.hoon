@@ -3804,6 +3804,15 @@
   ::  %here does its own permission checks — skip weir pre-check
   ?:  ?=(%here -.dart)
     (handle-dart here dart ~ ~)
+  ::  a %stop-wire poke is the grub giving up on its own request: taken
+  ::  here, before any weir, and neither delivered nor acked (+stop-wire)
+  ?:  ?&  ?=(%node -.dart)
+          ?=(%poke -.load.dart)
+          =([/ %stop-wire] p.bask.load.dart)
+      ==
+    =/  w=(unit wire)  ((soft wire) q.bask.load.dart)
+    ?~  w  this
+    (forget-wire here u.w)
   =/  [=jump:nexus dest=(unit lane:tarball)]  (dart-to-dest here dart)
   ::  a road into the peer tree under OUR OWN ship names nothing. We are
   ::  not our own peer (+ensure-peer-ship refuses to make us one), so the
@@ -4104,6 +4113,42 @@
       |=(target=lane:tarball (make-bend:tarball here target))
     (enqu-take here ~ ~ %kept wire.dart kept)
   ==
+::  +forget-wire: the grub gave up on its own request on this wire
+::  (+with-timeout's deadline fired and sent a %stop-wire poke). Unstage the remote peek, so its
+::  late answer is refused as unsolicited, and drop any answer already
+::  queued for it with the refs it holds. Before this, a late answer
+::  sat in the skip queue for good and was hydrated again at every
+::  later step of the fiber (gwbtc/grubbery#116).
+::
+++  forget-wire
+  |=  [here=rail:tarball =wire]
+  ^+  this
+  =.  peeks.remo  (~(del by peeks.remo) [here wire])
+  =/  =pipe:nexus  (fall (~(get of pool) path.here) *pipe:nexus)
+  =/  old=(unit proc:fiber:nexus)  (~(get by proc.pipe) name.here)
+  ?~  old  this
+  =/  on-wire
+    |=  =take:fiber:nexus
+    ^-  ?
+    ?~  in.take  %.n
+    ?:  ?=(?(%poke %veto) -.u.in.take)  %.n
+    ::  every other pend carries its wire right after the tag
+    =(wire ;;(^wire +6.u.in.take))
+  =/  gone=(list take:fiber:nexus)
+    %+  weld  (skim ~(tap to next.u.old) on-wire)
+    (skim ~(tap to skip.u.old) on-wire)
+  ?~  gone  this
+  =.  this
+    =/  gon=(list take:fiber:nexus)  gone
+    |-  ^+  this
+    ?~  gon  this
+    =.  this  (drop-pend-refs in.i.gon)
+    $(gon t.gon)
+  =/  nex=(qeu take:fiber:nexus)
+    (~(gas to *(qeu take:fiber:nexus)) (skip ~(tap to next.u.old) on-wire))
+  =/  ski=(qeu take:fiber:nexus)
+    (~(gas to *(qeu take:fiber:nexus)) (skip ~(tap to skip.u.old) on-wire))
+  (store-proc here u.old(next nex, skip ski))
 ::  dart-peek: resolve a %peek dart. a remote dest (under /sys/ames/ships/…)
 ::  stages the peek and forwards a %peek load to the owning ship, suspending
 ::  until the intake discharges it. a local dir returns ball+born, a local
