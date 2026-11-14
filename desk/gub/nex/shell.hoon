@@ -3220,6 +3220,13 @@
     %+  roll  pairs
     |=  [[grp=path entry=json] a=(jar path json)]
     (~(add ja a) grp entry)
+  ::  This runs on every follower sweep. Rewriting an unchanged tree is
+  ::  news to every peer mirroring it, and each news cost each of them a
+  ::  refresh (gwbtc/grubbery#117), so leave a tree that already says
+  ::  this alone.
+  ;<  cur=view:nexus  bind:m  (peek:io (nex-road:io rail [%| /share]) ~)
+  ?:  =((~(run by jarred) |=(es=(list json) a+es)) (share-now cur))
+    (pure:m ~)
   ::  wipe the old tree, then write one desks.json per group present now
   ;<  *  bind:m  (cull-soft:io (nex-road:io rail [%| /share]))
   =/  groups=(list [grp=path es=(list json)])  ~(tap by jarred)
@@ -3229,6 +3236,26 @@
     %+  over:io  (nex-road:io rail [%& (weld /share grp.i.groups) %'desks.json'])
     [[/ %json] a+`(list json)`es.i.groups]
   $(groups t.groups)
+::  +share-now: the /share tree as it stands, group path -> desks.json
+::
+++  share-now
+  |=  =view:nexus
+  ^-  (map path json)
+  ?.  ?=([%ball *] view)  ~
+  =/  bal=ball:tarball  ball.view
+  =|  pax=path
+  |-  ^-  (map path json)
+  =/  mine=(map path json)
+    ?~  fil.bal  ~
+    =/  f  (~(get by contents.u.fil.bal) %'desks.json')
+    ?~  f  ~
+    ?:  (is-boom:tarball sang.u.f)  ~
+    =/  r=(each json tang)  (mule |.(!<(json (need-vase:tarball sang.u.f))))
+    ?:  ?=(%| -.r)  ~
+    (my [pax p.r] ~)
+  %+  roll  ~(tap by dir.bal)
+  |=  [[k=@ta b=ball:tarball] acc=_mine]
+  (~(uni by acc) ^$(bal b, pax (snoc pax k)))
 ::  +gather-shares: for each local app, read its share.usergroups (absent
 ::  for non-desks) and emit one [group, desk-entry] pair per group it opens to.
 ::
