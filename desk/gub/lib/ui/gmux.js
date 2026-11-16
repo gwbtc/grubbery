@@ -1047,7 +1047,10 @@ class Gmux extends HTMLElement {
     if (path != null && p.tabs.length === 1 && cur && cur.cursor < 0) { cur.entries = [entry]; cur.cursor = 0; this.#renderPane(p); this.#afterStructure(); this.#persist(); return; }
     const body = p.body.firstChild;
     if (body && body.tagName !== 'SPLIT-VIEW' && !body.classList.contains('ps-pane')) { cur.el = body; body.remove(); }   // the leaving tab keeps its content
-    p.tabs.push({ entries: path != null ? [entry] : [], cursor: path != null ? 0 : -1, label: null });
+    // a fresh browsing history, but the command history is the pane's own
+    // working record and carries over, the way a new shell in the same
+    // terminal keeps what was typed before it
+    p.tabs.push({ entries: path != null ? [entry] : [], cursor: path != null ? 0 : -1, label: null, hist: (cur && cur.hist ? cur.hist.slice() : []) });
     p.activeTab = p.tabs.length - 1;
     this.#renderPane(p); this.#afterStructure(); this.#persist();
   }
@@ -1191,8 +1194,10 @@ class Gmux extends HTMLElement {
     // gives an empty sibling.
     if (path != null) {
       // a sibling asked for on a path of its own (open beside): born there,
-      // with a history that starts there
-      childB.tabs = [{ entries: [{ path }], cursor: 0, label: null }];
+      // with a browsing history that starts there. The COMMAND history
+      // comes along: it is what was typed at this pane, not a property of
+      // the moment, so both sides of a split inherit it.
+      childB.tabs = [{ entries: [{ path }], cursor: 0, label: null, hist: (tab.hist || []).slice() }];
       childB.activeTab = 0;
       this.#renderPane(childB);
     } else if (curEntry && curEntry.path != null) {
@@ -1200,7 +1205,7 @@ class Gmux extends HTMLElement {
       // earlier split) is a live object one pane owns, not a path to copy:
       // a stack holding one gives the sibling the current moment alone
       const plain = tab.entries.every((e) => e.path != null && !e.div && !e.pane);
-      childB.tabs = [{ entries: plain ? tab.entries.map((e) => Object.assign({}, e)) : [Object.assign({}, curEntry)], cursor: plain ? tab.cursor : 0, label: null }];
+      childB.tabs = [{ entries: plain ? tab.entries.map((e) => Object.assign({}, e)) : [Object.assign({}, curEntry)], cursor: plain ? tab.cursor : 0, label: null, hist: (tab.hist || []).slice() }];
       childB.activeTab = 0;
       // and it renders: a second live view of that moment, following the
       // ship on its own. childA keeps the element already on screen below;
