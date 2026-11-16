@@ -538,10 +538,10 @@
         ::  under /apps/shell.shell refuses nothing we can use, and asking
         ::  there filled every current peer's console with refusals
         ;<  *  bind:m  (keep:io /pub (peer-pub-road s) ~)
-        ;<  ~  bind:m  (refresh-mirror s)
+        ;<  ~  bind:m  (refresh-mirror-coalesced s)
         |-
         ;<  ~  bind:m  take-pub-news
-        ;<  ~  bind:m  (refresh-mirror s)
+        ;<  ~  bind:m  (refresh-mirror-coalesced s)
         $
           ::
           [[%ui %requests ~] @]
@@ -2849,6 +2849,29 @@
   =/  =rail:tarball  [(flop t.fp) i.fp]
   ?:(=(0 ups) `[%& %& rail] `[%| ups %& rail])
 ::
+::  +refresh-mirror-coalesced: refresh, then once more if storefront news
+::  came in meanwhile. News during a refresh is taken, not skipped: a
+::  skipped news woke a whole refresh of its own later, so a burst of
+::  them queued a refresh each (gwbtc/grubbery#117). A refresh reads the
+::  storefront as it is now, so one more covers any number of them.
+::
+++  refresh-mirror-coalesced
+  |=  s=@t
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  [* news=(list ~)]  bind:m
+    ((with-inbox:io ,~ ,~) pub-news (refresh-mirror s))
+  ?~  news  (pure:m ~)
+  (refresh-mirror-coalesced s)
+::  +pub-news: a +with-inbox picker for news from the storefront keep
+::
+++  pub-news
+  |=  =input:fiber:nexus
+  ^-  (unit ~)
+  ?.  ?=([~ %news * *] in.input)  ~
+  ?.  =(/pub wire.u.in.input)  ~
+  `~
+::
 ::  +refresh-mirror: pull the peer's public.json into this mirror grub
 ::
 ++  refresh-mirror
@@ -3429,6 +3452,13 @@
     %+  roll  pairs
     |=  [[grp=path entry=json] a=(jar path json)]
     (~(add ja a) grp entry)
+  ::  This runs on every follower sweep. Rewriting an unchanged tree is
+  ::  news to every peer mirroring it, and each news cost each of them a
+  ::  refresh (gwbtc/grubbery#117), so leave a tree that already says
+  ::  this alone.
+  ;<  cur=view:nexus  bind:m  (peek:io (nex-road:io rail [%| /share]) ~)
+  ?:  =((~(run by jarred) |=(es=(list json) a+es)) (share-now cur))
+    (pure:m ~)
   ::  wipe the old tree, then write one desks.json per group present now
   ;<  *  bind:m  (cull-soft:io (nex-road:io rail [%| /share]))
   =/  groups=(list [grp=path es=(list json)])  ~(tap by jarred)
@@ -3438,6 +3468,26 @@
     %+  over:io  (nex-road:io rail [%& (weld /share grp.i.groups) %'desks.json'])
     [[/ %json] a+`(list json)`es.i.groups]
   $(groups t.groups)
+::  +share-now: the /share tree as it stands, group path -> desks.json
+::
+++  share-now
+  |=  =view:nexus
+  ^-  (map path json)
+  ?.  ?=([%ball *] view)  ~
+  =/  bal=ball:tarball  ball.view
+  =|  pax=path
+  |-  ^-  (map path json)
+  =/  mine=(map path json)
+    ?~  fil.bal  ~
+    =/  f  (~(get by contents.u.fil.bal) %'desks.json')
+    ?~  f  ~
+    ?:  (is-boom:tarball sang.u.f)  ~
+    =/  r=(each json tang)  (mule |.(!<(json (need-vase:tarball sang.u.f))))
+    ?:  ?=(%| -.r)  ~
+    (my [pax p.r] ~)
+  %+  roll  ~(tap by dir.bal)
+  |=  [[k=@ta b=ball:tarball] acc=_mine]
+  (~(uni by acc) ^$(bal b, pax (snoc pax k)))
 ::  +gather-shares: for each local app, read its share.usergroups (absent
 ::  for non-desks) and emit one [group, desk-entry] pair per group it opens to.
 ::
