@@ -381,7 +381,7 @@
     !>  ?=(^ dap-result)
     ::  dip returns node with empty lump (no neck, no weir, empty contents)
     %+  expect-eq
-      !>  [fil=[~ [neck=~ weir=~ contents=~]] dir=~]
+      !>  [fil=[~ [neck=~ weir=~ gain=%.n bang=~ contents=~]] dir=~]
     !>  dip-result
   ==
 ::
