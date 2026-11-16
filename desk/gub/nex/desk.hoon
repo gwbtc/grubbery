@@ -59,7 +59,14 @@
 ++  on-load
   |=  =ball:tarball
   ^-  bole:tarball
-  =/  code-dir=bole:tarball  [`[`[/ %code] ~ %.n ~] ~]
+  ::  code-dir: a code nexus, sealed with a [~ ~ ~] (permit-nothing) weir.
+  ::  It keeps its neck — /desk/code must BE a code nexus — but it is
+  ::  source the kernel compiles, not something that acts: nothing here
+  ::  pokes, reads or makes anywhere. The seal is what tells the serve
+  ::  gate so: a publisher's html or svg under here is served inert,
+  ::  because it could not poke /sys/eyre itself. An app that wants to
+  ::  serve a page materializes it in its own namespace.
+  =/  code-dir=bole:tarball  [`[`[/ %code] `[~ ~ ~] %.n ~] ~]
   ::  inert-dir: a neck-less directory sealed with a [~ ~ ~] (permit-nothing)
   ::  weir — files sit peekable, governed by nothing, able to reach nothing.
   =/  inert-dir=bole:tarball  [`[~ `[~ ~ ~] %.n ~] ~]
