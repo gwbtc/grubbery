@@ -2282,8 +2282,10 @@
   ^-  $-(* vase)
   vale:(get-marc pax blot)
 ::
-::  Vale cache: check/store validation results by [lobe ckey].
-::  TODO: pass lobe from silo instead of hashing noun
+::  Vale cache: check/store validation results by [lobe ckey]. The lobe
+::  is the noun's sham. A caller that read the noun out of the silo
+::  already holds it and passes it in (+validate-known), so only a noun
+::  of unknown origin is hashed, once (gwbtc/grubbery#120).
 ::
 ::  Vale cache read: check if [lobe ckey] has been validated
 ::
@@ -2302,11 +2304,10 @@
 ::  On cached success, reconstructs vase from marc type + noun.
 ::
 ++  check-vale-cache
-  |=  [pax=path =blot:tarball noun=*]
+  |=  [pax=path =blot:tarball noun=* lob=nobe:nexus]
   ^-  (unit (each vase tang))
   =/  built-res  (resolve-built pax %mar blot)
   ?~  built-res  ~
-  =/  lob=nobe:nexus  (sham noun)
   =/  hit  (vale-hit lob ckey.u.built-res)
   ?~  hit  ~
   ?^  u.hit  `|+u.u.hit
@@ -2317,9 +2318,8 @@
   `&+[type:p.marc-res noun]
 ::
 ++  cache-validation
-  |=  [pax=path =blot:tarball noun=* res=(each * tang)]
+  |=  [pax=path =blot:tarball lob=nobe:nexus res=(each * tang)]
   ^+  this
-  =/  lob=nobe:nexus  (sham noun)
   ::  Only cache silo-resident nouns. One-shot payloads (pokes, http
   ::  bodies) sham to a key that can never recur, so caching them
   ::  only grows the map. Recorded grubs get their entry from +record.
@@ -2333,10 +2333,23 @@
 ++  validate-cached
   |=  [pax=path =blot:tarball noun=*]
   ^-  [(each vase tang) _this]
-  =/  cached  (check-vale-cache pax blot noun)
+  =/  lob=nobe:nexus  (sham noun)
+  =/  cached  (check-vale-cache pax blot noun lob)
   ?^  cached  [u.cached this]
   =/  res=(each vase tang)  (validate-noun pax blot noun)
-  [res (cache-validation pax blot noun res)]
+  [res (cache-validation pax blot lob res)]
+::  Validate a silo noun whose lobe the caller holds: a cache hit costs
+::  a lookup, not a hash of the noun. Read-only, for paths that cannot
+::  thread state (peek hydration); a miss validates without caching,
+::  as those paths always did.
+::
+++  validate-known
+  |=  [pax=path =blot:tarball noun=* lob=nobe:nexus]
+  ^-  (each sage:tarball tang)
+  =/  cached  (check-vale-cache pax blot noun lob)
+  ?~  cached  (validate-bask pax [blot noun])
+  ?:  ?=(%| -.u.cached)  |+p.u.cached
+  &+[blot p.u.cached]
 ::
 ++  get-tube
   |=  [pax=path =bars:tarball]
@@ -4564,7 +4577,7 @@
         ::  the mark resolves from the grub's own position when it is
         ::  found there, else from the reader's
         =/  pos=path  (mark-position cod at.cite p.bask)
-        =/  res  (validate-bask pos bask)
+        =/  res  (validate-known pos p.bask q.bask lobe.leaf.jt)
         ?:  ?=(%| -.res)
           [%file cass.cite [blot.mark.leaf.jt %| [p.res u.got]] bang]
         =/  =sage:tarball  p.res
@@ -4600,7 +4613,7 @@
       ?.  ?=(%leaf -.jt)  ~
       =/  got=(unit noun)  (~(get si:nexus silo) lobe.leaf.jt)
       ?~  got  ~
-      =/  res  (validate-bask cod [blot.mark.leaf.jt u.got])
+      =/  res  (validate-known cod blot.mark.leaf.jt u.got lobe.leaf.jt)
       ?:  ?=(%| -.res)  ~
       `[cas p.res]
     ::  Refs released on consume (+drop-pend-refs), not per read: see the
