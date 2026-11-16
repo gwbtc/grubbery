@@ -91,6 +91,29 @@
   var REPEATABLE = { j: 1, k: 1, h: 1, l: 1 };
   var HOLD_DELAY = 350, HOLD_INTERVAL = 35;
 
+  // Ex commands (:w, :q, :e <path>, ...). defineEx is global to the page,
+  // so each name is defined once and dispatched to the editor the command
+  // was typed in: opts.ex = { w: fn(args), q: fn, ... } is kept per cm and
+  // looked up on the way through. A name with no handler on this editor
+  // does nothing.
+  var EX = {};                       // name -> [cm, handlers] (weak enough: destroy removes)
+  var exDefined = {};
+  function defineEx(name, cm, fn) {
+    EX[name] = EX[name] || [];
+    EX[name].push([cm, fn]);
+    if (exDefined[name]) return;
+    exDefined[name] = true;
+    try {
+      CodeMirror.Vim.defineEx(name, name, function (cm2, params) {
+        var hit = EX[name].filter(function (p) { return p[0] === cm2; })[0];
+        if (hit) hit[1](params.args || [], params);
+      });
+    } catch (_) {}
+  }
+  function dropEx(cm) {
+    Object.keys(EX).forEach(function (n) { EX[n] = EX[n].filter(function (p) { return p[0] !== cm; }); });
+  }
+
   function mount(el, opts) {
     opts = opts || {};
     var handle = { cm: null };
@@ -119,6 +142,7 @@
         tabSize: 2,
       });
       handle.cm = cm;
+      Object.keys(opts.ex || {}).forEach(function (n) { defineEx(n, cm, opts.ex[n]); });
       if (opts.onChange) cm.on('change', function () { opts.onChange(cm.getValue()); });
       if (opts.autofocus) cm.focus();
       cm.on('keydown', function (cm, e) {
@@ -148,7 +172,7 @@
       getCursor: function () { return handle.cm ? handle.cm.getCursor() : null; },
       setCursor: function (c) { if (handle.cm && c) handle.cm.setCursor(c); },
       refresh: function () { if (handle.cm) handle.cm.refresh(); },
-      destroy: function () { stopAllHolds(); handle.cm = null; el.innerHTML = ''; }
+      destroy: function () { stopAllHolds(); if (handle.cm) dropEx(handle.cm); handle.cm = null; el.innerHTML = ''; }
     };
   }
 

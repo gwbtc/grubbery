@@ -627,7 +627,14 @@ class Gmux extends HTMLElement {
       // a pane moment: the nested pane (tabs of its own) fills the body
       this.#placePane(entry.pane, pane.body, null);
     } else if (entry && entry.path != null) {
-      const el = this.renderPath ? this.renderPath(entry.path, pane.id) : document.createTextNode(entry.path);
+      // a tab that stashed the element it was showing gets it back as is:
+      // tabs moved by a close or a move arrive this way
+      const tab = pane.tabs[pane.activeTab];
+      if (!rebuild && tab && tab.el) { const el = tab.el; tab.el = null; pane.body.appendChild(el); this.#renderBar(pane); return; }
+      // pane.prime: a live element showing this same moment elsewhere (a
+      // split's original), offered once to the host as a source to copy from
+      const from = pane.prime || null; pane.prime = null;
+      const el = this.renderPath ? this.renderPath(entry.path, pane.id, from) : document.createTextNode(entry.path);
       if (el) pane.body.appendChild(el);
     } else {
       const el = this.leafFactory ? this.leafFactory(pane.id) : this.#empty();
@@ -658,13 +665,22 @@ class Gmux extends HTMLElement {
 
   open(path, disposition = 'beside') {
     if (disposition === 'here') { this.navigate(this.#activeId, path); return this.#activeId; }
-    const id = this.splitRight();
-    if (id) this.navigate(id, path);
-    return id;
+    // the sibling is born on the opened path: one mount, not a copy of this
+    // moment that is then navigated away
+    return this.#split(this.#activeId, 'horizontal', path);
   }
   // push a leaf entry onto the active tab (drops the forward tail). History stays.
   // `name` is the moment's offered name (content's description of it).
   navigate(id, path, name) { this.#pushEntry(id ?? this.#activeId, name ? { path, name } : { path }); }
+  // the current moment re-spelled in place (its ?args changed: how the same
+  // path is looked at), no history entry: back still goes where it went
+  replaceMoment(id, path) {
+    const pane = this.#panes.get(id ?? this.#activeId); if (!pane) return;
+    const tab = pane.tabs[pane.activeTab], e = tab && tab.entries[tab.cursor];
+    if (!e || e.path == null) return;
+    e.path = path;
+    this.#renderPane(pane); this.#afterStructure(); this.#persist();
+  }
   // ---- routing: where a moment from a pane goes ----
   // A view says WHAT (a moment); its context says WHERE. A layout carries one
   // table, `open: {<origin>: {to, mode}}`, at its root (a division or a pane):
@@ -1012,6 +1028,7 @@ class Gmux extends HTMLElement {
     const tmp = document.createElement('div'); tmp.appendChild(tab.el); tab.el = null;
     try { if (this.onDestroy) this.onDestroy(pane.id, tmp); } catch (_) {}
   }
+  closeActiveTab(id) { const p = this.#panes.get(id ?? this.#activeId); if (p) this.closeTab(p.id, p.activeTab); }
   closeTab(id, i) {
     const p = this.#panes.get(id ?? this.#activeId); if (!p || i < 0 || i >= p.tabs.length) return;
     const [tab] = p.tabs.splice(i, 1);
@@ -1043,8 +1060,8 @@ class Gmux extends HTMLElement {
   // ---- splitting: STRUCTURAL. active tab's history migrates to the child that
   // keeps the original content; the parent tab becomes the division. ----
 
-  splitRight(id) { return this.#split(id ?? this.#activeId, 'horizontal'); }
-  splitDown(id) { return this.#split(id ?? this.#activeId, 'vertical'); }
+  splitRight(id, path) { return this.#split(id ?? this.#activeId, 'horizontal', path); }
+  splitDown(id, path) { return this.#split(id ?? this.#activeId, 'vertical', path); }
 
   // flip: the two sides of this division trade CONTENTS. The frame does not
   // move with them — same axis, same ratio, same folded slot — so flipping
@@ -1098,7 +1115,7 @@ class Gmux extends HTMLElement {
     return true;
   }
 
-  #split(id, orientation) {
+  #split(id, orientation, path) {
     const pane = this.#panes.get(id);
     if (!pane) return null;
     const scroll = this.#snapshotScroll();     // reuse the live DOM across the split → preserve scroll
@@ -1111,7 +1128,32 @@ class Gmux extends HTMLElement {
     childA.activeTab = 0;
     if (pane.showBar) { childA.showBar = true; childA.dom.classList.add('ps-bar-on'); }  // bar rides with the content
     if (pane.tabs.length <= 1) { pane.showBar = false; pane.dom.classList.remove('ps-bar-on'); }  // sole tab is now just the division → no bar; KEEP it if other tabs remain
-    const childB = this.#makePane();   // fresh empty pane
+    const childB = this.#makePane();
+    // a split is two views of the same tab: the sibling gets the same
+    // history, cursor and all, since after a split neither side is "the
+    // original". Entries are paths, so the copy is free. A division or a
+    // nested pane is not a moment to stand on; a split from one of those
+    // gives an empty sibling.
+    if (path != null) {
+      // a sibling asked for on a path of its own (open beside): born there,
+      // with a history that starts there
+      childB.tabs = [{ entries: [{ path }], cursor: 0, label: null }];
+      childB.activeTab = 0;
+      this.#renderPane(childB);
+    } else if (curEntry && curEntry.path != null) {
+      // a layout entry in the stack (a division or a nested pane from an
+      // earlier split) is a live object one pane owns, not a path to copy:
+      // a stack holding one gives the sibling the current moment alone
+      const plain = tab.entries.every((e) => e.path != null && !e.div && !e.pane);
+      childB.tabs = [{ entries: plain ? tab.entries.map((e) => Object.assign({}, e)) : [Object.assign({}, curEntry)], cursor: plain ? tab.cursor : 0, label: null }];
+      childB.activeTab = 0;
+      // and it renders: a second live view of that moment, following the
+      // ship on its own. childA keeps the element already on screen below;
+      // the sibling is told which element that is, so the host can prime
+      // its view with what is already loaded instead of fetching it again.
+      childB.prime = liveBody;
+      this.#renderPane(childB);
+    }
     const sv = document.createElement('split-view');
     sv.setAttribute('orientation', orientation); sv.setAttribute('min', '40');
     const div = { dir: orientation, ratio: 0.5, fold: null, src: null, owner: pane, a: childA, b: childB, sv };
@@ -1274,6 +1316,11 @@ class Gmux extends HTMLElement {
   //
   #giveTabsTo(src, dst) {
     const mine = src.tabs;
+    // the active tab's content is on screen, not in its stash: stash it,
+    // so the destination puts the same element back instead of rendering
+    // the moment again (the way a tab switch keeps a leaving tab's content)
+    const live = src.body.firstChild, cur = mine[src.activeTab];
+    if (live && cur && live.tagName !== 'SPLIT-VIEW' && !live.classList.contains('ps-pane')) { cur.el = live; live.remove(); }
     dst.tabs.push(...mine);
     dst.activeTab = dst.tabs.length - mine.length + (src.activeTab || 0);
     dst.tabs.forEach((t) => t.entries.forEach((e) => this.#reparentDiv(e, dst)));

@@ -1043,6 +1043,15 @@ function setup(root, opts) {
     if (!base) base = '/';
     return base + (query ? '?' + query : '');
   };
+  // the editor's command line (:e :sp :vs :q) acts on ITS pane. Paths are
+  // relative to the file's dir, like vim's.
+  const exHost = (ps, paneId, ns, route) => {
+    const rel = (u) => psRel(ns.replace(/\/[^/]*$/, '') || '/', u);
+    return { open: (u) => route(rel(u), null, null),
+             close: () => ps.closeActiveTab(paneId),
+             splitRight: (u) => ps.splitRight(paneId, u ? psNs(rel(u)) : undefined),
+             splitDown: (u) => ps.splitDown(paneId, u ? psNs(rel(u)) : undefined) };
+  };
   const TREE_JS = PREFIX + '/apps/shell/ui/explorer/tree-viewer.js';           // the explorer's own tree, a stock viewer
   // a pane's waiting state: `text` over an optional `sub` line (what is being
   // fetched); psWaitFail turns the same block into the failure it ended in
@@ -1930,7 +1939,38 @@ function setup(root, opts) {
     const field = (label, value, ph) => { const l = document.createElement('label'); const s = document.createElement('span'); s.textContent = label; const i = document.createElement('input'); i.value = value || ''; i.placeholder = ph || ''; i.spellcheck = false; l.append(s, i); body.appendChild(l); return i; };
     const buttons = (ok, danger, run) => { const foot = document.createElement('div'); foot.className = 'ps-form-foot'; const c = document.createElement('button'); c.textContent = 'cancel'; c.addEventListener('click', () => ps.back(paneId)); const b = document.createElement('button'); b.className = danger ? 'danger' : 'go'; b.textContent = ok; b.addEventListener('click', async () => { b.disabled = true; const okd = await run(); b.disabled = false; if (okd) ps.back(paneId); }); foot.append(c, b); form.appendChild(foot); return b; };
     const onEnter = (inp, btn) => inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') btn.click(); else if (e.key === 'Escape') ps.back(paneId); });
-    if (view === 'new') {
+    if (view === 'make') {
+      // nothing at this path yet: make it. The name is the path's own; the
+      // kind defaults from the spelling (a trailing slash is a folder).
+      const dirSpelled = /\/$/.test(ns);
+      const base = ns.replace(/\/$/, '').split('/').filter(Boolean).pop() || '';
+      const parent = PREFIX + (ns.replace(/\/$/, '').replace(/\/[^/]*$/, '') || '');
+      h('Not here', ns);
+      note('Nothing at this path. Make it:');
+      const kind = document.createElement('select'); ['file', 'folder', 'nexus', 'symlink'].forEach((k) => { const o = document.createElement('option'); o.value = k; o.textContent = k; kind.appendChild(o); });
+      kind.value = dirSpelled ? 'folder' : 'file';
+      const kl = document.createElement('label'); const ks = document.createElement('span'); ks.textContent = 'kind'; kl.append(ks, kind); body.appendChild(kl);
+      const extra = field('', '', '');
+      const EXTRA = {
+        file: { label: 'blot', ph: '/json, /txt, /hoon …' },
+        folder: null,
+        nexus: { label: 'neck', ph: '/git/repo' },
+        symlink: { label: 'target', ph: '/path/to/target' },
+      };
+      const applyKind = () => { const x = EXTRA[kind.value]; const l = extra.parentElement; l.style.display = x ? '' : 'none'; if (x) { l.querySelector('span').textContent = x.label; extra.placeholder = x.ph; } };
+      kind.addEventListener('change', applyKind); applyKind();
+      const b = buttons('make', false, async () => {
+        const x = extra.value.trim(), k = kind.value;
+        if (k !== 'folder' && !x) { extra.focus(); return false; }
+        const params = k === 'folder' ? { action: 'create-folder', foldername: base }
+          : k === 'nexus' ? { action: 'create-nexus', foldername: base, neck: x }
+          : k === 'symlink' ? { action: 'create-symlink', linkname: base, target: x }
+          : { action: 'create-file', filename: base, blot: x };
+        await psPost(parent, params);
+        return false;                                                  // the pane stays: the watch re-renders it as what was made
+      });
+      onEnter(extra, b); if (kind.value === 'folder') b.focus(); else extra.focus();
+    } else if (view === 'new') {
       h('New', ns);
       const kind = document.createElement('select'); ['file', 'folder', 'nexus', 'symlink'].forEach((k) => { const o = document.createElement('option'); o.value = k; o.textContent = k; kind.appendChild(o); });
       const kl = document.createElement('label'); const ks = document.createElement('span'); ks.textContent = 'kind'; kl.append(ks, kind); body.appendChild(kl);
@@ -2450,10 +2490,39 @@ function setup(root, opts) {
       goTo(u) { if (u === shown) return; shown = u; veiling(u); f.src = u; },
     };
   }
-  function paneContent(ps, paneId, path) {
+  // ---- primes: what a restore fetched up front, by url ----
+  // A session's spec names every moment on screen before any pane mounts,
+  // so the distinct files are fetched once, here, and every pane on one of
+  // them mounts from memory, however late it renders. An entry lives ten
+  // seconds: a pane that renders later than that fetches afresh.
+  const PRIMES = new Map();
+  function primeFor(url) { const p = PRIMES.get(url); if (!p) return null; if (Date.now() - p.at > 10000) { PRIMES.delete(url); return null; } return p.snap; }
+  function prefetchSpec(spec) {
+    const urls = new Set();
+    const pane = (p) => { if (!p || !Array.isArray(p.tabs)) return; for (const t of p.tabs) { const e = t && Array.isArray(t.entries) ? t.entries[t.cursor] : null; if (e) entry(e); } };
+    const entry = (e) => {
+      if (e.div) { pane(e.div.a); pane(e.div.b); return; }
+      if (e.pane) { pane(e.pane); return; }
+      if (typeof e.path !== 'string' || psIsUrl(e.path)) return;
+      const ns = psNs(e.path), a = psArgs(e.path);
+      if (psLink(ns) || ns.endsWith('/') || a.asof || a.case) return;   // an @name, a directory, a past version: the pane does those itself
+      urls.add(psUrl(ns));
+    };
+    pane(spec);
+    if (!urls.size || !window.FileView || !window.FileView.prefetch) return Promise.resolve();
+    return Promise.all([...urls].map((u) => window.FileView.prefetch(u).then((snap) => { if (snap) PRIMES.set(u, { snap, at: Date.now() }); })));
+  }
+  // +psSetArg: a moment with one ?arg set (v) or dropped (null); the rest kept
+  function psSetArg(p, k, v) {
+    const a = psArgs(p); if (v == null) delete a[k]; else a[k] = v;
+    const q = Object.keys(a).map((x) => encodeURIComponent(x) + '=' + encodeURIComponent(a[x])).join('&');
+    return psNs(p) + (q ? '?' + q : '');
+  }
+  function paneContent(ps, paneId, path, from) {
     const el = document.createElement('div');
     el.style.cssText = 'height:100%;overflow:auto';
     el._moment = path;                                                        // what this content shows (updateContent compares against it)
+    el._primeFrom = from || null;                                             // a live element on this same moment (a split's original) to start from
     const raw = !!(ps.viewOf && ps.viewOf(paneId) === 'raw');                 // the mode this element is FOR, fixed now
     if (psIsUrl(path)) { el._fv = frameMount(el, { url: path, ps, paneId }); psLanded(ps, paneId, el); return el; }   // a served page, framed
     const ns = psNs(path);
@@ -2675,6 +2744,20 @@ function setup(root, opts) {
           return;
         }
         psMarkDead(ps, el, ns);
+        // A missing path is a path about to be. The pane asks what it should
+        // become -- file (with its blot, said outright), folder, nexus,
+        // symlink -- and makes it; the trailing slash only picks the default.
+        // The watch below re-renders the pane as the real thing once made.
+        if (!psLink(psNs(path))) {
+          psClear(el);
+          el.style.cssText = 'height:100%;display:flex;flex-direction:column;overflow:auto';
+          const bar = psPastBar(ns, path, 'file', route); if (bar) el.appendChild(bar);
+          el.appendChild(psCrumbRow(abs, route));
+          actionView(ps, paneId, el, psSetArg(path, 'view', 'make'), abs);
+          psLanded(ps, paneId, el);
+          el._gone = psWatchFile(ps, paneId, el, ns, abs);
+          return;
+        }
         // A path that is not here still has a PLACE and may still have a
         // PAST -- a ghost is exactly that. So draw the ordinary pane:
         // crumbs saying where this is, and the version bar, which stays
@@ -2713,7 +2796,8 @@ function setup(root, opts) {
       // apart, and its Preview pane still renders markdown.
       const pastArgs = psArgs(path);
       const atPast = pastArgs.asof || pastArgs.case;
-      if (!raw && !atPast) {
+      const bare = !!psArgs(path).bare;                                      // ?bare=1: the source alone in the editor, no declared viewer
+      if (!raw && !bare && !atPast) {
         let v = null; try { v = await viewerFor(url, 'file', '', psArgs(path).view || null); } catch (_) {}
         if (v && !v.blocked && v.mount) {
           // the moment's ?args ride along as `query`: a viewer may read how it
@@ -2728,7 +2812,10 @@ function setup(root, opts) {
       const atCase = pastArgs.asof ? ('asof=' + pastArgs.asof)
                    : pastArgs.case ? ('case=' + pastArgs.case) : '';
       const opts = { url, crumbBase: ROOT, onNavigate: onNav, open: vopen, close: vclose,
-                     readOnly: !!atCase, at: atCase ? '&' + atCase : '' };   // raw, or no renderer → the raw package
+                     readOnly: !!atCase, at: atCase ? '&' + atCase : '',
+                     bare, query: psArgs(path),
+                     setBare: (on) => ps.replaceMoment(paneId, psSetArg(path, 'bare', on ? '1' : null)),
+                     host: exHost(ps, paneId, ns, route) };   // raw, or no renderer → the raw package
       // right-click anywhere in the file: the file's own actions
       el._menu = () => { const o = psOwn(abs); return itemMenu(el, { kind: 'file', name: o.name, __dir: o.dir }, true); };
       // and the same menu on a button, the way a listing carries one: History
@@ -2739,12 +2826,17 @@ function setup(root, opts) {
       // save would write it back as the present, so opts.readOnly withholds
       // saving while still showing the file.
       //
-      // The bar goes in AFTER mount: +mount does root.innerHTML = MARKUP, so
-      // anything put there first is wiped.
+      // The version bar is the viewer's chrome (opts.versions): it goes above
+      // the crumbs and leaves with them in ?bare=1.
+      opts.versions = psPastBar(ns, path, 'file', onNav);
+      // a split's sibling starts from what the original already holds: the
+      // file's info and text, so it shows at once and skips the two fetches
+      const pf = el._primeFrom && el._primeFrom._fv && el._primeFrom._fv.snapshot ? el._primeFrom._fv.snapshot() : null;
+      if (pf && pf.url === url) opts.prime = pf;
+      else if (!atCase) { const pre = primeFor(url); if (pre) opts.prime = pre; }   // a restore's up-front fetch
+      el._primeFrom = null;
       try {
         el._fv = window.FileView.mount(el, opts);
-        const pastBar = psPastBar(ns, path, 'file', onNav);
-        if (pastBar) el.insertBefore(pastBar, el.firstChild);
         paneLive(ps, paneId, el, [{ road: abs }]); psLanded(ps, paneId, el);
       }   // the raw package follows its file
       catch (e) { el.textContent = 'open failed: ' + e; }
@@ -3718,7 +3810,7 @@ function setup(root, opts) {
       const same = standing && st.spec && typeof st.spec === 'object' && sansCursor(st.spec) === mirrored;
       passive = false; attached = true; ver = st.ver || 0; mirrored = null;
       if (same) { if (typeof st.spec.cursor === 'string' && st.spec.cursor !== ps.cursorAddr()) ps.cursorToAddr(st.spec.cursor); }
-      else if (st.spec && typeof st.spec === 'object') ps.restore(st.spec);
+      else if (st.spec && typeof st.spec === 'object') { await prefetchSpec(st.spec); ps.restore(st.spec); }
       else if (typeof st.layout === 'string' && st.layout) {
         ps.open('/', 'here');
         try { const spec = await fetch(psUrl(st.layout), { cache: 'no-store' }).then((x) => x.ok ? x.json() : Promise.reject(x.status)); ps.replaceWithLayout(ps.cursor.id, spec, st.layout); } catch (e) { toast('layout did not load: ' + e, true); }
@@ -4775,9 +4867,21 @@ function setup(root, opts) {
     if (sessionName && MOBILE) { mobileWorkspace(root, sessionName); return; }
     const persistKey = sessionName ? null : K + '-standalone';
     const ps = document.createElement('gmux-host');
+    // the pane gmux seeds before the workspace has restored is not empty, it
+    // is waiting: until the session (or the saved standalone layout) is in,
+    // a pane with nothing in it shows the same ring every fetching pane
+    // shows. After that, an empty pane says so.
+    let booting = true;
+    ps.leafFactory = () => {
+      const el = document.createElement('div');
+      if (booting) { psWait(el, 'loading', sessionName || 'workspace'); return el; }
+      el.className = 'ps-empty'; el.textContent = 'empty pane'; el.style.cssText = 'height:100%';
+      return el;
+    };
+    const booted = () => { if (!booting) return; booting = false; for (const w of ps.querySelectorAll('.ps-pane-body > .ps-wait')) { const p = w.closest('.ps-pane'); if (p && ps.pathOf(p.dataset.paneId) == null) ps.refresh(p.dataset.paneId); } };
     if (persistKey) ps.setAttribute('persist', persistKey);
     ps.style.cssText = 'display:block;height:100%';
-    ps.renderPath = (path, paneId) => paneContent(ps, paneId, path);
+    ps.renderPath = (path, paneId, from) => paneContent(ps, paneId, path, from);
     ps.tabInfo = paneTabInfo;
     ps.pathHint = (p) => { const ns = psNs(p); return psLink(ns) ? (psResolved.get(ns) || 'resolving ' + ns) : ''; };   // an @name moment's tooltip: where it landed
     ps.pathChip = psChipParse;
@@ -4794,9 +4898,11 @@ function setup(root, opts) {
       if (psIsUrl(path) && psIsUrl(el._moment || '') && typeof el._fv.goTo === 'function') { el._moment = path; el._fv.goTo(path.slice(4)); return true; }
       if (typeof el._fv.onArgs !== 'function') return false;
       if (psNs(el._moment || '') !== psNs(path)) return false;
-      el._moment = path;
-      el._fv.onArgs(psArgs(path));
-      return true;
+      // a viewer that answers false to the new args wants a fresh mount
+      const was = el._moment; el._moment = path;
+      let kept = true; try { kept = el._fv.onArgs(psArgs(path)) !== false; } catch (_) { kept = false; }
+      if (!kept) el._moment = was;
+      return kept;
     };
     ps.viewModes = [{ id: 'rendered', glyph: '▣', title: 'rendered' }, { id: 'raw', glyph: '◰', title: 'raw file / plain listing' }];
     ps.onDestroy = (id, body) => { const c = body.firstChild; try { if (c && c._live) c._live(); } catch (_) {} try { if (c && c._gone) c._gone(); } catch (_) {} try { if (c && c._link) c._link(); } catch (_) {} try { if (c && c._headRO) c._headRO.disconnect(); } catch (_) {} try { if (c && c._fv) c._fv.destroy(); } catch (_) {} };
@@ -4825,11 +4931,12 @@ function setup(root, opts) {
       let saved = null; try { saved = localStorage.getItem('gmux:' + K + '-standalone') || localStorage.getItem('pane-split:' + K + '-standalone'); } catch (_) {}
       if (!saved) ps.open('/', 'here');                 // fresh → root; otherwise the persisted workspace restores (stateful)
       ps.layoutSources().forEach(({ id, src }) => psFollowLayout(ps, id, src));   // restored layout panes follow their files again
+      booted();
       return;
     }
     // ---- a session: this tab is its one client ----
     document.title = sessionName + ' · gmux';
-    const client = sessionClient(ps, root, sessionName, () => ps.layoutSources().forEach(({ id, src }) => psFollowLayout(ps, id, src)));
+    const client = sessionClient(ps, root, sessionName, () => { booted(); ps.layoutSources().forEach(({ id, src }) => psFollowLayout(ps, id, src)); });
     psSnaps(ps, (session) => session === sessionName ? client.active() : null);   // the attached client's id, or nothing
     client.attach();
     return;

@@ -65,6 +65,8 @@
     '.fv #text-view,.fv #mime-view{flex:1;min-height:0;min-width:0;overflow:auto}' +
     '.fv #view-pane{flex:1;min-height:0;min-width:0;overflow:auto;display:flex;flex-direction:column}' +
     '.fv .edwrap,.fv #src-display{height:100%;min-width:0;overflow:auto}' +
+    /* bare: the source alone, an editor and nothing else (opts.bare / onView) */
+    '.fv.bare #versions,.fv.bare #crumbrow,.fv.bare #bar,.fv.bare #tools,.fv.bare #mime-row,.fv.bare #sandbox-banner{display:none!important}' +
     // the Wrap toggle drives the highlighted display; the editor drives its
     // own CodeMirror lineWrapping option (set alongside this, see setupWrap)
     '.fv.wrap #text-view pre,.fv.wrap #text-view code{white-space:pre-wrap!important;overflow-wrap:anywhere}' +
@@ -123,6 +125,7 @@
     '.fv-err-body{flex:1;overflow:auto;margin:0;padding:14px 16px;font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;color:#cf222e}';
 
   var MARKUP =
+    '<div id="versions"></div>' +     // the host's version bar (opts.versions), part of the chrome
     '<div id="crumbrow"><span id="crumbs"></span><span id="fname"></span></div>' +
     '<div id="bar">' +
       '<button id="tab-view" style="display:none"></button>' +
@@ -231,6 +234,18 @@
   };
   function cmModeForExt(e) { return CM_MODE_EXT[e] || null; }
 
+  // +shared: one fetch per url at a time. Several views of the same file
+  // mounting together (a restored session with the file in three panes)
+  // join the request already in flight instead of each making its own.
+  // Nothing is cached past the request: a later mount fetches afresh.
+  var inflight = {};
+  function shared(key, make) {
+    if (inflight[key]) return inflight[key];
+    var p = make().finally(function () { delete inflight[key]; });
+    inflight[key] = p;
+    return p;
+  }
+
   function mount(root, opts) {
     opts = opts || {};
     injectStyle();
@@ -240,6 +255,10 @@
     var numsKey = opts.numsKey || 'explorer-nums';
     // opts.readOnly — show the file but never let it be written (past versions)
     var $ = function (id) { return root.querySelector('#' + id); };
+    // opts.versions: the host's version bar (this path's history, the way
+    // back to now). It sits above the crumbs, inside the chrome, so bare
+    // hides it with everything else.
+    if (opts.versions) $('versions').appendChild(opts.versions);
 
     var here = opts.url;
     // opts.at: a ?case= (or any extra query) that must ride along on EVERY
@@ -289,13 +308,35 @@
     // PageDown PageUp / space a screen, Home End the ends. Typing in the
     // editor is the editor's.
     if (root.tabIndex < 0 && !root.hasAttribute('tabindex')) root.tabIndex = -1;
+    // the viewer's own keys, when the keyboard is on the viewer and not in
+    // a field or the editor: e edit · F the bare editor view (Esc leaves it)
+    // · 1 2 3 4 Source Preview Build viewer · s save · w n v wrap numbers
+    // vim · c copy · ? this list. Reader keys below scroll.
+    var KEYS = 'e edit · F bare editor (Esc leaves) · 1 2 3 4 source preview build viewer · s save · w wrap · n numbers · v vim · c copy · j k ␣ scroll · in the editor :w :q :wq :e <path> :sp :vs';
+    function press(btn) { if (btn && !btn.hasAttribute('disabled') && btn.offsetParent !== null) btn.click(); }
     root.addEventListener('keydown', function (e) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       var t = e.target, tag = t && t.tagName;
       if (tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT' || (t && t.isContentEditable)) return;
+      var k = e.key, used = true;
+      if (k === 'e') press(editBtn);
+      else if (k === 'F') { if (opts.setBare) opts.setBare(!bare); else setBare(!bare); }
+      else if (k === 'Escape' && bare) { if (opts.setBare) opts.setBare(false); else setBare(false); }
+      else if (k === '1') press(tabText);
+      else if (k === '2') press(tabMime);
+      else if (k === '3') press(tabBuild);
+      else if (k === '4') press(tabView);
+      else if (k === 's') press(saveBtn);
+      else if (k === 'w') press(wrapBtn);
+      else if (k === 'n') press(numBtn);
+      else if (k === 'v') press(vimBtn);
+      else if (k === 'c') press(copyBtn);
+      else if (k === '?') { status.textContent = KEYS; setTimeout(function () { if (status.textContent === KEYS) status.textContent = ''; }, 4000); }
+      else used = false;
+      if (used) { e.preventDefault(); e.stopPropagation(); return; }
       var scroller = [textView, mimeView, buildView, viewPane, edwrap, display].find(function (x) { return x && x.offsetParent !== null && x.scrollHeight > x.clientHeight; });
       if (!scroller) return;
-      var line = 40, page = Math.max(line, scroller.clientHeight * 0.9), k = e.key, used = true;
+      var line = 40, page = Math.max(line, scroller.clientHeight * 0.9); used = true;
       if (k === 'ArrowDown' || k === 'j') scroller.scrollTop += line;
       else if (k === 'ArrowUp' || k === 'k') scroller.scrollTop -= line;
       else if (k === 'PageDown' || k === ' ') scroller.scrollTop += page;
@@ -379,12 +420,35 @@
       b.style.display = '';
     }
 
+    // opts.prime = { url, info, text, sandboxed }: what another view of this
+    // same file already holds (its snapshot()), so this one renders from
+    // memory and skips the two fetches. Only taken for the same url.
+    var prime = (opts.prime && opts.prime.url === here && opts.prime.info) ? opts.prime : null;
+    // bare: the source alone, in the editor, no crumbs, tabs, tools or
+    // chips. A pane's "edit" view (the host's onView) or opts.bare at mount.
+    var bare = false, mountedBare = !!opts.bare;
+    function setBare(on) {
+      bare = !!on;
+      root.classList.toggle('bare', bare);
+      if (!bare) { if (ve) ve.refresh(); return; }
+      show('text');
+      if (writable && editBtn && !editBtn.classList.contains('on')) editBtn.click();
+      else if (ve) ve.refresh();
+    }
     (async function boot() {
-      try {
-        var ir = await fetch(q('info=1'), { headers: { accept: 'application/json' } });
-        if (!ir.ok) { renderUnviewable('nothing to show', (await ir.text()) || ('http ' + ir.status)); return; }
-        info = await ir.json();
-      } catch (e) { showErr('explorer', 'could not load file info: ' + e); return; }
+      if (prime) info = prime.info;
+      else {
+        try {
+          var got = await shared(q('info=1'), function () {
+            return fetch(q('info=1'), { headers: { accept: 'application/json' } }).then(function (ir) {
+              return ir.ok ? ir.json().then(function (j) { return { ok: true, info: j }; })
+                           : ir.text().then(function (t) { return { ok: false, why: t || ('http ' + ir.status) }; });
+            });
+          });
+          if (!got.ok) { renderUnviewable('nothing to show', got.why); return; }
+          info = got.info;
+        } catch (e) { showErr('explorer', 'could not load file info: ' + e); return; }
+      }
       if (info.bang) {
         var b = $('bang-chip'); b.style.display = '';
         b.addEventListener('click', function () { showErr('fiber crashed', info.bang); });
@@ -447,7 +511,8 @@
       $('mime-row').style.display = '';
       // only runnable types can be downgraded; one header check tells us if
       // the kernel serve-sandbox fired for this file, from any pane
-      if (runnableMite(mite)) {
+      if (prime && prime.sandboxed != null) { if (prime.sandboxed) { sandboxed = true; showSandboxBanner(); } }
+      else if (runnableMite(mite)) {
         try {
           var hr = await fetch(q('raw=1'));
           if (hr.headers.get('x-content-type-options') === 'nosniff') { sandboxed = true; showSandboxBanner(); }
@@ -455,7 +520,7 @@
       }
       if (buildStatus) tabBuild.style.display = '';
       if (editable) {
-        try { edText = present(await readRaw()); }
+        try { edText = present(prime && typeof prime.text === 'string' ? prime.text : await readRaw()); }
         catch (e) { renderUnviewable('nothing to show', (e && e.message) || String(e)); return; }
         edwrap.style.display = '';
       } else if (info.jammed) {
@@ -464,16 +529,19 @@
         src.className = 'dim'; src.textContent = 'binary content'; src.style.display = '';
       }
       setupPanes(); setupWrap(); setupNums(); setupCopy(); setupEditor(); renderSource();
+      if (mountedBare) setBare(true);
     }
 
     // a failed read is an ERROR, never content: without the status check the
     // server's message ("that version is not there") lands in the editor and
     // reads as the file's own text
     function readRaw() {
-      return fetch(q('raw=1')).then(function (r) {
-        return r.text().then(function (t) {
-          if (!r.ok) throw new Error(t || ('http ' + r.status));
-          return t;
+      return shared(q('raw=1'), function () {
+        return fetch(q('raw=1')).then(function (r) {
+          return r.text().then(function (t) {
+            if (!r.ok) throw new Error(t || ('http ' + r.status));
+            return t;
+          });
         });
       });
     }
@@ -643,9 +711,41 @@
           vim: vimOn,
           lineNumbers: root.classList.contains('nums'),
           lineWrapping: root.classList.contains('wrap'),
-          onChange: function () { syncSaveBtn(); if (live) scheduleLive(); }
+          onChange: function () { syncSaveBtn(); if (live) scheduleLive(); },
+          ex: exCommands()
         });
         return ve;
+      }
+      // vim's command line, bound to this file and its pane: :w saves, :q
+      // leaves bare (or closes the tab when the host can), :wq both, :e
+      // <path> opens a path (relative to this file's dir, like vim's; :e
+      // alone re-reads the file), :sp / :vs <path> split the pane (the host's
+      // opts.host = { open(path), close(), splitDown(path), splitRight(path) }).
+      function exCommands() {
+        var host = opts.host || {};
+        // absolute stays; anything else is relative to this file's dir, the
+        // way vim's :e is. The host resolves ./ and ../ against the pane.
+        var target = function (args) {
+          var p = (args[0] || '').trim();
+          return !p ? here : /^(\/|\.\.?\/)/.test(p) ? p : './' + p;
+        };
+        var quit = function () {
+          if (bare) { if (opts.setBare) opts.setBare(false); else setBare(false); return; }
+          if (host.close) host.close();
+        };
+        var open = function (args) {
+          if (!args[0]) { if (ve) ve.setValue(clean); return; }
+          if (host.open) host.open(target(args));
+        };
+        return {
+          w: function () { if (writable) save(); },
+          q: quit,
+          wq: function () { if (writable && ve && ve.getValue() !== clean) save().then(quit); else quit(); },
+          x: function () { if (writable && ve && ve.getValue() !== clean) save().then(quit); else quit(); },
+          e: open,
+          sp: function (args) { if (host.splitDown) host.splitDown(args[0] ? target(args) : null); },
+          vs: function (args) { if (host.splitRight) host.splitRight(args[0] ? target(args) : null); }
+        };
       }
       editBtn.addEventListener('click', function () {
         editing = !editing;
@@ -835,6 +935,21 @@
 
     return {
       setUrl: function (u) { mount(root, Object.assign({}, opts, { url: u })); },
+      // what another view of this file can start from: see opts.prime
+      snapshot: function () { return { url: here, info: info, text: currentText(), sandboxed: sandboxed }; },
+      // the moment's ?args changed under this element. ?bare is taken in
+      // place: the bare editor on, or off. Leaving bare from a mount that
+      // was born bare answers false, so the host mounts the file's proper
+      // rendering instead. Any other change of args is not ours to take.
+      onArgs: function (args) {
+        var want = !!(args && args.bare);
+        var rest = Object.assign({}, args || {}); delete rest.bare;
+        var mine = Object.assign({}, opts.query || {}); delete mine.bare;
+        if (JSON.stringify(rest) !== JSON.stringify(mine)) return false;
+        if (want) { setBare(true); return true; }
+        if (mountedBare) return false;
+        setBare(false); return true;
+      },
       destroy: function () {
         if (viewerHandle && viewerHandle.destroy) { try { viewerHandle.destroy(); } catch (_) {} }
         if (ve) { try { ve.destroy(); } catch (_) {} }
@@ -843,5 +958,28 @@
     };
   }
 
-  window.FileView = { mount: mount };
+  // +prefetch: what a mount of `url` would fetch, fetched now and handed
+  // back as a prime (see opts.prime): the info, and the text when the file
+  // is text. Shares requests with any mount in flight. The sandbox header
+  // is left to the mount (sandboxed: null means "check").
+  function prefetch(url) {
+    var sep = url.indexOf('?') >= 0 ? '&' : '?';
+    return shared(url + sep + 'info=1', function () {
+      return fetch(url + sep + 'info=1', { headers: { accept: 'application/json' } }).then(function (ir) {
+        return ir.ok ? ir.json().then(function (j) { return { ok: true, info: j }; })
+                     : ir.text().then(function (t) { return { ok: false, why: t || ('http ' + ir.status) }; });
+      });
+    }).then(function (got) {
+      if (!got.ok) return null;
+      var info = got.info;
+      if (!info || !info.texty || info.jammed || info.kind === 'missing' || info.kind === 'boom') return { url: url, info: info, text: null, sandboxed: null };
+      return shared(url + sep + 'raw=1', function () {
+        return fetch(url + sep + 'raw=1').then(function (r) {
+          return r.text().then(function (t) { if (!r.ok) throw new Error(t || ('http ' + r.status)); return t; });
+        });
+      }).then(function (text) { return { url: url, info: info, text: text, sandboxed: null }; });
+    }).catch(function () { return null; });
+  }
+
+  window.FileView = { mount: mount, prefetch: prefetch };
 })();

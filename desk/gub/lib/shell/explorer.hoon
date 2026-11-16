@@ -214,7 +214,7 @@
     ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
     (pure:m ~)
   ~?  dbg  [%explorer-request eyre-id url.request.req]
-  =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
+  =/  [site=path args=quay:eyre]  (parse-url:http-utils (drop-trailing-fas url.request.req))
   ::  /grubbery/explorer/sse: one SSE connection per workspace page; it
   ::  follows whatever roads the page sends to /grubbery/explorer/follow
   ::  (see +serve-sse). The page's panes declare what they depend on and
@@ -258,6 +258,12 @@
     ;<  par-view=view:nexus  bind:m
       (peek-versioned parent ~ asof.vers)
     ?.  ?=([%ball *] par-view)
+      ::  a POST at a path that is not here is how a path comes to be:
+      ::  create-file / create-folder make their fold on the way. The
+      ::  handler reads nothing from the root for those; any other action
+      ::  fails on its own peek.
+      ?:  =('POST' method.request.req)
+        (handle-post eyre-id raw-path ~ *ball:tarball req)
       ;<  ~  bind:m  (send-missing eyre-id raw-path args (wants-html req))
       (pure:m ~)
     ?:  =('POST' method.request.req)
@@ -1180,6 +1186,19 @@
     (pure:m [%ball wave.av (~(dip of ball.av) rel)])
   ?^  cas  (peek-shallow-at:io [%& %| pax] ~ [%ud u.cas])
   (peek-shallow:io [%& %| pax] ~)
+::  +drop-trailing-fas: /a/b/ is the directory /a/b, spelled as one. The
+::  url parser takes no empty segment, so the slash goes before parsing;
+::  the ball learns what a path is by peeking it, never from the spelling.
+::
+++  drop-trailing-fas
+  |=  url=@t
+  ^-  @t
+  =/  t=tape  (trip url)
+  =/  i=(unit @ud)  (find "?" t)
+  =/  pax=tape  ?~(i t (scag u.i t))
+  =/  rest=tape  ?~(i "" (slag u.i t))
+  ?.  &((gth (lent pax) 1) =('/' (rear pax)))  url
+  (crip (weld (snip pax) rest))
 ::  +parse-road-input: parse "../../foo/bar" into a proper road
 ::  Counts leading "../" as relative steps, remainder as the lane.
 ::
