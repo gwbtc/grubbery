@@ -1558,8 +1558,9 @@
   =/  send=silo:nexus  (snap-subset refs.u.pin)
   ::  release the snap, drop refs, cancel the pin timer
   =.  snaps.remo  (~(del by snaps.remo) pin-key)
+  =/  vk  (vale-keys-of refs.u.pin)
   =.  silo  (release-snap-refs refs.u.pin)
-  =.  vale  (gc-vale-cache vale bins)
+  =.  vale  (gc-vale-keys vk)
   =.  cards
     :_  cards
     :*  %pass
@@ -1637,8 +1638,9 @@
     :-  (sy (turn good-jects |=([=jobe:nexus *] jobe)))
     (sy (turn good-nouns |=([=nobe:nexus *] nobe)))
   =.  this  discharge-peeks
+  =/  vk  (vale-keys-of merged)
   =.  silo  (release-snap-refs merged)
-  =.  vale  (gc-vale-cache vale bins)
+  =.  vale  (gc-vale-keys vk)
   this
 ::  snap-subset: the silo subset behind a ref set, served at refcount 0
 ::  (the receiver's merge assigns its own counts). A referenced lobe
@@ -6082,6 +6084,33 @@
   ?~  prev  vale
   ?:  (~(has by nouns.silo) lobe.u.prev)  vale
   (~(del by vale) [lobe.u.prev ckey.mark.u.prev])
+::  The same incremental eviction for a transfer's released refs. A
+::  transfer used to run the full +gc-vale-cache sweep, which rebuilds
+::  the whole map, on every want, data merge and snap expiry
+::  (gwbtc/grubbery#119). Read the cache keys of the leaves a release
+::  names BEFORE releasing them (+vale-keys-of), then drop the entries
+::  whose noun the release took out of the silo (+gc-vale-keys).
+::  Cascades through released trees are left to the bulk sweeps, as
+::  for +gc-vale-prev.
+::
+++  vale-keys-of
+  |=  refs=lobes:nexus
+  ^-  (list [nobe:nexus @uv])
+  %+  murn  ~(tap in jects.refs)
+  |=  j=jobe:nexus
+  ^-  (unit [nobe:nexus @uv])
+  =/  got  (~(get by jects.silo) j)
+  ?~  got  ~
+  ?.  ?=(%leaf -.ject.u.got)  ~
+  `[lobe.leaf.ject.u.got ckey.mark.leaf.ject.u.got]
+::
+++  gc-vale-keys
+  |=  keys=(list [nobe:nexus @uv])
+  ^-  vale:nexus
+  %+  roll  keys
+  |=  [k=[nobe:nexus @uv] v=_vale]
+  ?:  (~(has by nouns.silo) -.k)  v
+  (~(del by v) k)
 ::  Validate marks: for each changed mark in bin/mar/, build a vale gate
 ::  Walk ball under a code namespace, pruning at child code namespaces.
 ::  Returns all [fold lump] pairs governed by this code namespace —
@@ -8588,8 +8617,9 @@
   =/  snap-key=[@uvJ @p]  [snap-id ship]
   =/  snap  (~(get by snaps.remo) snap-key)
   ?~  snap  this
+  =/  vk           (vale-keys-of refs.u.snap)
   =.  silo         (release-snap-refs refs.u.snap)
-  =.  vale         (gc-vale-cache vale bins)
+  =.  vale         (gc-vale-keys vk)
   =.  snaps.remo   (~(del by snaps.remo) snap-key)
   this
 ::
