@@ -122,3 +122,4 @@
   =/  tree2=object:git-obj  (parse-raw:git-obj %sha-1 raw2)
   (expect-eq:test !>(tree) !>(tree2))
 --
+
