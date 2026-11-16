@@ -7277,6 +7277,12 @@
 ::  the subtree only to look at its bang, all in one event: over a big
 ::  tree that killed a production serf twice (gwbtc/grubbery#121).
 ::
+::  TODO: this disagrees with itself by scope. /bang over /apps answers 0
+::  while /bang over /apps/shell/desks/hatchery.desk answers 1, for the
+::  same banged grub (.../desk/data/test.web-test/main.sig). Either the
+::  walk stops short of a nested tree ject or a ject's bang field is not
+::  where the bang lives at depth. Find which and fix the walk.
+::
 ++  ject-bangs
   |=  [sub=path top=jobe:nexus max=@ud]
   ^-  (list [where=path kind=@tas =tang])
