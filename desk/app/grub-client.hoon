@@ -40,6 +40,9 @@
 ++  on-poke
   |=  [=mark =vase]
   ^-  (quip card:agent:gall _this)
+  ::  an order re-pokes grubbery from our own ship, so only our own
+  ::  ship may give one
+  ?>  =(src our):bowl
   ?.  =(%noun mark)  (on-poke:def mark vase)
   =/  ord  !<(order vase)
   ?-  -.ord
