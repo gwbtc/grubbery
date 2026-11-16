@@ -675,12 +675,68 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     editBack.classList.add('open');
   }
 
+  // An in-page stand-in for window.prompt, confirm and alert. Embedded web
+  // views (an app's WebView) often leave those unimplemented: prompt()
+  // comes back null and confirm() false without showing anything, so
+  // every remove here silently did nothing. Resolves with the typed text
+  // (null on cancel) when opts.input, otherwise true or false; a notice
+  // (opts.notice) has one button and resolves true.
+  function dialog(msg, opts) {
+    opts = opts || {};
+    return new Promise(function(resolve) {
+      var back = document.createElement('div');
+      back.className = 'dlg-back';
+      var box = document.createElement('div');
+      box.className = 'dlg';
+      var text = document.createElement('div');
+      text.className = 'dlg-msg';
+      text.textContent = msg;
+      box.appendChild(text);
+      var inp = null;
+      if (opts.input) {
+        inp = document.createElement('input');
+        inp.className = 'dlg-in';
+        inp.type = 'text';
+        inp.autocomplete = 'off';
+        inp.setAttribute('autocapitalize', 'off');
+        box.appendChild(inp);
+      }
+      var cancelled = opts.notice ? true : (inp ? null : false);
+      function done(v) { back.remove(); resolve(v); }
+      var row = document.createElement('div');
+      row.className = 'dlg-row';
+      if (!opts.notice) {
+        var no = document.createElement('button');
+        no.className = 'dlg-btn';
+        no.textContent = 'Cancel';
+        no.onclick = function() { done(cancelled); };
+        row.appendChild(no);
+      }
+      var ok = document.createElement('button');
+      ok.className = 'dlg-btn ' + (opts.danger ? 'dlg-danger' : 'dlg-ok');
+      ok.textContent = opts.ok || 'OK';
+      ok.onclick = function() { done(inp ? inp.value : true); };
+      row.appendChild(ok);
+      box.appendChild(row);
+      back.appendChild(box);
+      back.onclick = function(e) { if (e.target === back) done(cancelled); };
+      box.onkeydown = function(e) {
+        if (e.key === 'Enter') ok.click();
+        if (e.key === 'Escape') done(cancelled);
+      };
+      document.body.appendChild(back);
+      (inp || ok).focus();
+    });
+  }
+
   function deleteTile(name) {
     var el = document.querySelector('[data-tile="' + name + '"]');
     var title = el ? (el.querySelector('.tile-title') || {}).textContent || name : name;
-    if (!confirm('Delete ' + title + '?')) return;
-    fetch(API + '/cull/' + BALL + '/tiles/' + name + '/tile.json', {method: 'DELETE'})
-      .then(function() { loadTiles(); });
+    dialog('Delete ' + title + '?', { ok: 'Delete', danger: true }).then(function(yes) {
+      if (!yes) return;
+      fetch(API + '/cull/' + BALL + '/tiles/' + name + '/tile.json', {method: 'DELETE'})
+        .then(function() { loadTiles(); });
+    });
   }
 
   document.getElementById('edit-close').onclick = function() {
@@ -939,7 +995,8 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     var word = name.replace(/\.desk$/, '');
     var msg = 'CAREFUL: this removes the whole desk "' + word + '" and every app it ships. '
       + 'All their data is permanently deleted. Type "' + word + '" to confirm:';
-    if (prompt(msg) !== word) return;
+    dialog(msg, { input: true, ok: 'Remove', danger: true }).then(function(typed) {
+    if ((typed || '').trim() !== word) return;
     btn.disabled = true; btn.textContent = 'removing…';
     fetch('/grubbery/tiles/uninstall', {
       method: 'POST',
@@ -953,11 +1010,12 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
         return r.text().then(function(t) {
           btn.disabled = false;
           btn.textContent = 'remove';
-          alert('remove failed (' + r.status + '): ' + (t || 'no reason given'));
+          dialog('remove failed (' + r.status + '): ' + (t || 'no reason given'), { notice: true });
         });
       }
       setTimeout(loadDesks, 800);
       setTimeout(loadTiles, 1000);
+    });
     });
   }
   function syncOne(btn) {
@@ -970,7 +1028,7 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     })
       .then(function() { loadStock(); })
       .catch(function(e) {
-        alert('sync failed: ' + String((e && e.message) || e));
+        dialog('sync failed: ' + String((e && e.message) || e), { notice: true });
         btn.disabled = false; btn.textContent = orig;
       });
   }
@@ -980,7 +1038,7 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
       method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}'
     })
       .then(function() { loadStock(); })
-      .catch(function(e) { alert('install failed: ' + String((e && e.message) || e)); })
+      .catch(function(e) { dialog('install failed: ' + String((e && e.message) || e), { notice: true }); })
       .then(function() { if (btn) { btn.disabled = false; btn.textContent = 'Install all'; } });
   }
   // the typed source: any spelling the desk nexus takes. The name and
@@ -1056,14 +1114,16 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     peerPost('add', body)
       .then(function(r) {
         if (r.status === 409) {
-          var alt = prompt('A desk named "' + (name || a.name) + '" already exists here. Install under a different name:');
-          if (alt && alt.trim()) { installPeerApp(a, btn, alt.trim()); return; }
-          say('Get', true);
+          dialog('A desk named "' + (name || a.name) + '" already exists here. Install under a different name:', { input: true, ok: 'Install' })
+            .then(function(alt) {
+              if (alt && alt.trim()) { installPeerApp(a, btn, alt.trim()); return; }
+              say('Get', true);
+            });
           return;
         }
         if (!r.ok) {
           say('failed', true);
-          if (!btn) alert('install failed: ' + r.status);
+          if (!btn) dialog('install failed: ' + r.status, { notice: true });
           return;
         }
         say('installed', false);
@@ -1140,15 +1200,17 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     };
   }
   function uninstallPeerApp(a, btn) {
-    var word = prompt('CAREFUL: this permanently deletes ' + a.local + ' and all its data. Type "' + a.local + '" to confirm:');
-    if (word !== a.local) return;
-    btn.disabled = true;
-    btn.textContent = 'removing...';
-    peerPost('delete', { app: a.local })
-      .then(function() {
-        setTimeout(loadPeers, 800);
-        setTimeout(loadTiles, 1000);
-      });
+    var msg = 'CAREFUL: this permanently deletes ' + a.local + ' and all its data. Type "' + a.local + '" to confirm:';
+    dialog(msg, { input: true, ok: 'Remove', danger: true }).then(function(word) {
+      if ((word || '').trim() !== a.local) return;
+      btn.disabled = true;
+      btn.textContent = 'removing...';
+      peerPost('delete', { app: a.local })
+        .then(function() {
+          setTimeout(loadPeers, 800);
+          setTimeout(loadTiles, 1000);
+        });
+    });
   }
   function loadPeers() {
     fetch('/grubbery/tiles/desks/peers')
