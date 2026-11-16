@@ -619,6 +619,10 @@ class Gmux extends HTMLElement {
       if (kept) { this.#renderBar(pane); return; }
     }
     // detach old body without destroying a division's child panes
+    // the keyboard was in the old content: it must not fall to the page
+    // body while the new content loads, or every key is dead (the prefix
+    // included) until the content lands
+    const held = !!(prev && prev.contains(document.activeElement));
     if (prev) {
       // a division's split-view and a pane moment's nested pane are live
       // objects: detach, never destroy
@@ -655,6 +659,7 @@ class Gmux extends HTMLElement {
       if (el) pane.body.appendChild(el);
     }
     this.#renderBar(pane);
+    if (held && this.#activeId === pane.id) this.#refocus();
   }
   // re-render a pane's current entry in place (the host asks when what the
   // pane shows has moved underneath it); scroll position survives

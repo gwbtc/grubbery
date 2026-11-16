@@ -326,7 +326,7 @@
         return !p ? here : /^(\/|@|\.\.?\/)/.test(p) ? p : './' + p;
       };
       return {
-        q: function () { if (bare) { if (opts.setBare) opts.setBare(false); else setBare(false); return; } if (host.close) host.close(); },
+        q: function () { if (host.close) host.close(); },
         e: function (args) { if (args[0] && host.open) host.open(target(args)); },
         bare: function () { if (opts.setBare) opts.setBare(!bare); else setBare(!bare); },
         mime: function () { say('mime type: ' + (mimeInput.value || mite)); },
@@ -745,7 +745,7 @@
         return ve;
       }
       // vim's command line, bound to this file and its pane: :w saves, :q
-      // leaves bare (or closes the tab when the host can), :wq both, :e
+      // closes the tab (:bare is the way out of bare), :wq both, :e
       // <path> opens a path (relative to this file's dir, like vim's; :e
       // alone re-reads the file), :sp / :vs <path> split the pane (the host's
       // opts.host = { open(path), close(), splitDown(path), splitRight(path) }).
@@ -762,7 +762,6 @@
             return;
           }
           if (ve && dirty()) { ve.setValue(clean); syncSaveBtn(); }
-          if (bare) { if (opts.setBare) opts.setBare(false); else setBare(false); return; }
           if (host.close) host.close();
         };
         // the pane's own :e, kept before the editor's :e is laid over it
