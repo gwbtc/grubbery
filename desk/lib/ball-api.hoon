@@ -50,6 +50,9 @@
   ::  +serve-api-read-sync, which gates runnable content-types behind
   ::  +serve-sandbox. There is deliberately no fiber-side twin of those: a
   ::  second serve arm is a second place for that gate to be forgotten.
+  ::  The gate itself lives in +runnable-mime / +inert-response in
+  ::  lib/http-utils.hoon, which this route and the desk nexus's /raw
+  ::  route both call -- the two had drifted apart once already.
       [%'GET' %peek]
     ?.  =('tar' as)  (send-error eyre-id 400 'Unknown rendering')
     (serve-tar eyre-id api-path)
@@ -73,6 +76,7 @@
       [%'PUT' %sand]     (serve-weir-put eyre-id api-path body.request.req)
   ::  DELETE /sand/... — clear a fold's weir
       [%'DELETE' %sand]  (serve-weir-del eyre-id api-path)
+
   ::  GET /keep/... — SSE stream of changes
       [%'GET' %keep]     (serve-keep eyre-id api-path args req)
   ==
