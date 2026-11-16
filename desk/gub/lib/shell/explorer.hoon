@@ -214,7 +214,7 @@
     ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
     (pure:m ~)
   ~?  dbg  [%explorer-request eyre-id url.request.req]
-  =/  [site=path args=quay:eyre]  (parse-url:http-utils (drop-trailing-fas url.request.req))
+  =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
   ::  /grubbery/explorer/sse: one SSE connection per workspace page; it
   ::  follows whatever roads the page sends to /grubbery/explorer/follow
   ::  (see +serve-sse). The page's panes declare what they depend on and
@@ -232,14 +232,30 @@
   ::  (see +handle-session)
   ?:  ?=([%grubbery %explorer %session ~] site)
     (handle-session eyre-id req)
-  ::  /grubbery/explorer[/...]: the standalone pane workspace — same shell,
-  ::  browse.js renders panes full-screen; it fetches data from /grubbery/ball.
-  ?:  ?=([%grubbery %explorer *] site)
+  ::  /grubbery/explorer: the sessions page; /grubbery/explorer/s/<name>:
+  ::  that session's panes. The same page serves both and reads the url;
+  ::  it fetches its data from /grubbery/ball. No other spelling is a
+  ::  workspace: a session is the ship's record of one.
+  ?:  ?|  ?=([%grubbery %explorer ~] site)
+          ?=([%grubbery %explorer %s @ ~] site)
+      ==
     ;<  ~  bind:m  (send-simple:http-res:io eyre-id (mime-response:http-utils browse-html))
     (pure:m ~)
-  =/  raw-path=path
+  ?:  ?=([%grubbery %explorer *] site)
+    ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[404 ~] `(as-octs:mimes:html 'no such workspace: sessions live at /grubbery/explorer/s/<name>')])
+    (pure:m ~)
+  ::  the url's spelling: a trailing slash names the FOLD (the parser
+  ::  leaves an empty last segment); a last segment of $ is the EMPTY
+  ::  name, the nameless grub in that directory. Neither reaches the
+  ::  handlers as spelled: slashed is the flag, and $ becomes ''.
+  =/  url-path=path
     ?.  ?=([%grubbery %ball *] site)  ~
     t.t.site
+  =/  slashed=?  &(?=(^ url-path) =('' (rear url-path)))
+  =/  raw-path=path
+    ?:  slashed  (snip `path`url-path)
+    ?:  &(?=(^ url-path) =('$' (rear url-path)))  (snoc (snip `path`url-path) '')
+    url-path
 
   ~?  dbg  %explorer-dispatch-start
   =/  vers  (version-args args)
@@ -247,6 +263,10 @@
     (peek-versioned raw-path cas.vers asof.vers)
   ~?  dbg  %explorer-peek-done
   ?.  ?=([%ball *] dir-view)
+    ::  spelled as a fold and there is none: nothing to fall back to
+    ?:  slashed
+      ;<  ~  bind:m  (send-missing eyre-id raw-path args (wants-html req))
+      (pure:m ~)
     ::  Not a directory — try parent for file view
     ?~  raw-path
       ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
@@ -1186,19 +1206,6 @@
     (pure:m [%ball wave.av (~(dip of ball.av) rel)])
   ?^  cas  (peek-shallow-at:io [%& %| pax] ~ [%ud u.cas])
   (peek-shallow:io [%& %| pax] ~)
-::  +drop-trailing-fas: /a/b/ is the directory /a/b, spelled as one. The
-::  url parser takes no empty segment, so the slash goes before parsing;
-::  the ball learns what a path is by peeking it, never from the spelling.
-::
-++  drop-trailing-fas
-  |=  url=@t
-  ^-  @t
-  =/  t=tape  (trip url)
-  =/  i=(unit @ud)  (find "?" t)
-  =/  pax=tape  ?~(i t (scag u.i t))
-  =/  rest=tape  ?~(i "" (slag u.i t))
-  ?.  &((gth (lent pax) 1) =('/' (rear pax)))  url
-  (crip (weld (snip pax) rest))
 ::  +parse-road-input: parse "../../foo/bar" into a proper road
 ::  Counts leading "../" as relative steps, remainder as the lane.
 ::
@@ -1216,6 +1223,7 @@
     ?:  is-dir
       [%| segs]
     ?~  segs  [%| /]
+    ?:  =('$' (rear segs))  [%& (snip `path`segs) '']
     [%& (snip `path`segs) (rear segs)]
   ?:(=(0 ups) &+lane |+[ups lane])
 ::  Handle GET requests
@@ -1632,10 +1640,18 @@
         (over:io [%& %& fdir fnam] [[/ %mime] `mime`[new-mite (as-octs:mimes:html content)]])
       ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[200 ~] `ok])
       (pure:m ~)
+    ::  the mime the mark's grab sees carries the mite the editor sent,
+    ::  else the one the grub serves as: a mark may read the mite
+    ::  (an svg is not any xml), so it is not flattened to text/plain
+    ;<  cur-mime=mime  bind:m  (sage-to-mime:io (need-sage:tarball sang.cur))
+    =/  =mite
+      =/  mt=(unit @t)  (get-key:kv:html-utils 'mite' args)
+      ?~  mt  p.cur-mime
+      (fall (rush u.mt ;~(pfix (punt fas) (more fas sym))) p.cur-mime)
     ;<  err=(unit tang)  bind:m
       %^    over-as-soft:io
           [%& %& fdir fnam]
-        [[/ %mime] `mime`[/text/plain (as-octs:mimes:html content)]]
+        [[/ %mime] `mime`[mite (as-octs:mimes:html content)]]
       p.sang.cur
     ?~  err
       ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[200 ~] `ok])
@@ -1699,6 +1715,10 @@
     =/  filename=@t  (fall (get-key:kv:html-utils 'filename' args) '')
     ?:  =('' filename)
       ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[400 ~] `(as-octs:mimes:html 'Missing filename')])
+      (pure:m ~)
+    ::  $ spells the empty name in a path; it is not a name a grub may have
+    ?:  =('$' filename)
+      ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[400 ~] `(as-octs:mimes:html '$ is not a name')])
       (pure:m ~)
     =/  blot-str=@t  (fall (get-key:kv:html-utils 'blot' args) '')
     =/  blt=(unit blot:tarball)

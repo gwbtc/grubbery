@@ -66,7 +66,10 @@
     '.fv #view-pane{flex:1;min-height:0;min-width:0;overflow:auto;display:flex;flex-direction:column}' +
     '.fv .edwrap,.fv #src-display{height:100%;min-width:0;overflow:auto}' +
     /* bare: the source alone, an editor and nothing else (opts.bare / onView) */
-    '.fv.bare #versions,.fv.bare #crumbrow,.fv.bare #bar,.fv.bare #tools,.fv.bare #mime-row,.fv.bare #sandbox-banner{display:none!important}' +
+    '.fv.bare #versions,.fv.bare #crumbrow,.fv.bare #bar,.fv.bare #tools,.fv.bare #sandbox-banner{display:none!important}' +
+    /* bare keeps one thin line: the blot and the mime type (:mime sets it) */
+    '.fv.bare #mime-row{padding:2px 12px}' +
+    '.fv #mime-blot{font:11px ui-monospace,SFMono-Regular,Menlo,monospace;color:#57606a;margin-right:6px}' +
     // the Wrap toggle drives the highlighted display; the editor drives its
     // own CodeMirror lineWrapping option (set alongside this, see setupWrap)
     '.fv.wrap #text-view pre,.fv.wrap #text-view code{white-space:pre-wrap!important;overflow-wrap:anywhere}' +
@@ -154,6 +157,7 @@
       '<span id="status"></span>' +
     '</div>' +
     '<div id="mime-row" style="display:none">' +
+      '<span id="mime-blot"></span>' +
       '<label class="tool-label" for="mime-input">mime type</label>' +
       '<input id="mime-input" type="text" spellcheck="false" readonly>' +
     '</div>' +
@@ -267,13 +271,11 @@
     var at = opts.at ? String(opts.at) : '';
     // `here` may already carry a query, so pick the separator per call
     var q = function (suffix) { return here + (here.indexOf('?') >= 0 ? '&' : '?') + suffix + at; };
-    // A grub may have NO NAME -- dill's default session is the empty one,
-    // and /sys/dill/sessions/ IS that file. Its path ends in the separator,
-    // so filter(Boolean) drops the empty segment and the view would name
-    // itself after its own parent directory. An unnamed grub is named for
-    // the reader instead, the same way a listing names one.
+    // A grub may have NO NAME -- dill's default session is the empty one.
+    // It is spelled $ (hoon's %$) as the last segment, and named for the
+    // reader, the same way a listing names one.
     var segs = here.replace(/\?.*$/, '').split('/');
-    var unnamed = segs[segs.length - 1] === '';
+    var unnamed = segs[segs.length - 1] === '$';
     var name = unnamed ? '' : decodeURIComponent(segs[segs.length - 1] || '');
     var ext = (name.match(/\.([a-z0-9]+)$/i) || [, ''])[1].toLowerCase();
     // mime-first kind detection — a mime type the server actually resolved
@@ -312,7 +314,30 @@
     // a field or the editor: e edit · F the bare editor view (Esc leaves it)
     // · 1 2 3 4 Source Preview Build viewer · s save · w n v wrap numbers
     // vim · c copy · ? this list. Reader keys below scroll.
-    var KEYS = 'e edit · F bare editor (Esc leaves) · 1 2 3 4 source preview build viewer · s save · w wrap · n numbers · v vim · c copy · j k ␣ scroll · in the editor :w :q :wq :e <path> :sp :vs';
+    // ---- the pane's commands ----
+    // One table, two ways in: vim's `:` inside the editor and the pane's
+    // own `:` prompt (the host asks handle.commands()). The editor extends
+    // it with :w and the dirty-aware :q (see setupEditor).
+    var exTable = null;
+    function baseEx() {
+      var host = opts.host || {};
+      var target = function (args) {
+        var p = (args[0] || '').trim();
+        return !p ? here : /^(\/|@|\.\.?\/)/.test(p) ? p : './' + p;
+      };
+      return {
+        q: function () { if (bare) { if (opts.setBare) opts.setBare(false); else setBare(false); return; } if (host.close) host.close(); },
+        e: function (args) { if (args[0] && host.open) host.open(target(args)); },
+        bare: function () { if (opts.setBare) opts.setBare(!bare); else setBare(!bare); },
+        mime: function () { say('mime type: ' + (mimeInput.value || mite)); },
+        sp: function (args) { if (host.splitDown) host.splitDown(args[0] ? target(args) : null); },
+        vs: function (args) { if (host.splitRight) host.splitRight(args[0] ? target(args) : null); }
+      };
+    }
+    // a line to the person: vim's notification when the editor is up,
+    // the status field otherwise
+    function say(text) { status.textContent = text; if (ve && ve.notify) ve.notify(text); }
+    var KEYS = ': command (:e :vs :sp :q :bare :mime, :w in the editor) · e edit · F bare editor (Esc leaves) · 1 2 3 4 source preview build viewer · s save · w wrap · n numbers · v vim · c copy · j k ␣ scroll · in the editor :w :q :q! :wq ZZ ZQ :e <path> :sp :vs :bare :mime <type>';
     function press(btn) { if (btn && !btn.hasAttribute('disabled') && btn.offsetParent !== null) btn.click(); }
     root.addEventListener('keydown', function (e) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -388,10 +413,8 @@
       };
       var acc = base;
       wrap.appendChild(mk('/', acc));
-      // slice(0,-1) drops the FILENAME. An unnamed grub has none -- its
-      // path ends in the separator -- so its last segment is its parent
-      // directory and must stay, or the crumb loses a level.
-      (unnamed ? parts : parts.slice(0, -1)).forEach(function (s) { acc += '/' + s; wrap.appendChild(mk(s + '/', acc)); });
+      // slice(0,-1) drops the FILENAME ($ for the nameless grub)
+      parts.slice(0, -1).forEach(function (s) { acc += '/' + s; wrap.appendChild(mk(s + '/', acc)); });
     })();
     // opts.menu(x, y) — the host's actions for this file (History, Download,
     // move/copy...). A host that has none leaves the button hidden. The same
@@ -426,10 +449,13 @@
     var prime = (opts.prime && opts.prime.url === here && opts.prime.info) ? opts.prime : null;
     // bare: the source alone, in the editor, no crumbs, tabs, tools or
     // chips. A pane's "edit" view (the host's onView) or opts.bare at mount.
-    var bare = false, mountedBare = !!opts.bare;
+    var bare = false, mountedBare = !!opts.bare, booted = false;
     function setBare(on) {
       bare = !!on;
       root.classList.toggle('bare', bare);
+      // asked before the file is in (the moment's args changed under a
+      // view still fetching): remembered, applied once renderFile is done
+      if (!booted) return;
       if (!bare) { if (ve) ve.refresh(); return; }
       show('text');
       if (writable && editBtn && !editBtn.classList.contains('on')) editBtn.click();
@@ -506,6 +532,7 @@
       buildStatus = (info.build && info.build.status) || '';
       chip('chip-blot', info.blot || '');
       chip('chip-mime', mite);
+      $('mime-blot').textContent = info.blot ? 'blot ' + info.blot : '';
       mimeInput.value = mite;
       tools.style.display = '';
       $('mime-row').style.display = '';
@@ -529,7 +556,8 @@
         src.className = 'dim'; src.textContent = 'binary content'; src.style.display = '';
       }
       setupPanes(); setupWrap(); setupNums(); setupCopy(); setupEditor(); renderSource();
-      if (mountedBare) setBare(true);
+      booted = true;
+      if (bare || mountedBare) setBare(true);
     }
 
     // a failed read is an ERROR, never content: without the status check the
@@ -712,7 +740,7 @@
           lineNumbers: root.classList.contains('nums'),
           lineWrapping: root.classList.contains('wrap'),
           onChange: function () { syncSaveBtn(); if (live) scheduleLive(); },
-          ex: exCommands()
+          ex: exTable
         });
         return ve;
       }
@@ -723,30 +751,44 @@
       // opts.host = { open(path), close(), splitDown(path), splitRight(path) }).
       function exCommands() {
         var host = opts.host || {};
-        // absolute stays; anything else is relative to this file's dir, the
-        // way vim's :e is. The host resolves ./ and ../ against the pane.
-        var target = function (args) {
-          var p = (args[0] || '').trim();
-          return !p ? here : /^(\/|\.\.?\/)/.test(p) ? p : './' + p;
-        };
-        var quit = function () {
+        var base = baseEx();
+        // :q refuses to drop unsaved text, like vim; :q! (and ZQ) drops it.
+        // This vim passes no bang flag: the `!` arrives as the argument.
+        var banged = function (args, params) { return (args[0] === '!') || !!(params && params.bang) || /^\s*!/.test((params && params.argString) || ''); };
+        var dirty = function () { return !!(ve && writable && ve.getValue() !== clean); };
+        var quit = function (args, params) {
+          if (dirty() && !banged(args || [], params)) {
+            say('unsaved changes: :w, :wq, or :q! to drop them');
+            return;
+          }
+          if (ve && dirty()) { ve.setValue(clean); syncSaveBtn(); }
           if (bare) { if (opts.setBare) opts.setBare(false); else setBare(false); return; }
           if (host.close) host.close();
         };
+        // the pane's own :e, kept before the editor's :e is laid over it
+        // (a bare :e re-reads the buffer; one with a path is the pane's)
+        var baseOpen = base.e;
         var open = function (args) {
           if (!args[0]) { if (ve) ve.setValue(clean); return; }
-          if (host.open) host.open(target(args));
+          baseOpen(args);
         };
-        return {
+        var mimeCmd = function (args) {
+          var v = (args[0] || '').trim();
+          if (!v) { say('mime type: ' + (mimeInput.value || mite)); return; }
+          mimeInput.value = v; miteChanged = v !== mite; syncSaveBtn();
+          say('mime type ' + v + (miteChanged ? ' — :w to save' : ''));
+        };
+        exTable = Object.assign({}, base, {
           w: function () { if (writable) save(); },
+          mime: mimeCmd,
           q: quit,
           wq: function () { if (writable && ve && ve.getValue() !== clean) save().then(quit); else quit(); },
           x: function () { if (writable && ve && ve.getValue() !== clean) save().then(quit); else quit(); },
-          e: open,
-          sp: function (args) { if (host.splitDown) host.splitDown(args[0] ? target(args) : null); },
-          vs: function (args) { if (host.splitRight) host.splitRight(args[0] ? target(args) : null); }
-        };
+          e: open
+        });
+        return exTable;
       }
+      exCommands();
       editBtn.addEventListener('click', function () {
         editing = !editing;
         editBtn.classList.toggle('on', editing);
@@ -791,7 +833,13 @@
               if (cur) ve.setCursor(cur);
               if (!editing) renderSource();
             }
-            mite = mimeInput.value.trim(); miteChanged = false; syncSaveBtn();
+            // the mime the grub serves as NOW: the mark may have kept the
+            // one typed, or not (txt keeps text, drops the mite)
+            try {
+              var ir2 = await fetch(q('info=1'), { headers: { accept: 'application/json' } });
+              if (ir2.ok) { var i2 = await ir2.json(); if (i2 && i2.mite) mite = i2.mite; }
+            } catch (_) {}
+            mimeInput.value = mite; chip('chip-mime', mite); miteChanged = false; syncSaveBtn();
             status.textContent = 'saved ✓';
             mimeRendered = false; mimeView.textContent = '';
             setTimeout(function () { if (status.textContent === 'saved ✓') status.textContent = ''; }, 2500);
@@ -935,6 +983,8 @@
 
     return {
       setUrl: function (u) { mount(root, Object.assign({}, opts, { url: u })); },
+      // the pane's `:` prompt runs these; vim's `:` inside the editor runs the same
+      commands: function () { return exTable || baseEx(); },
       // what another view of this file can start from: see opts.prime
       snapshot: function () { return { url: here, info: info, text: currentText(), sandboxed: sandboxed }; },
       // the moment's ?args changed under this element. ?bare is taken in

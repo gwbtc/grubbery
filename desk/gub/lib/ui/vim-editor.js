@@ -44,6 +44,10 @@
 
   function applyConfig() {
     var Vim = CodeMirror.Vim;
+    // vim's own: ZZ writes and quits, ZQ quits without writing. Mapped
+    // onto the Ex commands the host defines (see opts.ex), before the
+    // person's own config so theirs wins.
+    try { Vim.map('ZZ', ':x<CR>', 'normal'); Vim.map('ZQ', ':q!<CR>', 'normal'); } catch (_) {}
     return fetch(CONFIG_URL).then(function (r) { return r.ok ? r.json() : null; })
       .catch(function () { return null; })
       .then(function (cfg) {
@@ -172,6 +176,12 @@
       getCursor: function () { return handle.cm ? handle.cm.getCursor() : null; },
       setCursor: function (c) { if (handle.cm && c) handle.cm.setCursor(c); },
       refresh: function () { if (handle.cm) handle.cm.refresh(); },
+      // a line at the bottom of the editor, the way vim says "E37: No write
+      // since last change": seen even when the host's chrome is hidden
+      notify: function (text) {
+        if (!handle.cm) return;
+        if (handle.cm.openNotification) { var s = document.createElement('span'); s.textContent = text; handle.cm.openNotification(s, { duration: 4000, bottom: true }); }
+      },
       destroy: function () { stopAllHolds(); if (handle.cm) dropEx(handle.cm); handle.cm = null; el.innerHTML = ''; }
     };
   }

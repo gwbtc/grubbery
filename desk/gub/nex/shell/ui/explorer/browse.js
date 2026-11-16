@@ -146,7 +146,8 @@ function setup(root, opts) {
         return v;
       },
       link: (item) => {
-        if (item.kind === 'dir') return here.replace(/\/$/, '') + '/' + item.name;
+        if (item.kind === 'dir') return here.replace(/\/$/, '') + '/' + item.name + '/';
+        if (item.name === '') return here.replace(/\/$/, '') + '/$';
         if (item.binary) return here.replace(/\/$/, '') + '/' + item.name + '?pretty';
         // a symlink's name opens the link itself (its editor); the target
         // arrow, added below, is what follows it
@@ -494,7 +495,7 @@ function setup(root, opts) {
     const t = document.createElement('file-table');
     t.style.height = '100%';
     t.columns = ft.columns.map((c) => c.key !== 'name' ? c : Object.assign({}, c, {
-      link: (item) => (t.__dir || '').replace(/\/$/, '') + '/' + item.name,
+      link: (item) => (t.__dir || '').replace(/\/$/, '') + '/' + (item.kind === 'dir' ? item.name + '/' : item.name === '' ? '$' : item.name),
     }));
     t.actions = ft.actions;
     t.addEventListener('ft-navigate', (e) => {
@@ -895,25 +896,23 @@ function setup(root, opts) {
   const psMoment = (p) => { const q = psSplit(p).query; return psNs(p) + (q ? '?' + q : ''); };
   const psUrl = (p) => { const n = psNs(p); return n === '/' ? PREFIX : PREFIX + n; };   // root → /grubbery/ball (no trailing slash)
   const psBase = (p) => psNs(p).replace(/\/$/, '').split('/').filter(Boolean).pop() || '/';
-  // +psLabel: a path's name AS SHOWN. A grub may have none -- dill's
-  // default session is the empty name, and /sys/dill/sessions/ IS that
-  // file -- and an unnamed grub's path is spelled exactly like its parent
-  // directory, so psBase names it after the parent. Only the kind tells
-  // them apart. Display only: anything that feeds an action (rename,
-  // delete) keeps the real, empty name.
-  const psLabel = (p) => {
-    const ns = psNs(p);
-    return (/\/$/.test(ns) && psKind.get(ns) === 'file') ? '[unnamed]' : psBase(p);
-  };
-  // +psOwn: a grub's REAL name and the directory holding it. An unnamed
-  // grub's path ends in the separator, so stripping "the last segment"
-  // takes its PARENT and leaves the grandparent -- actions then named the
-  // wrong directory and sent the parent's name as the filename.
+  // THE SPELLING IS THE KIND. /a/b/ is the directory b, /a/b the grub b,
+  // and /a/b/$ the grub with NO NAME in b (hoon's %$; dill's default
+  // session is one). A moment learned to be a directory is re-spelled
+  // with its slash when it lists (ps.respell), so nothing downstream
+  // has to remember what a path turned out to be.
+  const psUnnamed = (ns) => /\/\$$/.test(ns);
+  const psIsDir = (ns) => /\/$/.test(ns);
+  // +psLabel: a path's name AS SHOWN. The nameless grub is named for the
+  // reader. Display only: anything that feeds an action (rename, delete)
+  // keeps the real, empty name.
+  const psLabel = (p) => psUnnamed(psNs(p)) ? '[unnamed]' : psBase(p);
+  // +psOwn: a grub's REAL name and the directory holding it
   const psOwn = (p) => {
     const ns = psNs(p);
-    return /\/$/.test(ns)
-      ? { name: '', dir: psUrl(ns) }
-      : { name: psBase(p), dir: psUrl(ns.replace(/\/[^/]*$/, '') || '/') };
+    if (psUnnamed(ns)) return { name: '', dir: psUrl(ns.replace(/\/\$$/, '') || '/') };
+    const bare = ns.replace(/\/$/, '');
+    return { name: psBase(p), dir: psUrl(bare.replace(/\/[^/]*$/, '') || '/') };
   };
   // ~2026.10.25..18.07.13..a11e -> 2026-10-25 18:07:13. SECONDS matter:
   // versions a minute apart read as duplicates without them, and three of
@@ -1043,11 +1042,122 @@ function setup(root, opts) {
     if (!base) base = '/';
     return base + (query ? '?' + query : '');
   };
+  // ---- the pane's command line ----
+  // `:` on a pane opens a one-line prompt at its foot, the way vim's `:`
+  // does inside the editor, and runs the same verbs: the pane's own (:e
+  // :vs :sp :q :bare) here, and whatever the content answers (:w :mime,
+  // the dirty-aware :q) through its handle's commands(). One grammar for
+  // every pane, whatever it shows; the gmux prefix stays for WHERE the
+  // pane is, `:` is for WHAT it shows.
+  function paneCmdline(ps) {
+    const edit = (el) => !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
+    // one line, hidden when idle, and ONE way it goes away: losing focus.
+    // Enter runs after the blur has hidden it; Esc just blurs.
+    const line = document.createElement('div'); line.className = 'ps-cmdline'; line.hidden = true;
+    const colon = document.createElement('span'); colon.textContent = ':';
+    const inp = document.createElement('input'); inp.spellcheck = false; inp.autocomplete = 'off';
+    const hint = document.createElement('span'); hint.className = 'hint';
+    line.append(colon, inp, hint);
+    const open = () => { const p = ps.cursor; if (!p || !p.dom) return; p.dom.appendChild(line); line.hidden = false; inp.value = ''; hint.textContent = ''; cycle = null; inp.focus(); };
+    inp.addEventListener('blur', () => { line.hidden = true; const pane = line.closest('.ps-pane'); if (pane) { try { ps.focusContent(pane.dataset.paneId); } catch (_) {} } });
+    inp.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') { const l = inp.value; inp.blur(); run(l); e.preventDefault(); }
+      else if (e.key === 'Escape') { inp.blur(); e.preventDefault(); }
+      else if (e.key === 'Tab') { e.preventDefault(); complete(e.shiftKey ? -1 : 1); }
+      else { cycle = null; hint.textContent = ''; }
+    });
+    // ---- Tab: complete the last word against the listing it points into ----
+    // The word's directory part resolves the way the verbs resolve (relative
+    // to the moment's dir, @names through the link registry); its children
+    // are read once per directory while the prompt is open. One match
+    // completes; several complete to their common prefix and are shown;
+    // Tab again cycles through them, shift-Tab backwards.
+    const listings = new Map();
+    const childrenOf = async (dirNs) => {
+      const key = dirNs.replace(/\/$/, '') || '/';
+      if (listings.has(key)) return listings.get(key);
+      const p = (async () => {
+        try {
+          const abs = await psResolve(key);
+          const d = await fetch(psUrl(abs) + '?list=1', { cache: 'no-store' }).then((r) => r.ok ? r.json() : null);
+          return (d && Array.isArray(d.children) ? d.children : []).map((c) => ({ name: c.name === '' ? '$' : c.name, dir: c.kind === 'dir' }));
+        } catch (_) { return []; }
+      })();
+      listings.set(key, p);
+      return p;
+    };
+    let cycle = null;                                                     // { head, cands, i } while Tab cycles
+    const complete = async (step) => {
+      const p = ps.cursor; if (!p) return;
+      if (cycle) {
+        cycle.i = (cycle.i + step + cycle.cands.length) % cycle.cands.length;
+        const c = cycle.cands[cycle.i]; inp.value = cycle.head + c.name + (c.dir ? '/' : '');
+        hint.textContent = cycle.cands.map((x, n) => (n === cycle.i ? '[' + x.name + ']' : x.name)).join('  ');
+        return;
+      }
+      const v = inp.value, m = /^(\S+\s+)?(\S*)$/.exec(v); if (!m) return;
+      const head = m[1] || '', word = m[2] || '';
+      const slash = word.lastIndexOf('/');
+      const wdir = slash < 0 ? '' : word.slice(0, slash + 1), frag = slash < 0 ? word : word.slice(slash + 1);
+      const base = wdir ? resolveFrom(p.id, wdir) : baseDir(p.id);
+      if (!base) return;
+      const cands = (await childrenOf(base)).filter((c) => c.name.startsWith(frag));
+      if (inp.value !== v) return;                                        // typed on while the listing came
+      if (!cands.length) { hint.textContent = 'no match'; return; }
+      if (cands.length === 1) { const c = cands[0]; inp.value = head + wdir + c.name + (c.dir ? '/' : ''); hint.textContent = ''; return; }
+      let common = cands[0].name; for (const c of cands) { let k = 0; while (k < common.length && c.name[k] === common[k]) k++; common = common.slice(0, k); }
+      if (common.length > frag.length) { inp.value = head + wdir + common; hint.textContent = cands.map((c) => c.name).join('  '); return; }
+      cycle = { head: head + wdir, cands, i: -1 }; complete(1);
+    };
+    // before gmux and the content see it: a bare `:` outside any field
+    ps.addEventListener('keydown', (e) => {
+      if (e.key !== ':' || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (edit(e.target) || edit(document.activeElement)) return;
+      if (ps.prefixed) return;                                            // Ctrl-B : is gmux's navbar
+      e.preventDefault(); e.stopPropagation(); open();
+    }, true);
+    // the moment's directory: the file's, or the directory itself; an @name
+    // moment stays symbolic (psRel resolves under it AS SPELLED)
+    const baseDir = (id) => { const ns = psNs(ps.pathOf(id) || '/'); return psIsDir(ns) ? ns.replace(/\/$/, '') || '/' : (ns.replace(/\/[^/]*$/, '') || '/'); };
+    // a path as typed, resolved: absolute and @name paths stand; the rest
+    // is relative to the moment's directory, like vim's :e
+    const resolveFrom = (id, p) => { p = (p || '').trim(); if (!p) return null; const dir = baseDir(id); return /^(\/|@|\.\.?\/)/.test(p) ? psRel(dir, p) : psRel(dir, './' + p); };
+    const verbs = (id) => {
+      const path = ps.pathOf(id) || '/';
+      const target = (args) => resolveFrom(id, args[0]);
+      const go = (u) => { const el = ps.querySelector('.ps-pane[data-pane-id="' + id + '"] .ps-pane-body > *'); const r = el && el._ctx && el._ctx.route; if (r) r(u, null, null); else ps.openFrom(id, u); };
+      // bare is sticky: :e from a bare pane opens the next path bare too,
+      // so editing stays editing across files (leaving bare ends it)
+      const keepBare = (t) => psArgs(path).bare ? psSetArg(t, 'bare', '1') : t;
+      return {
+        e: (args) => { const t = target(args); if (t) go(keepBare(t)); },
+        vs: (args) => { const t = target(args); ps.splitRight(id, t ? psNs(t) : undefined); },
+        sp: (args) => { const t = target(args); ps.splitDown(id, t ? psNs(t) : undefined); },
+        q: () => ps.closeActiveTab(id),
+        bare: () => ps.replaceMoment(id, psSetArg(path, 'bare', psArgs(path).bare ? null : '1')),
+      };
+    };
+    const run = (lineText) => {
+      const m = String(lineText || '').trim().match(/^([a-z]+)(!?)\s*(.*)$/i);
+      if (!m) return;
+      const p = ps.cursor; if (!p) return;
+      const el = p.body && p.body.firstChild;
+      const own = el && el._fv && typeof el._fv.commands === 'function' ? (el._fv.commands() || {}) : {};
+      const fn = own[m[1]] || verbs(p.id)[m[1]];
+      if (!fn) { toast('not a command: ' + m[1], true); return; }
+      const args = m[3] ? m[3].split(/\s+/) : [];
+      if (m[2]) args.unshift('!');
+      try { fn(args, { argString: (m[2] ? '!' : '') + (m[3] || '') }); } catch (e) { toast(String(e), true); }
+    };
+  }
   // the editor's command line (:e :sp :vs :q) acts on ITS pane. Paths are
   // relative to the file's dir, like vim's.
   const exHost = (ps, paneId, ns, route) => {
-    const rel = (u) => psRel(ns.replace(/\/[^/]*$/, '') || '/', u);
-    return { open: (u) => route(rel(u), null, null),
+    const rel = (u) => psRel(ns.replace(/\/[^/]*$/, '') || '/', u);   // absolute, @name and ./ ../ spellings all resolve here
+    // bare is sticky here too: vim's :e from a bare editor opens bare
+    const keepBare = (t) => psArgs(ps.pathOf(paneId) || '').bare ? psSetArg(t, 'bare', '1') : t;
+    return { open: (u) => route(keepBare(rel(u)), null, null),
              close: () => ps.closeActiveTab(paneId),
              splitRight: (u) => ps.splitRight(paneId, u ? psNs(rel(u)) : undefined),
              splitDown: (u) => ps.splitDown(paneId, u ? psNs(rel(u)) : undefined) };
@@ -1066,9 +1176,6 @@ function setup(root, opts) {
   const psWaitFail = (el, text, sub) => { psWait(el, text, sub); el.classList.add('fail'); };
   // back to a bare content element once the answer is in
   const psClear = (el) => { el.innerHTML = ''; el.className = ''; el.style.cssText = 'height:100%;overflow:auto'; };
-  // a path's name + icon for its tab chip: basename + the kind we learn while
-  // listing (dir) or opening (file). redrawBars() sharpens the glyph once known.
-  const psKind = new Map();
   // a tab is its name; no glyph guessed from kind. A moment with ?page= (a
   // rendering's own sub-page: the docs pane) is named by that page, so the
   // history reads as the pages visited, not the same grub nine times
@@ -1373,6 +1480,12 @@ function setup(root, opts) {
         '.ps-past button:disabled,.ps-past button:disabled:hover{opacity:.35;cursor:default;background:#fff}' +
         // at now: the same bar, saying this path HAS a past, without
         // claiming you are standing in it
+        // the pane's command line: `:` on any pane's content opens it
+        '.ps-cmdline{position:absolute;left:0;right:0;bottom:0;z-index:5;display:flex;align-items:center;gap:4px;padding:3px 12px;border-top:1px solid #d0d7de;background:#fff;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:#24292f}' +
+        '.ps-cmdline[hidden]{display:none}' +
+        '.ps-cmdline input{flex:1;border:none;outline:none;background:transparent;font:inherit;color:inherit;padding:0}' +
+        // what Tab could complete to: a quiet row of names after the input
+        '.ps-cmdline .hint{flex:none;max-width:50%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#8b949e;font-size:11px}' +
         '.ps-past.now{background:#f2f8f3;border-bottom-color:#b7cfbc;color:#3d5a45}' +
         '.ps-past.now button{border-color:#b7cfbc;color:#3d5a45}' +
         '.ps-past.now button:hover{background:#eaf3ec}' +
@@ -1561,7 +1674,7 @@ function setup(root, opts) {
     let acc = '';
     segs.forEach((seg, i) => {
       acc += '/' + seg;
-      if (i === segs.length - 1) row.appendChild(Object.assign(document.createElement('span'), { className: 'cur', textContent: seg }));
+      if (i === segs.length - 1) row.appendChild(Object.assign(document.createElement('span'), { className: 'cur', textContent: seg === '$' ? '[unnamed]' : seg }));
       else row.appendChild(link(seg + '/', acc));
     });
     return row;
@@ -1611,11 +1724,10 @@ function setup(root, opts) {
     // is a directory, and the slash made `back to now` land on
     // /apps/x/ which does not resolve.
     const here = bare(ns);
-    // a directory's label carries its slash; a file's must not. An
-    // UNNAMED grub's path is spelled like its parent directory, so the
-    // bar would name the parent -- it is named for the reader instead.
-    const nameless = kind !== 'dir' && !asof && /\/$/.test(psNs(ns));
-    const ownerLabel = nameless ? owner + '/[unnamed]'
+    // a directory's label carries its slash; a file's must not. The
+    // nameless grub ($) is named for the reader.
+    const nameless = kind !== 'dir' && !asof && psUnnamed(psNs(ns));
+    const ownerLabel = nameless ? owner.replace(/\/\$$/, '/[unnamed]')
                      : owner === '/' ? '/'
                      : owner + ((kind === 'dir' || asof) ? '/' : '');
     // WHOSE versions these are. A path has its own history, and a fold's
@@ -1931,14 +2043,17 @@ function setup(root, opts) {
     const head = document.createElement('div'); head.className = 'ps-form-head';
     const body = document.createElement('div'); body.className = 'ps-form-body';
     form.append(head, body);
-    // an unnamed GRUB's path is spelled like its parent directory, which
-    // on a delete page reads as "the directory" -- it is named instead
-    const shown = (p) => (!isDir && /\/$/.test(p)) ? p + '[unnamed]' : p;
+    // the nameless grub ($) is named for the reader
+    const shown = (p) => psUnnamed(p) ? p.replace(/\/\$$/, '/[unnamed]') : p;
     const h = (verb, p) => { head.textContent = ''; const v = document.createElement('div'); v.className = 'ps-form-verb'; v.textContent = verb; const d = document.createElement('div'); d.className = 'ps-form-path'; d.textContent = shown(p); d.title = shown(p); head.append(v, d); };
     const note = (t) => { const d = document.createElement('div'); d.className = 'ps-form-note'; d.textContent = t; body.appendChild(d); };
     const field = (label, value, ph) => { const l = document.createElement('label'); const s = document.createElement('span'); s.textContent = label; const i = document.createElement('input'); i.value = value || ''; i.placeholder = ph || ''; i.spellcheck = false; l.append(s, i); body.appendChild(l); return i; };
     const buttons = (ok, danger, run) => { const foot = document.createElement('div'); foot.className = 'ps-form-foot'; const c = document.createElement('button'); c.textContent = 'cancel'; c.addEventListener('click', () => ps.back(paneId)); const b = document.createElement('button'); b.className = danger ? 'danger' : 'go'; b.textContent = ok; b.addEventListener('click', async () => { b.disabled = true; const okd = await run(); b.disabled = false; if (okd) ps.back(paneId); }); foot.append(c, b); form.appendChild(foot); return b; };
     const onEnter = (inp, btn) => inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') btn.click(); else if (e.key === 'Escape') ps.back(paneId); });
+    // the field the keyboard lands on, IF this pane is the one selected and
+    // nothing else holds it: a form opening in another pane never steals
+    // the keys from the pane you are in (psLanded is the one judge of that)
+    const want = (x) => { x.setAttribute('data-focus', ''); psLanded(ps, paneId, el); };
     if (view === 'make') {
       // nothing at this path yet: make it. The name is the path's own; the
       // kind defaults from the spelling (a trailing slash is a folder).
@@ -1969,7 +2084,7 @@ function setup(root, opts) {
         await psPost(parent, params);
         return false;                                                  // the pane stays: the watch re-renders it as what was made
       });
-      onEnter(extra, b); if (kind.value === 'folder') b.focus(); else extra.focus();
+      onEnter(extra, b); want(kind.value === 'folder' ? b : extra);
     } else if (view === 'new') {
       h('New', ns);
       const kind = document.createElement('select'); ['file', 'folder', 'nexus', 'symlink'].forEach((k) => { const o = document.createElement('option'); o.value = k; o.textContent = k; kind.appendChild(o); });
@@ -1996,7 +2111,7 @@ function setup(root, opts) {
           : { action: 'create-file', filename: n, ...(x ? { blot: x } : {}) };
         return psPost(url, params);
       });
-      onEnter(nm, b); onEnter(extra, b); nm.focus();
+      onEnter(nm, b); onEnter(extra, b); want(nm);
     } else if (view === 'term-new') {
       // a new dill session on hood's dojo; the pane becomes its terminal
       h('New terminal', ns);
@@ -2009,21 +2124,20 @@ function setup(root, opts) {
           const r = await fetch(TERM, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session: n, open: true }) });
           if (!r.ok) { let why = 'open failed (' + r.status + ')'; try { why = (await r.json()).error || why; } catch (_) {} throw new Error(why); }
         } catch (e) { toast('terminal: ' + (e && e.message || e), true); return false; }
-        psKind.set(SESSIONS + n, 'file');
         ps.openFrom(paneId, SESSIONS + n);
         return false;                                                  // the pane moved on to the session; nothing to go back to
       });
-      onEnter(nm, b); nm.focus();
+      onEnter(nm, b); want(nm);
     } else if (view === 'rename') {
       h('Rename', ns + (isDir ? '/' : ''));
       const nm = field('new name', name);
       const b = buttons('rename', false, () => { const n = nm.value.trim(); if (!n || n === name) return false; return psPost(parentUrl, isDir ? { action: 'rename-folder', foldername: name, newname: n } : { action: 'rename-grub', filename: name, newname: n }); });
-      onEnter(nm, b); nm.focus(); const dot = name.lastIndexOf('.'); nm.setSelectionRange(0, dot > 0 ? dot : name.length);
+      onEnter(nm, b); want(nm); if (document.activeElement === nm) { const dot = name.lastIndexOf('.'); nm.setSelectionRange(0, dot > 0 ? dot : name.length); }
     } else if (view === 'delete') {
       h('Delete', ns + (isDir ? '/' : ''));
       note(isDir ? 'The directory and everything in it will be removed. This cannot be undone.' : 'The file will be removed. This cannot be undone.');
       const b = buttons('delete', true, () => psPost(parentUrl, isDir ? { action: 'delete-folder', foldername: name } : { action: 'delete-grub', filename: name }));
-      b.focus();
+      want(b);
     } else if (view === 'label' || view === 'keep') {
       // Labels are a SET, in their own stable row ABOVE the input. Only
       // the row ever redraws, never the field, so nothing moves while you
@@ -2571,8 +2685,8 @@ function setup(root, opts) {
     };
     const route = (href, kind, mods, name) => {
       const bare = (typeof href === 'string' && href.startsWith(PREFIX)) ? (href.slice(PREFIX.length) || '/') : href;
-      const h = psCarry(psMoment(psRel(ns, bare)));                         // relative to this moment, as spelled
-      if (kind) psKind.set(psNs(h), kind === 'dir' ? 'dir' : 'file');      // glyph the target before nav
+      let h = psCarry(psMoment(psRel(ns, bare)));                           // relative to this moment, as spelled
+      if (kind === 'dir') { const m = psSplit(h); if (!/\/$/.test(m.path)) h = m.path + '/' + (m.query ? '?' + m.query : ''); }   // a directory is spelled with its slash
       if (mods && (mods.meta || mods.ctrl)) { ps.open(h, 'beside'); return; }   // ⌘-click → new pane
       ps.openFrom(paneId, h, name);
     };
@@ -2610,7 +2724,8 @@ function setup(root, opts) {
       if (!d || !Array.isArray(d.children)) throw 'f';
       psClear(el);
       psAlive(ps, ns);                                                     // it answered: clear any stale dead mark
-      psKind.set(ns, 'dir'); ps.redrawBars();                              // this path lists → it's a dir
+      // it lists, so it is a directory: spelled with its slash from here on
+      if (!psIsDir(ns)) { const m = psSplit(path); const np = m.path + '/' + (m.query ? '?' + m.query : ''); el._moment = np; ps.respell(paneId, np); }
       el._dirUrl = url;                                                    // whitespace right-click: this dir's actions
       // does this dir RUN a nexus? The old explorer showed Reload nexus only
       // when it did (data.nexus.display !== '-'); gmux dropped the item
@@ -2664,8 +2779,8 @@ function setup(root, opts) {
       const up = psUp(ns, abs);
       if (want === 'grid') t.baseHref = ns.replace(/\/$/, '');
       else {
-        if (ns !== '/' && !atTop) t.parentHref = scoped(up || '/');     // ../ row → up in place; top-level dirs go to root; none at a scope's top
-          t.columns = ft.columns.map((c) => c.key === 'name' ? Object.assign({}, c, { link: (item) => { const h = ns.replace(/\/$/, '') + '/' + item.name; return item.kind === 'dir' ? scoped(h) : h; } })
+        if (ns !== '/' && !atTop) t.parentHref = scoped((up || '/').replace(/\/?$/, '/'));     // ../ row → up in place; top-level dirs go to root; none at a scope's top
+          t.columns = ft.columns.map((c) => c.key === 'name' ? Object.assign({}, c, { link: (item) => { const h = ns.replace(/\/$/, '') + '/' + (item.kind === 'dir' ? item.name + '/' : item.name === '' ? '$' : item.name); return item.kind === 'dir' ? scoped(h) : h; } })
           // the weir tag opens that dir's weir view where links open
           : c.key === 'weir' ? Object.assign({}, c, { decorate: (cell, item) => { if (item.kind !== 'dir') return; cell.style.cursor = 'pointer'; cell.style.color = item.weir ? '#9a6700' : '#1a7f37'; cell.title = "this directory's weir"; cell.addEventListener('click', (e) => { e.stopPropagation(); route(ns.replace(/\/$/, '') + '/' + item.name + '?view=weir', 'dir', null); }); } })
           // same reason as weir: this pane's ns and route, not the page's
@@ -2779,15 +2894,13 @@ function setup(root, opts) {
       }
       psClear(el);
       psAlive(ps, ns);                                                     // it answered: clear any stale dead mark
-      psKind.set(ns, 'file'); ps.redrawBars();                            // not a listing → it's a file
       el._gone = psWatchFile(ps, paneId, el, ns, abs);                      // its own file, one keep: del → dead, new → back
       // rendered = JUST the declared viewer's rendering (no FileView chrome);
       // raw = the full Source|Preview|Build package. The viewer never rides
       // along inside raw — the two are separate panes you toggle between.
-      // a dill session: a terminal. The default session's grub has the empty
-      // name, so /sys/dill/sessions/ itself IS that file (the kernel serves
-      // it there), and the pane on it is the ship's own terminal
-      if (!raw && abs.startsWith(SESSIONS) && !abs.slice(SESSIONS.length).includes('/')) { psTerminal(ps, paneId, el, ns, abs, abs.slice(SESSIONS.length), psArgs(path)); return; }
+      // a dill session is a terminal, the ship's own for the default
+      // session, whose grub has the empty name (spelled $)
+      if (!raw && abs.startsWith(SESSIONS) && !abs.slice(SESSIONS.length).includes('/')) { const sn = abs.slice(SESSIONS.length); psTerminal(ps, paneId, el, ns, abs, sn === '$' ? '' : sn, psArgs(path)); return; }
       // A PAST version never goes to a declared viewer. The viewer fetches
       // the path itself, with no version on it, so it would render either
       // the present content under a past label or -- when the version does
@@ -3707,8 +3820,11 @@ function setup(root, opts) {
     // the session's grub by name (the default session's is the empty name
     // under the dir, so the dir is followed for it) and the slog stream
     paneLive(ps, paneId, el, own ? [{ road: abs }, { road: LOGS, body: true }] : [{ road: SESSIONS }]);
+    // the keystrokes go to the hidden input: mark it, and psLanded decides
+    // whether this pane may take the keyboard (not a terminal restoring
+    // beside the pane you are in)
+    inp.setAttribute('data-focus', '');
     psLanded(ps, paneId, el);
-    inp.focus({ preventScroll: true });
   }
 
   // ---- toast ----
@@ -3725,8 +3841,8 @@ function setup(root, opts) {
     toastTimer = setTimeout(() => { s.style.display = 'none'; }, err ? 6000 : 2000);
   }
 
-  // standalone panes endpoint (/grubbery/explorer): stand the pane workspace up
-  // full-screen using the SAME wiring as the ⊞ panes tab — no finder.
+  // the workspace endpoint (/grubbery/explorer): the sessions page, and a
+  // session's panes full-screen under /s/<name>
   const SESSION_API = PREFIX.replace(/\/ball$/, '/explorer') + '/session';
   const SESSIONS_DIR = '/apps/shell/explorer/sessions/';
   // ---- the session protocol: every client of a workspace speaks it ----
@@ -4819,15 +4935,15 @@ function setup(root, opts) {
     // /grubbery/explorer: the SESSIONS page — the workspaces the ship holds,
     // open one (attaching this tab to it, taking it over from another), or
     // start one. /grubbery/explorer/s/<name>: attached to that session.
-    // Any other /grubbery/explorer/<path>: a workspace kept in this browser
-    // alone (localStorage), as before — the old standalone page.
+    // Nothing else is a workspace: a session is the ship's record, and a
+    // name is one keystroke away on the sessions page.
     while (root.firstChild) root.removeChild(root.firstChild);
     root.style.cssText = 'display:block;height:100vh;height:100dvh';
     document.body.classList.add('cols');
     const here = location.pathname.replace(/\/+$/, '');
     const sm = here.match(/^\/grubbery\/explorer\/s\/([a-z][a-z0-9-]*)$/);
     const sessionName = sm ? sm[1] : null;
-    if (!sessionName && here === '/grubbery/explorer') { sessionsPage(root, SESSION_API, psWait, psWaitFail); return; }
+    if (!sessionName) { sessionsPage(root, SESSION_API, psWait, psWaitFail); return; }
     // A phone walks the palace instead of tiling it. What makes it a phone is
     // the POINTER, not the width: a finger cannot hit a pane bar or drag a
     // divider at any size, a phone held sideways is wider than plenty of
@@ -4865,10 +4981,9 @@ function setup(root, opts) {
       return;
     }
     if (sessionName && MOBILE) { mobileWorkspace(root, sessionName); return; }
-    const persistKey = sessionName ? null : K + '-standalone';
     const ps = document.createElement('gmux-host');
     // the pane gmux seeds before the workspace has restored is not empty, it
-    // is waiting: until the session (or the saved standalone layout) is in,
+    // is waiting: until the session is in,
     // a pane with nothing in it shows the same ring every fetching pane
     // shows. After that, an empty pane says so.
     let booting = true;
@@ -4879,7 +4994,6 @@ function setup(root, opts) {
       return el;
     };
     const booted = () => { if (!booting) return; booting = false; for (const w of ps.querySelectorAll('.ps-pane-body > .ps-wait')) { const p = w.closest('.ps-pane'); if (p && ps.pathOf(p.dataset.paneId) == null) ps.refresh(p.dataset.paneId); } };
-    if (persistKey) ps.setAttribute('persist', persistKey);
     ps.style.cssText = 'display:block;height:100%';
     ps.renderPath = (path, paneId, from) => paneContent(ps, paneId, path, from);
     ps.tabInfo = paneTabInfo;
@@ -4907,6 +5021,7 @@ function setup(root, opts) {
     ps.viewModes = [{ id: 'rendered', glyph: '▣', title: 'rendered' }, { id: 'raw', glyph: '◰', title: 'raw file / plain listing' }];
     ps.onDestroy = (id, body) => { const c = body.firstChild; try { if (c && c._live) c._live(); } catch (_) {} try { if (c && c._gone) c._gone(); } catch (_) {} try { if (c && c._link) c._link(); } catch (_) {} try { if (c && c._headRO) c._headRO.disconnect(); } catch (_) {} try { if (c && c._fv) c._fv.destroy(); } catch (_) {} };
     root.appendChild(ps);
+    paneCmdline(ps);
     // right-click: the rendering under the cursor answers (a viewer's
     // contextMenu, a built-in's _menu); nothing to say → the browser's own
     // menu. Capture, so the finder's handler never sees workspace clicks.
@@ -4927,13 +5042,6 @@ function setup(root, opts) {
       e.preventDefault();
       showMenu(items, e.clientX, e.clientY);
     }, true);
-    if (!sessionName) {
-      let saved = null; try { saved = localStorage.getItem('gmux:' + K + '-standalone') || localStorage.getItem('pane-split:' + K + '-standalone'); } catch (_) {}
-      if (!saved) ps.open('/', 'here');                 // fresh → root; otherwise the persisted workspace restores (stateful)
-      ps.layoutSources().forEach(({ id, src }) => psFollowLayout(ps, id, src));   // restored layout panes follow their files again
-      booted();
-      return;
-    }
     // ---- a session: this tab is its one client ----
     document.title = sessionName + ' · gmux';
     const client = sessionClient(ps, root, sessionName, () => { booted(); ps.layoutSources().forEach(({ id, src }) => psFollowLayout(ps, id, src)); });

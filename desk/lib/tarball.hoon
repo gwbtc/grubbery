@@ -1307,5 +1307,10 @@
   ::  trailing slash = directory
   ?:  =('/' (rear t))
     [%| pax]
+  ::  a last segment of $ is the EMPTY name (hoon's %$): the nameless
+  ::  grub in that directory, spelled so it cannot be mistaken for the
+  ::  directory itself. No grub may be named $ (see the makers).
+  ?:  =('$' (rear pax))
+    [%& (snip `path`pax) '']
   [%& (snip `path`pax) (rear pax)]
 --

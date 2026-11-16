@@ -276,6 +276,8 @@ class Gmux extends HTMLElement {
 
   get activeId() { return this.#activeId; }
   get cursor() { return this.#panes.get(this.#activeId) || null; }
+  // the prefix is down: the next key is gmux's, whoever else listens
+  get prefixed() { return this.#awaiting; }
   get leafIds() { const out = []; this.#eachVisibleLeaf(this.#root, l => out.push(l.id)); return out; }
 
   // ---- tree construction ----
@@ -309,6 +311,18 @@ class Gmux extends HTMLElement {
       e.preventDefault(); e.stopPropagation();
       this.#activeId = id; this.climb();
     }, true);
+    // a click that landed on nothing focusable (the crumbs, a header, the
+    // space below a listing) left the keyboard on the page body: the pane
+    // is selected but its keys are dead. Land the keyboard on the content,
+    // as the keyboard's own pane moves do. A field or link keeps its focus.
+    dom.addEventListener('mouseup', (e) => {
+      if (e.shiftKey || e.target.closest('.ps-pane') !== dom || this.#activeId !== id) return;
+      setTimeout(() => {
+        const a = document.activeElement;
+        if (a && a !== document.body && a !== this && dom.contains(a)) return;
+        this.focusContent(id);
+      }, 0);
+    });
     // sticky quickbar: hovering the selected pane's top edge drops the thin
     // quick-action bar; it lingers (grace timer) and the bar itself holds it
     // open while you interact (wired where the element is built).
@@ -681,6 +695,16 @@ class Gmux extends HTMLElement {
     e.path = path;
     this.#renderPane(pane); this.#afterStructure(); this.#persist();
   }
+  // the current moment re-spelled, content kept: the host learned how the
+  // path is properly written (a listing's trailing slash) and the element
+  // on screen already IS that moment
+  respell(id, path) {
+    const pane = this.#panes.get(id ?? this.#activeId); if (!pane) return;
+    const tab = pane.tabs[pane.activeTab], e = tab && tab.entries[tab.cursor];
+    if (!e || e.path == null || e.path === path) return;
+    e.path = path;
+    this.#renderBar(pane); this.#persist();
+  }
   // ---- routing: where a moment from a pane goes ----
   // A view says WHAT (a moment); its context says WHERE. A layout carries one
   // table, `open: {<origin>: {to, mode}}`, at its root (a division or a pane):
@@ -1028,7 +1052,13 @@ class Gmux extends HTMLElement {
     const tmp = document.createElement('div'); tmp.appendChild(tab.el); tab.el = null;
     try { if (this.onDestroy) this.onDestroy(pane.id, tmp); } catch (_) {}
   }
-  closeActiveTab(id) { const p = this.#panes.get(id ?? this.#activeId); if (p) this.closeTab(p.id, p.activeTab); }
+  // close the active tab; a pane left with nothing in it goes too, unless
+  // it is the root (the root stays, empty). The editor's :q.
+  closeActiveTab(id) {
+    const p = this.#panes.get(id ?? this.#activeId); if (!p) return;
+    this.closeTab(p.id, p.activeTab);
+    if (p.parent && !p.tabs.some((t) => t.cursor >= 0)) this.close(p, true);
+  }
   closeTab(id, i) {
     const p = this.#panes.get(id ?? this.#activeId); if (!p || i < 0 || i >= p.tabs.length) return;
     const [tab] = p.tabs.splice(i, 1);

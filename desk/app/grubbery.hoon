@@ -7437,8 +7437,9 @@
   |=  api-path=path
   ^-  (unit lane:tarball)
   ?~  api-path  `[%| /]
-  ?:  =('' (rear api-path))  `[%| (snip `path`api-path)]
+  ::  an empty last name is the nameless grub when one is there
   ?^  (api-grub api-path)  `[%& [(snip `path`api-path) (rear api-path)]]
+  ?:  =('' (rear api-path))  `[%| (snip `path`api-path)]
   `[%| api-path]
 ::  +ball-op-dest: which lane does this endpoint address?
 ::
@@ -7651,7 +7652,11 @@
   ::  the trailing slash names the fold; strip it and the handlers below
   ::  read the path exactly as they always have
   =/  slashed=?  ?&(?=(^ raw-path) =('' (rear raw-path)))
-  =/  api-path=path  ?.(slashed raw-path (snip `path`raw-path))
+  ::  a last segment of $ is the empty name: the nameless grub, spelled
+  =/  api-path=path
+    ?:  slashed  (snip `path`raw-path)
+    ?:  &(?=(^ raw-path) =('$' (rear raw-path)))  (snoc (snip `path`raw-path) '')
+    raw-path
   ::  ?as= picks which rendering of a peek you want; without it a grub
   ::  comes back as its contents and a fold as its children. The arms
   ::  below are the renderings, named as they were.
