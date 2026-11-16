@@ -66,6 +66,9 @@
   %+  spin:loader  ball
   :~  (manifest:loader 0)
       [%fall %& [/ %'source.json'] [[/ %json] (source-to-json *source-config)]]
+      ::  hold.json: the shell's update window (+desk-held). Held, the desk
+      ::  follows and pulls nothing until the shell releases it.
+      [%fall %& [/ %'hold.json'] [[/ %json] [%b %.n]]]
       ::  root version.json: which source version we are FOLLOWING. Seeded
       ::  null — "not synced yet"; the first pull writes the real version
       ::  (copied from the source's /code/version.json). Never seed a fake
@@ -138,6 +141,7 @@
       [~ %'source.json']
     ;<  ~  bind:m  (rise-wait:io prod "%desk config: failed")
     |-
+    =*  restart  $
     ;<  src-json=json  bind:m  (get-state-as:io ,json)
     =/  config=source-config  (json-to-source src-json)
     ?~  config
@@ -147,6 +151,18 @@
       =/  new-json=json  !<(json q.sage)
       ;<  ~  bind:m  (replace:io new-json)
       $
+    ::  held by the update window: follow nothing until the shell's poke
+    ::  of this source releases it
+    ;<  held=?  bind:m  (desk-held rail)
+    ?:  held
+      ~?  dbg  %desk-held
+      ::  only a source poke wakes it: a stray timer wake from an earlier
+      ::  +await-source is a poke too, and is passed over
+      |-
+      ;<  =sage:tarball  bind:m  take-poke:io
+      ?.  =([/ %json] p.sage)  $
+      ;<  ~  bind:m  (replace:io !<(json q.sage))
+      restart
     ::  follow the source's CODE version — version.json INSIDE its /desk/code,
     ::  the authored content version (never null), NOT the source's own root
     ::  version.json (its private follow-state, none of our business). The
@@ -180,6 +196,13 @@
     ?-  -.res
         %news
       ~?  dbg  %desk-update-received
+      ::  a release that lands while the window holds the desk waits for
+      ::  it to open: the restart parks, and the release catches up
+      ;<  held=?  bind:m  (desk-held rail)
+      ?:  held
+        ;<  ~  bind:m  (drop:io /ver ver-road)
+        ;<  ~  bind:m  ?~(link (pure:m ~) (drop:io /link u.link))
+        restart
       ::  snapshot the world, then pull the new release
       ;<  ~  bind:m  (do-snapshot rail)
       ;<  ~  bind:m  (sync-release ver-road code-road ver-name rail)
@@ -539,6 +562,18 @@
 ::  A cheap single-file peek — the gate that keeps a reload from
 ::  re-mirroring the whole source tree when we are already current.
 ::
+::  +desk-held: does the shell's update window hold this desk now? The
+::  shell writes hold.json and pokes source.json, so a parked process
+::  wakes for the release. Checked again before every pull, since a
+::  process still retrying an unreachable source takes no poke.
+::
+++  desk-held
+  |=  =rail:tarball
+  =/  m  (fiber:fiber:nexus ,?)
+  ^-  form:m
+  ;<  hold=(unit json)  bind:m
+    (peek-as:io (nex-road:io rail [%& / %'hold.json']) ,json)
+  (pure:m =(`[%b %.y] hold))
 ++  source-behind
   |=  [ver-road=road:tarball =rail:tarball]
   =/  m  (fiber:fiber:nexus ,?)

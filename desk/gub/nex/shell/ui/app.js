@@ -136,7 +136,9 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
   // profile: who this ship is. The @p for now; the panel is where a filled-in
   // profile, and the choice of who it is published to, will live.
   var profShip = '';
-  function openProfile() {
+  // the gear: Settings, a menu of the ship's own controls, and the ship
+  function openSettings() {
+    setMenu();
     document.getElementById('profile-backdrop').classList.add('open');
     document.getElementById('prof-copied').textContent = '';
     fetch('/apps/grubbery/profile.json')
@@ -154,6 +156,76 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
   }
   function closeProfileNow() {
     document.getElementById('profile-backdrop').classList.remove('open');
+  }
+  function setMenu() {
+    document.getElementById('set-menu').style.display = '';
+    document.getElementById('set-window').style.display = 'none';
+    document.getElementById('set-back').style.display = 'none';
+    document.getElementById('set-title').textContent = 'Settings';
+  }
+  // the update window, in minutes of the day. The ship keeps it with the
+  // offset it was set in; the form shows it in this device's time and saves
+  // it in this device's time, so it is the same hours in UTC either way.
+  function hhmm(m) {
+    m = ((m % 1440) + 1440) % 1440;
+    var h = Math.floor(m / 60), n = m % 60;
+    return (h < 10 ? '0' : '') + h + ':' + (n < 10 ? '0' : '') + n;
+  }
+  function minutesOf(v) {
+    var p = String(v || '').split(':');
+    return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0);
+  }
+  function hereOffset() { return -new Date().getTimezoneOffset(); }
+  function utcName(off) {
+    var a = Math.abs(off), m = a % 60;
+    return 'UTC' + (off < 0 ? '\u2212' : '+') + Math.floor(a / 60) + (m ? ':' + (m < 10 ? '0' : '') + m : '');
+  }
+  function setWindow() {
+    document.getElementById('set-menu').style.display = 'none';
+    document.getElementById('set-window').style.display = '';
+    document.getElementById('set-back').style.display = '';
+    document.getElementById('set-title').textContent = 'Update Window';
+    document.getElementById('win-msg').textContent = '';
+    var here = hereOffset();
+    fetch('/apps/grubbery/update-window')
+      .then(function(r) { return r.json(); })
+      .catch(function() { return {}; })
+      .then(function(w) {
+        w = w || {};
+        // a window never set is the ship's default, 02:00 to 05:00 UTC; show it
+        // as 2 to 5 in the morning here instead
+        var fresh = !w.on && w.start === 120 && w.end === 300 && w.offset === 0;
+        var off = (typeof w.offset === 'number' && !fresh) ? w.offset : here;
+        var start = typeof w.start === 'number' ? w.start : 120;
+        var end = typeof w.end === 'number' ? w.end : 300;
+        document.getElementById('win-on').checked = !!w.on;
+        document.getElementById('win-start').value = hhmm(start - off + here);
+        document.getElementById('win-end').value = hhmm(end - off + here);
+        winNote();
+      });
+  }
+  function winNote() {
+    var on = document.getElementById('win-on').checked;
+    document.getElementById('win-start').disabled = !on;
+    document.getElementById('win-end').disabled = !on;
+    document.getElementById('win-note').textContent = on
+      ? 'Times are in your time, ' + utcName(hereOffset()) + '. Outside the window this ship holds app updates, every app but %base, and takes them when the window opens.'
+      : 'This ship takes app updates as soon as they are published.';
+  }
+  function saveWindow() {
+    var msg = document.getElementById('win-msg');
+    var on = document.getElementById('win-on').checked;
+    var start = minutesOf(document.getElementById('win-start').value);
+    var end = minutesOf(document.getElementById('win-end').value);
+    if (on && start === end) { msg.textContent = 'The window needs a start and an end.'; return; }
+    msg.textContent = 'saving\u2026';
+    fetch('/apps/grubbery/update-window', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ on: on, start: start, end: end, offset: hereOffset() })
+    }).then(function(r) {
+      msg.textContent = r.ok ? 'saved' : 'not saved (' + r.status + ')';
+    }).catch(function() { msg.textContent = 'not saved'; });
   }
   function copyShip() {
     if (!profShip) return;
@@ -1037,8 +1109,8 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
         '<label class="inst-lab">permissions</label>' +
       '<div class="inst-note">Installs <b>fully sandboxed</b> — the app cannot read, message, ' +
         'or write anything outside its own folder. If it needs more, it declares each path it ' +
-        'wants and you review and grant them in <a href="/apps/grubbery/permits">Sandbox ' +
-        'Settings</a> after install.</div>' +
+        'wants and you review and grant them in <a href="/apps/grubbery/permits">Permission ' +
+        'Management</a> after install.</div>' +
       '';
     document.getElementById('inst-foot').innerHTML =
       '<button id="inst-cancel">cancel</button>' +
