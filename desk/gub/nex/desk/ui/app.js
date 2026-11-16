@@ -70,6 +70,13 @@ document.querySelectorAll('#mode-seg .seg-btn').forEach(function (b) {
   };
 });
 function modeParam() { return MODE; }
+// this desk's own file, addressed in the namespace: /grubbery/ball/<desk
+// path>/<axis dir>/<file>. DESK_PATH comes from the state route.
+var DESK_PATH = '';
+function ballUrl(p) {
+  var axis = (MODE === 'live' ? '/desk/' : '/checkout/') + AXIS;
+  return '/grubbery/ball' + DESK_PATH + axis + (p.charAt(0) === '/' ? p : '/' + p);
+}
 function updateSnapSelect() {
   var sel = document.getElementById('snap-select');
   sel.innerHTML = '';
@@ -485,7 +492,9 @@ function renderViewer(el, d) {
     return;
   }
   if (d.type && d.type.indexOf('image/') === 0) {
-    var rawUrl = BASE + 'raw/' + AXIS + '?path=' + (d.path || '') + '&mode=' + modeParam();
+    // the kernel serves the file, and gates it: a sealed /desk/code means
+    // a publisher's runnable content comes back inert
+    var rawUrl = ballUrl(d.path || '');
     if (fp && fp.render(body, { name: name, rawUrl: rawUrl })) return;
     var img = document.createElement('img'); img.className = 'vp-img'; img.src = rawUrl;
     body.appendChild(img); return;
@@ -499,6 +508,7 @@ function renderViewer(el, d) {
 function load() {
   fetch(BASE + 'state').then(function (r) { return r.json(); }).then(function (s) {
     CHECKOUT = (s.checkout == null) ? null : s.checkout;
+    DESK_PATH = s.path || '';
     SNAPS = s.snapshots || [];
     document.getElementById('tb-name').textContent = NAME;
     var src = s.source || null;

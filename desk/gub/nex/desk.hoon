@@ -73,6 +73,12 @@
   %+  spin:loader  ball
   :~  (manifest:loader 0)
       [%fall %& [/ %'source.json'] [[/ %json] (source-to-json *source-config)]]
+      ::  where.json: this desk's own place in the namespace, written by
+      ::  whoever made it (the shell pokes it beside source.json). A desk
+      ::  does not ask the kernel where it is; it is told. Seeded null,
+      ::  and read with a fallback to the shell's desks dir, which is
+      ::  where a desk made through the shell lives.
+      [%fall %& [/ %'where.json'] [[/ %json] ~]]
       ::  hold.json: the shell's update window (+desk-held). Held, the desk
       ::  follows and pulls nothing until the shell releases it.
       [%fall %& [/ %'hold.json'] [[/ %json] [%b %.n]]]
@@ -394,7 +400,7 @@
       (pure:m ~)
     ?:  =('POST' method.request.req)
       (handle-post eyre-id suffix req rail)
-    (handle-get eyre-id suffix args rail)
+    (handle-get eyre-id suffix args rail (rear nex-path))
       ::  version.*: on every version change, bootstrap the data nexuses
       ::  the new bill declares (idempotent), and take the baseline
       ::  snapshot if the counter is still 0 (a no-op otherwise). We own
@@ -1090,6 +1096,28 @@
   ;<  co=(unit (unit @ud))  bind:m
     (peek-as:io (nex-road:io rail [%& / %'checkout.desk_snap']) ,(unit @ud))
   (pure:m ?~(co ~ u.co))
+::  +desk-where: this desk's own place in the namespace, as written into
+::  where.json by whoever made it. A desk does not ask the kernel where
+::  it is; it is told, by the shell at creation.
+::
+::  Nobody said: a desk made through the shell lives at
+::  /apps/shell/desks/<dir>, so that is assumed AND WRITTEN DOWN, once.
+::  That covers every desk made before where.json existed, and after the
+::  first read the desk is told like any other. `dir` is its directory
+::  name, which the request loop already has; nothing here derives a
+::  position from the rail it was called with.
+::
+++  desk-where
+  |=  [=rail:tarball dir=@ta]
+  =/  m  (fiber:fiber:nexus ,@t)
+  ^-  form:m
+  =/  road=road:tarball  (nex-road:io rail [%& / %'where.json'])
+  ;<  jon=(unit json)  bind:m  (peek-as:io road ,json)
+  ?:  ?=([~ %s *] jon)  (pure:m p.u.jon)
+  ?:  =(%$ dir)  (pure:m '')
+  =/  guess=@t  (crip "/apps/shell/desks/{(trip dir)}")
+  ;<  ~  bind:m  (put:io road [[/ %json] s+guess])
+  (pure:m guess)
 ::  +axis-dir: which directory to READ for an axis — its live dir, or
 ::  /checkout/<axis> when a world snapshot is checked out.
 ::
@@ -1512,7 +1540,7 @@
   [[code ~] `(as-octs:mimes:html msg)]
 ::
 ++  handle-get
-  |=  [eyre-id=@ta suffix=path args=quay:eyre =rail:tarball]
+  |=  [eyre-id=@ta suffix=path args=quay:eyre =rail:tarball dir=@ta]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ?:  ?=([%cat ?(%code %data) *] suffix)
@@ -1614,30 +1642,6 @@
     =/  bod=octs  (as-octs:mimes:html (en:json:html json))
     ;<  ~  bind:m  (send-simple:http-res:io eyre-id (mime-response:http-utils [/application/json bod]))
     (pure:m ~)
-  ?:  ?=([%raw ?(%code %data) *] suffix)
-    ::  raw bytes of one file, in its mark's mime form — for <img> etc.
-    =/  dir=path  (axis-dir rail i.t.suffix =('live' (fall (quay-get args 'mode') 'live')))
-    =/  want=(unit @t)  (quay-get args 'path')
-    ?~  want
-      ;<  ~  bind:m  (respond eyre-id rail 400 'path required')
-      (pure:m ~)
-    =/  full=path  (stab u.want)
-    ;<  hit=(unit bfile)  bind:m  (locate-file rail dir ~ full)
-    ?~  hit
-      ;<  ~  bind:m  (respond eyre-id rail 404 'no such file')
-      (pure:m ~)
-    ;<  got=(unit mime)  bind:m  (mime-of rail dir ~ u.hit)
-    ?~  got
-      ;<  ~  bind:m  (respond eyre-id rail 404 'no mime form')
-      (pure:m ~)
-    ::  a followed desk's files are its publisher's: one that would run
-    ::  in a browser goes out as inert text, as the kernel's
-    ::  serve-sandbox sends a sandboxed grub's
-    =/  out=simple-payload:http
-      ?:  (runnable-mime:http-utils p.u.got)  (inert-response:http-utils q.u.got)
-      (mime-response:http-utils u.got)
-    ;<  ~  bind:m  (send-simple:http-res:io eyre-id out)
-    (pure:m ~)
   ?:  ?=([%tree ?(%code %data) *] suffix)
     ::  file tree of an axis — its live dir, or /checkout when checked out
     =/  live=?  =('live' (fall (quay-get args 'mode') 'live'))
@@ -1721,9 +1725,14 @@
     ;<  share=(unit (set path))  bind:m
       (peek-as:io (nex-road:io rail [%& / %'share.usergroups']) ,(set path))
     ;<  co=(unit @ud)  bind:m  (checkout-snap rail)
+    ;<  where=@t  bind:m  (desk-where rail dir)
     =/  =json
       %-  pairs:enjs:format
-      :~  ['source' (fall src-json ~)]
+      :~  ::  where this desk lives in the namespace: the page builds ball
+          ::  urls from it (its files are served by the kernel, gated
+          ::  there), rather than guessing the path from its own url
+          ['path' s+where]
+          ['source' (fall src-json ~)]
           ['version' ?~(ver ~ s+u.ver)]
           ['snapshots' (snaps-to-json desk-born)]
           ['share' a+(turn ~(tap in (fall share ~)) |=(g=path s+(spat g)))]
