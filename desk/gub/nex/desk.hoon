@@ -1668,7 +1668,7 @@
       ;<  ~  bind:m
         (send-simple:http-res:io eyre-id (mime-response:http-utils [/application/json bod]))
       (pure:m ~)
-    =/  code-path=path           (parse-path code.u.config)
+    ;<  code-path=path  bind:m  (resolve-source code.u.config)
     =/  code-road=road:tarball   [%& %| code-path]
     =/  ver-road=road:tarball    [%& %& code-path %'version.json']
     ;<  src-view=view:nexus  bind:m  (peek:io code-road ~)
@@ -1860,7 +1860,7 @@
   ?~  config
     ~&  >>  %desk-fetch-no-source
     (pure:m ~)
-  =/  code-path=path           (parse-path code.u.config)
+  ;<  code-path=path  bind:m  (resolve-source code.u.config)
   =/  code-road=road:tarball   [%& %| code-path]
   =/  ver-road=road:tarball    [%& %& code-path %'version.json']
   =/  ver-name=@ta             %'version.json'
