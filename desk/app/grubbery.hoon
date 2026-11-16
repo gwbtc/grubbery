@@ -7304,28 +7304,71 @@
   |=  =tang
   ^-  wall
   (zing (turn (flop tang) (cury wash [0 80])))
-::  +ball-bangs: every banged grub and directory under a ball, with the
-::  tang that banged it. A lump carries its own bang, and one per grub in
-::  its contents; both are reported, told apart by kind.
+::  +api-max: the most rows a /bang or /procs answer lists. Both are one
+::  event; on a whole ship either could be thousands of rows, and the
+::  answer says when it stopped short.
 ::
-++  ball-bangs
-  |=  [sub=path bal=ball:tarball]
+++  api-max  500
+::  +fold-jobe: the tree ject a fold holds now, if any
+::
+++  fold-jobe
+  |=  =fold:tarball
+  ^-  (unit jobe:nexus)
+  =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
+    (~(get of born) fold)
+  ?~  node  ~
+  =/  got=(unit [key=cass:clay val=entry:hist:nexus])
+    (ram:hon:hist:nexus fold.u.node)
+  ?~  got  ~
+  `lobe.pace.val.u.got
+::  +ject-bangs: every banged grub and directory under a tree ject, read
+::  from the jects' bang fields alone, stopping after `max` hits. /bang
+::  used +ball-bangs over +peek-ball-now, which validates every grub in
+::  the subtree only to look at its bang, all in one event: over a big
+::  tree that killed a production serf twice (gwbtc/grubbery#121).
+::
+++  ject-bangs
+  |=  [sub=path top=jobe:nexus max=@ud]
   ^-  (list [where=path kind=@tas =tang])
-  =/  here=(list [where=path kind=@tas =tang])
-    ?~  fil.bal  ~
+  =|  out=(list [where=path kind=@tas =tang])
+  =|  n=@ud
+  =/  todo=(list [p=path j=jobe:nexus])  ~[[sub top]]
+  =/  tang-at
+    |=  b=(unit nobe:nexus)
+    ^-  (unit tang)
+    ?~  b  ~
+    =/  tn  (~(get si:nexus silo) u.b)
+    ?~  tn  ~
+    `!<(tang [-:!>(*tang) u.tn])
+  |-  ^-  (list [where=path kind=@tas =tang])
+  ?:  (gte n max)  (flop out)
+  ?~  todo  (flop out)
+  =/  jot  (~(get by jects.silo) j.i.todo)
+  ?~  jot  $(todo t.todo)
+  ?.  ?=(%tree -.ject.u.jot)  $(todo t.todo)
+  =/  tr  tree.ject.u.jot
+  =/  hits=(list [where=path kind=@tas =tang])
     %+  weld
       ^-  (list [where=path kind=@tas =tang])
-      ?~  bang.u.fil.bal  ~
-      ~[[sub %dir u.bang.u.fil.bal]]
-    ^-  (list [where=path kind=@tas =tang])
-    %+  murn  ~(tap by contents.u.fil.bal)
-    |=  [n=@ta e=[=sang:tarball gain=? bang=(unit tang)]]
+      =/  db  (tang-at bang.tr)
+      ?~(db ~ ~[[p.i.todo %dir u.db]])
+    %+  murn  ~(tap by fil.tr)
+    |=  [name=@ta lj=jobe:nexus]
     ^-  (unit [where=path kind=@tas =tang])
-    ?~  bang.e  ~
-    `[(snoc sub n) %grub u.bang.e]
-  %+  roll  ~(tap by dir.bal)
-  |=  [[nam=@ta kid=ball:tarball] acc=_here]
-  (weld acc (ball-bangs (snoc sub nam) kid))
+    =/  lot  (~(get by jects.silo) lj)
+    ?~  lot  ~
+    ?.  ?=(%leaf -.ject.u.lot)  ~
+    =/  gb  (tang-at bang.leaf.ject.u.lot)
+    ?~  gb  ~
+    `[(snoc p.i.todo name) %grub u.gb]
+  =/  kids=(list [p=path j=jobe:nexus])
+    %+  turn  ~(tap by dir.tr)
+    |=([name=@ta cj=jobe:nexus *] [(snoc p.i.todo name) cj])
+  %=  $
+    todo  (weld t.todo kids)
+    out   (weld (flop hits) out)
+    n     (add n (lent hits))
+  ==
 ::  +pool-procs: every fiber under a path as the kernel holds it: crashed
 ::  or live, and the depth of its held (next) and skipped (skip) intakes
 ::  with the kinds of what it skipped. A fiber parked on a dart shows as
@@ -7709,12 +7752,16 @@
       ::
       [%'GET' %bang]
     ?.  (api-fold-exists api-path)  (gone 'nothing there')
-    =/  hits=(list [where=path kind=@tas =tang])
-      (ball-bangs api-path (peek-ball-now api-path))
+    =/  all=(list [where=path kind=@tas =tang])
+      =/  fj=(unit jobe:nexus)  (fold-jobe api-path)
+      ?~  fj  ~
+      (ject-bangs api-path u.fj +(api-max))
+    =/  hits  (scag api-max all)
     %-  ok-json
     %-  pairs:enjs:format
     :~  ['path' s+(crip (spud api-path))]
         ['banged' (numb:enjs:format (lent hits))]
+        ['truncated' b+(gth (lent all) api-max)]
       ::
         :-  'hits'
         :-  %a
@@ -7765,11 +7812,13 @@
       ::  depth, and what kinds were skipped. See +pool-procs.
       ::
       [%'GET' %procs]
-    =/  rows  (pool-procs api-path (~(dip of pool) api-path))
+    =/  all  (pool-procs api-path (~(dip of pool) api-path))
+    =/  rows  (scag api-max all)
     %-  ok-json
     %-  pairs:enjs:format
     :~  ['path' s+(crip (spud api-path))]
-        ['fibers' (numb:enjs:format (lent rows))]
+        ['fibers' (numb:enjs:format (lent all))]
+        ['truncated' b+(gth (lent all) api-max)]
       ::
         :-  'procs'
         :-  %a
