@@ -8,13 +8,24 @@
 |%
 ::  +build-marc: compile a mark source core into a marc dispatch core
 ::
+::  The validator and the bunt are built here, once per marc, and the
+::  arms return them. An arm is recomputed on every read, so building
+::  them in the arms ran the compiler (+build-vale's slap) on every
+::  validation, cache hits included (gwbtc/grubbery#115). A mark whose
+::  validator does not build still fails when the arm is read, with
+::  its own trace, as before.
+::
 ++  build-marc
   |=  cor=vase
   ^-  marc:tarball
+  =/  vg=(each $-(* vase) tang)  (mule |.((build-vale cor)))
+  =/  bn=(each vase tang)
+    ?:  ?=(%| -.vg)  [%| p.vg]
+    (mule |.((p.vg +6.q.cor)))
   |%
-  ++  type  p:(vale +6.q.cor)
-  ++  bunt  (vale +6.q.cor)
-  ++  vale  (build-vale cor)
+  ++  type  p:bunt
+  ++  bunt  ?:(?=(%& -.bn) p.bn (mean p.bn))
+  ++  vale  ?:(?=(%& -.vg) p.vg (mean p.vg))
   ++  grow  (build-grow cor)
   ++  grab  (build-grab cor)
   --
