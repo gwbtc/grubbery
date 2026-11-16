@@ -1047,10 +1047,10 @@ class Gmux extends HTMLElement {
     if (path != null && p.tabs.length === 1 && cur && cur.cursor < 0) { cur.entries = [entry]; cur.cursor = 0; this.#renderPane(p); this.#afterStructure(); this.#persist(); return; }
     const body = p.body.firstChild;
     if (body && body.tagName !== 'SPLIT-VIEW' && !body.classList.contains('ps-pane')) { cur.el = body; body.remove(); }   // the leaving tab keeps its content
-    // a fresh browsing history, but the command history is the pane's own
-    // working record and carries over, the way a new shell in the same
-    // terminal keeps what was typed before it
-    p.tabs.push({ entries: path != null ? [entry] : [], cursor: path != null ? 0 : -1, label: null, hist: (cur && cur.hist ? cur.hist.slice() : []) });
+    // a new tab starts fresh, command history included: it is the tab's,
+    // exactly as its browsing history is. A SPLIT copies both, since both
+    // sides of a split are the same tab seen twice.
+    p.tabs.push({ entries: path != null ? [entry] : [], cursor: path != null ? 0 : -1, label: null, hist: [] });
     p.activeTab = p.tabs.length - 1;
     this.#renderPane(p); this.#afterStructure(); this.#persist();
   }
