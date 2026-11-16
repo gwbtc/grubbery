@@ -700,6 +700,26 @@ class Gmux extends HTMLElement {
     e.path = path;
     this.#renderPane(pane); this.#afterStructure(); this.#persist();
   }
+  // ---- a tab's command history ----
+  // The lines typed at this tab's command line, oldest first. It lives on
+  // the tab beside its entries, so it is written back with the workspace
+  // and comes home with it. A tab made before this has none: the reader
+  // answers empty and the first line typed makes the list.
+  tabHist(id) {
+    const p = this.#panes.get(id ?? this.#activeId); if (!p) return [];
+    const t = p.tabs[p.activeTab]; if (!t) return [];
+    return t.hist || [];
+  }
+  // record one line. A line the same as the one before it is not recorded,
+  // and one beginning with a space is not recorded at all (HIST_IGNORE_SPACE).
+  tabHistAdd(id, line) {
+    const p = this.#panes.get(id ?? this.#activeId); if (!p) return;
+    const t = p.tabs[p.activeTab]; if (!t) return;
+    if (typeof line !== 'string' || !line.trim() || line.charAt(0) === ' ') return;
+    if (!t.hist) t.hist = [];
+    if (t.hist.length && t.hist[t.hist.length - 1] === line) return;
+    t.hist.push(line); this.#persist();
+  }
   // the current moment re-spelled, content kept: the host learned how the
   // path is properly written (a listing's trailing slash) and the element
   // on screen already IS that moment
@@ -1853,7 +1873,7 @@ class Gmux extends HTMLElement {
   cursorToAddr(addr) { if (!this.#root || typeof addr !== 'string') return false; const t = this.#descend(this.#root, addr); if (!t) return false; this.cursorTo(t); return true; }
   #serPane(pane) {
     if (!pane) return null;
-    return { id: pane.ref || undefined, tabs: pane.tabs.map(t => ({ entries: t.entries.map(e => this.#serEntry(e)), cursor: t.cursor, label: t.label || undefined, view: t.view || undefined })), activeTab: pane.activeTab, bar: pane.showBar || undefined, nav: pane.nav === false ? false : undefined, open: pane.open || undefined };
+    return { id: pane.ref || undefined, tabs: pane.tabs.map(t => ({ entries: t.entries.map(e => this.#serEntry(e)), cursor: t.cursor, label: t.label || undefined, view: t.view || undefined, hist: (t.hist && t.hist.length) ? t.hist : undefined })), activeTab: pane.activeTab, bar: pane.showBar || undefined, nav: pane.nav === false ? false : undefined, open: pane.open || undefined };
   }
   #serEntry(e) {
     const name = e.name || undefined;
@@ -1902,6 +1922,8 @@ class Gmux extends HTMLElement {
         return out;
       }),
       cursor: typeof t.cursor === 'number' ? t.cursor : (t.entries && t.entries.length ? 0 : -1),
+      // the lines typed at this tab's command line, oldest first
+      hist: Array.isArray(t.hist) ? t.hist.filter(x => typeof x === 'string') : [],
       label: (typeof t.label === 'string' && t.label) || null,
       view: (typeof t.view === 'string' && t.view) || null,
     }));

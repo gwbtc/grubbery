@@ -1058,14 +1058,15 @@ function setup(root, opts) {
     const inp = document.createElement('input'); inp.spellcheck = false; inp.autocomplete = 'off';
     const hint = document.createElement('span'); hint.className = 'hint';
     line.append(colon, inp, hint);
-    const open = () => { const p = ps.cursor; if (!p || !p.dom) return; p.dom.appendChild(line); line.hidden = false; inp.value = ''; hint.textContent = ''; cycle = null; inp.focus(); };
+    const open = () => { const p = ps.cursor; if (!p || !p.dom) return; p.dom.appendChild(line); line.hidden = false; inp.value = ''; hint.textContent = ''; cycle = null; walking = null; inp.focus(); };
     inp.addEventListener('blur', () => { line.hidden = true; const pane = line.closest('.ps-pane'); if (pane) { try { ps.focusContent(pane.dataset.paneId); } catch (_) {} } });
     inp.addEventListener('keydown', (e) => {
       e.stopPropagation();
-      if (e.key === 'Enter') { const l = inp.value; inp.blur(); run(l); e.preventDefault(); }
+      if (e.key === 'Enter') { const l = inp.value; const p = ps.cursor; if (p) ps.tabHistAdd(p.id, l); inp.blur(); run(l); e.preventDefault(); }
       else if (e.key === 'Escape') { inp.blur(); e.preventDefault(); }
       else if (e.key === 'Tab') { e.preventDefault(); complete(e.shiftKey ? -1 : 1); }
-      else { cycle = null; hint.textContent = ''; }
+      else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); walk(e.key === 'ArrowUp' ? -1 : 1); }
+      else { cycle = null; walking = null; hint.textContent = ''; }
     });
     // ---- Tab: complete the last word against the listing it points into ----
     // The word's directory part resolves the way the verbs resolve (relative
@@ -1088,6 +1089,27 @@ function setup(root, opts) {
       return p;
     };
     let cycle = null;                                                     // { head, cands, i } while Tab cycles
+    // ---- Up / Down: this tab's own command history ----
+    // The lines typed here, newest first going up. Whatever was in the
+    // input when the walk began filters it, so an empty input walks
+    // everything and a typed prefix walks only the lines starting with
+    // it. A recalled line carries no moment: it resolves against wherever
+    // the pane is NOW, the way a shell's history does after a cd.
+    let walking = null;                                                   // { prefix, lines, i }
+    const walk = (step) => {
+      const p = ps.cursor; if (!p) return;
+      if (!walking) {
+        const prefix = inp.value;
+        const lines = ps.tabHist(p.id).filter((l) => l.startsWith(prefix));
+        if (!lines.length) return;
+        walking = { prefix, lines, i: lines.length };
+      }
+      const n = walking.i + step;
+      if (n < 0) return;
+      if (n >= walking.lines.length) { walking.i = walking.lines.length; inp.value = walking.prefix; return; }
+      walking.i = n; inp.value = walking.lines[n];
+      inp.setSelectionRange(inp.value.length, inp.value.length);
+    };
     const complete = async (step) => {
       const p = ps.cursor; if (!p) return;
       if (cycle) {
@@ -1098,6 +1120,16 @@ function setup(root, opts) {
       }
       const v = inp.value, m = /^(\S+\s+)?(\S*)$/.exec(v); if (!m) return;
       const head = m[1] || '', word = m[2] || '';
+      // on the first word it is a verb, not a path
+      if (!head) {
+        const names = Object.keys(table(p)).sort().filter((n) => n.startsWith(word)).map((n) => ({ name: n, dir: false }));
+        if (!names.length) { hint.textContent = 'no command'; return; }
+        if (names.length === 1) { inp.value = names[0].name + ' '; hint.textContent = ''; return; }
+        let pre = names[0].name; for (const c of names) { let k = 0; while (k < pre.length && c.name[k] === pre[k]) k++; pre = pre.slice(0, k); }
+        if (pre.length > word.length) { inp.value = pre; hint.textContent = names.map((c) => c.name).join('  '); return; }
+        cycle = { head: '', cands: names, i: -1 }; complete(1);
+        return;
+      }
       const slash = word.lastIndexOf('/');
       const wdir = slash < 0 ? '' : word.slice(0, slash + 1), frag = slash < 0 ? word : word.slice(slash + 1);
       const base = wdir ? resolveFrom(p.id, wdir) : baseDir(p.id);
@@ -1138,13 +1170,18 @@ function setup(root, opts) {
         bare: () => ps.replaceMoment(id, psSetArg(path, 'bare', psArgs(path).bare ? null : '1')),
       };
     };
+    // every verb this pane answers to: what the content lends (:w :mime)
+    // over the pane's own (:e :vs :sp :q :bare)
+    const table = (p) => {
+      const el = p.body && p.body.firstChild;
+      const own = el && el._fv && typeof el._fv.commands === 'function' ? (el._fv.commands() || {}) : {};
+      return Object.assign({}, verbs(p.id), own);
+    };
     const run = (lineText) => {
       const m = String(lineText || '').trim().match(/^([a-z]+)(!?)\s*(.*)$/i);
       if (!m) return;
       const p = ps.cursor; if (!p) return;
-      const el = p.body && p.body.firstChild;
-      const own = el && el._fv && typeof el._fv.commands === 'function' ? (el._fv.commands() || {}) : {};
-      const fn = own[m[1]] || verbs(p.id)[m[1]];
+      const fn = table(p)[m[1]];
       if (!fn) { toast('not a command: ' + m[1], true); return; }
       const args = m[3] ? m[3].split(/\s+/) : [];
       if (m[2]) args.unshift('!');
