@@ -184,7 +184,7 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     document.getElementById('set-menu').style.display = 'none';
     document.getElementById('set-window').style.display = '';
     document.getElementById('set-back').style.display = '';
-    document.getElementById('set-title').textContent = 'Update Window';
+    document.getElementById('set-title').textContent = 'Software Update Window';
     document.getElementById('win-msg').textContent = '';
     var here = hereOffset();
     fetch('/apps/grubbery/update-window')
