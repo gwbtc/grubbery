@@ -13,7 +13,14 @@
 ::  subscriber of the channel, and two in-flight requests of the same
 ::  kind on one channel cannot be told apart — pick a unique chan per
 ::  conversation (entropy-derived), or one per request when you need
-::  strict pairing. Identity is the poking SHIP (gall does not name
+::  strict pairing. A channel belongs to the ship that watches it
+::  first: a watch on a held channel id is nacked with
+::  %client-chan-taken, and a %grub-cmd poke naming another ship's
+::  channel is nacked too. Note the two-nack failure mode: when the
+::  watch is nacked, the subsequent cmd poke nacks as well, so
+::  callers must handle both. Use entropy-derived ids and treat a
+::  %client-chan-taken nack as "pick a fresh id", not as a fatal
+::  error. Identity is the poking SHIP (gall does not name
 ::  the poking agent): a caller acts as
 ::  /sys/ames/ships/[ship]/ship.sig, your own ship included — local
 ::  privilege is just the absence of a weir on your own path.
