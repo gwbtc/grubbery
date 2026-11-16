@@ -126,6 +126,13 @@
       [%keep blot=(unit blot:tarball)]  :: subscribe to changes at dest (grub or ball per road)
                                        :: blot: if set, convert file sage in news
       [%drop ~]                 :: unsubscribe from dest
+      ::  TODO: a %quit kind belongs here, carrying the wire: retract my
+      ::  outstanding request on it. A fiber that gives up (+with-timeout's
+      ::  deadline) leaves its answer queued forever, re-offered at every
+      ::  later step (gwbtc/grubbery#116). The kernel already keys every
+      ::  staged request by [rail wire], so one kind covers a peek, a keen,
+      ::  an iris fetch, a websocket open and a gall poke's ack. Adding a
+      ::  kind changes every stored fiber's type and wants a state bump.
       [%lose =lose]             :: drop hist entries, decrement silo refs
       [%gain flag=?]            :: set gain flag (recursive on directories)
       [%firm tags=(set @t)]     :: promote current entry to %firm, with labels
