@@ -2202,8 +2202,51 @@
   :~  ['installed' b+?=(^ loc)]
       ['local' ?~(loc ~ s+u.loc)]
   ==
+::  +tile-of: title, info, color and icon file name from a shallow view
+::  of a desk's code directory. The title falls back to `ename`.
+::
+++  tile-of
+  |=  [cv=view:nexus ename=@t]
+  ^-  [@t @t @t (unit @ta)]
+  ?.  ?=([%ball *] cv)  [ename '' '' ~]
+  ?~  fil.ball.cv  [ename '' '' ~]
+  =/  cs  contents.u.fil.ball.cv
+  =/  tj=json
+    =/  tf  (~(get by cs) %'tile.json')
+    ?~  tf  [%o ~]
+    ?:  (is-boom:tarball sang.u.tf)  [%o ~]
+    =/  r=(each json tang)
+      (mule |.(!<(json (need-vase:tarball sang.u.tf))))
+    ?:(?=(%| -.r) [%o ~] p.r)
+  =/  ic=(unit @ta)
+    =/  ks=(list @ta)  ~(tap in ~(key by cs))
+    |-  ^-  (unit @ta)
+    ?~  ks  ~
+    ?:  =('icon.' (end [3 5] i.ks))  `i.ks
+    $(ks t.ks)
+  :^    ?:(=('' (jstr tj 'title')) ename (jstr tj 'title'))
+      (jstr tj 'info')
+    (jstr tj 'color')
+  ic
+::  +icon-name: an icon file name a peer's storefront entry gave us, kept
+::  only if it is one: a knot starting "icon.". It goes into a URL on
+::  this ship, so a peer must not be able to name some other path.
+::
+++  icon-name
+  |=  ic=(unit @t)
+  ^-  (unit @ta)
+  ?~  ic  ~
+  ?.  ((sane %ta) u.ic)  ~
+  ?.  =('icon.' (end [3 5] u.ic))  ~
+  `u.ic
 ::  +peer-app: one published desk as a card — tile metadata and icon from
-::  a shallow peek of its code tree, version from canonical file names.
+::  the storefront entry, version from canonical file names.
+::
+::  A publisher on this version puts the tile fields in its storefront
+::  entry (+desk-entry), so a card costs one small version peek. An
+::  older publisher's entry lacks them, and only then is its whole code
+::  directory peeked for them: every file in it crossed the network and
+::  was validated, per card, per refresh (gwbtc/grubbery#118).
 ::
 ++  peer-app
   |=  [s=@t entry=json]
@@ -2222,29 +2265,17 @@
       /apps/shell/desks/[`@ta`dir]
     `path`(scag (sub n 2) codepath)
   =/  base=path  (weld /sys/ames/ships/[s]/root desk-root)
-  ;<  cv=view:nexus  bind:m
-    (peek-shallow:io [%& %| (weld base /desk/code)] ~)
-  =/  [title=@t info=@t color=@t icon=(unit @ta)]
-    ?.  ?=([%ball *] cv)  [ename '' '' ~]
-    ?~  fil.ball.cv  [ename '' '' ~]
-    =/  cs  contents.u.fil.ball.cv
-    =/  tj=json
-      =/  tf  (~(get by cs) %'tile.json')
-      ?~  tf  [%o ~]
-      ?:  (is-boom:tarball sang.u.tf)  [%o ~]
-      =/  r=(each json tang)
-        (mule |.(!<(json (need-vase:tarball sang.u.tf))))
-      ?:(?=(%| -.r) [%o ~] p.r)
-    =/  ic=(unit @ta)
-      =/  ks=(list @ta)  ~(tap in ~(key by cs))
-      |-  ^-  (unit @ta)
-      ?~  ks  ~
-      ?:  =('icon.' (end [3 5] i.ks))  `i.ks
-      $(ks t.ks)
-    :^    ?:(=('' (jstr tj 'title')) ename (jstr tj 'title'))
-        (jstr tj 'info')
-      (jstr tj 'color')
-    ic
+  ;<  [title=@t info=@t color=@t icon=(unit @ta)]  bind:m
+    =/  n  (fiber:fiber:nexus ,[@t @t @t (unit @ta)])
+    ?^  (jget entry 'title')
+      %-  pure:n
+      :^    (jstr entry 'title')
+          (jstr entry 'info')
+        (jstr entry 'color')
+      (icon-name (jget entry 'icon'))
+    ;<  cv=view:nexus  bind:n
+      (peek-shallow:io [%& %| (weld base /desk/code)] ~)
+    (pure:n (tile-of cv ename))
   ;<  ver=(unit @t)  bind:m  (try-version base)
   =/  icon-url=json
     ?~  icon  ~
@@ -3419,19 +3450,30 @@
     (peek-as:io [%& %& /apps/shell/desks/[i.kids] %'share.usergroups'] ,(set path))
   ;<  rest=(list [path json])  bind:m  $(kids t.kids)
   ?~  shr  (pure:m rest)
-  =/  entry=json  (desk-entry i.kids)
+  ;<  entry=json  bind:m  (desk-entry i.kids)
   (pure:m (weld (turn ~(tap in u.shr) |=(g=path [g entry])) rest))
-::  +desk-entry: one shared desk as a discovery card — display name plus the
+::  +desk-entry: one shared desk as a discovery card — display name, the
 ::  code road a follower subscribes to (peers prepend the ship; the version
-::  rides inside <code>/version.json).
+::  rides inside <code>/version.json), and the tile a peer's card shows,
+::  so a peer need not fetch the code directory to draw it.
 ::
 ++  desk-entry
   |=  name=@ta
-  ^-  json
+  =/  m  (fiber:fiber:nexus ,json)
+  ^-  form:m
+  ;<  cv=view:nexus  bind:m
+    (peek-shallow:io [%& %| /apps/shell/desks/[name]/desk/code] ~)
+  =/  [title=@t info=@t color=@t icon=(unit @ta)]
+    (tile-of cv (app-slug name))
+  %-  pure:m
   %-  pairs:enjs:format
   :~  ['name' s+(app-slug name)]
       ['dir' s+name]
       ['code' s+(crip "/apps/shell/desks/{(trip name)}/desk/code")]
+      ['title' s+title]
+      ['info' s+info]
+      ['color' s+color]
+      ['icon' ?~(icon ~ s+u.icon)]
   ==
 ::
 ++  build-links
