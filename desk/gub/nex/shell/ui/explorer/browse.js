@@ -1158,7 +1158,10 @@ function setup(root, opts) {
     const verbs = (id) => {
       const path = ps.pathOf(id) || '/';
       const target = (args) => resolveFrom(id, args[0]);
-      const go = (u) => { const el = ps.querySelector('.ps-pane[data-pane-id="' + id + '"] .ps-pane-body > *'); const r = el && el._ctx && el._ctx.route; if (r) r(u, null, null); else ps.openFrom(id, u); };
+      // route by the PANE, not by the element in it: a split moves the live
+      // element to a new pane while its _ctx still names the old one, so
+      // asking the content where to go sent :e to a pane that had moved
+      const go = (u) => ps.openFrom(id, psMoment(u));
       // bare is sticky: :e from a bare pane opens the next path bare too,
       // so editing stays editing across files (leaving bare ends it)
       const keepBare = (t) => psArgs(path).bare ? psSetArg(t, 'bare', '1') : t;

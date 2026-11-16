@@ -1180,9 +1180,10 @@ class Gmux extends HTMLElement {
     const tab = pane.tabs[pane.activeTab];
     const curEntry = tab.entries[tab.cursor];
     const liveBody = pane.body.firstChild;      // the content already on screen
-    // childA keeps the original content AND inherits this tab's whole history.
+    // childA keeps the original content AND inherits this tab's whole
+    // history, command history included: it IS this tab, moved down.
     const childA = this.#makePane();
-    childA.tabs = [{ entries: tab.entries, cursor: tab.cursor }];
+    childA.tabs = [{ entries: tab.entries, cursor: tab.cursor, hist: tab.hist || [] }];
     childA.activeTab = 0;
     if (pane.showBar) { childA.showBar = true; childA.dom.classList.add('ps-bar-on'); }  // bar rides with the content
     if (pane.tabs.length <= 1) { pane.showBar = false; pane.dom.classList.remove('ps-bar-on'); }  // sole tab is now just the division → no bar; KEEP it if other tabs remain
