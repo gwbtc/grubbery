@@ -1,6 +1,10 @@
 // contacts: the shell's people record, read and written through the
-// kernel's namespace api. profiles/<ship>.json is what a ship publishes,
-// overlays/<ship>.json is yours. A poke to main.sig writes; a peek reads.
+// kernel's namespace api. A poke to main.sig writes; a peek reads.
+//
+// Both sides are facets. share/<group>/profile.json is what we publish to
+// one usergroup; profiles/<ship>/<group>/profile.json is what one of
+// THEIR groups told us, kept apart so the page can show where two of
+// their groups disagree. The union is a view the ship computes.
 //
 // Your own profile is published per usergroup: share/<group>/profile.json
 // is a facet, and the group's weir is what lets that group read it. The
@@ -15,26 +19,12 @@ var groups = [];   // this ship's usergroups, for the facet picker
 
 function status(t) { document.getElementById('status').textContent = t || ''; }
 
-function peek(path) {
-  return fetch(API + '/peek/' + BALL + '/' + path).then(function(r) {
-    if (!r.ok) return null;
-    return r.json();
-  }).catch(function() { return null; });
-}
-
 function poke(body) {
   return fetch(API + '/poke/' + BALL + '/main.sig?blot=/json', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   }).then(function(r) { return r.ok; });
-}
-
-function listing(dir) {
-  return peek(dir + '/').then(function(d) {
-    return ((d && d.files) || []).filter(function(f) { return /\.json$/.test(f); })
-      .map(function(f) { return f.replace(/\.json$/, ''); });
-  });
 }
 
 function json(url) {
@@ -59,19 +49,24 @@ function load() {
     groups.forEach(function(g) {
       var o = document.createElement('option'); o.value = g; dl.appendChild(o);
     });
-    return Promise.all([listing('profiles'), listing('overlays')]);
-  }).then(function(ls) {
-    var ships = {};
-    ls[0].forEach(function(s) { ships[s] = true; });
-    ls[1].forEach(function(s) { ships[s] = true; });
-    var names = Object.keys(ships);
-    return Promise.all(names.map(function(s) {
-      return Promise.all([peek('profiles/' + s + '.json'), peek('overlays/' + s + '.json')])
-        .then(function(pv) { return [s, { profile: pv[0] || {}, overlay: pv[1] || {} }]; });
-    }));
-  }).then(function(rows) {
+    // what each ship told each of ITS groups, kept apart, plus our overlays
+    return Promise.all([
+      json('/grubbery/contacts/api/peers'),
+      json('/grubbery/contacts/api/overlays')
+    ]);
+  }).then(function(po) {
+    var peers = po[0] || {}, overs = po[1] || {};
     people = {};
-    rows.forEach(function(r) { people[r[0]] = r[1]; });
+    Object.keys(peers).forEach(function(k) {
+      var s = k.replace(/^~/, '');
+      people[s] = { profile: peers[k].profile || {}, facets: peers[k].facets || {},
+                    clashes: peers[k].clashes || {}, overlay: {} };
+    });
+    Object.keys(overs).forEach(function(k) {
+      var s = k.replace(/^~/, '');
+      if (!people[s]) people[s] = { profile: {}, facets: {}, clashes: {} };
+      people[s].overlay = overs[k] || {};
+    });
     render();
     status('');
   }).catch(function() { status('could not load'); });
@@ -181,15 +176,36 @@ function render() {
     row.onclick = function() { card.classList.toggle('open'); };
     card.appendChild(row);
     var body = document.createElement('div'); body.className = 'person-body';
-    var from = p.profile._from || [];
-    var pk = Object.keys(p.profile).filter(function(k) { return k !== '_from'; });
+    var groups = Object.keys(p.facets || {}).sort();
+    var clashes = p.clashes || {};
+    var pk = Object.keys(p.profile);
     body.innerHTML = '<h3>their profile</h3>' +
       (pk.length
         ? '<div class="profile-kv">' + pk.map(function(k) {
-            return '<span class="k">' + esc(k) + '</span><span>' + esc(p.profile[k]) + '</span>';
+            return '<span class="k' + (clashes[k] ? ' clash' : '') + '">' + esc(k) + '</span>' +
+              '<span>' + esc(p.profile[k]) + '</span>';
           }).join('') + '</div>'
         : '<div class="muted">nothing read yet</div>') +
-      (from.length ? '<div class="muted">read from ' + esc(from.join(', ')) + '</div>' : '');
+      // the whole point of keeping the facets apart: two of their groups
+      // told us different things about the same key
+      (Object.keys(clashes).length
+        ? '<div class="clashes"><b>they do not say the same thing to everyone</b>' +
+          Object.keys(clashes).sort().map(function(k) {
+            return '<div class="clash-row"><span class="k clash">' + esc(k) + '</span>' +
+              Object.keys(clashes[k]).sort().map(function(g) {
+                return '<span class="clash-v"><span class="me-group">' + esc(g) + '</span> ' +
+                  esc(clashes[k][g]) + '</span>';
+              }).join('') + '</div>';
+          }).join('') + '</div>'
+        : '') +
+      (groups.length
+        ? '<h3>what each of their groups was told</h3>' +
+          groups.map(function(g) {
+            var f = p.facets[g] || {};
+            return '<div class="their-facet"><span class="me-group">' + esc(g) + '</span>' +
+              '<span class="muted">' + Object.keys(f).length + ' fields</span></div>';
+          }).join('')
+        : '');
     // the groups THEY have you in, as they told you: what +pull asks for
     var pull = document.createElement('form'); pull.className = 'pull';
     var gi = document.createElement('input');

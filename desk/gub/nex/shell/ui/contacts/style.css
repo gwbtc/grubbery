@@ -74,6 +74,15 @@ button.danger:hover { background: #fef3f2; }
 .pull { display: flex; gap: 8px; margin-top: 10px; }
 .pull input { width: 220px; font-family: "SF Mono", Menlo, monospace; }
 
+/* what two of their groups disagree about */
+.profile-kv .k.clash { color: #b42318; }
+.clashes { border: 1px solid #fecdc9; background: #fffbfa; border-radius: 8px; padding: 10px 12px; margin: 10px 0; font-size: 12.5px; }
+.clashes b { display: block; color: #b42318; font-weight: 600; margin-bottom: 6px; }
+.clash-row { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; padding: 3px 0; }
+.clash-v { color: #1f2328; }
+.their-facet { display: flex; justify-content: space-between; padding: 5px 0; border-top: 1px solid #f2f3f5; }
+.me-group { font-family: "SF Mono", Menlo, monospace; font-size: 12px; color: #4b3f72; }
+
 /* people */
 .person { border-top: 1px solid #eef0f3; padding: 12px 0; }
 .person:first-child { border-top: none; }

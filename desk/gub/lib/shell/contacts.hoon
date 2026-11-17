@@ -1,18 +1,25 @@
 ::  lib/shell/contacts: the people record, a service of the shell.
 ::
-::  Three directories. profiles: what a ship publishes, as this ship last
-::  read it. overlays: yours alone, the name you call them, labels, notes.
-::  Both hold one file per ship, named without the sig. share: what YOU
+::  Three directories, two of them the same shape. share: what YOU
 ::  publish, a facet per usergroup — /friends sees one profile, /public
-::  another. Apps find all of it by NAME: /sys/link/contacts points at the
-::  shell's /contacts directory.
+::  another. profiles: what other ships publish, as read, kept the same
+::  way — a directory per ship holding a file per group of THEIRS, so what
+::  they told each group stays apart and two of their groups disagreeing
+::  is something you can see. overlays: yours alone, the name you call
+::  them, labels, notes; one file per ship. Apps find all of it by NAME:
+::  /sys/link/contacts points at the shell's /contacts directory.
 ::
 ::    <shell>/contacts/main.sig                 pokes: set / del / facet / pull
-::    <shell>/contacts/profiles/<ship>.json     as that ship publishes it
+::    <shell>/contacts/profiles/<ship>/<group>/profile.json
+::                                              what that group of theirs
+::                                              was told, as we read it
 ::    <shell>/contacts/overlays/<ship>.json     your overlay on that ship
 ::    <shell>/contacts/share/<group>/profile.json   your facet for that group
 ::    <shell>/ui/contacts/*                     the page, at /grubbery/contacts
-::    GET /grubbery/contacts/api/{overlays,profiles,facets}   each as one object
+::    GET /grubbery/contacts/api/overlays   yours on them, by ship
+::    GET /grubbery/contacts/api/profiles   their facets unioned, by ship
+::    GET /grubbery/contacts/api/peers      their facets apart, + clashes
+::    GET /grubbery/contacts/api/facets     your own, by group
 ::
 ::  There is no file for your own ship under profiles/: your profile is not
 ::  something you read back, it is something you serve.
@@ -20,8 +27,8 @@
 ::  A facet is published by the WEIR, not by a send: the shell contributes
 ::  a peek road on share/<group>/profile.json to that group's weir (see
 ::  +gather-groups in nex/shell.hoon), so a ship in the group can peek the
-::  file and no other ship can. A reader in two of your groups peeks both
-::  and sees the union; that is what +pull does on the reading side.
+::  file and no other ship can. A reader in two of your groups peeks both,
+::  keeps both (+pull), and unions them only when something asks.
 ::
 ::  Every road below is relative to the serving grub, so the service
 ::  reads and writes only its own directory wherever the shell lives, and
@@ -41,9 +48,9 @@
 ::      that facet goes, and the group stops being told anything
 ::    {"action": "pull", "ship": "~zod", "groups": ["/public", "/friends"]}
 ::      read that ship's facets for those groups (its own group names, the
-::      ones it told you about) and keep the union as its profile. A group
-::      you are not in simply answers nothing. `groups` defaults to
-::      ["/public"].
+::      ones it told you about) and keep each one under the group that
+::      told it. A group you are not in answers %veto: whatever we held
+::      for it is dropped. `groups` defaults to ["/public"].
 ::    {"action": "sync-ames"}
 ::      every ship ames knows that has no overlay yet gets one, marked
 ::      {"source": "ames"}. Only on request, never at start, and only
@@ -69,7 +76,7 @@
     =/  who=(unit @p)  (slaw %p (gs jon 'ship'))
     ?~  who  $
     ;<  *  bind:m  (cull-soft:io (ship-file /overlays u.who))
-    ;<  *  bind:m  (cull-soft:io (ship-file /profiles u.who))
+    ;<  *  bind:m  (cull-soft:io (peer-dir u.who))
     $
   ?:  =('facet' act)
     =/  grp=(unit path)  (rush (gs jon 'group') stap)
@@ -189,41 +196,130 @@
   ?.  ?=([%o *] p.res)  ~
   `[path.rail p.res]
 ::  +pull: read a ship's facets for the groups it told you it has you in,
-::  and keep the union as its profile. Each road is absolute and remote:
-::  the file sits in that ship's shell, and its group's weir decides
-::  whether we may read it — a group we are not in answers %veto, which
-::  is not an error here, just silence. '_from' records which groups
-::  answered, so the page can show what this profile is made of.
+::  and keep each one AS ITS OWN FILE, under that group's name. The stored
+::  tree mirrors the published tree: profiles/<ship>/<group>/profile.json
+::  is what that group of theirs was told, as we read it.
+::
+::  Kept apart rather than merged because the disagreement is the
+::  interesting part: a key with one value in /public and another in
+::  /friends is a thing you want to SEE, with both groups named, and a
+::  merge throws that evidence away. The union is a view (+union-of),
+::  computed when something asks.
+::
+::  A group we are not in answers %veto, and a facet we used to be able to
+::  read and now cannot is dropped — so a group that stopped telling us
+::  stops being something we claim to know. Any other non-answer (an
+::  unreachable ship) leaves what we have alone.
 ::
 ++  pull
   |=  [who=@p groups=(list path)]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ::  WITH the sig: /sys/ames/ships/~zod/root/..., the spelling +slav reads
-  ::  (the file names under profiles/ drop it, the roads never do)
+  ::  (only the directory name under profiles/ drops it)
   =/  s=@ta  (scot %p who)
-  =|  got=(list [grp=path prof=json])
   |-  ^-  form:m
-  ?^  groups
-    ;<  =view:nexus  bind:m  (peek:io (peer-facet s i.groups) ~)
-    =/  prof=(unit json)
-      ?.  ?=([%file *] view)  ~
-      ?:  (is-boom:tarball sang.view)  ~
-      =/  res=(each json tang)  (mule |.(!<(json (need-vase:tarball sang.view))))
-      ?.  ?=(%& -.res)  ~
-      ?.(?=([%o *] p.res) ~ `p.res)
-    $(groups t.groups, got ?~(prof got (snoc got [i.groups u.prof])))
-  ?~  got  (pure:m ~)
-  ::  +roll and +turn walk their list to ~, so they take the list, not
-  ::  the non-empty type the ?~ above narrowed it to
-  =/  read=(list [grp=path prof=json])  got
-  =/  union=(map @t json)
-    %+  roll  read
-    |=  [[* prof=json] acc=(map @t json)]
+  ?~  groups  (pure:m ~)
+  ;<  =view:nexus  bind:m  (peek:io (peer-facet s i.groups) ~)
+  =/  prof=(unit json)
+    ?.  ?=([%file *] view)  ~
+    ?:  (is-boom:tarball sang.view)  ~
+    =/  res=(each json tang)  (mule |.(!<(json (need-vase:tarball sang.view))))
+    ?.  ?=(%& -.res)  ~
+    ?.(?=([%o *] p.res) ~ `p.res)
+  ?^  prof
+    ;<  ~  bind:m
+      (ensure-fold:io [%| 0 [%| /profiles]] (peer-fold who i.groups))
+    ;<  ~  bind:m  (write (peer-file who i.groups) u.prof)
+    $(groups t.groups)
+  ?.  ?=([%veto *] view)  $(groups t.groups)
+  ::  the group dir goes with the file: an empty directory under their
+  ::  name says we know a group of theirs, and a refusal says we do not
+  ;<  *  bind:m  (cull-soft:io (peer-file who i.groups))
+  ;<  *  bind:m  (cull-soft:io (peer-group-dir who i.groups))
+  $(groups t.groups)
+::  +peer-name: a ship as a directory name, without its sig
+::
+++  peer-name
+  |=  who=@p
+  ^-  @ta
+  (rsh [3 1] (scot %p who))
+::  +peer-dir: everything we have read from one ship
+::
+++  peer-dir
+  |=  who=@p
+  ^-  road:tarball
+  [%| 0 [%| (snoc `path`/profiles (peer-name who))]]
+::  +peer-file: one group's facet of one ship, as we read it
+::
+++  peer-file
+  |=  [who=@p grp=path]
+  ^-  road:tarball
+  [%| 0 [%& (weld (snoc `path`/profiles (peer-name who)) grp) %'profile.json']]
+::  +peer-group-dir: the directory one of their groups' facet sits in
+::
+++  peer-group-dir
+  |=  [who=@p grp=path]
+  ^-  road:tarball
+  [%| 0 [%| (weld (snoc `path`/profiles (peer-name who)) grp)]]
+::  +peer-fold: the directories that file needs under /profiles
+::
+++  peer-fold
+  |=  [who=@p grp=path]
+  ^-  bole:tarball
+  (put-bole:loader empty-dir:loader [(peer-name who) grp] empty-dir:loader)
+::  +peer-rows: every facet we hold of every ship, as [ship, their group,
+::  profile]. One peek: a rail's path under /profiles is <ship>/<group>,
+::  so the walk that reads our own facets reads these too.
+::
+++  peer-rows
+  |=  =road:tarball
+  =/  m  (fiber:fiber:nexus ,(list [who=@t grp=path prof=json]))
+  ^-  form:m
+  ;<  rows=(list [grp=path prof=json])  bind:m  (facet-list road)
+  %-  pure:m
+  %+  murn  rows
+  |=  [pax=path prof=json]
+  ^-  (unit [@t path json])
+  ?~  pax  ~
+  =/  who=(unit @p)  (slaw %p (crip ['~' (trip i.pax)]))
+  ?~  who  ~
+  `[(scot %p u.who) t.pax prof]
+::  +union-of: the facets of one ship as a single profile. A reader in two
+::  of their groups sees both, so this is simply everything they told us.
+::  Where two of their groups disagree it keeps ONE, arbitrarily — there
+::  is no truth to pick and no order that means anything. That is what
+::  +clashes is for: the disagreement is the finding, not a tie to break.
+::
+++  union-of
+  |=  rows=(list [grp=path prof=json])
+  ^-  json
+  :-  %o
+  %+  roll  rows
+  |=  [[* prof=json] acc=(map @t json)]
+  ?.  ?=([%o *] prof)  acc
+  (~(uni by acc) p.prof)
+::  +clashes: the keys their groups were told different things about,
+::  each with the value per group — {key: {group: value}}. Empty when a
+::  ship told every group the same story.
+::
+++  clashes
+  |=  rows=(list [grp=path prof=json])
+  ^-  json
+  =/  by-key=(map @t (map @t json))
+    %+  roll  rows
+    |=  [[grp=path prof=json] acc=(map @t (map @t json))]
     ?.  ?=([%o *] prof)  acc
-    (~(uni by acc) p.prof)
-  =/  from=json  a+(turn read |=([grp=path *] s+(spat grp)))
-  (write (ship-file /profiles who) [%o (~(put by union) '_from' from)])
+    %+  roll  ~(tap by p.prof)
+    |=  [[k=@t v=json] a=_acc]
+    (~(put by a) k (~(put by (~(gut by a) k *(map @t json))) (spat grp) v))
+  :-  %o
+  %-  malt
+  %+  murn  ~(tap by by-key)
+  |=  [k=@t per=(map @t json)]
+  ^-  (unit [@t json])
+  ?:  (lth ~(wyt in (silt ~(val by per))) 2)  ~
+  `[k [%o per]]
 ::  +peer-facet: another ship's facet for one of ITS groups. The shell's
 ::  own place, like the storefront road in nex/shell.hoon.
 ::
@@ -260,13 +356,38 @@
   =/  suffix=path
     %+  skip  (slag (lent `path`/grubbery/contacts) site)
     |=(seg=@ta =('' seg))
-  ::  /api/overlays and /api/profiles: one object, every ship's file
-  ::  under its name with the sig, which is how an app spells a ship
-  ?:  ?=([%api ?(%overlays %profiles) ~] suffix)
-    =/  dir=path  ?:(?=(%overlays i.t.suffix) /overlays /profiles)
+  ::  /api/overlays: one object, every ship's overlay under its name with
+  ::  the sig, which is how an app spells a ship
+  ?:  ?=([%api %overlays ~] suffix)
     ;<  rows=(list [who=@p doc=json])  bind:m
-      (read-dir (nex-road:io rail [%| (weld /contacts dir)]))
+      (read-dir (nex-road:io rail [%| /contacts/overlays]))
     =/  out=json  [%o (malt (turn rows |=([who=@p doc=json] [`@t`(scot %p who) doc])))]
+    ;<  ~  bind:m
+      %+  send-simple:http-res:io  eyre-id
+      [[200 ~[['content-type' 'application/json']]] `(as-octs:mimes:html (en:json:html out))]
+    (pure:m ~)
+  ::  /api/profiles: a ship's facets as one profile — the union, which is
+  ::  what an app asking "who is this" wants. /api/peers is the honest
+  ::  version, with the facets kept apart.
+  ?:  ?=([%api ?(%profiles %peers) ~] suffix)
+    =/  deep=?  ?=(%peers i.t.suffix)
+    ;<  rows=(list [who=@t grp=path prof=json])  bind:m
+      (peer-rows (nex-road:io rail [%| /contacts/profiles]))
+    =/  per=(jar @t [grp=path prof=json])
+      %+  roll  rows
+      |=  [[who=@t grp=path prof=json] a=(jar @t [grp=path prof=json])]
+      (~(add ja a) who [grp prof])
+    =/  out=json
+      :-  %o
+      %-  ~(run by `(map @t (list [grp=path prof=json]))`per)
+      |=  fs=(list [grp=path prof=json])
+      ^-  json
+      ?.  deep  (union-of fs)
+      %-  pairs:enjs:format
+      :~  ['profile' (union-of fs)]
+          ['facets' [%o (malt (turn fs |=([grp=path prof=json] [(spat grp) prof])))]]
+          ['clashes' (clashes fs)]
+      ==
     ;<  ~  bind:m
       %+  send-simple:http-res:io  eyre-id
       [[200 ~[['content-type' 'application/json']]] `(as-octs:mimes:html (en:json:html out))]
