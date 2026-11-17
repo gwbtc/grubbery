@@ -228,6 +228,10 @@
           [%fall %& [/contacts %'main.sig'] [[/ %sig] ~]]
           [%fall %| /contacts/profiles empty-dir:loader]
           [%fall %| /contacts/overlays empty-dir:loader]
+          ::  /contacts/share/<group>/profile.json: the profile we publish
+          ::  to that usergroup. The group derivation grants a peek per
+          ::  facet, so the weir is what publishes it.
+          [%fall %| /contacts/share empty-dir:loader]
           ::  /tools: the tools nexus the MCP endpoint serves (lib/shell/mcp):
           ::  the bundle over whatever tools were added at runtime. Its tile
           ::  is a local one, like Landscape's.
@@ -301,6 +305,9 @@
           (keep:io /share (nex-road:io rail [%& /permit %'link.json']) ~)
         ;<  *  bind:m
           (keep:io /groups (nex-road:io rail [%& /permit %'groups.json']) ~)
+        ::  a facet published or dropped changes who may peek what
+        ;<  *  bind:m
+          (keep:io /facets (nex-road:io rail [%| /contacts/share]) ~)
         ::  the derived files themselves: a hand edit to a who.ships or a
         ::  how.weir is drift, and the next derive puts it back. No loop —
         ::  the derive writes only what differs, so its own writes are
@@ -1456,6 +1463,17 @@
     :^  grp  'shell'  ~
     :+  ~  ~
     (sy ~[`road:tarball`[%& %| (weld dpath /desk/code)] `road:tarball`[%& %& dpath %'version.json']])
+  ::  a facet of our own profile: the group it is published to may peek
+  ::  that one file, and nothing else under /contacts
+  ;<  facets=(list [grp=path prof=json])  bind:m
+    (facet-list:contacts (nex-road:io rail [%| /contacts/share]))
+  =/  from-facets=(list [grp=path by=@t members=(set @p) =weir:nexus])
+    %+  turn  facets
+    |=  [grp=path *]
+    ^-  [grp=path by=@t members=(set @p) =weir:nexus]
+    :^  grp  'shell'  ~
+    :+  ~  ~
+    (sy ~[`road:tarball`[%& %& (weld /apps/shell/contacts/share grp) %'profile.json']])
   ;<  approved=(map @t json)  bind:m  (read-approved rail)
   ;<  from-apps=(list [grp=path by=@t members=(set @p) =weir:nexus])  bind:m
     =/  m  (fiber:fiber:nexus ,(list [grp=path by=@t members=(set @p) =weir:nexus]))
@@ -1472,7 +1490,7 @@
     %+  weld
       (turn mine |=([grp=path members=(set @p) w=weir:nexus] [grp app.i.todo members w]))
     rest
-  (pure:m :(weld from-user [base ~] from-names from-desks from-apps))
+  (pure:m :(weld from-user [base ~] from-names from-desks from-facets from-apps))
 ::  +apply-groups: every group's who.ships and how.weir, rewritten whole
 ::  from the union of every contribution (+gather-groups). A group nobody
 ::  contributes to is culled; /public always stands.

@@ -61,6 +61,19 @@ button.danger:hover { background: #fef3f2; }
 .fields .newkey input:first-child { width: 110px; }
 .fields .newkey input:last-child { flex: 1; }
 
+/* facets: one card per usergroup we publish to */
+.hint { color: #79808a; font-size: 12px; margin-bottom: 12px; }
+#facet-form { display: flex; gap: 8px; }
+#facet-group { width: 170px; font-family: "SF Mono", Menlo, monospace; }
+.facet { border-top: 1px solid #eef0f3; padding: 14px 0; }
+.facet:first-child { border-top: none; padding-top: 0; }
+.facet-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.facet-group { font-family: "SF Mono", Menlo, monospace; font-weight: 600; color: #4b3f72; }
+
+/* pull: the groups a ship says it has us in, and the fetch */
+.pull { display: flex; gap: 8px; margin-top: 10px; }
+.pull input { width: 220px; font-family: "SF Mono", Menlo, monospace; }
+
 /* people */
 .person { border-top: 1px solid #eef0f3; padding: 12px 0; }
 .person:first-child { border-top: none; }

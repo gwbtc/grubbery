@@ -18,8 +18,14 @@
       <div class="panel-head">
         <h2>your profile</h2>
         <span id="me-ship" class="muted"></span>
+        <form id="facet-form">
+          <input id="facet-group" list="group-list" placeholder="/public" spellcheck="false">
+          <datalist id="group-list"></datalist>
+          <button type="submit">Add a facet</button>
+        </form>
       </div>
-      <form id="me-form" class="fields"></form>
+      <div class="hint">A facet is what one usergroup sees. Only ships in that group can read it.</div>
+      <div id="facets"></div>
     </section>
     <section class="panel grow">
       <div class="panel-head">
