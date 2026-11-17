@@ -467,7 +467,7 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
   }
   function buildSuite(d, kids) {
     var card = document.createElement('div');
-    card.className = 'tile suite-card' + (openSuite === d.name ? ' open' : '');
+    card.className = 'tile suite-card';
     var bg = document.createElement('div');
     bg.className = 'tile-bg';
     bg.style.background = d.color || '#333';
@@ -506,6 +506,13 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     };
     return card;
   }
+  function kidsOf(d) {
+    return allTiles.filter(function(t) { return !t.hidden && suiteOf(t) === d.name; });
+  }
+  // nothing open: the desks are an ordinary grid of tiles, like any other
+  // tab. Open one and they become a row along the top — same tiles, same
+  // size, scrolled sideways — with its apps in the grid below. Clicking
+  // the open one again closes it and the grid comes back.
   function paintSuites() {
     while (tilesDiv.firstChild) tilesDiv.removeChild(tilesDiv.firstChild);
     if (!deskCards.length) {
@@ -515,23 +522,54 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
       tilesDiv.appendChild(none);
       return;
     }
+    var open = deskCards.filter(function(d) { return d.name === openSuite; })[0];
+    if (!open) {
+      openSuite = null;
+      deskCards.forEach(function(d) { tilesDiv.appendChild(buildSuite(d, kidsOf(d))); });
+      return;
+    }
+    var strip = document.createElement('div');
+    strip.className = 'suite-strip';
     deskCards.forEach(function(d) {
-      var kids = allTiles.filter(function(t) { return !t.hidden && suiteOf(t) === d.name; });
-      tilesDiv.appendChild(buildSuite(d, kids));
-      if (openSuite !== d.name) return;
-      var row = document.createElement('div');
-      row.className = 'suite-kids';
-      if (!kids.length) {
-        var e = document.createElement('div');
-        e.className = 'empty';
-        e.textContent = 'this desk has no running apps — check its permissions, or the desk page';
-        row.appendChild(e);
-      } else {
-        kids.forEach(function(t) { row.appendChild(getTileEl(t)); });
-      }
-      tilesDiv.appendChild(row);
+      var card = buildSuite(d, kidsOf(d));
+      if (d.name === open.name) card.classList.add('sel');
+      strip.appendChild(card);
     });
+    tilesDiv.appendChild(strip);
+    // say where you are: the grid below is one desk's apps, not the
+    // launcher's, and nothing else on the page says so
+    var line = document.createElement('div');
+    line.className = 'suite-inside';
+    var lbl = document.createElement('span');
+    lbl.className = 'suite-inside-label';
+    lbl.appendChild(document.createTextNode('inside '));
+    var nm = document.createElement('b');
+    nm.textContent = open.title || open.name;
+    lbl.appendChild(nm);
+    if (open.info) lbl.appendChild(document.createTextNode(' \u00b7 ' + open.info));
+    line.appendChild(lbl);
+    tilesDiv.appendChild(line);
+    var kids = kidsOf(open);
+    if (!kids.length) {
+      var e = document.createElement('div');
+      e.className = 'empty';
+      e.textContent = (open.title || open.name) +
+        ' has no running apps \u2014 check its permissions, or open the desk';
+      tilesDiv.appendChild(e);
+      return;
+    }
+    kids.forEach(function(t) { tilesDiv.appendChild(getTileEl(t)); });
   }
+
+  // clicking away closes the open suite: anywhere that is not a tile and
+  // not the row itself, so the gaps and the page around the grid all work
+  // and clicking an app in it still opens the app.
+  document.addEventListener('click', function(e) {
+    if (!openSuite || tileTab !== 'suite') return;
+    if (e.target.closest && e.target.closest('.tile, .suite-strip')) return;
+    openSuite = null;
+    paintTiles();
+  });
 
   // hidden tiles are kept entirely out of the home grid. A header "Hidden · N"
   // button switches the grid to a hidden-only view, where each tile's view
