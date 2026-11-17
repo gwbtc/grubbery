@@ -729,6 +729,27 @@
           ;<  ~  bind:m  (poke:io (nex-road:io rail [%& / %'peers.json']) [[/ %json] jon])
           ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
           (pure:m ~)
+        ::  POST /desks/refresh {ship}: read that peer's storefront again
+        ::  now, instead of waiting for them to change something. Pokes the
+        ::  mirror grub, whose fiber takes a poke as a refresh (see
+        ::  +take-pub-news); the fetch happens there, so an unreachable peer
+        ::  holds up nothing but its own mirror.
+        ?:  &(=('POST' method.request.req) ?=([%desks %refresh ~] suffix))
+          =/  jon=json
+            %+  fall  (de:json:html ?~(body.request.req '' q.u.body.request.req))
+            *json
+          =/  who=(unit @p)  (slaw %p (jstr jon 'ship'))
+          ?~  who
+            ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[400 ~] `(as-octs:mimes:html 'ship required')])
+            (pure:m ~)
+          =/  mirror=road:tarball
+            [%& %& /apps/shell/peers (peer-file (scot %p u.who))]
+          ;<  err=(unit tang)  bind:m  (poke-soft:io mirror [[/ %json] [%o ~]])
+          ?^  err
+            ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[404 ~] `(as-octs:mimes:html 'no mirror for that ship')])
+            (pure:m ~)
+          ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
+          (pure:m ~)
         ::  POST /desks/add {name, code}: install a peer's shared desk as a
         ::  local cross-ship /desk. Make a trusted [/ %desk] wrapper (weir ~ —
         ::  it enforces via apply-bill), then poke its source.json with the

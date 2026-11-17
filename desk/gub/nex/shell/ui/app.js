@@ -1403,6 +1403,28 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
         });
     });
   }
+  // ask a peer for its storefront again, now. Their list only arrives when
+  // they change something, so a card that was built while their ship was
+  // unreachable — or before their desk had a tile — stays wrong until
+  // asked for again.
+  function peerRefresh(ship, btn) {
+    var orig = btn.textContent;
+    btn.disabled = true; btn.textContent = 'refreshing…';
+    fetch('/grubbery/tiles/desks/refresh', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ship: ship })
+    }).then(function(r) {
+      if (!r.ok) {
+        return r.text().then(function(t) {
+          btn.disabled = false; btn.textContent = orig;
+          dialog('refresh failed (' + r.status + '): ' + (t || 'no reason given'), { notice: true });
+        });
+      }
+      // the fetch happens in their mirror's own fiber; give it a moment
+      setTimeout(loadPeers, 2500);
+    }).catch(function() { btn.disabled = false; btn.textContent = orig; });
+  }
   function loadPeers() {
     fetch('/grubbery/tiles/desks/peers')
       .then(function(r) { return r.json(); })
@@ -1436,6 +1458,7 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
           }).join('');
           div.innerHTML =
             '<div class="peer-head"><b>' + escP(g.ship) + '</b>' +
+            '<button class="peer-rf" data-rf="' + escP(g.ship) + '">refresh</button>' +
             '<button class="peer-rm" data-ship="' + escP(g.ship) + '">remove</button></div>' +
             (apps || '<div class="papp-none">nothing published</div>');
           box.appendChild(div);
@@ -1452,6 +1475,9 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
         });
         Array.prototype.forEach.call(box.querySelectorAll('[data-ship]'), function(b) {
           b.onclick = function() { peerDel(b.getAttribute('data-ship')); };
+        });
+        Array.prototype.forEach.call(box.querySelectorAll('[data-rf]'), function(b) {
+          b.onclick = function() { peerRefresh(b.getAttribute('data-rf'), b); };
         });
       })
       .catch(function(e) {

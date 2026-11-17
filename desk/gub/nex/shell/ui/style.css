@@ -199,6 +199,8 @@
   .peer-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 0 6px; }
   .peer-head b { font-size: 12px; font-weight: 700; color: #6947b8; background: #ede7fa; border-radius: 6px; padding: 3px 10px; font-family: monospace; }
   .peer-rm { font-size: 11px; border: none; background: none; color: #bbb; cursor: pointer; font-family: inherit; }
+  .peer-rf { font: inherit; font-size: 11px; color: #7a5ac0; background: none; border: none; cursor: pointer; margin-left: auto; margin-right: 8px; }
+  .peer-rf:disabled { color: #aaa; cursor: default; }
   .peer-rm:hover { color: #c0392b; }
   .papp { display: flex; align-items: center; gap: 14px; padding: 10px 6px; border-radius: 12px; }
   .papp:hover { background: #f7f7f7; }
