@@ -14,12 +14,12 @@
   #bell-head > span { font-size: 15px; font-weight: 700; color: #111; }
   #bell-head > div { display: flex; gap: 6px; }
   #bell-notes { overflow-y: auto; padding: 8px; }
-  #profile-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.25); z-index: 100; align-items: center; justify-content: center; }
-  #profile-backdrop.open { display: flex; }
-  #profile-panel { width: min(380px, calc(100vw - 32px)); background: white; border: 1px solid #bbb; border-radius: 14px; box-shadow: 0 16px 48px rgba(0,0,0,0.28); display: flex; flex-direction: column; overflow: hidden; }
-  #profile-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1px solid #ddd; }
-  #profile-head > span { font-size: 15px; font-weight: 700; color: #111; }
-  #profile-body { padding: 18px 16px 20px; }
+  #profile-backdrop, #me-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.25); z-index: 100; align-items: center; justify-content: center; }
+  #profile-backdrop.open, #me-backdrop.open { display: flex; }
+  #profile-panel, #me-panel { width: min(380px, calc(100vw - 32px)); background: white; border: 1px solid #bbb; border-radius: 14px; box-shadow: 0 16px 48px rgba(0,0,0,0.28); display: flex; flex-direction: column; overflow: hidden; }
+  #profile-head, #me-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1px solid #ddd; }
+  #profile-head > span, #me-head > span { font-size: 15px; font-weight: 700; color: #111; }
+  #profile-body, #me-body { padding: 18px 16px 20px; }
   .prof-label { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: #777; margin-bottom: 8px; }
   .icon-btn { display: flex; align-items: center; padding: 7px 9px; border-radius: 8px; border: 1px solid #ddd; background: none; color: #555; cursor: pointer; }
   .icon-btn svg { width: 16px; height: 16px; display: block; }
@@ -37,6 +37,19 @@
   .win-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 16px; font-size: 12px; color: #7a5ac0; }
   .prof-ship { font-family: ui-monospace, Menlo, monospace; font-size: 15px; color: #111; background: #f4f2f8; border: 1px solid #ddd; border-radius: 10px; padding: 10px 14px; width: 100%; text-align: left; cursor: pointer; white-space: nowrap; overflow-x: auto; }
   .prof-ship:hover { background: #ece7f6; border-color: #7a5ac0; }
+  .me-sub { font-size: 12px; color: #777; margin: -4px 0 10px; }
+  .me-form { display: grid; grid-template-columns: 72px 1fr; gap: 6px 10px; align-items: center; }
+  .me-form label { font-size: 12px; color: #777; text-align: right; }
+  .me-form input { font: inherit; font-size: 13px; color: #111; border: 1px solid #e0e0e0; border-radius: 8px; padding: 7px 9px; min-width: 0; }
+  .me-form input:focus { outline: none; border-color: #7a5ac0; }
+  .me-foot { display: flex; justify-content: space-between; align-items: center; margin: 10px 0 4px; }
+  .me-shipline { font-family: ui-monospace, Menlo, monospace; font-size: 13px; color: #111; background: #f4f2f8; border: 1px solid #ddd; border-radius: 8px; padding: 7px 9px; text-align: left; cursor: pointer; overflow-x: auto; white-space: nowrap; }
+  .me-shipline:hover { background: #ece7f6; border-color: #7a5ac0; }
+  .me-facets { margin-bottom: 18px; }
+  .me-facet { display: flex; justify-content: space-between; align-items: baseline; padding: 7px 10px; border: 1px solid #eee; border-radius: 8px; margin-bottom: 6px; }
+  .me-group { font-family: ui-monospace, Menlo, monospace; font-size: 13px; color: #4b3f72; }
+  .me-fields { font-size: 12px; color: #777; }
+  .me-none { font-size: 12px; color: #777; line-height: 1.45; }
   .prof-copied { font-size: 12px; color: #7a5ac0; height: 16px; margin-top: 8px; }
   .bn { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 12px 12px; border-radius: 10px; border-left: 3px solid transparent; }
   .bn:not(.acked) { border-left-color: #7a5ac0; background: #faf8fe; }

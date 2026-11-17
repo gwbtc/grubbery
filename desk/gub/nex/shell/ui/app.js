@@ -151,6 +151,104 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
         document.getElementById('prof-ship').textContent = 'could not read';
       });
   }
+  // the person icon: who you are on this ship — the @p, the name you publish,
+  // and the groups your profile goes to. A facet is per usergroup, so there is
+  // no single "my profile"; the page is where you edit each one.
+  var meShip = '';
+  function openMe(e) {
+    if (e) e.preventDefault();
+    document.getElementById('me-backdrop').classList.add('open');
+    document.getElementById('me-saved').textContent = '';
+    fetch('/apps/grubbery/profile.json')
+      .then(function(r) { return r.json(); })
+      .then(function(p) { meShip = (p && p.ship) || 'unknown'; meShipShow(); })
+      .catch(function() { meShip = 'could not read'; meShipShow(); });
+    fetch('/grubbery/contacts/api/facets')
+      .then(function(r) { return r.json(); })
+      .catch(function() { return {}; })
+      .then(function(f) { meRender(f || {}); });
+  }
+  // the /public facet is editable here: it is the one every ship can read,
+  // so it is the profile that wants to be one click from the launcher. The
+  // narrower facets are a page's worth of work and live in contacts.
+  function meRender(facets) {
+    var pub = facets['/public'] || {};
+    var form = document.getElementById('me-form');
+    form.innerHTML = '';
+    // the ship is the first thing a profile says, and the one line of it you
+    // cannot edit: it reads as a field, it just isn't yours to type
+    var sl = document.createElement('label'); sl.textContent = 'ship';
+    var sb = document.createElement('button');
+    sb.id = 'me-ship'; sb.className = 'me-shipline'; sb.type = 'button';
+    sb.title = 'copy'; sb.onclick = copyMeShip;
+    sb.textContent = meShip || '…';
+    form.appendChild(sl); form.appendChild(sb);
+    var keys = Object.keys(pub);
+    if (keys.indexOf('name') < 0) keys.unshift('name');
+    keys.forEach(function(k) {
+      var l = document.createElement('label'); l.textContent = k;
+      var i = document.createElement('input'); i.value = pub[k] == null ? '' : String(pub[k]);
+      i.setAttribute('data-key', k);
+      form.appendChild(l); form.appendChild(i);
+    });
+    var nk = document.createElement('input'); nk.id = 'me-newk'; nk.placeholder = 'field';
+    var nv = document.createElement('input'); nv.id = 'me-newv'; nv.placeholder = 'value';
+    form.appendChild(nk); form.appendChild(nv);
+    document.getElementById('me-saved').textContent = '';
+
+    var others = Object.keys(facets).filter(function(g) { return g !== '/public'; }).sort();
+    document.getElementById('me-facets').innerHTML = others.length
+      ? others.map(function(g) {
+          var n = Object.keys(facets[g] || {}).length;
+          return '<div class="me-facet"><span class="me-group">' + escP(g) + '</span>' +
+            '<span class="me-fields">' + n + (n === 1 ? ' field' : ' fields') + '</span></div>';
+        }).join('')
+      : '<div class="me-none">only /public so far — narrower facets are set up in contacts</div>';
+  }
+  function saveMe() {
+    var out = {};
+    Array.prototype.forEach.call(document.querySelectorAll('#me-form input[data-key]'), function(i) {
+      var v = i.value.trim();
+      if (v !== '') out[i.getAttribute('data-key')] = v;
+    });
+    var k = document.getElementById('me-newk').value.trim();
+    var v = document.getElementById('me-newv').value;
+    if (k) out[k] = v;
+    var say = function(t) { document.getElementById('me-saved').textContent = t; };
+    say('saving…');
+    fetch(API + '/poke/apps/shell/contacts/main.sig?blot=/json', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'facet', group: '/public', profile: out })
+    }).then(function(r) {
+      if (!r.ok) { say('not saved (' + r.status + ')'); return; }
+      say('saved');
+      setTimeout(function() {
+        fetch('/grubbery/contacts/api/facets')
+          .then(function(x) { return x.json(); })
+          .catch(function() { return {}; })
+          .then(function(f) { meRender(f || {}); say('saved'); });
+      }, 400);
+    }).catch(function() { say('not saved'); });
+  }
+  function closeMe(e) {
+    if (e.target === document.getElementById('me-backdrop')) closeMeNow();
+  }
+  function closeMeNow() {
+    document.getElementById('me-backdrop').classList.remove('open');
+  }
+  // the ship row is drawn by meRender, the @p arrives from its own fetch:
+  // whichever lands second fills it in
+  function meShipShow() {
+    var el = document.getElementById('me-ship');
+    if (el) el.textContent = meShip || '…';
+  }
+  function copyMeShip() {
+    if (!meShip) return;
+    var say = function(t) { document.getElementById('me-saved').textContent = t; };
+    if (navigator.clipboard) navigator.clipboard.writeText(meShip).then(function() { say('copied'); }, function() { say('could not copy'); });
+    else say('could not copy');
+  }
   function closeProfile(e) {
     if (e.target === document.getElementById('profile-backdrop')) closeProfileNow();
   }
