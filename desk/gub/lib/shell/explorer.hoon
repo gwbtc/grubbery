@@ -80,7 +80,7 @@
       info+s+'Browse the tarball'
       color+s+'#4a9de5'
       image+s+'/grubbery/ball/apps/shell/ui/explorer/icon.svg'
-      href+s+'/grubbery/explorer'
+      href+s+'/grubbery/ball'
       kind+s+'utility'
       own+b+&
   ==
