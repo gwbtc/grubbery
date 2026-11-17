@@ -2470,12 +2470,30 @@
   ;<  shr=(unit (set path))  bind:m
     (peek-as:io [%& %& /apps/shell/desks/[app] %'share.usergroups'] ,(set path))
   =/  groups=(list path)  (sort ~(tap in (fall shr ~)) aor)
+  ::  the desk's OWN tile, the same one a peer sees of it in our
+  ::  storefront (+desk-entry reads it the same way): a tile.json at the
+  ::  root of its /code, falling back to the desk's name. A desk is a
+  ::  thing in the launcher now — the Suites tab draws this card — so it
+  ::  wants a face of its own, not just the faces of the apps inside it.
+  ;<  cv=view:nexus  bind:m
+    (peek-shallow:io [%& %| /apps/shell/desks/[app]/desk/code] ~)
+  =/  tile=[t=@t i=@t c=@t ic=(unit @ta)]  (tile-of cv (app-slug app))
+  ::  served through the shell's own icon route, not the ball: a desk's
+  ::  /code is sealed, so the kernel serves anything from it as text/plain
+  ::  with nosniff — correct, and useless as an <img> source
+  =/  icon-url=json
+    ?~  ic.tile  ~
+    s+(crip "/grubbery/tiles/icon/apps/shell/desks/{(trip app)}/desk/code")
   %-  pure:m  :-  ~
   %-  pairs:enjs:format
   :~  ['name' s+app]
       ['source' ?:(=('' code) ~ s+code)]
       ['url' s+(cat 3 '/grubbery/desk/' (app-slug app))]
       ['share' a+(turn groups |=(g=path s+(spat g)))]
+      ['title' s+t.tile]
+      ['info' s+i.tile]
+      ['color' s+c.tile]
+      ['icon' icon-url]
   ==
 ::  +desk-suffix: the extension after the last dot ('foo.desk' -> 'desk').
 ::

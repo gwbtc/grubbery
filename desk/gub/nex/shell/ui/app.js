@@ -452,6 +452,87 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     return d;
   }
 
+  // suites: a desk is a thing in the launcher, not just a source of loose
+  // tiles. One card per installed desk, drawn from the tile.json at the
+  // root of its /code — the same card a peer sees of it in our storefront
+  // — and clicking it opens the tiles that desk installed, in a row
+  // beneath it. A desk whose apps are not up yet still gets a card, which
+  // is how you find out you installed something that never started.
+  var deskCards = [];
+  var openSuite = null;
+  // a desk tile's root is /apps/shell/desks/<desk>/desk/data/<instance>
+  function suiteOf(t) {
+    var m = /^\/apps\/shell\/desks\/([^/]+)\//.exec(t.root || '');
+    return m ? m[1] : null;
+  }
+  function buildSuite(d, kids) {
+    var card = document.createElement('div');
+    card.className = 'tile suite-card' + (openSuite === d.name ? ' open' : '');
+    var bg = document.createElement('div');
+    bg.className = 'tile-bg';
+    bg.style.background = d.color || '#333';
+    card.appendChild(bg);
+    if (d.icon) {
+      var img = document.createElement('img');
+      img.className = 'tile-img';
+      img.src = d.icon;
+      img.onerror = function() { this.style.display = 'none'; };
+      card.appendChild(img);
+    }
+    var lbl = document.createElement('div');
+    lbl.className = 'tile-label';
+    var ttl = document.createElement('div');
+    ttl.className = 'tile-title';
+    ttl.textContent = d.title || d.name;
+    lbl.appendChild(ttl);
+    var desc = document.createElement('div');
+    desc.className = 'tile-desc';
+    desc.textContent = d.info || (kids.length ? kids.length + (kids.length === 1 ? ' app' : ' apps')
+                                              : 'nothing running yet');
+    lbl.appendChild(desc);
+    card.appendChild(lbl);
+    var acts = document.createElement('div');
+    acts.className = 'tile-actions';
+    var mg = document.createElement('a');
+    mg.className = 'tile-edit';
+    mg.textContent = 'desk';
+    mg.href = d.url || '#';
+    mg.onclick = function(e) { e.stopPropagation(); };
+    acts.appendChild(mg);
+    card.appendChild(acts);
+    card.onclick = function() {
+      openSuite = (openSuite === d.name) ? null : d.name;
+      paintTiles();
+    };
+    return card;
+  }
+  function paintSuites() {
+    while (tilesDiv.firstChild) tilesDiv.removeChild(tilesDiv.firstChild);
+    if (!deskCards.length) {
+      var none = document.createElement('div');
+      none.className = 'empty';
+      none.textContent = 'no desks installed';
+      tilesDiv.appendChild(none);
+      return;
+    }
+    deskCards.forEach(function(d) {
+      var kids = allTiles.filter(function(t) { return !t.hidden && suiteOf(t) === d.name; });
+      tilesDiv.appendChild(buildSuite(d, kids));
+      if (openSuite !== d.name) return;
+      var row = document.createElement('div');
+      row.className = 'suite-kids';
+      if (!kids.length) {
+        var e = document.createElement('div');
+        e.className = 'empty';
+        e.textContent = 'this desk has no running apps — check its permissions, or the desk page';
+        row.appendChild(e);
+      } else {
+        kids.forEach(function(t) { row.appendChild(getTileEl(t)); });
+      }
+      tilesDiv.appendChild(row);
+    });
+  }
+
   // hidden tiles are kept entirely out of the home grid. A header "Hidden · N"
   // button switches the grid to a hidden-only view, where each tile's view
   // modal offers "unhide". The button hides itself when nothing is hidden.
@@ -499,6 +580,13 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     return el;
   }
   function paintTiles() {
+    var tabsEl = document.getElementById('tile-tabs');
+    if (tileTab === 'suite' && !showingHidden) {
+      if (tabsEl) tabsEl.style.display = '';
+      paintSuites();
+      updateHiddenBtn(allTiles.filter(function(t) { return t.hidden; }).length);
+      return;
+    }
     var visible = allTiles.filter(function(t) { return !t.hidden; });
     var hidden = allTiles.filter(function(t) { return t.hidden; });
     if (showingHidden && !hidden.length) showingHidden = false;
@@ -561,11 +649,16 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
       fetch('/grubbery/tiles/tiles.json').then(function(r) { return r.json(); }),
       // a failed read must not cost us the tiles: no warnings is the safe
       // way to be wrong here, since the grid still works without them
-      unansweredAsks().catch(function() { return []; })
+      unansweredAsks().catch(function() { return []; }),
+      // the desks, for the Suites tab. Same rule: losing them costs the
+      // suites view, not the grid
+      fetch('/grubbery/tiles/desks/list').then(function(r) { return r.json(); })
+        .catch(function() { return []; })
     ])
       .then(function(res) {
         needsGrant = {};
         (res[1] || []).forEach(function(a) { needsGrant[a.app] = true; });
+        deskCards = (res[2] || []).filter(function(d) { return d.name !== 'grubbery.desk'; });
         renderTiles(res[0]);
       })
       .catch(function() { tilesDiv.innerHTML = '<div class="empty">failed to load tiles</div>'; });
