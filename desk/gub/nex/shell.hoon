@@ -2229,6 +2229,29 @@
   :~  ['installed' b+?=(^ loc)]
       ['local' ?~(loc ~ s+u.loc)]
   ==
+::  +icon-data: a desk's icon as a data: url, from a shallow view of its
+::  code directory — the bytes, so the card carries its own picture and
+::  needs nothing from the ship it came from.
+::
+++  icon-data
+  |=  cv=view:nexus
+  ^-  json
+  ?.  ?=([%ball *] cv)  ~
+  =/  =lump:tarball  (fall fil.ball.cv *lump:tarball)
+  =/  got=(unit sang:tarball)
+    %-  ~(rep by contents.lump)
+    |=  [[n=@ta s=sang:tarball g=? b=(unit tang)] out=(unit sang:tarball)]
+    ?^  out  out
+    ?.  =("icon." (scag 5 (trip n)))  out
+    ?:  (is-boom:tarball s)  out
+    ?.  =([/ %mime] p.s)  out
+    `s
+  ?~  got  ~
+  =/  res=(each mime tang)  (mule |.(!<(mime (need-vase:tarball u.got))))
+  ?.  ?=(%& -.res)  ~
+  =/  typ=@t  (crip (zing (join "/" (turn p.p.res trip))))
+  =/  b64=@t  (~(en base64:mimes:html | |) [p.q.p.res q.q.p.res])
+  s+(rap 3 'data:' typ ';base64,' b64 ~)
 ::  +tile-of: title, info, color and icon file name from a shallow view
 ::  of a desk's code directory. The title falls back to `ename`.
 ::
@@ -2242,8 +2265,19 @@
     =/  tf  (~(get by cs) %'tile.json')
     ?~  tf  [%o ~]
     ?:  (is-boom:tarball sang.u.tf)  [%o ~]
+    ::  TWO spellings reach the same file. Our own /code builds it through
+    ::  the json mark; a DESK's /code lands the bytes it was given, so the
+    ::  same tile.json is a /mime grub there. Reading only the built one
+    ::  meant every desk-shipped tile — ours in the Suites tab, and every
+    ::  peer's in the install list — read as empty and fell back to the
+    ::  bare desk name.
     =/  r=(each json tang)
-      (mule |.(!<(json (need-vase:tarball sang.u.tf))))
+      ?:  =([/ %json] p.sang.u.tf)
+        (mule |.(!<(json (need-vase:tarball sang.u.tf))))
+      ?.  =([/ %mime] p.sang.u.tf)  [%| ~]
+      %-  mule
+      |.  =/  mim=mime  !<(mime (need-vase:tarball sang.u.tf))
+          (fall (de:json:html q.q.mim) `json`[%o ~])
     ?:(?=(%| -.r) [%o ~] p.r)
   =/  ic=(unit @ta)
     =/  ks=(list @ta)  ~(tap in ~(key by cs))
@@ -2255,25 +2289,14 @@
       (jstr tj 'info')
     (jstr tj 'color')
   ic
-::  +icon-name: an icon file name a peer's storefront entry gave us, kept
-::  only if it is one: a knot starting "icon.". It goes into a URL on
-::  this ship, so a peer must not be able to name some other path.
+::  +peer-app: one published desk as a card — tile metadata from the
+::  storefront entry when it carries any, the icon always as bytes.
 ::
-++  icon-name
-  |=  ic=(unit @t)
-  ^-  (unit @ta)
-  ?~  ic  ~
-  ?.  ((sane %ta) u.ic)  ~
-  ?.  =('icon.' (end [3 5] u.ic))  ~
-  `u.ic
-::  +peer-app: one published desk as a card — tile metadata and icon from
-::  the storefront entry, version from canonical file names.
-::
-::  A publisher on this version puts the tile fields in its storefront
-::  entry (+desk-entry), so a card costs one small version peek. An
-::  older publisher's entry lacks them, and only then is its whole code
-::  directory peeked for them: every file in it crossed the network and
-::  was validated, per card, per refresh (gwbtc/grubbery#118).
+::  A publisher on this version puts the tile fields AND the icon's bytes
+::  in its storefront entry (+desk-entry), so a card costs one small
+::  version peek. An older publisher's entry lacks them, and only then is
+::  its code directory peeked — shallow, once per card, never per file
+::  and never deep, which is what #118 was about.
 ::
 ++  peer-app
   |=  [s=@t entry=json]
@@ -2292,21 +2315,46 @@
       /apps/shell/desks/[`@ta`dir]
     `path`(scag (sub n 2) codepath)
   =/  base=path  (weld /sys/ames/ships/[s]/root desk-root)
-  ;<  [title=@t info=@t color=@t icon=(unit @ta)]  bind:m
-    =/  n  (fiber:fiber:nexus ,[@t @t @t (unit @ta)])
-    ?^  (jget entry 'title')
-      %-  pure:n
-      :^    (jstr entry 'title')
-          (jstr entry 'info')
-        (jstr entry 'color')
-      (icon-name (jget entry 'icon'))
-    ;<  cv=view:nexus  bind:n
-      (peek-shallow:io [%& %| (weld base /desk/code)] ~)
-    (pure:n (tile-of cv ename))
+  ::  the card's own tile, if it carries one. A TITLE ALONE IS NOT ONE:
+  ::  the publisher's +tile-of falls back to the desk name, so every card
+  ::  has a title and a card built before that desk shipped a tile.json —
+  ::  or by a kernel older than this enrichment — would never be looked at
+  ::  again. When nothing but the name is there we peek their /desk/code
+  ::  ourselves; publishing the desk is what granted us that road.
+  ::  what their card already says. A TITLE ALONE IS NOT A TILE: the
+  ::  publisher's +tile-of falls back to the desk name, so every card has
+  ::  one, and a card built before that desk shipped a tile.json — or by a
+  ::  kernel older than this — would never be looked at again.
+  =/  inline=(unit @t)
+    =/  ic  (jget entry 'icon')
+    ?~  ic  ~
+    ?.(=('data:' (end [3 5] u.ic)) ~ ic)
+  =/  told=?
+    ?&  ?=(^ (jget entry 'title'))
+        ?=(^ inline)
+        ?|(!=('' (jstr entry 'info')) !=('' (jstr entry 'color')))
+    ==
+  ::  only when it does not: ONE shallow look at their code directory,
+  ::  which is what #118 was about — never per file, never deep, and never
+  ::  at all against a publisher on this version, since the card it sends
+  ::  carries the tile and the icon's bytes.
+  ;<  cv=view:nexus  bind:m
+    ?:  told  (pure:(fiber:fiber:nexus ,view:nexus) [%none ~])
+    (peek-shallow:io [%& %| (weld base /desk/code)] ~)
+  =/  [title=@t info=@t color=@t]
+    ?:  told
+      [(jstr entry 'title') (jstr entry 'info') (jstr entry 'color')]
+    =/  got=[t=@t i=@t c=@t ic=(unit @ta)]  (tile-of cv ename)
+    ::  their ship unreachable, or a desk with no tile of its own: the
+    ::  card's name stands rather than being replaced by the slug
+    ?:  ?&(=('' i.got) =('' c.got) ?=(^ (jget entry 'title')))
+      [(jstr entry 'title') '' '']
+    [t.got i.got c.got]
   ;<  ver=(unit @t)  bind:m  (try-version base)
-  =/  icon-url=json
-    ?~  icon  ~
-    s+(crip "/grubbery/ball{(spud (weld base /desk/code))}/{(trip u.icon)}?raw=1")
+  ::  the icon as BYTES either way. A url is no use: every path to that
+  ::  file names a road on their ship, which an <img> on ours cannot
+  ::  follow and the ball route will not peek remotely.
+  =/  icon-url=json  ?^(inline s+u.inline (icon-data cv))
   ::  the peer-prefixed code road, which /desks/add writes into the new
   ::  desk's source.json. `source` doubles as the installed-check key
   ::  (matches installed-sources' source.json.code).
@@ -2498,6 +2546,12 @@
   :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
+      ::  a poke at the mirror grub is "fetch their storefront again, now".
+      ::  News is how it usually wakes, but news only comes when THEY
+      ::  change something — there is no way to ask otherwise, and a peer
+      ::  whose card is stale or whose ship was unreachable at the time
+      ::  stays wrong forever. /desks/refresh sends this.
+      [~ %poke * *]  [%done ~]
       [~ %news * *]
     ?:  =(/pub wire.u.in)  [%done ~]
     [%skip ~]
@@ -3550,7 +3604,11 @@
       ['title' s+title]
       ['info' s+info]
       ['color' s+color]
-      ['icon' ?~(icon ~ s+u.icon)]
+      ::  the icon as bytes, not a file name: a name is only useful to
+      ::  someone who can read our code directory, and a peer drawing this
+      ::  card cannot. Costs nothing here — the view is already in hand
+      ::  — and saves the reader a peek per card (gwbtc/grubbery#118).
+      ['icon' (icon-data cv)]
   ==
 ::
 ++  build-links

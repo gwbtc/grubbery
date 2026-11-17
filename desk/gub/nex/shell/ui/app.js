@@ -1331,7 +1331,9 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
             return '<div class="papp">' + icon +
               '<div class="papp-body">' +
                 '<div class="papp-title">' + escP(a.title || a.name) + '</div>' +
-                '<div class="papp-sub">' + escP(a.path) + '</div>' +
+                // what the desk says about itself, when it ships a tile;
+                // the path is what you get when it doesn't
+                '<div class="papp-sub">' + escP(a.info || a.path) + '</div>' +
               '</div>' +
               (a.installed
                 ? '<button class="papp-get" disabled>Installed</button>' +
