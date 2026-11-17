@@ -869,6 +869,8 @@
   =.  this  (gage %spawn-all-files |.((spawn-all-files / (peek-bole-now /))))
   =.  this  (gage %sync-dill |.(sync-dill))
   =.  this  (gage %sync-clay |.(sync-clay))
+  ::  the desk watches are re-stated here, not assumed (see +ensure-clay-watch)
+  =.  this  (gage %ensure-clay-watch |.(ensure-clay-watch))
   =.  this  (gage %sync-jael |.(sync-jael))
   =.  this  (gage %sync-bowl |.(sync-bowl))
   =.  this  (gage %sync-peer |.(sync-peer))
@@ -5615,6 +5617,32 @@
   =/  known=(set desk)  (silt (lss-born /sys/clay/desks))
   =/  clay-rail=rail:tarball  [/sys/clay %'main.clay-state']
   (save-file clay-rail [[/ %clay-state] [%0 known]])
+::
+::  +ensure-clay-watch: the desk subscriptions this agent must hold.
+::  %grubbery always — its commits are what /code is made of — plus every
+::  desk already mirrored under /sys/clay/desks, which is the set someone
+::  asked for. A %warp on the same wire REPLACES the one before it, so
+::  this is idempotent: run it and the watch is live whether or not it
+::  already was.
+::
+::  It has to be STATED, not inherited. The live subscription is a %next,
+::  one shot, renewed by +on-clay-writ when the writ arrives. Miss one —
+::  an event that failed, a pier restored from an older snapshot, an agent
+::  that came up without it — and nothing renews it ever again. The desk
+::  still mounts, |commit still reports the commit, and /code sits frozen
+::  at the last sync with no error anywhere. ~bud spent a night in that
+::  state (2026-11-17); hence an invariant re-stated at every cold start.
+::
+++  ensure-clay-watch
+  ^+  this
+  =/  known=(set desk)  (silt (lss-born /sys/clay/desks))
+  =/  all=(list desk)  ~(tap in (~(put in known) %grubbery))
+  |-  ^+  this
+  ?~  all  this
+  =.  this
+    %-  emit-card
+    [%pass /clay-desk/[i.all] %arvo %c %warp our.bowl i.all `[%next %z da+now.bowl /]]
+  $(all t.all)
 ::
 ++  sync-clay-desk
   |=  dek=desk
