@@ -2556,8 +2556,8 @@
   =/  got=(unit [key=cass:clay val=entry:hist:nexus])
     (ram:hon:hist:nexus u.sok)
   ?~  got  %.n
-  =/  =pace:hist:nexus  pace.val.u.got
-  %.y
+  ::  a culled path is gone, however much of it born still holds
+  !(~(gone-file pk:nexus peak) rail key.u.got)
 ::
 ++  peek-grub-now
   |=  =rail:tarball
@@ -2570,6 +2570,10 @@
   =/  got=(unit [key=cass:clay val=entry:hist:nexus])
     (ram:hon:hist:nexus u.sok)
   ?~  got  ~
+  ::  a culled path is gone, however much of it born still holds:
+  ::  retention keeps a gained path's record past its death, and read
+  ::  as its content now it made the cull never take for a reader
+  ?:  (~(gone-file pk:nexus peak) rail key.u.got)  ~
   =/  =pace:hist:nexus  pace.val.u.got
   (peek-grub lobe.pace)
 ::  Peek the current ball at a fold (born lookup + peek-ball).
