@@ -749,9 +749,11 @@
             (make:io [%& %| dir-path] &+`bole:tarball`[`[`[/ %desk] ~ %.n ~] ~])
           =/  source=json  (pairs:enjs:format ~[['code' s+code]])
           ;<  ~  bind:m  (poke:io [%& %& dir-path %'source.json'] [[/ %json] source])
-          ::  tell it where it is: a desk does not ask the kernel
+          ::  tell it where it is: a desk does not ask the kernel.
+          ::  A write, not a poke — where.json is inert, and a poke at a
+          ::  grub with no handler bangs it.
           ;<  ~  bind:m
-            (poke:io [%& %& dir-path %'where.json'] [[/ %json] s+(crip (spud dir-path))])
+            (put:io [%& %& dir-path %'where.json'] [[/ %json] s+(crip (spud dir-path))])
           ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[200 ~] `(as-octs:mimes:html 'created')])
           (pure:m ~)
         ::  POST /desks/share {name, add|remove: <group>}: publish a desk to
@@ -1798,9 +1800,10 @@
   ;<  ~  bind:m
     ?.  follower  (pure:m ~)
     (poke:io [%& %& desk-dir %'source.json'] [[/ %json] (pairs:enjs:format ~[['code' s+code]])])
-  ::  tell it where it is: a desk does not ask the kernel
+  ::  tell it where it is: a desk does not ask the kernel. A write, not
+  ::  a poke — where.json is inert (see +desk-where in nex/desk.hoon)
   ;<  ~  bind:m
-    (poke:io [%& %& desk-dir %'where.json'] [[/ %json] s+(crip (spud desk-dir))])
+    (put:io [%& %& desk-dir %'where.json'] [[/ %json] s+(crip (spud desk-dir))])
   ::  4. LAST, and SOFT: ask for a fresh fetch, so "sync" still means "pull
   ::  latest" when the network cooperates. Soft because a nack here would
   ::  otherwise roll back steps 1-3 with it.
