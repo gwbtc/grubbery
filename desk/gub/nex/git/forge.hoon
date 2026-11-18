@@ -38,8 +38,6 @@
 /&  forge-reader-js  forge/docs-reader.js
 /&  forge-css   forge/style.css
 /&  todo        /lib/todo.md
-::  the self-hosting development flow, materialized like TODO.md
-/&  ratchet-md  forge/ratchet.md
 ::  web-component kit: shared sources in /lib/ui (one copy for all nexuses),
 ::  welded into one components.js bundle in on-load so a page makes a single
 ::  request (no staggered per-file "flash-in").
@@ -113,8 +111,6 @@
           [%over %& [/ %'docs-reader.js'] [[/ %mime] forge-reader-js]]
           ::  the nexus backlog, materialized like README — browsable at root
           [%over %& [/ %'TODO.md'] [[/ %mime] todo]]
-          ::  the ratchet: how grubbery develops itself from in-ship
-          [%over %& [/ %'RATCHET.md'] [[/ %mime] ratchet-md]]
           [%over %& [/ %'style.css'] [[/ %mime] forge-css]]
           [%over %& [/ %'components.js'] [[/ %mime] kit-js]]
           [%over %& [/ %'file-preview.js'] [[/ %mime] fp-js]]
@@ -425,7 +421,7 @@
     :~  ['name' s+name]  ['repo' s+repo]  ['ref' s+'main']  ['desc' s+desc]
     ==
   :-  %a
-  :~  (entry 'grubbery' 'gwbtc/grubbery' 'grubbery itself — kernel + desk. The self-hosting ratchet: see RATCHET.md')
+  :~  (entry 'grubbery' 'gwbtc/grubbery' 'grubbery itself — the kernel and its desk')
       (entry 'hatchery' 'gwbtc/hatchery' 'experimental apps migrated out of the kernel, followed as a desk')
   ==
 ++  jstr
