@@ -185,7 +185,9 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     sb.textContent = meShip || '…';
     form.appendChild(sl); form.appendChild(sb);
     var keys = Object.keys(pub);
-    if (keys.indexOf('name') < 0) keys.unshift('name');
+    // nickname, not name: the wallet's contact picker reads this field,
+    // and the two have to agree about what a person is called
+    if (keys.indexOf('nickname') < 0) keys.unshift('nickname');
     keys.forEach(function(k) {
       var l = document.createElement('label'); l.textContent = k;
       var i = document.createElement('input'); i.value = pub[k] == null ? '' : String(pub[k]);

@@ -154,8 +154,8 @@ function render() {
   var el = document.getElementById('people');
   el.innerHTML = '';
   var names = Object.keys(people).filter(function(s) { return s !== me; }).sort(function(a, b) {
-    var an = (people[a].overlay.name || people[a].profile.name || a).toLowerCase();
-    var bn = (people[b].overlay.name || people[b].profile.name || b).toLowerCase();
+    var an = (people[a].overlay.nickname || people[a].profile.nickname || a).toLowerCase();
+    var bn = (people[b].overlay.nickname || people[b].profile.nickname || b).toLowerCase();
     return an < bn ? -1 : an > bn ? 1 : 0;
   });
   if (!names.length) {
@@ -164,7 +164,7 @@ function render() {
   }
   names.forEach(function(s) {
     var p = people[s];
-    var name = p.overlay.name || p.profile.name || '~' + s;
+    var name = p.overlay.nickname || p.profile.nickname || '~' + s;
     var card = document.createElement('div'); card.className = 'person';
     var row = document.createElement('div'); row.className = 'person-row';
     row.innerHTML =
