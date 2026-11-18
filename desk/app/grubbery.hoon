@@ -59,7 +59,8 @@
 /=  t-  /tests/loader
 |%
 +$  versioned-state
-  $%  state-15:migrations
+  $%  state-16:migrations
+      state-15:migrations
       state-14:migrations
       state-13:migrations
       state-12:migrations
@@ -171,7 +172,7 @@
 ::  reference, and it only changes with the agent itself.
 ::
 =/  sut-hash=@uv  (sham q:sut)
-=|  state-15:migrations
+=|  state-16:migrations
 =*  state  -
 ::
 =<
@@ -190,37 +191,48 @@
   ::  without carrying continuations across the upgrade
   ::
   =.  pool  (bang-pool:hc pool %.y)
-  ::  parked takes do not cross an upgrade either. $take holds a $dart,
-  ::  so keeping them would make `owed` a SECOND place loads persist and
-  ::  put it in the freeze chain load -> dart -> pend -> take. Dropping
-  ::  them here keeps that chain where migrations.hoon says it is, and
-  ::  costs nothing: before `owed` existed a cascade either finished in
-  ::  its event or bailed and rolled back, so in-flight takes never
-  ::  survived an upgrade anyway. Emptied at save, `owed` is always ~ on
-  ::  load, so its live type never molds an older shape.
-  =.  owed  ~
+  ::  parked takes DO cross an upgrade. The dart path is vase-free by
+  ::  construction -- $pend carries a $bask, blot plus NOUN, where
+  ::  content carries a $sang, blot plus vase -- so `owed` molds like
+  ::  any other state and load -> dart -> pend -> take are in the
+  ::  migration chain at the ordinary price.
+  ::
+  ::  Emptying it here (what this did until %16) silently truncated a
+  ::  cascade the take budget had legitimately split across events, and
+  ::  nacked nobody: the caller simply never heard. The old note argued
+  ::  it cost nothing because a cascade used to finish in its event or
+  ::  bail and roll back -- true before `owed` existed, and `owed`
+  ::  exists precisely because that is no longer how a cascade runs.
   !>(state)
 ::
 ++  on-load
   |=  old-state=vase
   ^-  (quip card _this)
   =/  old  !<(versioned-state old-state)
-  ?:  ?=(%15 -.old)
+  ?:  ?=(%16 -.old)
     =.  state  old
+    =^  start-cards  state
+      abet:cold-start:hc
+    [start-cards this]
+  ::  %15 -> %16: the kernel gains a halt flag, and parked takes stop
+  ::  being discarded at save -- see +on-save.
+  ?:  ?=(%15 -.old)
+    ~>  %slog.[0 leaf+"grubbery: migrating state %15 -> %16"]
+    =.  state  (state-15-to-16:migrations old)
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
   ::  %14 -> %15: no tomb pace; a dropped version is absent.
   ?:  ?=(%14 -.old)
-    ~>  %slog.[0 leaf+"grubbery: migrating state %14 -> %15"]
-    =.  state  (state-14-to-15:migrations old)
+    ~>  %slog.[0 leaf+"grubbery: migrating state %14 -> %15 -> %16"]
+    =.  state  (state-15-to-16:migrations (state-14-to-15:migrations old))
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
   ::  %13 -> %14: the take queue gets a place to wait between events.
   ?:  ?=(%13 -.old)
-    ~>  %slog.[0 leaf+"grubbery: migrating state %13 -> %14 -> %15"]
-    =.  state  (state-14-to-15:migrations (state-13-to-14:migrations old))
+    ~>  %slog.[0 leaf+"grubbery: migrating state %13 -> %14 -> %15 -> %16"]
+    =.  state  (state-15-to-16:migrations (state-14-to-15:migrations (state-13-to-14:migrations old)))
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
@@ -228,24 +240,24 @@
   ::  reference goes, and a rail left with no versions goes with them --
   ::  peak still holds its number.
   ?:  ?=(%12 -.old)
-    ~>  %slog.[0 leaf+"grubbery: migrating state %12 -> %13 -> %14 -> %15"]
-    =.  state  (state-14-to-15:migrations (state-13-to-14:migrations (state-12-to-13:migrations old)))
+    ~>  %slog.[0 leaf+"grubbery: migrating state %12 -> %13 -> %14 -> %15 -> %16"]
+    =.  state  (state-15-to-16:migrations (state-14-to-15:migrations (state-13-to-14:migrations (state-12-to-13:migrations old))))
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
   ::  %11 -> %12: the %firm load carries the labels to set on the
   ::  version it promotes. A queued %firm carried none, so it gets none.
   ?:  ?=(%11 -.old)
-    ~>  %slog.[0 leaf+"grubbery: migrating state %11 -> %12 -> %13 -> %14 -> %15"]
-    =.  state  (state-14-to-15:migrations (state-13-to-14:migrations (state-12-to-13:migrations (state-11-to-12:migrations old))))
+    ~>  %slog.[0 leaf+"grubbery: migrating state %11 -> %12 -> %13 -> %14 -> %15 -> %16"]
+    =.  state  (state-15-to-16:migrations (state-14-to-15:migrations (state-13-to-14:migrations (state-12-to-13:migrations (state-11-to-12:migrations old)))))
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
   ::  %10 -> %11: a %file cite carries the grub's position. A queued
   ::  peek is given its reader's, where its mark resolved from before.
   ?:  ?=(%10 -.old)
-    ~>  %slog.[0 leaf+"grubbery: migrating state %10 -> %11 -> %12 -> %13 -> %14 -> %15"]
-    =.  state  (state-14-to-15:migrations (state-13-to-14:migrations (state-12-to-13:migrations (state-11-to-12:migrations (state-10-to-11:migrations old)))))
+    ~>  %slog.[0 leaf+"grubbery: migrating state %10 -> %11 -> %12 -> %13 -> %14 -> %15 -> %16"]
+    =.  state  (state-15-to-16:migrations (state-14-to-15:migrations (state-13-to-14:migrations (state-12-to-13:migrations (state-11-to-12:migrations (state-10-to-11:migrations old))))))
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
@@ -253,8 +265,8 @@
   ::  but a suspended process is typed by it, so +proc-9-to-proc-10 replaces
   ::  live continuations with a crash tang and the reload rebuilds them.
   ?:  ?=(%9 -.old)
-    ~>  %slog.[0 leaf+"grubbery: migrating state %9 -> %10 -> %11 -> %12 -> %13 -> %14 -> %15"]
-    =.  state  (state-14-to-15:migrations (state-13-to-14:migrations (state-12-to-13:migrations (state-11-to-12:migrations (state-10-to-11:migrations (state-9-to-10:migrations old))))))
+    ~>  %slog.[0 leaf+"grubbery: migrating state %9 -> %10 -> %11 -> %12 -> %13 -> %14 -> %15 -> %16"]
+    =.  state  (state-15-to-16:migrations (state-14-to-15:migrations (state-13-to-14:migrations (state-12-to-13:migrations (state-11-to-12:migrations (state-10-to-11:migrations (state-9-to-10:migrations old)))))))
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
@@ -290,8 +302,9 @@
       (state-6-to-7:migrations as-6)
     ~>  %slog.[0 leaf+"grubbery: migrating state %7 -> %8"]
     (state-7-to-8:migrations as-7)
-  ~>  %slog.[0 leaf+"grubbery: migrating state %8 -> %9 -> %10 -> %11 -> %12 -> %13 -> %14 -> %15"]
+  ~>  %slog.[0 leaf+"grubbery: migrating state %8 -> %9 -> %10 -> %11 -> %12 -> %13 -> %14 -> %15 -> %16"]
   =.  state
+    %-  state-15-to-16:migrations
     %-  state-14-to-15:migrations
     %-  state-13-to-14:migrations
     %-  state-12-to-13:migrations
@@ -1764,6 +1777,21 @@
   ::  The cut is only ever BETWEEN takes, since handling one is atomic.
   =|  done=@ud
   |-
+  ::  halted: park whatever is live and schedule NOTHING. Nothing is
+  ::  discarded and nobody is nacked -- the queue stays exactly where the
+  ::  halt found it, and the kernel's own eyre routes keep answering,
+  ::  which is the whole point of the flag. The wake deliberately does
+  ::  not go out here: the branch below would otherwise promise a drain
+  ::  that a halted kernel refuses to do, waking the ship forever.
+  ::  Resume clears the flag, and then that branch schedules the drain.
+  ?:  halt
+    ::  counted before any test: ?=(^ takes) would narrow a recursive
+    ::  type out of nesting under `to`, which is a mull-grow.
+    =/  live=(list take:nexus)  ~(tap to takes)
+    ~?  &(tak (gth (lent live) 0))
+      "abet: halted, parking {<(lent live)>} takes"
+    =.  owed  (~(gas to owed) live)
+    [(flop cards) state]
   ?:  =(~ takes)
     ?:  =(~ owed)
       ::  one line per EVENT, not per batch: every poke, request, sign and
@@ -7614,6 +7642,50 @@
       %-  give-simple-payload:app:server
       :-  eyre-id
       [[403 ~] `(as-octs:mimes:html 'Forbidden')]
+    ::  POST /grubbery/api/halt, POST /grubbery/api/resume: the kernel's
+    ::  own throttle. Handled HERE for two reasons that both rule out the
+    ::  obvious homes. +serve-api-read-sync cannot do it: that arm returns
+    ::  cards only, so nothing in it can change state. And a grub cannot
+    ::  do it either -- an HTTP write becomes a dart becomes a take, so
+    ::  the un-halt would park behind the halt and the ship would be
+    ::  unrecoverable short of a suspend.
+    ::
+    ::  A halt parks takes and drains nothing. It discards nothing and
+    ::  nacks nobody: the queue stays where the halt found it. Meanwhile
+    ::  these kernel-served routes go on answering, which is the entire
+    ::  point -- a saturated event queue is only diagnosable while
+    ::  something still replies.
+    ::
+    ::  Resume needs no kick: clearing the flag is enough, because +abet
+    ::  runs at the end of this event, sees owed work with nothing live,
+    ::  and schedules the drain wake itself.
+    ::
+    ?:  ?&  =(%'POST' method.request.req)
+            ?=([%grubbery %api ?(%halt %resume) *] site)
+        ==
+      ::  owner only, the same src == our gate every write asks
+      ?.  =(our.bowl src.bowl)
+        %-  emit-cards
+        %-  give-simple-payload:app:server
+        :-  eyre-id
+        [[403 ~] `(as-octs:mimes:html 'Forbidden')]
+      =/  want=?  =(%halt i.t.t.site)
+      =.  halt  want
+      ::  no ?=(^ owed) guard here: narrowing a qeu (a recursive type)
+      ::  stops it nesting under the `to` door's sample, which is a
+      ::  mull-grow at the ~(tap to owed) below.
+      ~?  >  want
+        [%grubbery-halted owed=(lent ~(tap to owed))]
+      %-  emit-cards
+      %+  give-simple-payload:app:server  eyre-id
+      :+  [200 ['content-type' 'application/json']~]
+        ~
+      %-  as-octs:mimes:html
+      %-  en:json:html
+      %-  pairs:enjs:format
+      :~  ['halt' b+want]
+          ['owed' (numb:enjs:format (lent ~(tap to owed)))]
+      ==
     ::  ARCHITECTURAL RULE: a request enters the namespace (materializes
     ::  as a grub in /sys/eyre/requests, spawning a fiber) ONLY if it
     ::  needs a general-purpose ASYNCHRONOUS script to handle it — one
@@ -7862,6 +7934,9 @@
     :~  ['takes' (numb:enjs:format (lent live))]
         ['owed' (numb:enjs:format (lent park))]
         ['budget' (numb:enjs:format take-budget)]
+        ::  halted, nothing is draining and `owed` only grows. Without
+        ::  this the readout looks like an idle ship with a backlog.
+        ['halt' b+halt]
         ['live-by-grub' (rows (tally live))]
         ['owed-by-grub' (rows (tally park))]
     ==

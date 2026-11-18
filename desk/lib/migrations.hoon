@@ -1108,6 +1108,43 @@
 +$  peek-14   [ship=@p dest=lane:tarball deep=? blot=(unit blot:tarball) snap=(unit snap-14) snap-id=@uvJ]
 +$  peeks-14  (map [rail:tarball wire] peek-14)
 +$  remo-14   [peeks=peeks-14 snaps=snaps:remo:nexus]
+::  state-16: the kernel can be halted. A halted kernel parks every take
+::  in `owed` and drains none of it, while eyre's kernel-served routes go
+::  on answering -- the door that has to stay open when a fiber loop has
+::  saturated the event queue. It persists because the useful case is
+::  coming up ALREADY halted: a flood that resumes a second after boot
+::  leaves no room to ask for the halt.
+::
++$  state-16
+  $:  %16
+      =born:nexus
+      =peak:nexus
+      =silo:nexus
+      =subs:nexus
+      =pool:nexus
+      =code:nexus
+      =bins:nexus
+      =vale:nexus
+      =remo:nexus
+      =upki:nexus
+      =last:nexus
+      conns=(map @ta binding:eyre)
+      owed=(qeu take:nexus)
+      halt=_|
+  ==
+++  state-15-to-16
+  |=  old=state-15
+  ^-  state-16
+  :*  %16
+      born.old  peak.old  silo.old  subs.old  pool.old  code.old
+      bins.old  vale.old  remo.old  upki.old  last.old  conns.old
+      ::  carried, not emptied: %16 is where parked takes start surviving
+      ::  a save. A ship upgrading mid-cascade keeps its place.
+      owed.old
+      ::  an upgrade is not a halt: the flag is a deliberate act and is
+      ::  never inherited.
+      |
+  ==
 ::  state-15: the tomb pace is gone from the type. Nothing minted one
 ::  since %9 except a silo repair, so a stored history should hold none;
 ::  one that does loses that entry, which referenced nothing anyway.
