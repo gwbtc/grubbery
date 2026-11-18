@@ -1289,7 +1289,7 @@
     ;<  now=@da  bind:m  get-time:io
     ~?  dbg  %explorer-get-conversions
     ;<  conversions=(map bars:tarball tube:clay)  bind:m
-      (get-blot-conversions-shallow:io ball)
+      (conversions-near tree-path (collect-blots-shallow:io ball))
     ~?  dbg  %explorer-get-conversions-done
     ::  ?list=1: the listing as JSON — the static browse app's feed (and
     ::  anyone else's). Non-html non-list requests for a dir get it too.
@@ -1451,7 +1451,9 @@
       ==
     ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[307 ~[['location' loc]]] ~])
     (pure:m ~)
-  ;<  =mime  bind:m  (sage-to-mime:io sage)
+  ::  the file's own directory, so its mark resolves from the namespace
+  ::  governing it and not just the kernel's
+  ;<  =mime  bind:m  (mime-near (snip `path`tree-path) sage)
   ::  ?info=1: the file as data. x-urb-jam is sage-to-mime's no-tube
   ::  fallback: the noun pretty-printed rides along as text, read-only.
   ::  Texty content the shell fetches itself via ?raw=1.
@@ -1656,7 +1658,7 @@
     ::  the mime the mark's grab sees carries the mite the editor sent,
     ::  else the one the grub serves as: a mark may read the mite
     ::  (an svg is not any xml), so it is not flattened to text/plain
-    ;<  cur-mime=mime  bind:m  (sage-to-mime:io (need-sage:tarball sang.cur))
+    ;<  cur-mime=mime  bind:m  (mime-near fdir (need-sage:tarball sang.cur))
     =/  =mite
       =/  mt=(unit @t)  (get-key:kv:html-utils 'mite' args)
       ?~  mt  p.cur-mime
@@ -1998,7 +2000,7 @@
   ^-  form:m
   ;<  now=@da  bind:m  get-time:io
   ;<  conversions=(map bars:tarball tube:clay)  bind:m
-    (get-blot-conversions:io b)
+    (conversions-near tree-path (collect-blots:io b))
   =/  tar=tarball:tarball
     (~(make-tarball gen:tarball [now conversions]) tree-path b)
   =/  tar-data=octs  (encode-tarball:tarball tar)
@@ -2194,6 +2196,57 @@
     out   ?~(fil.t out [u.fil.t out])
   ==
 ::
+::  Mark resolution for the files being listed.
+::
+::  A sage is a mark identity and a value; it carries no record of where
+::  it came from, so +sage-to-mime:io resolves against root /code -- the
+::  right default for a caller with nothing better to go on. The explorer
+::  HAS something better: it knows the path it is rendering. Resolving
+::  from there is what the kernel does for a grub's own mark (+find-code-ns),
+::  and without it a desk's grub shows as a jam of its vase -- type graph
+::  and all, which is why an empty drafts map reads as megabytes.
+::
+++  tube-near
+  |=  [pax=path =bars:tarball]
+  =/  m  (fiber:fiber:nexus ,(unit tube:clay))
+  ^-  form:m
+  =/  cands=(list fold:tarball)  (code-candidates:tarball pax)
+  |-  ^-  form:m
+  ?~  cands  (pure:m ~)
+  ;<  tube=(unit tube:clay)  bind:m  (get-tube:io [%& %| i.cands] bars)
+  ?^  tube  (pure:m tube)
+  $(cands t.cands)
+::  +mime-near: a file's mime, its mark resolved from `pax`. Same
+::  jam fallback as +sage-to-mime:io when there is no tube or it fails.
+::
+++  mime-near
+  |=  [pax=path =sage:tarball]
+  =/  m  (fiber:fiber:nexus ,mime)
+  ^-  form:m
+  =/  jammed=mime  [/application/x-urb-jam (as-octs:mimes:html (jam q.sage))]
+  ?:  =([/ %mime] p.sage)  (pure:m !<(mime q.sage))
+  ;<  tube=(unit tube:clay)  bind:m  (tube-near pax [p.sage [/ %mime]])
+  ?~  tube  (pure:m jammed)
+  =/  res=(each vase tang)  (mule |.((u.tube q.sage)))
+  ?:  ?=(%| -.res)  (pure:m jammed)
+  =/  out=(each mime tang)  (mule |.(!<(mime p.res)))
+  ?:  ?=(%| -.out)  (pure:m jammed)
+  (pure:m p.out)
+::  +conversions-near: the blot->mime tubes for `blots`, resolved from
+::  `pax`, in the shape +make-tarball and the listing want
+::
+++  conversions-near
+  |=  [pax=path blots=(set blot:tarball)]
+  =/  m  (fiber:fiber:nexus ,(map bars:tarball tube:clay))
+  ^-  form:m
+  =/  blot-list=(list blot:tarball)  ~(tap in blots)
+  =/  conversions=(map bars:tarball tube:clay)  ~
+  |-  ^-  form:m
+  ?~  blot-list  (pure:m conversions)
+  =/  =bars:tarball  [i.blot-list [/ %mime]]
+  ;<  tube=(unit tube:clay)  bind:m  (tube-near pax bars)
+  =?  conversions  ?=(^ tube)  (~(put by conversions) bars u.tube)
+  $(blot-list t.blot-list)
 ++  listing-json
   |=  $:  pax=path
           b=ball:tarball
