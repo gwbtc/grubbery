@@ -4575,22 +4575,6 @@
     [&+`[%code wire.u.in &+materialized] this]
   ==
 ::
-::  +why-crash: label a crash that was really a refused .^.
-::
-::  Only ever called once we are already failing, so the gate costs
-::  nothing in the common case. Re-running is safe because a fiber step
-::  is a pure function of its state and input. Under a [~ ~] gate mink
-::  prepends one tank naming the path it refused, so a longer tang than
-::  the null-gate run means the crash was a dotket.
-::
-++  why-crash
-  |=  [tap=(trap) fell=tang]
-  ^-  tang
-  =/  =toon  (mock [tap %9 2 %0 1] |=(^ `(unit (unit))`[~ ~]))
-  ?.  ?=(%2 -.toon)  fell
-  ?.  (gth (lent p.toon) (lent fell))  fell
-  [leaf+"no .^ in userspace, refused:" p.toon]
-::
 ++  eval
   |%
   ++  output  (output-raw:fiber:nexus ,~)
@@ -4625,15 +4609,11 @@
           this
       ==
     =/  hot-in=(unit intake:fiber:nexus)  p.hydrated
-    ::  narrow here, not inside the =/: the failure path below re-runs
-    ::  the same trap and needs process.proc still narrowed
-    ?>  ?=(%& -.process.proc)
     =/  res=(each output tang)
+      ?>  ?=(%& -.process.proc)
       (~(mule vi %.n) |.((p.process.proc state hot-in)))
     ?:  ?=(%| -.res)
-      =/  =tang
-        :-  leaf+"crash"
-        (why-crash |.((p.process.proc state hot-in)) p.res)
+      =/  =tang  [leaf+"crash" p.res]
       %-  (slog ~[leaf+"%fiber-crash {(spud (snoc path.here name.here))} in={<in-tag=?~(in.take ~ `-.u.in.take)>}"])
       %-  (slog tang)
       =.  this  (drop-pend-refs in.take)
