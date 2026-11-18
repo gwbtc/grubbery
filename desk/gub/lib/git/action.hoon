@@ -26,6 +26,7 @@
       [%stash-pop ~]
       [%stash-drop ~]              ::  discard the top stash, tree untouched
       [%stash-list ~]
+      [%stash-show index=@ud pax=(unit @t)]  ::  inspect a stash in place
       [%invalid raw=@t]                    ::  didn't parse — for the log only
   ==
 ::  +job: a queued or running command. `raw` is the string as typed and is
@@ -94,6 +95,7 @@
     %stash-pop      ~[(pair 'verb' s+'stash-pop')]
     %stash-drop     ~[(pair 'verb' s+'stash-drop')]
     %stash-list     ~[(pair 'verb' s+'stash-list')]
+    %stash-show     ~[(pair 'verb' s+'stash-show')]
     %invalid        ~[(pair 'verb' s+'invalid') (pair 'raw' s+raw.c)]
   ==
 ++  job-to-json
@@ -170,6 +172,20 @@
     ::  stash — compound forms first so "stash" doesn't shadow them
     (cold [%stash-pop ~] ;~(plug (jest 'stash') (plus ace) (jest 'pop')))
     (cold [%stash-list ~] ;~(plug (jest 'stash') (plus ace) (jest 'list')))
+    ::  stash show [index] [path] — read a stash without applying it
+    %+  cook
+      |=  [i=(unit @t) p=(unit @t)]
+      ^-  git-command
+      [%stash-show ?~(i 0 (fall (rush u.i dem) 0)) p]
+    ;~  pfix  (jest 'stash')  (plus ace)  (jest 'show')
+      ;~  pose
+        ;~  plug
+          ;~(pfix (plus ace) (cook some tok))
+          ;~(pose ;~(pfix (plus ace) (cook some tok)) (easy ~))
+        ==
+        (easy [~ ~])
+      ==
+    ==
     (cold [%stash-drop ~] ;~(plug (jest 'stash') (plus ace) (jest 'drop')))
     (cold [%stash ~] (jest 'stash'))
     (cold [%pull ~] (jest 'pull'))

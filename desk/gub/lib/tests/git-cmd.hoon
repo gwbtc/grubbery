@@ -16,8 +16,16 @@
 ++  test-stash  |.((chk [~ %stash ~] 'stash'))
 ++  test-stash-pop  |.((chk [~ %stash-pop ~] 'stash pop'))
 ++  test-stash-list  |.((chk [~ %stash-list ~] 'stash list'))
+++  test-stash-show  |.((chk [~ %stash-show 0 ~] 'stash show'))
 ::  "stash pop" must NOT be swallowed by the bare "stash" rule
 ++  test-stash-pop-not-shadowed  |.((chk [~ %stash-pop ~] 'stash    pop'))
+++  test-stash-show-not-shadowed  |.((chk [~ %stash-show 0 ~] 'stash    show'))
+::  stash show takes an index, and a path to read one file out of it
+++  test-stash-show-index  |.((chk [~ %stash-show 1 ~] 'stash show 1'))
+++  test-stash-show-path
+  |.((chk [~ %stash-show 0 `'/code/tile.json'] 'stash show 0 /code/tile.json'))
+++  test-stash-show-index-path
+  |.((chk [~ %stash-show 2 `'/code/icon.svg'] 'stash show 2 /code/icon.svg'))
 ::  commit — quoted, bare, and --message forms
 ++  test-commit-quoted  |.((chk [~ %commit 'hello world' ~] 'commit -m "hello world"'))
 ++  test-commit-bare  |.((chk [~ %commit 'hi' ~] 'commit -m hi'))

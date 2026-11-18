@@ -200,6 +200,7 @@
     %pull           op-pull
     %invalid        (pure:m [%error 'unrecognized command'])
     %stash-list     op-stash-list
+    %stash-show     (op-stash-show index.cmd pax.cmd)
   ==
 ::  +op-stash, +op-stash-pop, +op-stash-drop: the stash stack, each one
 ::  request to the data nexus, which holds the tree and the index and
@@ -336,6 +337,155 @@
   =/  got  ?.(?=(%o -.i.l) ~ (~(get by p.i.l) 'id'))
   ?:  &(?=([~ %n *] got) =(`id (rush p.u.got dem)))  `i.l
   $(l t.l)
+::  +object-getter: read any object of this repo, loose or packed.
+::
+::    A fetch stores what it brought in a pack, so a reader that sees only
+::    the loose store answers "absent" for most of the history. Everything
+::    that walks the object graph goes through this.
+::
+++  object-getter
+  =/  m  (fiber:fiber:nexus ,$-(hash:git-repo (unit object:git-obj)))
+  ^-  form:m
+  ;<  obj-rd=road:tarball  bind:m
+    (ancestor-road:io [/git %repo] [%| /data/objects])
+  ;<  obj-view=view:nexus  bind:m  (peek:io obj-rd ~)
+  =/  loose=(map hash:git-repo object:git-obj)
+    ?.  ?=([%ball *] obj-view)  ~
+    (read-loose-from-ball ball.obj-view)
+  ;<  pak-rd=road:tarball  bind:m
+    (ancestor-road:io [/git %repo] [%| /data/packs])
+  ;<  pak-view=view:nexus  bind:m  (peek:io pak-rd ~)
+  =/  packs=(list pack:git-pack)
+    ?.  ?=([%ball *] pak-view)  ~
+    (load-packs-from-ball ball.pak-view)
+  %-  pure:m
+  |=  h=hash:git-repo
+  ^-  (unit object:git-obj)
+  =/  l=(unit object:git-obj)  (~(get by loose) h)
+  ?^  l  l
+  =/  ps=(list pack:git-pack)  packs
+  |-  ^-  (unit object:git-obj)
+  ?~  ps  ~
+  =/  hit=(unit object:git-obj)  (~(get git-pack i.ps) h)
+  ?^  hit  hit
+  $(ps t.ps)
+::  +tree-paths: every blob in a tree, as path/hash pairs.
+::
+++  tree-paths
+  |=  $:  fetch=$-(hash:git-repo (unit object:git-obj))
+          root=hash:git-repo
+      ==
+  ^-  (map path hash:git-repo)
+  =|  out=(map path hash:git-repo)
+  =/  todo=(list [pax=path h=hash:git-repo])  ~[[/ root]]
+  |-  ^-  (map path hash:git-repo)
+  ?~  todo  out
+  =/  obj=(unit object:git-obj)  (fetch h.i.todo)
+  ?~  obj  $(todo t.todo)
+  ?.  ?=(%tree -.u.obj)  $(todo t.todo)
+  =/  kids=(list [pax=path h=hash:git-repo])
+    %+  turn  tree-dir.u.obj
+    |=  e=tree-entry:git-obj
+    [(weld pax.i.todo ~[name.e]) hash.e]
+  ::  a tree entry is a directory when its own object is a tree; blobs
+  ::  land in the map and trees go back on the queue
+  =/  [files=(list [pax=path h=hash:git-repo]) dirs=(list [pax=path h=hash:git-repo])]
+    %+  roll  kids
+    |=  [k=[pax=path h=hash:git-repo] f=(list [pax=path h=hash:git-repo]) d=(list [pax=path h=hash:git-repo])]
+    =/  ko=(unit object:git-obj)  (fetch h.k)
+    ?:  ?&(?=(^ ko) ?=(%tree -.u.ko))  [f [k d]]
+    [[k f] d]
+  =.  out
+    %+  roll  files
+    |=  [k=[pax=path h=hash:git-repo] a=_out]
+    (~(put by a) pax.k h.k)
+  $(todo (weld dirs t.todo))
+::  +op-stash-show: read a stash in place, without applying it.
+::
+::    With no path, the difference from the commit the stash was taken
+::    from: a stash commit carries a whole tree, so listing it would name
+::    every file in the repo. With a path, that file's content as the
+::    stash holds it.
+::
+::    Any stash by index, because the point is to look before choosing,
+::    and pop and drop only ever reach the top one.
+::
+++  op-stash-show
+  |=  [index=@ud pax=(unit @t)]
+  =/  m  (fiber:fiber:nexus ,outcome:git-act)
+  ^-  form:m
+  ;<  road=road:tarball  bind:m
+    (ancestor-road:io [/git %repo] [%& /data/ui %'stash.json'])
+  ;<  =view:nexus  bind:m  (peek:io road `[/ %json])
+  =/  jon=json  (view-to-json view)
+  =/  items=(list json)  ?:(?=(%a -.jon) p.jon ~)
+  ?~  items  (pure:m [%ok 'no stashes'])
+  ::  find the entry whose index matches; the list is newest first
+  =/  want=(unit @t)
+    ::  a fresh face, widened: the check above narrowed items to non-empty
+    =/  rest=(list json)  items
+    |-  ^-  (unit @t)
+    ?~  rest  ~
+    ?.  ?=(%o -.i.rest)  $(rest t.rest)
+    =/  ix=@t
+      =/  v  (~(get by p.i.rest) 'index')
+      ?:(?=([~ %n *] v) p.u.v '')
+    ?.  =(index (fall (rush ix dem) 999))  $(rest t.rest)
+    =/  h  (~(get by p.i.rest) 'hash')
+    ?:(?=([~ %s *] h) `p.u.h ~)
+  ?~  want
+    (pure:m [%error (crip "no stash@{(a-co:co index)}")])
+  =/  sh=(unit hash:git-repo)  (rust (trip u.want) parse-hash-sha-1:git-transport)
+  ?~  sh  (pure:m [%error 'stash entry is not a hash'])
+  ;<  fetch=$-(hash:git-repo (unit object:git-obj))  bind:m  object-getter
+  =/  sobj=(unit object:git-obj)  (fetch u.sh)
+  ?~  sobj  (pure:m [%error 'stash commit not found in this repo'])
+  ?.  ?=(%commit -.u.sobj)  (pure:m [%error 'stash ref is not a commit'])
+  =/  tag=tape  "stash@{(a-co:co index)} {(scag 7 (trip u.want))}"
+  =/  mine=(map path hash:git-repo)  (tree-paths fetch tree.commit.u.sobj)
+  ::  a path: that file as the stash holds it
+  ?^  pax
+    =/  want-pax=(unit path)  (rush u.pax stap)
+    ?~  want-pax  (pure:m [%error (crip "not a path: {(trip u.pax)}")])
+    =/  bh=(unit hash:git-repo)  (~(get by mine) u.want-pax)
+    ?~  bh
+      (pure:m [%error (crip "{tag} has no {(spud u.want-pax)}")])
+    =/  bobj=(unit object:git-obj)  (fetch u.bh)
+    ?~  bobj  (pure:m [%error 'blob not found in this repo'])
+    ?.  ?=(%blob -.u.bobj)  (pure:m [%error 'that path is not a file'])
+    =/  =octs  data.u.bobj
+    ::  text if it reads as one, otherwise say what it is and how big
+    =/  txt=(unit @t)  ((soft @t) q.octs)
+    ?:  &(?=(^ txt) ((sane %t) u.txt))
+      (pure:m [%ok (crip "{tag} {(spud u.want-pax)} ({(a-co:co p.octs)}b):\0a{(trip u.txt)}")])
+    (pure:m [%ok (crip "{tag} {(spud u.want-pax)}: binary, {(a-co:co p.octs)} bytes")])
+  ::  no path: what the stash changed
+  =/  base=(map path hash:git-repo)
+    ?~  parents.commit.u.sobj  ~
+    =/  pobj=(unit object:git-obj)  (fetch i.parents.commit.u.sobj)
+    ?~  pobj  ~
+    ?.  ?=(%commit -.u.pobj)  ~
+    (tree-paths fetch tree.commit.u.pobj)
+  =/  lines=(list tape)
+    %-  zing
+    :~  %+  murn  ~(tap by mine)
+        |=  [p=path h=hash:git-repo]
+        ^-  (unit tape)
+        =/  was=(unit hash:git-repo)  (~(get by base) p)
+        ?~  was  `"new {(spud p)}"
+        ?:(=(u.was h) ~ `"modified {(spud p)}")
+      ::
+        %+  murn  ~(tap by base)
+        |=  [p=path h=hash:git-repo]
+        ^-  (unit tape)
+        ?:((~(has by mine) p) ~ `"deleted {(spud p)}")
+    ==
+  ?~  lines  (pure:m [%ok (crip "{tag} changes nothing")])
+  =/  joined=tape
+    |-  ^-  tape
+    ?~  t.lines  i.lines
+    "{i.lines}, {$(lines t.lines)}"
+  (pure:m [%ok (crip "{tag}: {joined}")])
 ::  +behind-or-equal: is the local tip reachable from the remote tip?
 ::
 ::    The only question a fast-forward asks, and it is asked of the object
@@ -358,29 +508,7 @@
   ?:  =(local remote)  (pure:m `&)
   ?:  =(0x0 local)     (pure:m `&)
   ?:  =(0x0 remote)    (pure:m `|)
-  ;<  obj-rd=road:tarball  bind:m
-    (ancestor-road:io [/git %repo] [%| /data/objects])
-  ;<  obj-view=view:nexus  bind:m  (peek:io obj-rd ~)
-  =/  loose=(map hash:git-repo object:git-obj)
-    ?.  ?=([%ball *] obj-view)  ~
-    (read-loose-from-ball ball.obj-view)
-  ;<  pak-rd=road:tarball  bind:m
-    (ancestor-road:io [/git %repo] [%| /data/packs])
-  ;<  pak-view=view:nexus  bind:m  (peek:io pak-rd ~)
-  =/  packs=(list pack:git-pack)
-    ?.  ?=([%ball *] pak-view)  ~
-    (load-packs-from-ball ball.pak-view)
-  ::  one object, from the loose store or whichever pack holds it
-  =/  fetch
-    |=  h=hash:git-repo
-    ^-  (unit object:git-obj)
-    =/  l=(unit object:git-obj)  (~(get by loose) h)
-    ?^  l  l
-    |-  ^-  (unit object:git-obj)
-    ?~  packs  ~
-    =/  hit=(unit object:git-obj)  (~(get git-pack i.packs) h)
-    ?^  hit  hit
-    $(packs t.packs)
+  ;<  fetch=$-(hash:git-repo (unit object:git-obj))  bind:m  object-getter
   ::  every parent, not the first only: history is a graph
   =|  seen=(set hash:git-repo)
   =|  blind=?
