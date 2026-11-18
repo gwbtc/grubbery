@@ -6374,7 +6374,7 @@
 ::    and, under /nex, validate it as a nexus — a failure that bangs the
 ::    host nexus for a file it never executes. So everything under a
 ::    bundle directory is stored as mime, untouched. (tool-bundle,
-::    docs-bundle, itinerary-bundle, forge/tool-bundle.)
+::    notifications-bundle, forge/tool-bundle.)
 ::
 ::  +is-bundle-dir: the bundle convention — a directory segment that is
 ::  bundle or ends in -bundle
