@@ -2114,7 +2114,7 @@
 ++  validate-vase
   |=  [vale=$-(* vase) noun=*]
   ^-  (each vase tang)
-  (mule |.((vale noun)))
+  (~(mule vi %.n) |.((vale noun)))
 ::  Find the code nexus governing a given path.
 ::  Walks up ancestors, checking if any immediate child is in the code map.
 ::  Code namespace governance
@@ -2267,7 +2267,7 @@
   |=  [pax=path =bars:tarball]
   ^-  tube:clay
   =/  via-grow=(each tube:clay tang)
-    (mule |.((grow:(get-marc pax a.bars) b.bars)))
+    (~(mule vi %.n) |.((grow:(get-marc pax a.bars) b.bars)))
   ?:  ?=(%& -.via-grow)  p.via-grow
   (grab:(get-marc pax b.bars) a.bars)
 ::  Validate file content via compiled marc
@@ -2292,14 +2292,14 @@
     ::  arm computations so a bad artifact reads as a validation error
     ::  carrying the real trace instead.
     =/  vale-gate=(each $-(* vase) tang)
-      (mule |.(vale:p.marc-res))
+      (~(mule vi %.n) |.(vale:p.marc-res))
     ?:  ?=(%| -.vale-gate)
       |+[leaf+"validate-noun: vale build for %{(trip nam)} crashed at {(spud pax)}" p.vale-gate]
     =/  val-res=(each vase tang)
       (validate-vase p.vale-gate noun)
     ?:  ?=(%| -.val-res)  val-res
     =/  typ=(each type tang)
-      (mule |.(type:p.marc-res))
+      (~(mule vi %.n) |.(type:p.marc-res))
     ?:  ?=(%| -.typ)
       |+[leaf+"validate-noun: type build for %{(trip nam)} crashed at {(spud pax)}" p.typ]
     &+[p.typ noun]
@@ -2399,7 +2399,7 @@
     `[blot %& type:p.marc-res u.raw]
   ::  Cache miss: validate via marc
   =/  val-res=(each vase tang)
-    (mule |.((vale:p.marc-res u.raw)))
+    (~(mule vi %.n) |.((vale:p.marc-res u.raw)))
   ?:  ?=(%| -.val-res)  `[blot %| [p.val-res u.raw]]
   `[blot %& p.val-res]
 ::  Peek a ball subtree by ject-lobe.  If the lobe is a tree ject,
@@ -3243,7 +3243,7 @@
   =.  this  (clear-bangs-under dest)
   ::  Run on-load (may crash)
   =/  load-res=(each bole:tarball tang)
-    (mule |.((on-load:nex sub-ball)))
+    (~(mule vi %.n) |.((on-load:nex sub-ball)))
   ?:  ?=(%| -.load-res)
     (bang-nexus dest p.load-res)
   =/  upd-bole=bole:tarball  p.load-res
@@ -3369,7 +3369,7 @@
     =/  =blot:tarball  p.bask.i.files
     =/  rel=rail:tarball  (relativize-rail:tarball nxp file-rail)
     =/  spool-res=(each spool:fiber:nexus tang)
-      (mule |.((on-file:nxc rel blot)))
+      (~(mule vi %.n) |.((on-file:nxc rel blot)))
     =.  this  ?^((get-born file-rail) this (init-born file-rail))
     =.  this  (spawn-proc-with file-rail ~ spool-res)
     $(files t.files)
@@ -4187,7 +4187,7 @@
     =/  from=blot:tarball  [/ i.t.inner]
     =/  to=blot:tarball  [/ name.dest]
     =/  tube-res=(each tube:clay tang)
-      (mule |.((grow:(get-marc (snip `path`u.nex) from) to)))
+      (~(mule vi %.n) |.((grow:(get-marc (snip `path`u.nex) from) to)))
     ?:  ?=(%| -.tube-res)
       (enqu-take here ~ ~ %code wire.dart |+|+p.tube-res)
     ::  Store tube in bins so it can be referenced by ckey
@@ -4331,7 +4331,7 @@
     (build-spool here)
   =/  spool-res=(each spool:fiber:nexus tang)
     ?:  ?=(%| -.spool-got)  spool-got
-    (mule |.((fall p.spool-got default-spool)))
+    (~(mule vi %.n) |.((fall p.spool-got default-spool)))
   (spawn-proc-with here prod spool-res)
 ::  Spawn a process with a pre-built spool result.
 ::  Used by spawn-all-files to avoid redundant silo lookups.
@@ -4346,7 +4346,7 @@
     ~&  >>  "spawn-proc: bang {(spud (snoc path.here name.here))} — on-file crash"
     (bang-file here p.spool-res)
   =/  proc-res=(each process:fiber:nexus tang)
-    (mule |.((p.spool-res prod)))
+    (~(mule vi %.n) |.((p.spool-res prod)))
   ?:  ?=(%| -.proc-res)
     ~&  >>  "spawn-proc: bang {(spud (snoc path.here name.here))} — spool crash"
     (bang-file here p.proc-res)
@@ -4575,6 +4575,22 @@
     [&+`[%code wire.u.in &+materialized] this]
   ==
 ::
+::  +why-crash: label a crash that was really a refused .^.
+::
+::  Only ever called once we are already failing, so the gate costs
+::  nothing in the common case. Re-running is safe because a fiber step
+::  is a pure function of its state and input. Under a [~ ~] gate mink
+::  prepends one tank naming the path it refused, so a longer tang than
+::  the null-gate run means the crash was a dotket.
+::
+++  why-crash
+  |=  [tap=(trap) fell=tang]
+  ^-  tang
+  =/  =toon  (mock [tap %9 2 %0 1] |=(^ `(unit (unit))`[~ ~]))
+  ?.  ?=(%2 -.toon)  fell
+  ?.  (gth (lent p.toon) (lent fell))  fell
+  [leaf+"no .^ in userspace, refused:" p.toon]
+::
 ++  eval
   |%
   ++  output  (output-raw:fiber:nexus ,~)
@@ -4609,11 +4625,15 @@
           this
       ==
     =/  hot-in=(unit intake:fiber:nexus)  p.hydrated
+    ::  narrow here, not inside the =/: the failure path below re-runs
+    ::  the same trap and needs process.proc still narrowed
+    ?>  ?=(%& -.process.proc)
     =/  res=(each output tang)
-      ?>  ?=(%& -.process.proc)
-      (mule |.((p.process.proc state hot-in)))
+      (~(mule vi %.n) |.((p.process.proc state hot-in)))
     ?:  ?=(%| -.res)
-      =/  =tang  [leaf+"crash" p.res]
+      =/  =tang
+        :-  leaf+"crash"
+        (why-crash |.((p.process.proc state hot-in)) p.res)
       %-  (slog ~[leaf+"%fiber-crash {(spud (snoc path.here name.here))} in={<in-tag=?~(in.take ~ `-.u.in.take)>}"])
       %-  (slog tang)
       =.  this  (drop-pend-refs in.take)
@@ -4892,7 +4912,7 @@
       =/  to=tape  (spud (rail-to-path:tarball u.blot.p.make))
       =/  what=tape  (spud (snoc path.dest-rail name.dest-rail))
       =/  conv=(each vase tang)
-        (mule |.(((get-tube path.dest-rail [p.bask.p.make u.blot.p.make]) p.src)))
+        (~(mule vi %.n) |.(((get-tube path.dest-rail [p.bask.p.make u.blot.p.make]) p.src)))
       ?:  ?=(%| -.conv)
         ~|("make: no conversion from {from} to {to} for {what}" (mean p.conv))
       =/  chk=(each vase tang)  (validate-noun path.dest-rail u.blot.p.make q.p.conv)
@@ -5369,7 +5389,7 @@
     ~&  >>  "record: marc stale for {(spud path.p.bask)}/{(trip name.p.bask)}"
     this
   =/  res=(each vase tang)
-    (mule |.((vale:p.marc-res raw)))
+    (~(mule vi %.n) |.((vale:p.marc-res raw)))
   (vale-put nobe marc-ckey ?:(?=(%& -.res) ~ `p.res))
 ::  Sync a bole into the namespace.  One function for make, reload, and
 ::  cull (cull = empty bole).  Bottom-up walk: children settle before
@@ -8049,7 +8069,7 @@
       ?~(tp p.sage [(snip `path`tp) (rear tp)])
     =/  conv=(each sage:tarball tang)
       ?:  =(p.sage target)  &+sage
-      (mule |.(`sage:tarball`[target ((get-tube dir [p.sage target]) q.sage)]))
+      (~(mule vi %.n) |.(`sage:tarball`[target ((get-tube dir [p.sage target]) q.sage)]))
     ?:  ?=(%| -.conv)  (err 400 'No tube for mark conversion')
     =/  cs=sage:tarball  p.conv
     ::  serve-sandbox: a grub may be served to the browser as runnable code
@@ -8075,7 +8095,7 @@
     ?:  =([/ %mime] p.cs)
       (serve-mime !<(mime q.cs))
     =/  mres=(each vase tang)
-      (mule |.((`tube:clay`(get-tube dir [p.cs [/ %mime]]) q.cs)))
+      (~(mule vi %.n) |.((`tube:clay`(get-tube dir [p.cs [/ %mime]]) q.cs)))
     ?:  ?=(%| -.mres)
       (serve-mime [/application/x-urb-jam (as-octs:mimes:html (jam q.cs))])
     (serve-mime !<(mime p.mres))
