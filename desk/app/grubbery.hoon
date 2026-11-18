@@ -2493,6 +2493,8 @@
   =/  got=(unit [key=cass:clay val=entry:hist:nexus])
     (ram:hon:hist:nexus fold.u.node)
   ?~  got  *bole:tarball
+  ::  a culled directory is gone, however much of it born still holds
+  ?:  (~(gone-fold pk:nexus peak) fold key.u.got)  *bole:tarball
   =/  =pace:hist:nexus  pace.val.u.got
   (peek-bole lobe.pace)
 ::  Shallow peek: resolve files at this level, subdirs as empty balls.
@@ -2589,6 +2591,8 @@
   =/  got=(unit [key=cass:clay val=entry:hist:nexus])
     (ram:hon:hist:nexus fold.u.node)
   ?~  got  *ball:tarball
+  ::  a culled directory is gone, however much of it born still holds
+  ?:  (~(gone-fold pk:nexus peak) fold key.u.got)  *ball:tarball
   =/  =pace:hist:nexus  pace.val.u.got
   (peek-ball lobe.pace)
 ::  Look up a directory's weir from its parent's tree ject.
@@ -2625,6 +2629,8 @@
   =/  got=(unit [key=cass:clay val=entry:hist:nexus])
     (ram:hon:hist:nexus fold.u.node)
   ?~  got  ~
+  ::  a culled directory is gone, however much of it born still holds
+  ?:  (~(gone-fold pk:nexus peak) fold key.u.got)  ~
   =/  =pace:hist:nexus  pace.val.u.got
   =/  jot  (~(get by jects.silo) lobe.pace)
   ?~  jot  ~
@@ -2641,6 +2647,8 @@
   =/  got=(unit [key=cass:clay val=entry:hist:nexus])
     (ram:hon:hist:nexus fold.u.node)
   ?~  got  *ball:tarball
+  ::  a culled directory is gone, however much of it born still holds
+  ?:  (~(gone-fold pk:nexus peak) fold key.u.got)  *ball:tarball
   =/  =pace:hist:nexus  pace.val.u.got
   (peek-ball-shallow lobe.pace)
 ::  List file names at a directory (from born).
@@ -4068,6 +4076,13 @@
     =/  sub-born=born:nexus  (~(dip of born) dest)
     ?:  &(=(~ fil.sub-born) =(~ dir.sub-born))
       (enqu-take here ~ ~ %peek wire.dart [%none ~])
+    ::  a culled directory is gone, however much of it born still holds,
+    ::  and a peek of it answers %none the way a culled file's does
+    =/  dest-top=(unit cass:clay)
+      ?~  fil.sub-born  ~
+      (top:hist:nexus fold.u.fil.sub-born)
+    ?:  &(?=(^ dest-top) (~(gone-fold pk:nexus peak) dest u.dest-top))
+      (enqu-take here ~ ~ %peek wire.dart [%none ~])
     ::  Get root tree ject lobe from born fold hist:
     ::  historical if case is set, current top otherwise.
     =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
@@ -5141,6 +5156,8 @@
   =/  got=(unit [key=cass:clay val=entry:hist:nexus])
     (ram:hon:hist:nexus fold.u.node)
   ?~  got  [~ ~]
+  ::  a culled directory is gone, however much of it born still holds
+  ?:  (~(gone-fold pk:nexus peak) dir key.u.got)  [~ ~]
   =/  =pace:hist:nexus  pace.val.u.got
   =/  jot  (~(get by jects.silo) lobe.pace)
   ?~  jot  [~ ~]
@@ -7419,7 +7436,8 @@
   =/  got=(unit [key=cass:clay val=entry:hist:nexus])
     (ram:hon:hist:nexus fold.u.node)
   ?~  got  %.n
-  %.y
+  ::  a culled directory is gone, however much of it born still holds
+  !(~(gone-fold pk:nexus peak) fold key.u.got)
 ::
 ++  api-lane
   |=  api-path=path
