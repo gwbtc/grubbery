@@ -36,6 +36,7 @@
             <button class="set-item" onclick="setWindow()">Software Update Window<span class="set-sub">When this ship takes app updates</span></button>
             <a class="set-item" href="/apps/grubbery/permits">Permission Management<span class="set-sub">What each app may reach</span></a>
             <button class="set-item" onclick="closeProfileNow(); openAdd('mine')">Installed Apps<span class="set-sub">The apps on this ship</span></button>
+            <label class="set-item set-check"><input type="checkbox" id="pref-solo" onchange="savePref('hide-solo-suites', !this.checked)"><span>Show single-app suites<span class="set-sub">A desk that installs one app gets a card of its own in Suites</span></span></label>
             <div class="prof-label">this ship</div>
             <button id="prof-ship" class="prof-ship" onclick="copyShip()">…</button>
             <div id="prof-copied" class="prof-copied"></div>
@@ -193,6 +194,7 @@
       <button class="ttab" data-kind="utility" onclick="setTileTab('utility')">Utilities</button>
       <button class="ttab" data-kind="other" onclick="setTileTab('other')">Other</button>
     </div>
+    <div id="tiles-top"></div>
     <div id="tiles">
       <div id="loading-tile">
         <div class="spinner"></div>

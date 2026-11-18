@@ -303,6 +303,19 @@
 ::  (as a rail), the source file of that neck's nexus, its fiber bang
 ::
 +$  kid-info  [neck=(unit rail:tarball) neck-url=(unit tape) bang=(unit tang)]
+::  +parse-mite: a media type as the editor sends it, "image/svg+xml" or
+::  "application/vnd.api+json", into a mite. NOT +sym per segment, which
+::  is letters, digits and hyphen: a media type's token charset has + and
+::  . in it too (RFC 6838), so every type carrying a + silently failed to
+::  parse and fell back to the mite the grub already had. An svg saved
+::  from the editor came back typeless, and the browser will not draw an
+::  untyped blob — which is how two desk icons shipped invisible.
+::
+++  parse-mite
+  |=  [txt=@t fallback=mite]
+  ^-  mite
+  =/  tok  (cook crip (plus ;~(pose low nud hep dot lus cab)))
+  (fall (rush txt ;~(pfix (punt fas) (more fas tok))) fallback)
 ::  +view-file: the grub a directory carries to declare its views: how the
 ::  paths under it open in the explorer. {viewers, title, icon}: `viewers`
 ::  is the url of an endpoint the app serves (asked per path, see
@@ -1635,7 +1648,7 @@
         =/  mt=(unit @t)  (get-key:kv:html-utils 'mite' args)
         ?~  mt  p.cur-mime
         ?:  =('' u.mt)  ~
-        (fall (rush u.mt ;~(pfix (punt fas) (more fas sym))) p.cur-mime)
+        (parse-mite u.mt p.cur-mime)
       ;<  ~  bind:m
         (over:io [%& %& fdir fnam] [[/ %mime] `mime`[new-mite (as-octs:mimes:html content)]])
       ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[200 ~] `ok])
@@ -1647,7 +1660,7 @@
     =/  =mite
       =/  mt=(unit @t)  (get-key:kv:html-utils 'mite' args)
       ?~  mt  p.cur-mime
-      (fall (rush u.mt ;~(pfix (punt fas) (more fas sym))) p.cur-mime)
+      (parse-mite u.mt p.cur-mime)
     ;<  err=(unit tang)  bind:m
       %^    over-as-soft:io
           [%& %& fdir fnam]

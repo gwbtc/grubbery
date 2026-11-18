@@ -1,6 +1,11 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: Inter, sans-serif; background: white; min-height: 100vh; }
-  #app { width: 100%; max-width: 1440px; margin: 0 auto; padding: 40px 24px; }
+  /* the GRID scrolls, not the page: the header, the tabs and (in Suites)
+     the row of desks stay where they are while you look through what is
+     under them */
+  html, body { height: 100%; }
+  body { font-family: Inter, sans-serif; background: white; overflow: hidden; }
+  #app { width: 100%; max-width: 1440px; height: 100%; margin: 0 auto; padding: 40px 24px 0;
+         display: flex; flex-direction: column; min-height: 0; }
   #header { display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 32px; }
   #bell { position: relative; display: flex; align-items: center; text-decoration: none; padding: 7px 9px; border-radius: 8px; border: 1px solid #ddd; color: #555; }
   #bell svg { width: 16px; height: 16px; display: block; }
@@ -26,6 +31,8 @@
   .icon-btn:hover { background: #f5f5f5; color: #111; }
   .set-item { display: block; width: 100%; box-sizing: border-box; text-align: left; font: inherit; font-size: 14px; font-weight: 600; color: #111; text-decoration: none; background: white; border: 1px solid #ddd; border-radius: 10px; padding: 11px 14px; margin-bottom: 10px; cursor: pointer; }
   .set-item:hover { background: #f5f5f5; }
+  .set-check { display: flex; align-items: flex-start; gap: 10px; font-weight: 600; }
+  .set-check input { accent-color: #6947b8; margin-top: 2px; flex-shrink: 0; }
   .set-sub { display: block; font-size: 12px; font-weight: 400; color: #777; margin-top: 2px; }
   #set-menu .prof-label { margin-top: 18px; }
   .win-on { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #111; }
@@ -67,7 +74,11 @@
   .bn-del:hover { background: #fbe9e9; color: #c0392b; }
   .hdr-btn { font-size: 13px; padding: 8px 16px; border-radius: 8px; border: 1px solid #ddd; background: white; color: #555; cursor: pointer; font-family: inherit; }
   .hdr-btn:hover { background: #f5f5f5; }
-  #tiles { display: grid; grid-template-columns: repeat(auto-fit, 256px); gap: 20px; justify-content: center; }
+  /* padding-top so a hover/selected outline on the FIRST row is not
+     clipped by this box's own scroll edge; it sits outside the tile */
+  #tiles { display: grid; grid-template-columns: repeat(auto-fit, 256px); gap: 20px; justify-content: center;
+           flex: 1; min-height: 0; overflow-y: auto; align-content: start; padding: 8px 8px 40px; }
+  #tiles-top:empty { display: none; }
   .tile { position: relative; width: 256px; height: 256px; border-radius: 16px; overflow: hidden; flex-shrink: 0; }
   .tile.has-img:not(.loaded) { display: none; }
   #loading-tile { display: none; width: 256px; height: 256px; border-radius: 16px; background: #f5f5f5; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -77,11 +88,13 @@
   /* the suites themselves: one horizontal row across the top, scrollable
      when there are more than fit, with the open one marked. Its apps are
      the ordinary grid underneath. */
-  .suite-strip { grid-column: 1 / -1; display: flex; gap: 20px; overflow-x: auto; padding: 0 2px 20px; scrollbar-width: thin; }
+  /* room above and beside for the selected card's outline: overflow-x
+     clips it otherwise, and it sits 3px outside the tile */
+  .suite-strip { display: flex; gap: 20px; overflow-x: auto; padding: 8px 8px 20px; scrollbar-width: thin; }
   .suite-card { cursor: pointer; }
   .suite-card:hover { outline: 2px solid #c9b8ea; outline-offset: 2px; }
   .suite-card.sel { outline: 3px solid #7a5ac0; outline-offset: 2px; }
-  .suite-inside { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; margin: -8px 0 4px; }
+  .suite-inside { display: flex; align-items: center; gap: 10px; margin: -8px 0 14px; }
   .suite-inside-label { font-size: 12px; color: #888; white-space: nowrap; }
   .suite-inside-label b { color: #111; font-weight: 650; }
   .suite-inside::after { content: ''; flex: 1; height: 1px; background: #e4e4e4; }
@@ -89,8 +102,14 @@
   .tile-bg { position: absolute; inset: 0; }
   .tile-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
   .tile-label { position: absolute; bottom: 0; left: 0; right: 0; padding: 20px 24px; z-index: 2; }
-  .tile.has-img .tile-label { padding: 20px 24px; background: linear-gradient(transparent, rgba(0,0,0,0.5)); }
+  /* the scrim carries white text over ANY artwork, including a light one:
+     a half-black wash was enough over dark app icons and vanished under a
+     cream illustration. Taller, deeper, and the text carries its own
+     shadow so it survives whatever the image does underneath it. */
+  .tile.has-img .tile-label { padding: 44px 24px 20px; background: linear-gradient(transparent, rgba(0,0,0,0.78)); }
+  .tile.has-img .tile-title, .tile.has-img .tile-desc { text-shadow: 0 1px 3px rgba(0,0,0,0.6); }
   .tile-title { font-size: 18px; font-weight: 600; color: rgba(255,255,255,0.85); }
+  .tile.has-img .tile-title { color: #fff; }
   .tile-pin { font-size: 11px; font-weight: 400; color: rgba(255,255,255,0.6); margin-left: 8px; vertical-align: 2px; }
   .tile-desc { font-size: 11px; color: rgba(255,255,255,0.7); margin-top: 4px; display: none; }
   .tile-warn { position: absolute; top: 0; left: 0; right: 0; z-index: 3; display: block; padding: 8px 10px; background: #f6c343; color: #3a2d00; font-size: 10px; font-weight: 600; line-height: 1.35; text-decoration: none; }

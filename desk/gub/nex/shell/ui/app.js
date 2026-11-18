@@ -139,6 +139,7 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
   // the gear: Settings, a menu of the ship's own controls, and the ship
   function openSettings() {
     setMenu();
+    document.getElementById('pref-solo').checked = !prefs['hide-solo-suites'];
     document.getElementById('profile-backdrop').classList.add('open');
     document.getElementById('prof-copied').textContent = '';
     fetch('/apps/grubbery/profile.json')
@@ -373,6 +374,9 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
   bellFetch();
 
   var tilesDiv = document.getElementById('tiles');
+  // the strip of desks and the "inside X" line live ABOVE the scrolling
+  // grid, so they stay put while that desk's apps scroll
+  var tilesTop = document.getElementById('tiles-top');
   var editBack = document.getElementById('edit-backdrop');
   var editTitle = document.getElementById('edit-title');
   var editJson = document.getElementById('edit-json');
@@ -460,6 +464,32 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
   // is how you find out you installed something that never started.
   var deskCards = [];
   var openSuite = null;
+  // launcher preferences, kept on the ship (see +read-launcher). The page
+  // never holds the defaults: what the endpoint answers IS the setting.
+  var prefs = {};
+  function loadPrefs() {
+    return fetch('/apps/grubbery/launcher.json')
+      .then(function(r) { return r.json(); })
+      .then(function(p) { prefs = p || {}; })
+      .catch(function() { prefs = {}; });
+  }
+  function savePref(key, val) {
+    prefs[key] = val;
+    var body = {}; body[key] = val;
+    fetch('/grubbery/tiles/launcher', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function() { paintTiles(); });
+    paintTiles();
+  }
+  // a desk that ships exactly one app is that app; its tile is already in
+  // the grid. A desk with none still shows — that is the only place the
+  // launcher tells you something you installed is not running.
+  function suitesShown() {
+    if (!prefs['hide-solo-suites']) return deskCards;
+    return deskCards.filter(function(d) { return kidsOf(d).length !== 1; });
+  }
   // a desk tile's root is /apps/shell/desks/<desk>/desk/data/<instance>
   function suiteOf(t) {
     var m = /^\/apps\/shell\/desks\/([^/]+)\//.exec(t.root || '');
@@ -467,7 +497,10 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
   }
   function buildSuite(d, kids) {
     var card = document.createElement('div');
-    card.className = 'tile suite-card';
+    // has-img is what every image-tile rule keys on, the label's scrim
+    // included — without it a desk's artwork gets no scrim and its title
+    // reads as whatever the picture happens to be behind the text
+    card.className = d.icon ? 'tile suite-card has-img' : 'tile suite-card';
     var bg = document.createElement('div');
     bg.className = 'tile-bg';
     bg.style.background = d.color || '#333';
@@ -476,7 +509,10 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
       var img = document.createElement('img');
       img.className = 'tile-img';
       img.src = d.icon;
-      img.onerror = function() { this.style.display = 'none'; };
+      // .tile.has-img:not(.loaded) is hidden, so the card must be told
+      // its image arrived — or failed — or it never shows at all
+      img.onload = function() { card.classList.add('loaded'); };
+      img.onerror = function() { this.style.display = 'none'; card.classList.add('loaded'); };
       card.appendChild(img);
     }
     var lbl = document.createElement('div');
@@ -502,6 +538,9 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     card.appendChild(acts);
     card.onclick = function() {
       openSuite = (openSuite === d.name) ? null : d.name;
+      // a different desk's apps start at the top, not wherever the last
+      // desk's list happened to be scrolled to
+      tilesDiv.scrollTop = 0;
       paintTiles();
     };
     return card;
@@ -509,33 +548,59 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
   function kidsOf(d) {
     return allTiles.filter(function(t) { return !t.hidden && suiteOf(t) === d.name; });
   }
+  // suite cards are CACHED, like grid tiles: a rebuilt card re-creates its
+  // <img>, and .tile.has-img:not(.loaded) hides a tile until the image
+  // fires onload — so rebuilding the row on every click made the whole row
+  // collapse and re-expand. Built once, reused, only the outline changes.
+  var suiteEls = {};
+  var stripScroll = 0;
+  function suiteSig(d, kids) {
+    return [d.title, d.info, d.color, d.icon, kids.length].join('\u0000');
+  }
+  function getSuiteEl(d, kids) {
+    var c = suiteEls[d.name], sig = suiteSig(d, kids);
+    if (c && c.sig === sig) return c.el;
+    var el = buildSuite(d, kids);
+    suiteEls[d.name] = { el: el, sig: sig };
+    return el;
+  }
   // nothing open: the desks are an ordinary grid of tiles, like any other
   // tab. Open one and they become a row along the top — same tiles, same
   // size, scrolled sideways — with its apps in the grid below. Clicking
   // the open one again closes it and the grid comes back.
   function paintSuites() {
     while (tilesDiv.firstChild) tilesDiv.removeChild(tilesDiv.firstChild);
-    if (!deskCards.length) {
+    if (!suitesShown().length) {
       var none = document.createElement('div');
       none.className = 'empty';
-      none.textContent = 'no desks installed';
+      none.textContent = deskCards.length ? 'every desk here ships a single app \u2014 see Apps, or show them in Settings'
+                                          : 'no desks installed';
       tilesDiv.appendChild(none);
       return;
     }
-    var open = deskCards.filter(function(d) { return d.name === openSuite; })[0];
+    var shown = suitesShown();
+    var open = shown.filter(function(d) { return d.name === openSuite; })[0];
     if (!open) {
       openSuite = null;
-      deskCards.forEach(function(d) { tilesDiv.appendChild(buildSuite(d, kidsOf(d))); });
+      shown.forEach(function(d) {
+        var el = getSuiteEl(d, kidsOf(d));
+        el.classList.remove('sel');
+        tilesDiv.appendChild(el);
+      });
       return;
     }
     var strip = document.createElement('div');
     strip.className = 'suite-strip';
-    deskCards.forEach(function(d) {
-      var card = buildSuite(d, kidsOf(d));
-      if (d.name === open.name) card.classList.add('sel');
+    shown.forEach(function(d) {
+      var card = getSuiteEl(d, kidsOf(d));
+      card.classList.toggle('sel', d.name === open.name);
       strip.appendChild(card);
     });
-    tilesDiv.appendChild(strip);
+    // the row keeps where it was scrolled to: switching suites must not
+    // slide the desks out from under the pointer
+    strip.onscroll = function() { stripScroll = strip.scrollLeft; };
+    tilesTop.appendChild(strip);
+    strip.scrollLeft = stripScroll;
     // say where you are: the grid below is one desk's apps, not the
     // launcher's, and nothing else on the page says so
     var line = document.createElement('div');
@@ -548,7 +613,7 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     lbl.appendChild(nm);
     if (open.info) lbl.appendChild(document.createTextNode(' \u00b7 ' + open.info));
     line.appendChild(lbl);
-    tilesDiv.appendChild(line);
+    tilesTop.appendChild(line);
     var kids = kidsOf(open);
     if (!kids.length) {
       var e = document.createElement('div');
@@ -618,6 +683,7 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     return el;
   }
   function paintTiles() {
+    while (tilesTop.firstChild) tilesTop.removeChild(tilesTop.firstChild);
     var tabsEl = document.getElementById('tile-tabs');
     if (tileTab === 'suite' && !showingHidden) {
       if (tabsEl) tabsEl.style.display = '';
@@ -678,12 +744,14 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     tiles.forEach(function(t) { tileData[t.name] = t; });
     allTiles = tiles;
     tileEls = {};  // fresh data: drop cached nodes so edits/new tiles rebuild
+    suiteEls = {};
     paintTiles();
     prewarmTiles();
   }
 
   function loadTiles() {
     Promise.all([
+      loadPrefs(),
       fetch('/grubbery/tiles/tiles.json').then(function(r) { return r.json(); }),
       // a failed read must not cost us the tiles: no warnings is the safe
       // way to be wrong here, since the grid still works without them
@@ -695,9 +763,9 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     ])
       .then(function(res) {
         needsGrant = {};
-        (res[1] || []).forEach(function(a) { needsGrant[a.app] = true; });
-        deskCards = (res[2] || []).filter(function(d) { return d.name !== 'grubbery.desk'; });
-        renderTiles(res[0]);
+        (res[2] || []).forEach(function(a) { needsGrant[a.app] = true; });
+        deskCards = (res[3] || []).filter(function(d) { return d.name !== 'grubbery.desk'; });
+        renderTiles(res[1]);
       })
       .catch(function() { tilesDiv.innerHTML = '<div class="empty">failed to load tiles</div>'; });
   }

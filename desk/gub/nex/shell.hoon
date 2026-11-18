@@ -205,6 +205,10 @@
           [%fall %| /tiles empty-dir:loader]
           [%fall %| /tiles/landscape empty-dir:loader]
           [%over %& [/tiles/landscape %'tile.json'] [[/ %json] landscape-tile]]
+          ::  launcher.json: the launcher's own preferences, as an object of
+          ::  named flags. Seeded empty; +read-launcher supplies the
+          ::  defaults, so a flag nobody has touched is not written down.
+          [%fall %& [/ %'launcher.json'] [[/ %json] [%o ~]]]
           ::  hidden-tiles.json: the user's launcher preference — the set of
           ::  tile names hidden from the home grid, toggled from the UI. This
           ::  replaces the old hardcoded hidden set (any tile can be hidden or
@@ -720,6 +724,23 @@
             [[/ %json] [%a (turn ~(tap in next) |=(n=@t s+n))]]
           ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
           (pure:m ~)
+        ::  POST /launcher {<flag>: <bool>}: set launcher preferences. The
+        ::  keys sent are merged into what is there, so a page that knows
+        ::  one flag never clobbers another.
+        ?:  &(=('POST' method.request.req) ?=([%launcher ~] suffix))
+          =/  jon=json
+            %+  fall  (de:json:html ?~(body.request.req '' q.u.body.request.req))
+            *json
+          ?.  ?=([%o *] jon)
+            ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[400 ~] `(as-octs:mimes:html 'object required')])
+            (pure:m ~)
+          ;<  cur=json  bind:m  (read-launcher rail)
+          =/  base=(map @t json)  ?.(?=([%o *] cur) ~ p.cur)
+          ;<  ~  bind:m
+            %+  over:io  (nex-road:io rail [%& / %'launcher.json'])
+            [[/ %json] [%o (~(uni by base) p.jon)]]
+          ;<  ~  bind:m  (send-simple:http-res:io eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
+          (pure:m ~)
         ::  POST /desks/peers {add|del: ship}: forward to our own peers.json
         ::  fiber (folded in from the retired /desks nexus).
         ?:  &(=('POST' method.request.req) ?=([%desks %peers ~] suffix))
@@ -1025,6 +1046,14 @@
             ?~  gs  ~
             `[(cat 3 '@' nm) a+(turn gs |=(g=path s+(spat g)))]
           =/  bod=octs  (as-octs:mimes:html (en:json:html (fall sv [%o ~])))
+          ;<  ~  bind:m
+            (send-simple:http-res:io eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+          (pure:m ~)
+        ::  /apps/grubbery/launcher.json → the launcher's preferences, with
+        ::  the defaults filled in, so the page never has to know them.
+        ?:  ?=([%'launcher.json' ~] suffix)
+          ;<  prefs=json  bind:m  (read-launcher rail)
+          =/  bod=octs  (as-octs:mimes:html (en:json:html prefs))
           ;<  ~  bind:m
             (send-simple:http-res:io eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
           (pure:m ~)
@@ -2270,6 +2299,11 @@
   ?~  got  ~
   =/  res=(each mime tang)  (mule |.(!<(mime (need-vase:tarball u.got))))
   ?.  ?=(%& -.res)  ~
+  ::  a card is a listing entry, not a payload: an icon that is not small
+  ::  rides in every mirror of this desk, on every ship that lists it, so
+  ::  past a sane size it simply has no icon. 96k is roomy for the 256px
+  ::  png a desk ships and refuses the 2mb one nobody meant to publish.
+  ?:  (gth p.q.p.res 98.304)  ~
   =/  typ=@t  (crip (zing (join "/" (turn p.p.res trip))))
   =/  b64=@t  (~(en base64:mimes:html | |) [p.q.p.res q.q.p.res])
   s+(rap 3 'data:' typ ';base64,' b64 ~)
@@ -3052,7 +3086,7 @@
       color+s+'#6947b8'
       href+s+'/grubbery/contacts'
       image+s+'/grubbery/contacts/icon.svg'
-      kind+s+'app'
+      kind+s+'utility'
       own+b+&
   ==
 ++  forge-tile
@@ -4569,6 +4603,23 @@
       root+?~(root ~ s+(crip (spud u.root)))
       hidden+b+(~(has in hidden) name.t)
   ==
+::  +read-launcher: the launcher's preferences, defaults filled in.
+::
+::    hide-solo-suites: a desk that installs exactly ONE app is not a
+::    suite worth a card — its app is already in the grid, and listing it
+::    twice makes the Suites tab a copy of Apps. Default on; a desk with
+::    no apps running still shows, because that is the only place the
+::    launcher says so.
+::
+++  read-launcher
+  |=  rail=rail:tarball
+  =/  m  (fiber:fiber:nexus ,json)
+  ^-  form:m
+  ;<  v=(unit json)  bind:m
+    (peek-as:io (nex-road:io rail [%& / %'launcher.json']) ,json)
+  =/  have=(map @t json)  ?.(?=([~ %o *] v) ~ p.u.v)
+  =/  dflt=(map @t json)  (malt ~[['hide-solo-suites' b+&]])
+  (pure:m [%o (~(uni by dflt) have)])
 ::  +read-hidden-tiles: the user's hidden-tile preference — the set of tile
 ::  names suppressed from the home grid, from /hidden-tiles.json. ~ = none.
 ++  read-hidden-tiles
