@@ -336,20 +336,65 @@
   =/  got  ?.(?=(%o -.i.l) ~ (~(get by p.i.l) 'id'))
   ?:  &(?=([~ %n *] got) =(`id (rush p.u.got dem)))  `i.l
   $(l t.l)
-::  +local-ahead: how many local commits the remote-tracking ref lacks
-::  (data/ui/status.json "ahead"); 0 when unknown.
+::  +behind-or-equal: is the local tip reachable from the remote tip?
 ::
-++  local-ahead
-  =/  m  (fiber:fiber:nexus ,@ud)
+::    The only question a fast-forward asks, and it is asked of the object
+::    graph rather than of a cached count. Walks parents back from the
+::    remote tip and stops the moment it meets local, so taking on new
+::    commits costs only those commits.
+::
+::    Reads loose objects AND packs. A fetch stores what it brought in a
+::    pack, so a walk over the loose store alone cannot tell "local has
+::    commits origin lacks" from "those objects are not where I looked",
+::    and will answer the first when it means the second.
+::
+::    ~ means undecidable: the walk met an object it could not read. A
+::    caller must not read that as either answer.
+::
+++  behind-or-equal
+  |=  [local=hash:git-repo remote=hash:git-repo]
+  =/  m  (fiber:fiber:nexus ,(unit ?))
   ^-  form:m
-  ;<  status-rd=road:tarball  bind:m
-    (ancestor-road:io [/git %repo] [%& /data/ui %'status.json'])
-  ;<  status-view=view:nexus  bind:m  (peek:io status-rd `[/ %json])
-  =/  status-json=json  (view-to-json status-view)
-  ?.  ?=(%o -.status-json)  (pure:m 0)
-  =/  ah  (~(get by p.status-json) 'ahead')
-  ?.  ?=([~ %n *] ah)  (pure:m 0)
-  (pure:m (fall (rush p.u.ah dem) 0))
+  ?:  =(local remote)  (pure:m `&)
+  ?:  =(0x0 local)     (pure:m `&)
+  ?:  =(0x0 remote)    (pure:m `|)
+  ;<  obj-rd=road:tarball  bind:m
+    (ancestor-road:io [/git %repo] [%| /data/objects])
+  ;<  obj-view=view:nexus  bind:m  (peek:io obj-rd ~)
+  =/  loose=(map hash:git-repo object:git-obj)
+    ?.  ?=([%ball *] obj-view)  ~
+    (read-loose-from-ball ball.obj-view)
+  ;<  pak-rd=road:tarball  bind:m
+    (ancestor-road:io [/git %repo] [%| /data/packs])
+  ;<  pak-view=view:nexus  bind:m  (peek:io pak-rd ~)
+  =/  packs=(list pack:git-pack)
+    ?.  ?=([%ball *] pak-view)  ~
+    (load-packs-from-ball ball.pak-view)
+  ::  one object, from the loose store or whichever pack holds it
+  =/  fetch
+    |=  h=hash:git-repo
+    ^-  (unit object:git-obj)
+    =/  l=(unit object:git-obj)  (~(get by loose) h)
+    ?^  l  l
+    |-  ^-  (unit object:git-obj)
+    ?~  packs  ~
+    =/  hit=(unit object:git-obj)  (~(get git-pack i.packs) h)
+    ?^  hit  hit
+    $(packs t.packs)
+  ::  every parent, not the first only: history is a graph
+  =|  seen=(set hash:git-repo)
+  =|  blind=?
+  =/  todo=(list hash:git-repo)  ~[remote]
+  |-  ^-  form:m
+  ?~  todo  (pure:m ?:(blind ~ `|))
+  =/  h=hash:git-repo  i.todo
+  ?:  =(h local)  (pure:m `&)
+  ?:  (~(has in seen) h)  $(todo t.todo)
+  =.  seen  (~(put in seen) h)
+  =/  obj=(unit object:git-obj)  (fetch h)
+  ?~  obj  $(todo t.todo, blind &)
+  ?.  ?=(%commit -.u.obj)  $(todo t.todo, blind &)
+  $(todo (weld parents.commit.u.obj t.todo))
 ::  +op-branch: create refs/heads/<name> at the current HEAD.
 ::
 ++  op-branch
@@ -930,15 +975,27 @@
   ?:  =(local head-text)
     (pure:m [%ok ?~(fetched 'already up to date' (crip u.fetched))])
   ;<  clean=?  bind:m  working-tree-clean
-  ;<  ahead=@ud  bind:m  local-ahead
-  ?.  &(clean =(0 ahead))
-    =/  why=tape
-      ?.  clean  "the working tree has uncommitted changes"
-      "local {(trip active-ref)} is {(scow %ud ahead)} commit(s) ahead of origin"
+  =/  local-hash=(unit hash:git-repo)
+    (rust (trip local) parse-hash-sha-1:git-transport)
+  ;<  ff=(unit ?)  bind:m
+    =/  m  (fiber:fiber:nexus ,(unit ?))
+    ?~  local-hash  (pure:m ~)
+    (behind-or-equal u.local-hash head-hash)
+  ?.  &(clean ?=([~ %&] ff))
+    ::  each reason carries only the remedy that applies to it
+    =/  [why=tape fix=tape]
+      ?.  clean
+        :-  "the working tree has uncommitted changes"
+        "Commit or stash, then pull."
+      ?~  ff
+        :-  "cannot tell whether {(trip active-ref)} is behind origin: an object did not read"
+        "Re-fetch, then pull, or merge by hand."
+      :-  "local {(trip active-ref)} has commits origin does not"
+      "Push first, or merge by hand if origin has moved too."
     %-  pure:m
     :-  %ok
     %-  crip
-    :(weld pre "local {(trip active-ref)} and the tree kept: {why}. " "Commit or stash, then pull, or push first.")
+    :(weld pre "local {(trip active-ref)} and the tree kept: {why}. " fix)
   ;<  ~  bind:m  (advance-local branch-refs active-ref)
   ;<  ~  bind:m  (reload:io data-rd)
   %-  pure:m
