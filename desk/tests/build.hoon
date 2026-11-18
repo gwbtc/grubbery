@@ -757,31 +757,49 @@
     (expect !>(=(%.y !=(main-key1 main-key2))))
   ==
 ::
-++  test-build-all-no-key-for-failed-build
-  ::  When compilation fails, no key should be in the key map
+++  test-build-all-failed-build-keyed-but-not-cached
+  ::  A key identifies a rail's INPUTS -- source hash, path, and its
+  ::  deps' keys -- so every rail gets one, built or not: a dependent's
+  ::  own key is computed from its deps' keys with a hard +got, and a
+  ::  failed dep with no key would crash the build instead of reporting
+  ::  the failure. What a failure withholds is the ARTIFACT: nothing is
+  ::  put in the cache, and the result is a %| tang.
   =/  =ball:tarball
     (~(put ba:tarball *ball:tarball) [/ %'bad.hoon'] [[/ %hoon] %& !>('|=(')])
   =/  res  (build-all:build !>(~) ball *build-cache:build)
-  %+  expect-eq
-    !>  ~
-  !>  (~(get by keys.res) [/ %'bad.hoon'])
+  =/  key=(unit @uv)  (~(get by keys.res) [/ %'bad.hoon'])
+  ;:  weld
+    ::  keyed
+    (expect !>(?=(^ key)))
+    ::  and failed
+    (expect !>(?=([~ %| *] (~(get by results.res) [/ %'bad.hoon']))))
+    ::  with no artifact under that key
+    (expect !>(?~(key %.y ?=(~ (~(get by cache.res) u.key)))))
+  ==
 ::
-++  test-build-all-key-appears-after-fix
-  ::  File fails, then source is fixed — key should appear
+++  test-build-all-artifact-appears-after-fix
+  ::  File fails, then the source is fixed. The key CHANGES, because the
+  ::  source hash is part of it, and the new key is the one that carries
+  ::  an artifact -- so a fixed file is never served the broken build.
   =/  ball1=ball:tarball
     (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [[/ %hoon] %& !>('|=(')])
   =/  res1  (build-all:build !>(~) ball1 *build-cache:build)
-  =/  key1  (~(get by keys.res1) [/ %'foo.hoon'])
+  =/  key1=(unit @uv)  (~(get by keys.res1) [/ %'foo.hoon'])
   ::  fix the source
   =/  ball2=ball:tarball
     (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [[/ %hoon] %& !>('|=(a=@ a)')])
   =/  res2  (build-all:build !>(~) ball2 cache.res1)
-  =/  key2  (~(get by keys.res2) [/ %'foo.hoon'])
+  =/  key2=(unit @uv)  (~(get by keys.res2) [/ %'foo.hoon'])
   ;:  weld
-    ::  no key when broken
-    (expect !>(=(%.y ?=(~ key1))))
-    ::  key exists after fix
-    (expect !>(=(%.y ?=(^ key2))))
+    ::  both are keyed, and the fix is a different key
+    (expect !>(?=(^ key1)))
+    (expect !>(?=(^ key2)))
+    (expect !>(!=(key1 key2)))
+    ::  the broken build left no artifact; the fixed one did
+    (expect !>(?~(key1 %.y ?=(~ (~(get by cache.res2) u.key1)))))
+    (expect !>(?~(key2 %.n ?=(^ (~(get by cache.res2) u.key2)))))
+    ::  and it built
+    (expect !>(?=([~ %& *] (~(get by results.res2) [/ %'foo.hoon']))))
   ==
 ::
 ++  test-build-all-keys-change-fail-fix-change
