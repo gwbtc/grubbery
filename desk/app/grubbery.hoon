@@ -121,6 +121,11 @@
 ::  a single take too big for the loom is not helped by any budget.
 ::
 ++  take-budget  ^-(@ud 50)
+::  +tally-cap: how many takes /grubbery/api/queue will group by grub
+::  before answering with counts alone. The grouping is a roll into a map
+::  and a sort, both of which run inside the request's event.
+::
+++  tally-cap  ^-(@ud 10.000)
 ::  +take-pause: how long to wait before the next batch. Not a throttle:
 ::  the wait is how you get another event at all. Keep it small.
 ::
@@ -197,12 +202,8 @@
   ::  any other state and load -> dart -> pend -> take are in the
   ::  migration chain at the ordinary price.
   ::
-  ::  Emptying it here (what this did until %16) silently truncated a
-  ::  cascade the take budget had legitimately split across events, and
-  ::  nacked nobody: the caller simply never heard. The old note argued
-  ::  it cost nothing because a cascade used to finish in its event or
-  ::  bail and roll back -- true before `owed` existed, and `owed`
-  ::  exists precisely because that is no longer how a cascade runs.
+  ::  Emptying it would truncate a cascade the take budget had split
+  ::  across events, and nack nobody: the caller would never hear.
   !>(state)
 ::
 ++  on-load
@@ -701,7 +702,12 @@
     ::  resume a cascade the budget cut short (see +abet). The wake only
     ::  moves `owed` back into the live queue; +abet drains it, and parks
     ::  whatever is still left for the next wake.
+    ::
+    ::  Halted there is nothing to resume into: +abet would gas the whole
+    ::  queue straight back, which at a large `owed` is a full round trip
+    ::  of it for no progress.
     =^  cards  state
+      ?:  halt  abet:hc
       abet:resume-owed:hc
     [cards this]
     ::
@@ -7177,7 +7183,12 @@
   ::  +compute-peer-weir-from already unions every ship's weir with
   ::  /public's grant -- so it needs no position of its own, and no
   ::  usergroup carries a weir for it to stand in.
-  =.  this  (ensure-peer-ship src)
+  ::
+  ::  An unauthenticated request arrives as a fresh guest comet, so
+  ::  materializing a directory here costs three grubs and three fibers
+  ::  per request, bounded only by how many requests arrive. No
+  ::  directory means no grub representation means no access.
+  ::  =.  this  (ensure-peer-ship src)
   [(ship-sig-rail src) this]
 ::  +asker-allowed: pre-check an HTTP op so a veto becomes a 403
 ::
@@ -7436,6 +7447,7 @@
   ?+    [method endpoint]  ~
       [%'GET' ?(%peek %keep %born %build %bang %queue %procs)]  `%peek
       [%'POST' %poke]                `%poke
+      [%'POST' %load]                `%make
       [%'PUT' ?(%make %sand)]        `%make
       [%'DELETE' ?(%cull %sand)]     `%make
   ==
@@ -7480,8 +7492,9 @@
 ++  ball-op-dest
   |=  [endpoint=@tas api-path=path]
   ^-  (unit lane:tarball)
-  ::  a weir is set on a directory, never on a grub
-  ?:  ?=(%sand endpoint)
+  ::  a weir is set on a directory, never on a grub; a nexus is loaded at
+  ::  its fold, likewise
+  ?:  ?=(?(%sand %load) endpoint)
     =/  bare=path
       ?:  ?&(?=(^ api-path) =('' (rear api-path)))  (snip `path`api-path)
       api-path
@@ -7671,11 +7684,10 @@
         [[403 ~] `(as-octs:mimes:html 'Forbidden')]
       =/  want=?  =(%halt i.t.t.site)
       =.  halt  want
-      ::  no ?=(^ owed) guard here: narrowing a qeu (a recursive type)
-      ::  stops it nesting under the `to` door's sample, which is a
-      ::  mull-grow at the ~(tap to owed) below.
-      ~?  >  want
-        [%grubbery-halted owed=(lent ~(tap to owed))]
+      ::  counted without a ?=(^ owed) test: narrowing a qeu, a recursive
+      ::  type, stops it nesting under the `to` door's sample.
+      =/  owing=@ud  (lent ~(tap to owed))
+      ~&  >  ?:(want [%grubbery-halted owed=owing] [%grubbery-resumed owed=owing])
       %-  emit-cards
       %+  give-simple-payload:app:server  eyre-id
       :+  [200 ['content-type' 'application/json']~]
@@ -7684,15 +7696,123 @@
       %-  en:json:html
       %-  pairs:enjs:format
       :~  ['halt' b+want]
-          ['owed' (numb:enjs:format (lent ~(tap to owed)))]
+          ['owed' (numb:enjs:format owing)]
       ==
+    ::  POST /grubbery/api/flush: drop everything owed.
+    ::
+    ::  Each is nacked first, so a caller waiting on one hears that it
+    ::  failed rather than waiting forever. Only the namespace is
+    ::  reified: a fiber that must survive this writes its intent to a
+    ::  grub before acting, and resumes from there.
+    ::
+    ?:  ?&  =(%'POST' method.request.req)
+            ?=([%grubbery %api %flush *] site)
+        ==
+      ?.  =(our.bowl src.bowl)
+        %-  emit-cards
+        %+  give-simple-payload:app:server  eyre-id
+        [[403 ~] `(as-octs:mimes:html 'Forbidden')]
+      =/  owing=(list take:nexus)  ~(tap to owed)
+      =/  dropped=@ud  (lent owing)
+      =.  owed  ~
+      =.  this
+        |-  ^+  this
+        ?~  owing  this
+        =.  this
+          %^    nack-poke-takes
+              here.i.owing
+            (~(gas to *(qeu take:fiber:nexus)) ~[+.i.owing])
+          ~[leaf+"flushed"]
+        $(owing t.owing)
+      %-  emit-cards
+      %+  give-simple-payload:app:server  eyre-id
+      :+  [200 ['content-type' 'application/json']~]
+        ~
+      %-  as-octs:mimes:html
+      %-  en:json:html
+      (pairs:enjs:format ~[['flushed' (numb:enjs:format dropped)]])
+    ::  POST /grubbery/api/load/<fold>/: run a nexus's on-load.
+    ::
+    ::  +reload-nexus rebuilds the nexus and runs its on-load against
+    ::  `this`, so the outcome is settled before the response is written.
+    ::  It crashes on a fold that holds no nexus, so the fold is checked
+    ::  here and answered 404 rather than taking the event down.
+    ::
+    ?:  ?&  =(%'POST' method.request.req)
+            ?=([%grubbery %api %load *] site)
+        ==
+      =/  raw=path  t.t.t.site
+      =/  fold=path
+        ?:  ?&(?=(^ raw) =('' (rear raw)))  (snip `path`raw)
+        raw
+      =/  b=ball:tarball  (peek-ball-now fold)
+      ?.  ?&  ?=(^ fil.b)
+              ?=(^ neck.u.fil.b)
+          ==
+        %-  emit-cards
+        %+  give-simple-payload:app:server  eyre-id
+        [[404 ~] `(as-octs:mimes:html 'No nexus here')]
+      =.  this  (reload-nexus fold)
+      %-  emit-cards
+      %+  give-simple-payload:app:server  eyre-id
+      [[200 ~] `(as-octs:mimes:html 'Loaded')]
+    ::  DELETE /grubbery/api/cull/<path>: culled HERE, by the kernel.
+    ::
+    ::  A cull is a kernel operation: it applies to `this` in this event
+    ::  and its outcome is settled before the response is written. Served
+    ::  through a request fiber it would need a TAKE to run, and so would
+    ::  not run at all on a halted kernel.
+    ::
+    ::  What the cull provokes -- news to whoever was subscribed to what
+    ::  just went away -- queues as takes like any other consequence, and
+    ::  parks if the kernel is halted. That part is meant to be
+    ::  asynchronous; the deletion itself never was.
+    ::
+    ::  Gating already happened above: +ball-op-dest maps %cull to a
+    ::  %make jump and +asker-allowed judged it from the asker's rail.
+    ::
+    ?:  ?&  =(%'DELETE' method.request.req)
+            ?=([%grubbery %api %cull *] site)
+        ==
+      =/  raw=path  t.t.t.site
+      ::  +api-lane answers an EMPTY path with [%| /] -- the whole
+      ::  namespace. ball-api refuses that case and so must this.
+      ?~  raw
+        %-  emit-cards
+        %+  give-simple-payload:app:server  eyre-id
+        [[400 ~] `(as-octs:mimes:html 'Path required')]
+      =/  dest=(unit lane:tarball)  (api-lane raw)
+      ?~  dest
+        %-  emit-cards
+        %+  give-simple-payload:app:server  eyre-id
+        [[400 ~] `(as-octs:mimes:html 'Path required')]
+      ::  absent is a 404, not a silent success -- same as +serve-file-cull
+      =/  present=?
+        ?-  -.u.dest
+          %&  ?=(^ (peek-grub-now p.u.dest))
+          %|  (api-fold-exists p.u.dest)
+        ==
+      ?.  present
+        %-  emit-cards
+        %+  give-simple-payload:app:server  eyre-id
+        [[404 ~] `(as-octs:mimes:html 'Not found')]
+      =.  this  (cull u.dest)
+      %-  emit-cards
+      %+  give-simple-payload:app:server  eyre-id
+      [[200 ~] `(as-octs:mimes:html 'Deleted')]
     ::  ARCHITECTURAL RULE: a request enters the namespace (materializes
     ::  as a grub in /sys/eyre/requests, spawning a fiber) ONLY if it
     ::  needs a general-purpose ASYNCHRONOUS script to handle it — one
-    ::  that emits darts and awaits responses (writes, pokes, keep-SSE,
-    ::  upload). A request answerable synchronously from current state —
-    ::  every built-in read — is served inline here: no grub, no
-    ::  make+cull cascade, no permanent event-log record per read.
+    ::  that emits darts and awaits responses. That is keep-SSE, which is
+    ::  a long-lived subscription, and multipart upload, which is many
+    ::  steps. Everything else is served inline here: no grub, no
+    ::  make+cull cascade, no permanent event-log record per request.
+    ::
+    ::  A make, a cull or a sand applies to `this` in this event and its
+    ::  outcome is settled before the response is written, so none of
+    ::  them is asynchronous and none belongs in a fiber. Poke carries
+    ::  the one genuine asynchrony: enqueueing is immediate, being
+    ::  CONSUMED is not, and a caller may want to hear about either.
     ::
     =/  handled=(unit (list card:agent:gall))
       (serve-api-read-sync eyre-id src.bowl req)
@@ -7937,8 +8057,13 @@
         ::  halted, nothing is draining and `owed` only grows. Without
         ::  this the readout looks like an idle ship with a backlog.
         ['halt' b+halt]
-        ['live-by-grub' (rows (tally live))]
-        ['owed-by-grub' (rows (tally park))]
+        ::  the tally rolls every take into a map and sorts it, which is
+        ::  affordable at a backlog and not at a flood -- and a flood is
+        ::  when this is worth reading. Past the cap the counts above
+        ::  still answer and the breakdown is empty.
+        ['tallied' b+(lte (max (lent live) (lent park)) tally-cap)]
+        ['live-by-grub' ?:((gth (lent live) tally-cap) a+~ (rows (tally live)))]
+        ['owed-by-grub' ?:((gth (lent park) tally-cap) a+~ (rows (tally park)))]
     ==
   ::
       ::  GET /grubbery/api/procs/<path> -- the fibers under here as the

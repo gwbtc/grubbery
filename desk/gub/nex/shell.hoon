@@ -3825,12 +3825,11 @@
 ::  +build-asks: materialize the pending-asks view into /permit/asks.json so
 ::  the UI fetches a ready grub instead of re-running read-app-weirs +
 ::  alias-menu marking on every request. Same diff-then-write discipline as
-::  build-links. This is the WHOLE-array build, and it costs a peek or
-::  two per installed app, so only single-shot callers belong here: the
-::  /sync coordinator, and do-suppress (hidden changes affect the @name
-::  resolution marking, which touches every row). A follower refreshing
-::  one app goes through +patch-ask -- N of these in one event was what
-::  made an uninstall expensive.
+::  build-links. This is the WHOLE-array build and costs a peek or two
+::  per installed app, so only single-shot callers belong here: the
+::  /sync coordinator, and do-suppress (a hidden change affects the
+::  @name resolution marking on every row). A follower refreshing one
+::  app goes through +patch-ask.
 ::
 ++  build-asks
   |=  rail=rail:tarball
@@ -3872,13 +3871,10 @@
   ;<  have=(list json)  bind:m  (read-asks rail)
   ?:  =(want have)  (pure:m ~)
   (put:io (nex-road:io rail [%& /cache %'asks.json']) [[/ %json] [%a want]])
-::  +patch-ask: refresh ONE app's row. A follower already knows which app
-::  changed, so calling +build-asks -- which re-reads every installed
-::  app's weir -- was the N x A that made uninstalling an N-nexus desk
-::  expensive: N followers each scanning all A apps, in one event, to
-::  produce a file whose only real change was N entries. This is flat;
-::  aliases.json and hidden.json are already materialized, so the cost is
-::  a handful of peeks however much is installed.
+::  +patch-ask: refresh ONE app's row. A follower knows which app it
+::  follows, so it has no reason to re-read every other app's weir the
+::  way +build-asks does. Flat in the number installed: aliases.json and
+::  hidden.json are already materialized, so this is a handful of peeks.
 ::
 ++  patch-ask
   |=  [rail=rail:tarball root=path]
