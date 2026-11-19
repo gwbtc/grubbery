@@ -1596,12 +1596,18 @@
 ::  respond-transfer: poke the caller's grubbery back with a transfer, on
 ::  /[tag]/[caller-ship] — tag is the request kind (peek or want).
 ::
+::  Every fixed peer wire (peek want keep drop wave pack) ends in a
+::  generation, /g1. A new wire is a new ames flow, so bumping it
+::  moves peers off a flow whose head plea the receiver never acked
+::  (urbit/urbit#7415): ames delivers in order, and every later
+::  reply would wait behind it.
+::
 ++  respond-transfer
   |=  [tag=@tas resp=transfer:remo:nexus]
   ^+  this
   =.  cards
     :_  cards
-    :*  %pass  /[tag]/[(scot %p src.bowl)]
+    :*  %pass  /[tag]/[(scot %p src.bowl)]/g1
         %agent  [src.bowl %grubbery]  %poke  grubbery-transfer+!>(resp)
     ==
   this
@@ -1618,7 +1624,7 @@
   =.  cards
     :_  cards
     =/  dest=@p  (slav %p (snag 3 path.watcher))
-    [%pass /keep/[(scot %p dest)] %agent [dest %grubbery] %poke grubbery-intake+!>(resp)]
+    [%pass /keep/[(scot %p dest)]/g1 %agent [dest %grubbery] %poke grubbery-intake+!>(resp)]
   this
 ::  +drop: remove a remote watcher.
 ::
@@ -1689,7 +1695,7 @@
       [/want %want dest.resp snap-id.resp]
     =.  cards
       :_  cards
-      [%pass /want/[(scot %p src)] %agent [src %grubbery] %poke grubbery-transfer+!>(want-req)]
+      [%pass /want/[(scot %p src)]/g1 %agent [src %grubbery] %poke grubbery-transfer+!>(want-req)]
     this
     ::
       %want
@@ -1760,7 +1766,7 @@
   =/  req=load:remo:nexus  [[wire.resp dest.resp] %drop ~]
   =.  cards
     :_  cards
-    [%pass /drop/[(scot %p src)] %agent [src %grubbery] %poke grubbery-load+!>(req)]
+    [%pass /drop/[(scot %p src)]/g1 %agent [src %grubbery] %poke grubbery-load+!>(req)]
   this
 ::  +abet: run the take queue dry, then return cards and state
 ::
@@ -3600,7 +3606,7 @@
         [wire target wave]
       =.  cards.acc
         :_  cards.acc
-        [%pass /wave/[(scot %p dest)] %agent [dest %grubbery] %poke grubbery-intake+!>(resp)]
+        [%pass /wave/[(scot %p dest)]/g1 %agent [dest %grubbery] %poke grubbery-intake+!>(resp)]
       acc
     ::  Local watcher: deliver directly
     (enqu-take:acc watcher ~ ~ %news wire wave)
@@ -3948,7 +3954,7 @@
           [[wire.dart real-dest] %keep ~]
         =.  cards
           :_  cards
-          [%pass /keep/[(scot %p target)] %agent [target %grubbery] %poke grubbery-load+!>(req)]
+          [%pass /keep/[(scot %p target)]/g1 %agent [target %grubbery] %poke grubbery-load+!>(req)]
         this
       ::  Local subscribe
       =.  this  (sub-put u.dest-lane here wire.dart blot.load.dart)
@@ -3967,7 +3973,7 @@
           [[wire.dart real-dest] %drop ~]
         =.  cards
           :_  cards
-          [%pass /drop/[(scot %p target)] %agent [target %grubbery] %poke grubbery-load+!>(req)]
+          [%pass /drop/[(scot %p target)]/g1 %agent [target %grubbery] %poke grubbery-load+!>(req)]
         ::  the peer never answers a drop, so the %fell the dropping fiber
         ::  waits on (+drop = send %drop, +take-fell) has to come from here,
         ::  as it does for a local road. Without it a fiber that drops a
@@ -4093,7 +4099,7 @@
       [[wire.dart real-dest] %peek case.load.dart deep.load.dart]
     =.  cards
       :_  cards
-      [%pass /peek/[(scot %p target)] %agent [target %grubbery] %poke grubbery-load+!>(req)]
+      [%pass /peek/[(scot %p target)]/g1 %agent [target %grubbery] %poke grubbery-load+!>(req)]
     this
   ::  Peek at dest - directory returns ball+born, file returns cage
   ::  Returns %none if directory doesn't exist or has no lump
@@ -4411,7 +4417,7 @@
     =/  target=(unit @p)  (slaw %p i.t.t.t.path.here)
     ?~  target  this
     =/  =transfer:remo:nexus  [wire.u.in.take %pack err.u.in.take]
-    (emit-card [%pass /pack %agent [u.target %grubbery] %poke grubbery-transfer+!>(transfer)])
+    (emit-card [%pass /pack/g1 %agent [u.target %grubbery] %poke grubbery-transfer+!>(transfer)])
   ::  an outcome landing on a ship.sig with a %client wire is the
   ::  result of a grub-cmd from an external agent on that ship (the
   ::  thin surface, sur/grub) — give it as a %grub-fact on the
