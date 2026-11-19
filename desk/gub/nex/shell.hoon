@@ -517,7 +517,7 @@
             %+  put:io  (nex-road:io rail [%& /permit %'notified.json'])
             [[/ %json] [%o (~(del by notified) key)]]
           ;<  ~  bind:m  (build-links rail)
-          ;<  ~  bind:m  (build-asks rail)
+          ;<  ~  bind:m  (drop-ask rail u.ap)
           ;<  ~  bind:m  (build-share rail)
           (pure:m ~)
         ::  a real change to our app's declarations: notify if the ask is
@@ -528,7 +528,7 @@
         ;<  ~  bind:m
           (poke:io (nex-road:io rail [%& / %'usergroups.sig']) [[/ %json] [%o ~]])
         ;<  ~  bind:m  (build-links rail)
-        ;<  ~  bind:m  (build-asks rail)
+        ;<  ~  bind:m  (patch-ask rail u.ap)
         ;<  ~  bind:m  (build-aliases rail)
         ::  a name this app claims may be one another app was granted
         ::  against: their sand follows the registry
@@ -3825,8 +3825,12 @@
 ::  +build-asks: materialize the pending-asks view into /permit/asks.json so
 ::  the UI fetches a ready grub instead of re-running read-app-weirs +
 ::  alias-menu marking on every request. Same diff-then-write discipline as
-::  build-links. Kept fresh by the followers and by
-::  do-suppress (hidden changes affect the @name resolution marking).
+::  build-links. This is the WHOLE-array build, and it costs a peek or
+::  two per installed app, so only single-shot callers belong here: the
+::  /sync coordinator, and do-suppress (hidden changes affect the @name
+::  resolution marking, which touches every row). A follower refreshing
+::  one app goes through +patch-ask -- N of these in one event was what
+::  made an uninstall expensive.
 ::
 ++  build-asks
   |=  rail=rail:tarball
@@ -3836,18 +3840,83 @@
   ;<  menus=json       bind:m  (build-alias-menus rail hidden %.n)
   ;<  asks=(list json)  bind:m  read-app-weirs
   =/  marked=(list json)  (turn asks |=(a=json (mark-unresolved a menus)))
-  =/  want=json  [%a marked]
-  ;<  cur=view:nexus  bind:m
-    (peek:io (nex-road:io rail [%& /cache %'asks.json']) `[/ %json])
-  =/  have=(unit json)
-    ?.  ?=([%file *] cur)  ~
-    (mole |.(!<(json (need-vase:tarball sang.cur))))
   ::  a %boot entry's apps are answered on the same scan that found them,
   ::  so the page never shows them pending and then grants them out from
   ::  under it
   ;<  ~  bind:m  (auto-consent rail marked)
-  ?:  =(`want have)  (pure:m ~)
-  (put:io (nex-road:io rail [%& /cache %'asks.json']) [[/ %json] want])
+  (write-asks rail marked)
+::  +read-asks / +write-asks: the pending-asks view, read and written in
+::  one place. Every writer goes through +write-asks so the array is
+::  always sorted by app: a patch must not be able to reorder what a full
+::  build produced, or the two would overwrite each other forever and
+::  every no-op would read as a change.
+::
+++  read-asks
+  |=  rail=rail:tarball
+  =/  m  (fiber:fiber:nexus ,(list json))
+  ^-  form:m
+  ;<  cur=view:nexus  bind:m
+    (peek:io (nex-road:io rail [%& /cache %'asks.json']) `[/ %json])
+  ?.  ?=([%file *] cur)  (pure:m ~)
+  =/  jon=(unit json)  (mole |.(!<(json (need-vase:tarball sang.cur))))
+  ?.  ?=([~ %a *] jon)  (pure:m ~)
+  (pure:m p.u.jon)
+::
+++  write-asks
+  |=  [rail=rail:tarball rows=(list json)]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  want=(list json)
+    %+  sort  rows
+    |=([a=json b=json] (aor (fall (jget a 'app') '') (fall (jget b 'app') '')))
+  ;<  have=(list json)  bind:m  (read-asks rail)
+  ?:  =(want have)  (pure:m ~)
+  (put:io (nex-road:io rail [%& /cache %'asks.json']) [[/ %json] [%a want]])
+::  +patch-ask: refresh ONE app's row. A follower already knows which app
+::  changed, so calling +build-asks -- which re-reads every installed
+::  app's weir -- was the N x A that made uninstalling an N-nexus desk
+::  expensive: N followers each scanning all A apps, in one event, to
+::  produce a file whose only real change was N entries. This is flat;
+::  aliases.json and hidden.json are already materialized, so the cost is
+::  a handful of peeks however much is installed.
+::
+++  patch-ask
+  |=  [rail=rail:tarball root=path]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  hidden=json      bind:m  (read-hidden rail)
+  ;<  menus=json       bind:m  (build-alias-menus rail hidden %.n)
+  ::  a dormant root has a follower but is no ask -- same rule the full
+  ::  build uses, so the two cannot disagree about this row. Dormant
+  ::  means no row, which REMOVES one if it is somehow there.
+  ;<  roots=(list path)  bind:m  app-roots
+  ;<  one=(unit json)  bind:m
+    ?:  (dormant-root root roots)
+      (pure:(fiber:fiber:nexus ,(unit json)) ~)
+    (read-app-weir root)
+  ;<  cur=(list json)  bind:m  (read-asks rail)
+  =/  ap=@t  (crip (spud root))
+  =/  others=(list json)
+    (skip cur |=(a=json =(ap (fall (jget a 'app') ''))))
+  =/  row=(unit json)  ?~(one ~ `(mark-unresolved u.one menus))
+  ::  answered on the same pass that found it, exactly as a full build
+  ::  does -- so a %boot app never shows as pending and is then granted
+  ::  out from under the page
+  ;<  ~  bind:m
+    ?~  row  (pure:(fiber:fiber:nexus ,~) ~)
+    (auto-consent rail ~[u.row])
+  (write-asks rail ?~(row others (snoc others u.row)))
+::  +drop-ask: forget ONE app's row. The uninstall counterpart of
+::  +patch-ask: the follower whose app is gone knows its own key, and
+::  removing it needs no reading of anybody else's.
+::
+++  drop-ask
+  |=  [rail=rail:tarball root=path]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  ap=@t  (crip (spud root))
+  ;<  cur=(list json)  bind:m  (read-asks rail)
+  (write-asks rail (skip cur |=(a=json =(ap (fall (jget a 'app') '')))))
 ::  +auto-consent: grant, once, the asks of apps under a %boot stock entry.
 ::  Only an app with no approved entry at all is touched: a grant the user
 ::  has since narrowed, frozen or dropped stands, and a later change to
@@ -3906,29 +3975,48 @@
   ::  code left the ball, its data was carried, and it keeps its weir.json.
   ::  It is not an ask anyone can act on, and listing it puts a permanent
   ::  "pending" on every ship that ever migrated an app. Skip it.
-  =/  leaves=(list @ta)
-    %+  murn  roots
-    |=  p=path
-    ^-  (unit @ta)
-    ?.  ?=([%apps @ta %desks @ta %desk %data @ta ~] p)  ~
-    `i.t.t.t.t.t.t.p
-  =.  roots
-    %+  skip  roots
-    |=  p=path
-    ^-  ?
-    ?.  ?=([%apps @ta ~] p)  |
-    =/  leaf=@ta  i.t.p
-    (lien leaves |=(l=@ta =(l leaf)))
+  =/  all=(list path)  roots
+  =.  roots  (skip roots |=(p=path (dormant-root p all)))
   =|  acc=(list json)
   |-  ^-  form:m
   ?~  roots  (pure:m (flop acc))
-  =/  root=path  i.roots
+  ;<  one=(unit json)  bind:m  (read-app-weir i.roots)
+  ?~  one  $(roots t.roots)
+  $(roots t.roots, acc [u.one acc])
+::  +dormant-root: is this /apps/X the shadow of an app whose code moved
+::  into a desk? Its code left the ball, its data was carried, and it kept
+::  its weir.json -- it is nobody's ask any more, and listing it puts a
+::  permanent "pending" on every ship that ever migrated an app.
+::
+::    Shared on purpose. +read-app-weirs skips these and +spawn-followers
+::    does NOT, so a dormant root HAS a follower: if that follower's
+::    +patch-ask used a different rule, it would write a row the next full
+::    build removes, and the two would overwrite each other forever.
+::
+++  dormant-root
+  |=  [root=path roots=(list path)]
+  ^-  ?
+  ?.  ?=([%apps @ta ~] root)  %.n
+  =/  leaf=@ta  i.t.root
+  %+  lien  roots
+  |=  p=path
+  ^-  ?
+  ?.  ?=([%apps @ta %desks @ta %desk %data @ta ~] p)  %.n
+  =(leaf i.t.t.t.t.t.t.p)
+::  +read-app-weir: ONE app's declared ask -- the body +read-app-weirs
+::  runs per root, factored out so a follower can refresh its own entry
+::  without the scan. See +patch-ask.
+::
+++  read-app-weir
+  |=  root=path
+  =/  m  (fiber:fiber:nexus ,(unit json))
+  ^-  form:m
   ;<  wv=view:nexus  bind:m
     (peek:io [%& %& [root %'weir.json']] `[/ %json])
-  ?.  ?=([%file *] wv)  $(roots t.roots)
+  ?.  ?=([%file *] wv)  (pure:m ~)
   =/  jon=(unit json)  (mole |.(!<(json (need-vase:tarball sang.wv))))
-  ?~  jon  $(roots t.roots)
-  ?.  ?=(%o -.u.jon)  $(roots t.roots)
+  ?~  jon  (pure:m ~)
+  ?.  ?=(%o -.u.jon)  (pure:m ~)
   ::  the app id IS its nexus-root path (disambiguates two nexuses of the
   ::  same name in different desks); path is the same.
   =/  ap=@t  (crip (spud root))
@@ -3949,7 +4037,7 @@
         ::  slash) it runs groups under
         ['groups' groups]
     ==
-  $(roots t.roots, acc [ask acc])
+  (pure:m `ask)
 ::  +read-app-group-keys: the usergroups an app asks for — the top-level
 ::  keys of the groups.json at its root. The contents are the app's
 ::  facts about them, read at derivation within the keys approved.
