@@ -934,13 +934,26 @@
 ++  read-config
   =/  m  (fiber:fiber:nexus ,repo-config)
   ^-  form:m
+  ::  identity and account are the forge's, held in its defaults.json; a
+  ::  repo that names its own overrides them, one that does not reads
+  ::  them from above. Stamping a copy into each repo on create is the
+  ::  convenience, not the source.
+  ;<  defs=road:tarball  bind:m
+    (ancestor-road:io [/git %forge] [%& / %'defaults.json'])
+  ;<  dv=view:nexus  bind:m  (peek:io defs `[/ %json])
+  =/  def=json
+    ?.  ?=([%file *] dv)  *json
+    (fall (mole |.(!<(json (need-vase:tarball sang.dv)))) *json)
+  =/  dget  |=(key=@t `@t`(fall (jget def key) ''))
+  =/  bare=repo-config
+    ['' 'main' (dget 'account') (dget 'author_name') (dget 'author_email')]
   ;<  road=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& / %'config.json'])
   ;<  =view:nexus  bind:m  (peek:io road `[/ %json])
   ?.  ?=([%file *] view)
-    (pure:m ['' 'main' '' '' ''])
+    (pure:m bare)
   =/  cfg=json  (fall (mole |.(!<(json (need-vase:tarball sang.view)))) *json)
   ?.  ?=(%o -.cfg)
-    (pure:m ['' 'main' '' '' ''])
+    (pure:m bare)
   =/  get
     |=  [key=@t default=@t]
     ^-  @t
@@ -948,8 +961,11 @@
     ?.  ?=([~ %s *] v)  default
     ?:(=('' p.u.v) default p.u.v)
   %-  pure:m
-  :*  (get 'repo' '')  (get 'ref' '')  (get 'account' '')
-      (get 'author_name' '')  (get 'author_email' '')
+  :*  (get 'repo' '')
+      (get 'ref' '')
+      (get 'account' account.bare)
+      (get 'author_name' author-name.bare)
+      (get 'author_email' author-email.bare)
   ==
 ::
 ::  +write-repo-file: write or create a file in the repo sub-nexus
