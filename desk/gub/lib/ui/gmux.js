@@ -93,6 +93,7 @@ const CSS = `
      first row and the quickbar come out the same height by construction, not by font math */
   .ps-bar-btn { all:unset; cursor:pointer; padding:0 6px; height:22px; box-sizing:border-box; display:inline-flex; align-items:center; border-radius:4px; color:#57606a; font-size:14px; line-height:1; }
   .ps-bar-btn:hover { background:#eaeef2; color:#24292f; }
+  .ps-bar-shut:hover { background:#ffebe9; color:#cf222e; }
   .ps-bar-btn[disabled] { opacity:.3; cursor:default; }
   .ps-bar-tabs { display:flex; align-items:center; gap:2px; flex:0 1 auto; min-width:0; overflow-x:auto; scrollbar-width:none; }
   .ps-bar-tabs::-webkit-scrollbar { display:none; }
@@ -142,6 +143,17 @@ const CSS = `
   .ps-hm-x:hover { background:#d7dde3; color:#cf222e; }
   .ps-hm-row:hover { background:#eaeef2; }
   .ps-hm-row.on { background:#ddf4ff; color:#0969da; font-weight:600; }
+  /* every structure action in one menu: a glyph column, then what it does.
+     Host-level like .ps-histmenu, so a pane's overflow:hidden cannot clip it. */
+  .ps-panemenu { position:absolute; z-index:31; display:none; flex-direction:column; min-width:238px; overflow-y:auto; background:#fff; border:1px solid #d0d7de; border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.15); padding:4px; }
+  .ps-panemenu.on { display:flex; }
+  .ps-mi { all:unset; cursor:pointer; display:grid; grid-template-columns:18px 1fr; align-items:center; gap:9px; padding:7px 10px; border-radius:6px; font:13px -apple-system,BlinkMacSystemFont,sans-serif; color:#24292f; white-space:nowrap; }
+  .ps-mi:hover { background:#f2f4f7; }
+  .ps-mi-ic { color:#8b949e; text-align:center; font-size:13px; line-height:1; }
+  .ps-mi:hover .ps-mi-ic { color:#24292f; }
+  .ps-mi.ps-danger:hover, .ps-mi.ps-danger:hover .ps-mi-ic { background:#ffebe9; color:#cf222e; }
+  .ps-mlbl { padding:8px 10px 3px; font:10px -apple-system,BlinkMacSystemFont,sans-serif; letter-spacing:.06em; text-transform:uppercase; color:#8b949e; }
+  .ps-msep { height:1px; margin:4px 8px; background:#e2e7ee; }
   .ps-hm-ic { opacity:.85; }
   /* one pill, anchored top-left of the SELECTED pane; materializes ITS bar */
   /* thin quick-action dropdown: ONE host-level element (like the old pill, so it
@@ -214,6 +226,7 @@ class Gmux extends HTMLElement {
   #markBox = null;
   #barToggle = null;            // the one host-level quickbar dropdown element
   #histMenu = null;
+  #paneMenu = null;
 
   connectedCallback() {
     ensureStyle();
@@ -227,27 +240,33 @@ class Gmux extends HTMLElement {
     // the selection sits in, or the selected pane itself
     const pid = () => (this.#pillPane || this.cursor || {}).id || this.#activeId;
     this.#barToggle.append(
-      act('▾', 'materialize the full topbar', () => this.setBar(pid(), true)),
-      act('⇄', 'flip the two panes of this division', () => this.flip(pid())),
-      act('⟳', 'turn this division a quarter turn clockwise', () => this.rotate(pid())),
-      act('⤓', 'collapse pane', () => this.collapse(pid())),
-      act('⤒', 'give these tabs to the marked pane (m marks one)', () => this.moveTabs(pid())),
-      act('⬉', 'select parent container', () => this.selectParent(pid())),
-      act('⛶', 'seat this pane: fill the whole window', () => this.seatPane(pid())),
-      act('↑', 'up a level', () => this.seatUp(pid())),
-      act('⤢', 'go to root', () => this.seatRoot()),
-      act('×', 'close pane', () => this.closeLeaf(pid())));
+      act('≡', 'bar: full \u2192 tabs only \u2192 hidden', () => this.cycleBar(pid())));
     const count = document.createElement('span'); count.className = 'ps-qb-count';   // sticky countdown, right-aligned
     this.#barToggle.append(count); this.#barToggle._count = count;
+    // the same menu the full bar carries, so a hidden bar is not a lesser one
+    const qbMore = document.createElement('button');
+    qbMore.className = 'ps-qb-btn ps-bar-more';
+    qbMore.textContent = '\u22ee';
+    qbMore.title = 'pane menu';
+    qbMore.addEventListener('mousedown', (e) => e.stopPropagation());
+    qbMore.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const mine = this.#paneMenu && this.#paneMenu.classList.contains('on') && this.#paneMenu.__anchor === qbMore;
+      this.#closePaneMenu();
+      if (!mine) { this.#holdPill(); this.#openPaneMenu(pid(), qbMore); }
+    });
+    this.#barToggle.append(qbMore, act('×', 'close pane', () => this.closeLeaf(pid())));
     this.#barToggle.addEventListener('mouseenter', () => this.#holdPill());         // interacting → keep it open
     this.#barToggle.addEventListener('mouseleave', () => this.#schedulePillHide(5000));
     this.#histMenu = this.#chrome('ps-histmenu');
+    this.#paneMenu = this.#chrome('ps-panemenu');
     // capture: once the prefix is down (or a move/resize repeat is armed) the
     // next key is ours before any content handler (a navigator's list) can
     // take it; at every other time #onKey lets the key pass untouched
     this.addEventListener('keydown', this.#onKey, true);
     window.addEventListener('keydown', this.#onKeyGlobal, true);     // armed-swap: bare Space anywhere
     this.addEventListener('mousedown', (e) => { if (this.#histMenu && this.#histMenu.classList.contains('on') && !this.#histMenu.contains(e.target) && !(e.target.closest && e.target.closest('.ps-histcaret'))) this.#closeHistMenu(); }, true);
+    this.addEventListener('mousedown', (e) => { if (this.#paneMenu && this.#paneMenu.classList.contains('on') && !this.#paneMenu.contains(e.target) && !(e.target.closest && e.target.closest('.ps-bar-more'))) this.#closePaneMenu(); }, true);
     this.addEventListener('sv-resize', this.#onSvResize);
     this.addEventListener('sv-collapse', this.#onSvCollapse);
     window.addEventListener('resize', this.#reposition);
@@ -347,19 +366,23 @@ class Gmux extends HTMLElement {
     // pane's current path deduped against the active tab every time --
     // which is always showing it -- so the button only re-selected it.
     const add = btn('+', 'new tab', () => this.newTab(id));
-    const viewBtn = btn('', 'rendering mode', () => this.#cycleView(id));
-    const menu = btn('≡', 'full bar / tabs only', () => this.setNav(id)); menu.classList.add('ps-bar-menu');
-    const hide = btn('▴', 'hide bar', () => this.setBar(id, false)); hide.classList.add('ps-bar-menu');   // stays in tabs-only too
+    const more = document.createElement('button');
+    more.className = 'ps-bar-btn ps-bar-more';
+    more.textContent = '\u22ee';
+    more.title = 'pane menu';
+    more.addEventListener('mousedown', (e) => e.stopPropagation());
+    more.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const mine = this.#paneMenu && this.#paneMenu.classList.contains('on') && this.#paneMenu.__anchor === more;
+      this.#closePaneMenu();
+      if (!mine) this.#openPaneMenu(id, more);
+    });
+    const menu = btn('≡', 'bar: full \u2192 tabs only \u2192 hidden', () => this.cycleBar(id)); menu.classList.add('ps-bar-menu');
+    // closing is one click, not two: it stays on the bar rather than going
+    // into the menu with the layout actions
+    const shut = btn('×', 'close pane', () => this.closeLeaf(id)); shut.classList.add('ps-bar-shut');
     const spacer = document.createElement('div'); spacer.className = 'ps-bar-spacer';
-    row1.append(menu, hide, tabs, add, spacer, viewBtn,
-      btn('◨', 'split right', () => this.splitRight(id)), btn('⬓', 'split down', () => this.splitDown(id)),
-      btn('⇄', 'flip the two panes of this division', () => this.flip(id)),
-      btn('⟳', 'turn this division a quarter turn clockwise', () => this.rotate(id)),
-      btn('⤓', 'collapse pane', () => this.collapse(id)),
-      btn('⤒', 'give these tabs to the marked pane (m marks one)', () => this.moveTabs(id)),
-      btn('⬉', 'select parent container', () => this.selectParent(id)),
-      btn('⛶', 'seat this pane: fill the whole window', () => this.seatPane(id)), btn('↑', 'up a level', () => this.seatUp(id)), btn('⤢', 'go to root', () => this.seatRoot()),
-      btn('×', 'close pane', () => this.closeLeaf(id)));
+    row1.append(menu, tabs, add, spacer, more, shut);
     // row 2 — history + navbar
     const row2 = document.createElement('div'); row2.className = 'ps-bar-row';
     // refresh: re-render the current moment in place (what it shows is
@@ -405,7 +428,7 @@ class Gmux extends HTMLElement {
     // `open` rules), edited in the layout file: nothing on the bar sets it
     row2.append(back, fwd, reload, nav);
     bar.append(row1, row2);
-    bar._back = back; bar._fwd = fwd; bar._tabs = tabs; bar._nav = input; bar._view = viewBtn; bar._chip = chip;
+    bar._back = back; bar._fwd = fwd; bar._tabs = tabs; bar._nav = input; bar._chip = chip;
     return bar;
   }
 
@@ -462,14 +485,6 @@ class Gmux extends HTMLElement {
     bar._nav.placeholder = (bar._chip && bar._chip.chipped && !bar._nav.value) ? '' : ph;
     let hint = ''; if (this.pathHint && navVal) { try { hint = this.pathHint(navVal) || ''; } catch (_) {} }
     bar._nav.title = hint;
-    // per-pane render-mode toggle — an ACTION button, so it shows the mode it
-    // will switch TO (not the current one).
-    if (this.viewModes && this.viewModes.length) {
-      const cur = this.#tabView(pane) || this.viewModes[0].id;
-      const i = this.viewModes.findIndex(v => v.id === cur);
-      const next = this.viewModes[(i + 1) % this.viewModes.length];
-      bar._view.textContent = next.glyph; bar._view.title = 'switch to ' + (next.title || next.id); bar._view.style.display = '';
-    } else bar._view.style.display = 'none';
   }
   // {icon,label} for one entry — host's tabInfo(path) wins for leaf entries.
   #entryMeta(e) {
@@ -549,6 +564,71 @@ class Gmux extends HTMLElement {
     el.addEventListener('click', (e) => { e.preventDefault(); });   // handled via mousedown/up
   }
   #closeHistMenu() { if (this.#histMenu) { this.#histMenu.classList.remove('on'); this.#histMenu.__anchor = null; } }
+  #closePaneMenu() { if (this.#paneMenu) { this.#paneMenu.classList.remove('on'); this.#paneMenu.__anchor = null; } }
+  // every structure action for one pane, grouped by what it does to the
+  // layout. Built on open so the rendering-mode row can name the mode it
+  // will switch TO, which depends on the pane's current tab.
+  #openPaneMenu(id, anchor) {
+    const menu = this.#paneMenu, p = this.#panes.get(id);
+    if (!menu || !p) return;
+    menu.textContent = '';
+    const row = (glyph, label, title, fn, cls) => {
+      const b = document.createElement('button');
+      b.className = 'ps-mi' + (cls ? ' ' + cls : '');
+      if (title) b.title = title;
+      const ic = document.createElement('span'); ic.className = 'ps-mi-ic'; ic.textContent = glyph;
+      const tx = document.createElement('span'); tx.className = 'ps-mi-tx'; tx.textContent = label;
+      b.append(ic, tx);
+      b.addEventListener('mousedown', (ev) => ev.stopPropagation());
+      b.addEventListener('click', (ev) => { ev.stopPropagation(); this.#closePaneMenu(); fn(); });
+      menu.appendChild(b);
+    };
+    const head = (t) => { const d = document.createElement('div'); d.className = 'ps-mlbl'; d.textContent = t; menu.appendChild(d); };
+    const sep = () => { const d = document.createElement('div'); d.className = 'ps-msep'; menu.appendChild(d); };
+    if (this.viewModes && this.viewModes.length) {
+      const cur = this.#tabView(p) || this.viewModes[0].id;
+      const i = this.viewModes.findIndex(v => v.id === cur);
+      const next = this.viewModes[(i + 1) % this.viewModes.length];
+      head('View');
+      row(next.glyph, 'Switch to ' + (next.title || next.id), '', () => this.#cycleView(id));
+      sep();
+    }
+    head('Split');
+    row('\u25e8', 'Split right', '', () => this.splitRight(id));
+    row('\u2b13', 'Split down', '', () => this.splitDown(id));
+    sep();
+    head('Arrange');
+    row('\u21c4', 'Flip this division', 'the two panes trade places', () => this.flip(id));
+    row('\u27f3', 'Rotate a quarter turn', 'clockwise', () => this.rotate(id));
+    // both of these are toggles, so each row says what it will do next
+    const folded = !!(p.parent && p.parent.div && p.parent.div.fold === p.parent.slot);
+    row(folded ? '\u2912' : '\u2913', folded ? 'Restore' : 'Minimize', '', () => this.collapse(id));
+    const seated = !!(this.seat && this.#addrWithin(this.#root, p) === this.seat);
+    row('\u26f6', seated ? 'Exit full screen' : 'Full screen', '', () => this.seatToggle(p));
+    // anchored under the trigger and right-aligned with it, then held inside
+    // the host: a pane near the right edge still shows the whole menu, and a
+    // pane near the bottom gets it above the trigger instead. Whichever side
+    // it lands on bounds its height, so a menu with nowhere to go scrolls
+    // rather than running off the host.
+    const cr = this.getBoundingClientRect(), r = anchor.getBoundingClientRect();
+    menu.style.maxHeight = '';
+    menu.style.top = '0px';
+    menu.style.left = '0px';
+    menu.classList.add('on');
+    const w = menu.offsetWidth, h = menu.offsetHeight;
+    const below = cr.height - (r.bottom - cr.top) - 6;
+    const above = (r.top - cr.top) - 6;
+    if (h > below && above > below) {
+      const cap = Math.max(80, above);
+      menu.style.maxHeight = cap + 'px';
+      menu.style.top = Math.max(0, (r.top - cr.top) - Math.min(h, cap) - 2) + 'px';
+    } else {
+      menu.style.maxHeight = Math.max(80, below) + 'px';
+      menu.style.top = (r.bottom - cr.top + 2) + 'px';
+    }
+    menu.style.left = Math.max(0, Math.min(r.right - cr.left - w, cr.width - w - 4)) + 'px';
+    menu.__anchor = anchor;
+  }
   // browser-style directional dropdown: 'back' = past (nearest first), 'forward'
   // = future (nearest first), 'all' = whole line newest-first.
   #openHistMenu(id, anchor, dir) {
@@ -1009,7 +1089,11 @@ class Gmux extends HTMLElement {
   // bring that tab's mode (and the bar's toggle) with it.
   #tabView(pane) { const t = pane && pane.tabs[pane.activeTab]; return (t && t.view) || null; }
   viewOf(id) { const p = this.#panes.get(id ?? this.#activeId); return this.#tabView(p); }
-  setView(id, v) { const p = this.#panes.get(id ?? this.#activeId); if (!p) return; const t = p.tabs[p.activeTab]; if (!t) return; t.view = v || null; this.#renderPane(p); this.#persist(); }
+  // rebuild, never update-in-place: +updateContent is asked whether it can
+  // keep the element for a new moment and only sees the path, so an unchanged
+  // path answers yes and the view change is swallowed. The view IS the
+  // content, so there is nothing to keep.
+  setView(id, v) { const p = this.#panes.get(id ?? this.#activeId); if (!p) return; const t = p.tabs[p.activeTab]; if (!t) return; t.view = v || null; this.#renderPane(p, true); this.#persist(); }
   cycleView(id) { return this.#cycleView(id); }
   #cycleView(id) {
     if (!this.viewModes || !this.viewModes.length) return;
@@ -1113,6 +1197,23 @@ class Gmux extends HTMLElement {
   // focus the pane's navbar (materializing its bar if hidden) and select the text,
   // ready for the user to type a path. Enter navigates, Esc restores & blurs.
   focusNav(id) { const p = this.#panes.get(id ?? this.#activeId); if (!p) return; if (!p.showBar) this.setBar(p.id, true); const input = p.bar && p.bar._nav; if (input) { input.focus(); input.select(); } }
+  // the bar has three states and the hamburger walks them: everything,
+  // tabs only, gone (and reachable again from the hover quickbar).
+  cycleBar(id) {
+    const p = this.#panes.get(id ?? this.#activeId); if (!p) return;
+    if (p.showBar && p.nav) { this.setNav(p.id, false); return; }
+    if (p.showBar) { this.setBar(p.id, false); return; }
+    this.setNav(p.id, true);
+    this.setBar(p.id, true);
+  }
+  // the bar's two useful ends, skipping the tabs-only step the hamburger
+  // walks through: everything, or nothing but the hover bar.
+  toggleBarFull(id) {
+    const p = this.#panes.get(id ?? this.#activeId); if (!p) return;
+    if (p.showBar) { this.setBar(p.id, false); return; }
+    this.setNav(p.id, true);
+    this.setBar(p.id, true);
+  }
   toggleBars() { this.#hoverToggle = !this.#hoverToggle; this.classList.toggle('ps-no-hovertoggle', !this.#hoverToggle); this.#positionBarToggle(); return this.#hoverToggle; }
 
   // ---- splitting: STRUCTURAL. active tab's history migrates to the child that
@@ -1670,7 +1771,15 @@ class Gmux extends HTMLElement {
   }
   #hidePill() { if (this.#barToggle) this.#barToggle.classList.remove('on'); this.#undisplace(); this.#holdPill(); this.#pillPane = null; }
   #holdPill() { if (this.#pillTimer) { clearInterval(this.#pillTimer); this.#pillTimer = null; } const el = this.#barToggle && this.#barToggle._count; if (el) el.textContent = ''; }
-  #schedulePillHide(ms) { this.#holdPill(); this.#pillEnd = Date.now() + ms; this.#tickPill(); this.#pillTimer = setInterval(() => this.#tickPill(), 200); }
+  // the quickbar's menu opens OUTSIDE it, so leaving the bar for the menu
+  // must not start the countdown — the bar would vanish from under its own
+  // dropdown while it is being read.
+  #schedulePillHide(ms) {
+    this.#holdPill();
+    if (this.#paneMenu && this.#paneMenu.classList.contains('on')
+        && this.#paneMenu.__anchor && this.#paneMenu.__anchor.closest('.ps-quickbar')) return;
+    this.#pillEnd = Date.now() + ms; this.#tickPill(); this.#pillTimer = setInterval(() => this.#tickPill(), 200);
+  }
   #tickPill() {
     const rem = this.#pillEnd - Date.now();
     if (rem <= 0) { this.#hidePill(); return; }
@@ -2023,6 +2132,7 @@ class Gmux extends HTMLElement {
       this.#cancelClose(); return;                                // anything else backs out
     }
     if (this.#histMenu && this.#histMenu.classList.contains('on') && e.key === 'Escape') { this.#closeHistMenu(); e.preventDefault(); e.stopPropagation(); return; }
+    if (this.#paneMenu && this.#paneMenu.classList.contains('on') && e.key === 'Escape') { this.#closePaneMenu(); e.preventDefault(); e.stopPropagation(); return; }
     if (this.#repeat && !this.#awaiting) {
       if (MODS[e.key]) return;
       const d = DIR[e.key];
@@ -2060,7 +2170,7 @@ class Gmux extends HTMLElement {
     else if (k === ' ') this.swap();
     else if (k === 'm') { const on = this.markToggle(); this.#flashHint(on ? 'marked — space on another pane swaps' : 'mark cleared'); }
     else if (k === 't') this.newTab(this.#activeId);   // always an EMPTY tab: passing a path would dedupe against the tab you are standing in
-    else if (k === 'T') this.setBar(this.#activeId);   // toggle the selected pane's bar
+    else if (k === 'T') this.toggleBarFull(this.#activeId);   // full bar or the hover bar, nothing between
     else if (k === ':') this.focusNav(this.#activeId); // jump to the navbar to type a path
     else if (k === 'i') { /* into the content: its input or navigator (focusContent runs below) */ }
     else if (k === 'w') this.closeTab(this.#activeId, this.cursor ? this.cursor.activeTab : -1);

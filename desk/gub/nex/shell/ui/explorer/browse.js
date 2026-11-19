@@ -720,8 +720,13 @@ function setup(root, opts) {
       const viewers = MOUNT ? MOUNT_VIEWERS : (VIEW ? VIEW.viewers : null);
       const base = MOUNT ? ROOT : (VIEW ? PREFIX + VIEW.at.replace(/\/+$/, '') : null);
       if (!viewers || !base) return null;
-      const rel = path === base ? '' : path.startsWith(base + '/') ? path.slice(base.length) : null;
+      let rel = path === base ? '' : path.startsWith(base + '/') ? path.slice(base.length) : null;
       if (rel === null) return null; // outside the declaring directory: not its path
+      // a directory is named by `kind`, not by a trailing slash, and the same
+      // directory reached two ways is spelled both ways: a layout entry says
+      // './itineraries', a typed path says 'itineraries/'. Ask about one
+      // spelling, or a rule matches depending on how you got there.
+      if (kind === 'dir') rel = rel.replace(/\/+$/, '');
       let blot = '';
       if (kind !== 'dir') {
         const info = await fetch(path + '?info=1').then((r) => r.json());
