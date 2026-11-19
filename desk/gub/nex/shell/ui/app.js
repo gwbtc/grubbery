@@ -531,11 +531,14 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     card.appendChild(lbl);
     var acts = document.createElement('div');
     acts.className = 'tile-actions';
-    var mg = document.createElement('a');
+    var mg = document.createElement('button');
     mg.className = 'tile-edit';
-    mg.textContent = 'desk';
-    mg.href = d.url || '#';
-    mg.onclick = function(e) { e.stopPropagation(); };
+    mg.textContent = 'view';
+    mg.onclick = function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      viewSuite(d, kids);
+    };
     acts.appendChild(mg);
     card.appendChild(acts);
     card.onclick = function() {
@@ -573,11 +576,9 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
   function paintSuites() {
     while (tilesDiv.firstChild) tilesDiv.removeChild(tilesDiv.firstChild);
     if (!suitesShown().length) {
-      var none = document.createElement('div');
-      none.className = 'empty';
-      none.textContent = deskCards.length ? 'every desk here ships a single app \u2014 see Apps, or show them in Settings'
-                                          : 'no desks installed';
-      tilesDiv.appendChild(none);
+      tilesDiv.appendChild(emptyNote(deskCards.length
+        ? 'every desk here ships a single app \u2014 see Apps, or show them in Settings'
+        : 'no desks installed'));
       return;
     }
     var shown = suitesShown();
@@ -633,7 +634,13 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
   // and clicking an app in it still opens the app.
   document.addEventListener('click', function(e) {
     if (!openSuite || tileTab !== 'suite') return;
-    if (e.target.closest && e.target.closest('.tile, .suite-strip')) return;
+    if (!e.target.closest) return;
+    if (e.target.closest('.tile, .suite-strip')) return;
+    // an overlay sits on top of the grid rather than being part of it, so a
+    // click inside one — the tile card, a dialog, the desks panel — is not a
+    // click away from the open suite. That includes the backdrop itself,
+    // which dismisses the overlay and nothing behind it.
+    if (e.target.closest('#edit-backdrop, #get-backdrop, .dlg-back')) return;
     openSuite = null;
     paintTiles();
   });
@@ -643,6 +650,25 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
   // modal offers "unhide". The button hides itself when nothing is hidden.
   var showingHidden = false;
   var allTiles = [];
+  // 'loading' until the first tiles.json lands, so an empty grid during the
+  // fetch shows a spinner rather than claiming the tab is empty. A reload
+  // with tiles already on screen stays 'ready': the old grid keeps showing
+  // while the new data is in flight.
+  var tilesState = 'loading';   // loading | ready | failed
+  // what an empty grid shows, which depends on why it is empty
+  function emptyNote(msg) {
+    var d = document.createElement('div');
+    d.className = 'empty';
+    if (tilesState === 'loading') {
+      d.className = 'empty spinning';
+      d.appendChild(document.createElement('div')).className = 'spinner';
+    } else if (tilesState === 'failed') {
+      d.textContent = 'failed to load tiles';
+    } else {
+      d.textContent = msg;
+    }
+    return d;
+  }
   // which launcher tab is showing. A tile with no kind reads as 'other',
   // so an app that never declared one lands in the junk drawer.
   var tileTab = 'app';
@@ -713,11 +739,8 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     // '' would delete them and force an image reload next time).
     while (tilesDiv.firstChild) tilesDiv.removeChild(tilesDiv.firstChild);
     if (!list.length) {
-      var empty = document.createElement('div');
-      empty.className = 'empty';
-      empty.textContent = showingHidden ? 'no hidden tiles'
-        : (tileTab === 'other' ? 'nothing here' : 'no ' + tileTab + ' tiles yet');
-      tilesDiv.appendChild(empty);
+      tilesDiv.appendChild(emptyNote(showingHidden ? 'no hidden tiles'
+        : (tileTab === 'other' ? 'nothing here' : 'no ' + tileTab + ' tiles yet')));
     } else {
       list.forEach(function(t) { tilesDiv.appendChild(getTileEl(t)); });
       if (loadingTile && !showingHidden) tilesDiv.appendChild(loadingTile);
@@ -742,6 +765,7 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     idle(step);
   }
   function renderTiles(tiles) {
+    tilesState = 'ready';
     tileData = {};
     tiles.forEach(function(t) { tileData[t.name] = t; });
     allTiles = tiles;
@@ -752,6 +776,11 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
   }
 
   function loadTiles() {
+    // a reload with tiles already up keeps showing them; only a cold load
+    // has nothing to show and needs the spinner -- and it has to paint now,
+    // because otherwise the first paint is the one that lands with the data
+    // and the spinner never appears
+    if (!allTiles.length) { tilesState = 'loading'; paintTiles(); }
     Promise.all([
       loadPrefs(),
       fetch('/grubbery/tiles/tiles.json').then(function(r) { return r.json(); }),
@@ -769,7 +798,10 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
         deskCards = (res[3] || []).filter(function(d) { return d.name !== 'grubbery.desk'; });
         renderTiles(res[1]);
       })
-      .catch(function() { tilesDiv.innerHTML = '<div class="empty">failed to load tiles</div>'; });
+      .catch(function() {
+        tilesState = allTiles.length ? 'ready' : 'failed';
+        paintTiles();
+      });
   }
 
   // the modal has three faces: a read-only card ('view'), a fields form
@@ -930,6 +962,54 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     if (t.hidden) row('Shown', text('hidden from the home grid'));
   }
 
+  // the same modal a tile uses, filled from a desk. A desk is not a tile:
+  // nothing here is editable, hideable or deletable, so the three header
+  // buttons stay down and the desk itself is reached from a row.
+  function viewSuite(d, kids) {
+    editTitle.textContent = d.title || d.name;
+    editStatus.textContent = '';
+    show('edit-edit', false);
+    show('edit-uninstall', false);
+    show('edit-hide', false);
+    var pv = document.getElementById('edit-preview');
+    pv.style.background = d.color || '#333';
+    var old = pv.querySelector('img');
+    if (old) old.remove();
+    if (d.icon) {
+      var im = document.createElement('img');
+      im.src = d.icon;
+      im.onerror = function() { this.remove(); };
+      pv.insertBefore(im, pv.firstChild);
+    }
+    document.getElementById('edit-preview-title').textContent = d.title || d.name;
+    var dl = document.getElementById('edit-fields');
+    dl.innerHTML = '';
+    function row(label, node) {
+      var dt = document.createElement('dt');
+      dt.textContent = label;
+      var dd = document.createElement('dd');
+      dd.appendChild(node);
+      dl.appendChild(dt);
+      dl.appendChild(dd);
+    }
+    if (d.info) row('About', document.createTextNode(d.info));
+    row('Kind', document.createTextNode('Suite'));
+    var dcode = document.createElement('code');
+    dcode.textContent = d.name;
+    row('Desk', dcode);
+    row('Apps', document.createTextNode(kids.length
+      ? kids.length + (kids.length === 1 ? ' app' : ' apps') + ' \u2014 ' +
+        kids.map(function(t) { return t.title || t.name; }).join(', ')
+      : 'nothing running yet'));
+    if (d.url) {
+      var a = document.createElement('a');
+      a.href = d.url;
+      a.textContent = 'open the desk';
+      row('Opens', a);
+    }
+    editBack.classList.add('open');
+  }
+
   function viewTile(el, name) {
     var t = tileData[name];
     if (!t) return;
@@ -962,6 +1042,8 @@ var API='/grubbery/api';var BALL='apps/shell'; // local tiles live in the shell'
     // hide / unhide this tile from the home grid (a user preference, stored
     // ship-side in hidden-tiles.json — any tile can be toggled)
     var hb = document.getElementById('edit-hide');
+    // a suite's card puts this down; a tile's always offers it
+    show('edit-hide', true);
     hb.textContent = t.hidden ? 'unhide' : 'hide';
     hb.onclick = function() {
       editBack.classList.remove('open');
