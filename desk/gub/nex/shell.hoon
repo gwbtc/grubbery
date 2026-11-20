@@ -1449,7 +1449,10 @@
   =/  m  (fiber:fiber:nexus ,(list [grp=path by=@t members=(set @p) =weir:nexus]))
   ^-  form:m
   ;<  rec0=json  bind:m  (read-groups-record rail)
-  ;<  rec=json  bind:m  (seed-groups-record rail rec0)
+  ;<  others=(list [grp=path by=@t members=(set @p) =weir:nexus])  bind:m
+    (gather-derived rail)
+  ;<  rec=json  bind:m
+    (seed-groups-record rail rec0 (silt (turn others head)))
   =/  from-user=(list [grp=path by=@t members=(set @p) =weir:nexus])
     =/  sec=json  (user-section rec)
     ?.  ?=(%o -.sec)  ~
@@ -1467,6 +1470,13 @@
       (murn p.u.v |=(j=json ?.(?=([%s *] j) ~ `p.j)))
     =/  roads  |=(k=@t (sy (murn (strs k) peers-parse-road)))
     `[u.grp 'manual' (sy (murn (strs 'members') |=(t=@t (slaw %p t)))) [(roads 'make') (roads 'poke') (roads 'peek')]]
+  (pure:m (weld from-user others))
+::  +gather-derived: every contribution but the user's: the /public base,
+::  the names opened, the desks opened and each granted app's groups.json
+++  gather-derived
+  |=  rail=rail:tarball
+  =/  m  (fiber:fiber:nexus ,(list [grp=path by=@t members=(set @p) =weir:nexus]))
+  ^-  form:m
   =/  base=[grp=path by=@t members=(set @p) =weir:nexus]
     :^  /public  'shell'  ~
     :+  ~  ~
@@ -1527,7 +1537,7 @@
     %+  weld
       (turn mine |=([grp=path members=(set @p) w=weir:nexus] [grp app.i.todo members w]))
     rest
-  (pure:m :(weld from-user [base ~] from-names from-desks from-facets from-apps))
+  (pure:m :(weld [base ~] from-names from-desks from-facets from-apps))
 ::  +apply-groups: every group's who.ships and how.weir, rewritten whole
 ::  from the union of every contribution (+gather-groups). A group nobody
 ::  contributes to is culled; /public always stands.
@@ -1595,8 +1605,13 @@
 ::  +seed-groups-record: a ship whose groups predate the record keeps
 ::  them: every group's members, and the roads of every group but
 ::  /public (whose roads are derived), become the user's section, once.
+::  Once means once: the record is written even when nothing is found,
+::  so an empty record is never taken as unseeded again. A group that an
+::  app or a shell feature names (`others`) is theirs, not the user's: a
+::  seed that took it would keep its members and roads after the app
+::  took them back.
 ++  seed-groups-record
-  |=  [rail=rail:tarball rec=json]
+  |=  [rail=rail:tarball rec=json others=(set path)]
   =/  m  (fiber:fiber:nexus ,json)
   ^-  form:m
   ?.  ?=(%o -.rec)  (pure:m rec)
@@ -1613,6 +1628,7 @@
     ::  /public is the shell's to name; the user's record carries only
     ::  what the user adds to it
     ?:  =(/public name)  ~
+    ?:  (~(has in others) name)  ~
     =/  who=(unit sang:tarball)  (~(get ba:tarball grp) [/ %'who.ships'])
     =/  how=(unit sang:tarball)  (~(get ba:tarball grp) [/ %'how.weir'])
     =/  members=(set @p)
@@ -1631,7 +1647,6 @@
         ['poke' (roads poke.weir)]
         ['peek' (roads peek.weir)]
     ==
-  ?:  =(~ user)  (pure:m rec)
   =/  rec2=json  [%o (~(put by *(map @t json)) 'user' [%o user])]
   ;<  ~  bind:m
     (put:io (nex-road:io rail [%& /permit %'groups.json']) [[/ %json] rec2])
