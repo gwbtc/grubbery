@@ -223,9 +223,16 @@
     opts = opts || {};
     injectStyle();
     root.classList.add('fv');
+    // bare before the markup is on screen, not after boot: the chrome is in
+    // the markup, so a class applied at the end of the sequence shows it and
+    // then takes it away
+    root.classList.toggle('bare', !!opts.bare);
     root.innerHTML = MARKUP;
     var wrapKey = opts.wrapKey || 'explorer-wrap';
     var numsKey = opts.numsKey || 'explorer-nums';
+    // opts.view fixes the pane and takes the tabs away: the host mounts this
+    // for one rendering and nothing else
+    var FIXED_PANE = { source: 'text', preview: 'mime', build: 'build' };
     // opts.readOnly — show the file but never let it be written (past versions)
     var $ = function (id) { return root.querySelector('#' + id); };
     // opts.versions: the host's version bar (this path's history, the way
@@ -280,7 +287,7 @@
     if (root.tabIndex < 0 && !root.hasAttribute('tabindex')) root.tabIndex = -1;
     // the viewer's own keys, when the keyboard is on the viewer and not in
     // a field or the editor: e edit · F the bare editor view (Esc leaves it)
-    // · 1 2 3 4 Source Preview Build viewer · s save · w n v wrap numbers
+    // · 1 3 4 Source Build viewer · s save · w n v wrap numbers
     // vim · c copy · ? this list. Reader keys below scroll.
     // ---- the pane's commands ----
     // One table, two ways in: vim's `:` inside the editor and the pane's
@@ -296,7 +303,7 @@
       return {
         q: function () { if (host.close) host.close(); },
         e: function (args) { if (args[0] && host.open) host.open(target(args)); },
-        bare: function () { if (opts.setBare) opts.setBare(!bare); else setBare(!bare); },
+        bare: function () { bareEditor(!bare); },
         mime: function () { say('mime type: ' + (mimeInput.value || mite)); },
         sp: function (args) { if (host.splitDown) host.splitDown(args[0] ? target(args) : null); },
         vs: function (args) { if (host.splitRight) host.splitRight(args[0] ? target(args) : null); }
@@ -305,7 +312,7 @@
     // a line to the person: vim's notification when the editor is up,
     // the status field otherwise
     function say(text) { status.textContent = text; if (ve && ve.notify) ve.notify(text); }
-    var KEYS = ': command (:e :vs :sp :q :bare :mime, :w in the editor) · e edit · F bare editor (Esc leaves) · 1 2 3 4 source preview build viewer · s save · w wrap · n numbers · v vim · c copy · j k ␣ scroll · in the editor :w :q :q! :wq ZZ ZQ :e <path> :sp :vs :bare :mime <type>';
+    var KEYS = ': command (:e :vs :sp :q :bare :mime, :w in the editor) · e edit · F bare editor (Esc leaves) · 1 3 4 source build viewer · s save · w wrap · n numbers · v vim · c copy · j k ␣ scroll · in the editor :w :q :q! :wq ZZ ZQ :e <path> :sp :vs :bare :mime <type>';
     function press(btn) { if (btn && !btn.hasAttribute('disabled') && btn.offsetParent !== null) btn.click(); }
     root.addEventListener('keydown', function (e) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -313,10 +320,9 @@
       if (tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT' || (t && t.isContentEditable)) return;
       var k = e.key, used = true;
       if (k === 'e') press(editBtn);
-      else if (k === 'F') { if (opts.setBare) opts.setBare(!bare); else setBare(!bare); }
+      else if (k === 'F') bareEditor(!bare);
       else if (k === 'Escape' && bare) { if (opts.setBare) opts.setBare(false); else setBare(false); }
       else if (k === '1') press(tabText);
-      else if (k === '2') press(tabMime);
       else if (k === '3') press(tabBuild);
       else if (k === '4') press(tabView);
       else if (k === 's') press(saveBtn);
@@ -415,19 +421,35 @@
     // same file already holds (its snapshot()), so this one renders from
     // memory and skips the two fetches. Only taken for the same url.
     var prime = (opts.prime && opts.prime.url === here && opts.prime.info) ? opts.prime : null;
-    // bare: the source alone, in the editor, no crumbs, tabs, tools or
-    // chips. A pane's "edit" view (the host's onView) or opts.bare at mount.
-    var bare = false, mountedBare = !!opts.bare, booted = false;
+    // bare: the file alone -- no crumbs, tabs, tools or chips. Starts as the
+    // host mounted it, and an onArgs arriving before the file is in writes
+    // here, so whatever this holds at boot is what gets applied.
+    var bare = !!opts.bare, booted = false;
+    // the chrome goes, the file stays. The control is the host's -- the
+    // pane's own View menu, beside rendered/raw -- because the state is the
+    // moment's and not this component's (opts.setBare writes it).
+    //
+    // Chrome only. Bare is the resting state of a pane, so opening the
+    // editor cannot ride along with it -- every file would arrive in an
+    // editor, and CodeMirror would load for a file you only meant to read.
+    // The F gesture asks for both; see +bareEditor.
     function setBare(on) {
       bare = !!on;
       root.classList.toggle('bare', bare);
       // asked before the file is in (the moment's args changed under a
       // view still fetching): remembered, applied once renderFile is done
       if (!booted) return;
-      if (!bare) { if (ve) ve.refresh(); return; }
+      if (ve) ve.refresh();
+    }
+    // F: the file alone, in the editor -- the raw side's "just let me work on
+    // this". On a pane showing a rendering there is nothing to edit, so it is
+    // the chrome alone that moves.
+    function bareEditor(on) {
+      if (opts.setBare) opts.setBare(on); else setBare(on);
+      if (!on || !booted) return;
+      if (FIXED_PANE[opts.view] && opts.view !== 'source') return;
       show('text');
       if (writable && editBtn && !editBtn.classList.contains('on')) editBtn.click();
-      else if (ve) ve.refresh();
     }
     (async function boot() {
       if (prime) info = prime.info;
@@ -525,7 +547,7 @@
       }
       setupPanes(); setupWrap(); setupNums(); setupCopy(); setupEditor(); renderSource();
       booted = true;
-      if (bare || mountedBare) setBare(true);
+      setBare(bare);
     }
 
     // a failed read is an ERROR, never content: without the status check the
@@ -546,6 +568,14 @@
       return text;
     }
 
+    // +redrawPanes: the panes that render once and cache it, re-rendered if
+    // they are the one on screen and dropped if they are not
+    function redrawPanes() {
+      mimeRendered = false; mimeView.textContent = '';
+      buildRendered = false;
+      if (mimeView.style.display !== 'none') { renderMime(); mimeRendered = true; }
+      if (buildView.style.display !== 'none') { renderBuild(); buildRendered = true; }
+    }
     function show(which) {
       textView.style.display = which === 'text' ? '' : 'none';
       mimeView.style.display = which === 'mime' ? '' : 'none';
@@ -556,7 +586,10 @@
       tabBuild.classList.toggle('on', which === 'build');
       tabView.classList.toggle('on', which === 'view');
       tools.style.display = which === 'text' ? '' : 'none';
-      $('mime-row').style.display = which === 'view' ? 'none' : '';
+      // the blot and the mime type are the raw side's: a rendering of the
+      // file does not carry them
+      var rendering = which === 'view' || which === 'mime';
+      $('mime-row').style.display = rendering ? 'none' : '';
       if (which === 'mime' && !mimeRendered) { renderMime(); mimeRendered = true; }
       if (which === 'build' && !buildRendered) { renderBuild(); buildRendered = true; }
       if (which === 'view' && viewer && !viewerHandle) {
@@ -564,17 +597,19 @@
         catch (e) { viewPane.textContent = 'viewer failed: ' + e; }
       }
     }
+    // Preview is not in here: a rendering of the file is the OTHER side of
+    // the pane's rendered/raw toggle, following the file so it redraws when
+    // any pane saves it. What is left is the raw side — the source, and what
+    // the grub built into.
     function setupPanes() {
-      var previewable = !!effectiveKind() || !texty;
+      var fixed = FIXED_PANE[opts.view];
       tabText.addEventListener('click', function () { show('text'); });
-      tabMime.addEventListener('click', function () { show('mime'); });
       tabBuild.addEventListener('click', function () { show('build'); });
       tabView.addEventListener('click', function () { show('view'); });
-      var showTabs = previewable || buildStatus || viewer;
-      tabText.style.display = showTabs ? '' : 'none';
-      tabMime.style.display = showTabs ? '' : 'none';
+      if (fixed) { show(fixed); return; }
+      tabText.style.display = buildStatus || viewer ? '' : 'none';
       if (viewer) { tabView.textContent = viewer.label || 'View'; tabView.style.display = ''; }
-      if (viewer) show('view'); else if (!previewable) show('text'); else show('mime');
+      show(viewer ? 'view' : 'text');
     }
 
     // +currentText: what Source is showing right now — the editor's buffer
@@ -649,6 +684,9 @@
 
     function renderSource() {
       if (!editable) return;
+      // the editor is showing: highlighting the whole file into a hidden
+      // element is the file's length in work for nothing
+      if (display.style.display === 'none') return;
       var text = ve ? ve.getValue() : edText;
       return highlight(display, text, name);
     }
@@ -740,17 +778,27 @@
         return exTable;
       }
       exCommands();
-      editBtn.addEventListener('click', function () {
-        editing = !editing;
+      // +setEditing: which surface the text pane shows. The editor is the
+      // one you land on: with vim on, reading IS its resting state, and the
+      // two render the same way anyway. The reader stays for the cases the
+      // editor is worse at -- no vim, and the browser's own find, which
+      // CodeMirror's viewport does not answer.
+      function setEditing(on, focus) {
+        editing = !!on;
         editBtn.classList.toggle('on', editing);
         ed.style.display = editing ? '' : 'none';
         display.style.display = editing ? 'none' : '';
         mimeInput.readOnly = !editing;
-        if (editing) {
-          show('text');
-          ensureEditor().ready.then(function () { ve.refresh(); ve.focus(); });
-        } else renderSource();
-      });
+        if (!editing) { renderSource(); return; }
+        show('text');
+        ensureEditor().ready.then(function () { ve.refresh(); if (focus) ve.focus(); });
+      }
+      editBtn.addEventListener('click', function () { setEditing(!editing, true); });
+      // which surface the pane opens on: opts.surface, 'editor' unless the
+      // host says 'reader'. Not when there is nothing to edit (a rendering,
+      // an unwritable file), and not when the app declared a view of its
+      // own -- setupPanes already chose that, and the editor must not steal it
+      if (opts.surface !== 'reader' && writable && !viewer && !FIXED_PANE[opts.view]) setEditing(true, false);
       liveBtn.addEventListener('click', function () {
         live = !live; liveBtn.classList.toggle('on', live); syncSaveBtn();
         if (live && ve && ve.getValue() !== clean) scheduleLive();
@@ -934,22 +982,49 @@
 
     return {
       setUrl: function (u) { mount(root, Object.assign({}, opts, { url: u })); },
+      // the file moved under us — someone saved it, here or in another pane.
+      // Re-read and redraw, which is how a preview pane shows a save made in
+      // an editor pane beside it.
+      //
+      // Unsaved text is never thrown away: a pane holding edits keeps them
+      // and says the file changed, because the alternative is losing work to
+      // a write nobody in this pane asked for.
+      onUpdate: function () {
+        if (!booted) return;
+        if (ve && writable && ve.getValue() !== clean) {
+          status.textContent = 'changed on disk';
+          return;
+        }
+        if (!editable) { redrawPanes(); return; }
+        readRaw().then(function (t) {
+          var text = present(t);
+          clean = text; edText = text;
+          if (ve) ve.setValue(text);
+          renderSource();
+          redrawPanes();
+        }).catch(function () {});
+      },
       // the pane's `:` prompt runs these; vim's `:` inside the editor runs the same
       commands: function () { return exTable || baseEx(); },
       // what another view of this file can start from: see opts.prime
       snapshot: function () { return { url: here, info: info, text: currentText(), sandboxed: sandboxed }; },
       // the moment's ?args changed under this element. ?bare is taken in
-      // place: the bare editor on, or off. Leaving bare from a mount that
-      // was born bare answers false, so the host mounts the file's proper
-      // rendering instead. Any other change of args is not ours to take.
+      // place, in either direction. Any other change of args is not ours
+      // to take.
       onArgs: function (args) {
-        var want = !!(args && args.bare);
+        // the host decides what an ABSENT bare means (its own default), so
+        // absence here is "nobody touched it" and the state stands. Only an
+        // explicit value moves it -- and '0' is a truthy string, so it has
+        // to be compared, never tested.
+        var v = args ? args.bare : null;
+        var want = v == null ? bare : v !== '0';
         var rest = Object.assign({}, args || {}); delete rest.bare;
         var mine = Object.assign({}, opts.query || {}); delete mine.bare;
         if (JSON.stringify(rest) !== JSON.stringify(mine)) return false;
-        if (want) { setBare(true); return true; }
-        if (mountedBare) return false;
-        setBare(false); return true;
+        // taken in place either way: bare is the chrome and nothing else, so
+        // neither direction changes which rendering the host would mount
+        setBare(want);
+        return true;
       },
       destroy: function () {
         if (viewerHandle && viewerHandle.destroy) { try { viewerHandle.destroy(); } catch (_) {} }

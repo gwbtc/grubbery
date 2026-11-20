@@ -28,6 +28,7 @@
 /&  fv-js    /lib/ui/file-view.js
 /&  ve-js    /lib/ui/vim-editor.js
 /&  ve-cfg   /lib/ui/vim-editor-config.json
+/&  ex-cfg   /nex/shell/ui/explorer/explorer-config.json
 /&  md-js    /lib/ui/modal-dialog.js
 /&  dm2-js   /lib/ui/drop-menu.js
 /&  ft-js    /lib/ui/file-table.js
@@ -144,7 +145,13 @@
       [%over %& [/ui/explorer %'file-preview.js'] [[/ %mime] fp-js]]
       [%over %& [/ui/explorer %'file-view.js'] [[/ %mime] fv-js]]
       [%over %& [/ui/explorer %'vim-editor.js'] [[/ %mime] ve-js]]
-      [%over %& [/ui/explorer %'vim-editor.json'] [[/ %mime] ve-cfg]]
+      ::  settings, not assets: %fall seeds each once from what ships and
+      ::  then leaves it alone, so an edit survives a reload. An %over row
+      ::  here would hand the file back every load and the setting with it.
+      ::  Absent keys fall through to the defaults in the page's own code,
+      ::  so a sparse file is a complete one.
+      [%fall %& [/ui/explorer %'vim-editor.json'] [[/ %mime] ve-cfg]]
+      [%fall %& [/ui/explorer %'explorer.json'] [[/ %mime] ex-cfg]]
       [%over %& [/ui/explorer %'modal-dialog.js'] [[/ %mime] md-js]]
       [%over %& [/ui/explorer %'drop-menu.js'] [[/ %mime] dm2-js]]
       [%over %& [/ui/explorer %'file-table.js'] [[/ %mime] ft-js]]

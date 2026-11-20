@@ -77,6 +77,22 @@ function setup(root, opts) {
     })();
     return viewCache[dir];
   }
+  // explorer.json: the settings this page opens with. Every default lives
+  // here in the code, so the file holds only what someone changed and a key
+  // nobody set is simply absent. A toggle in the page still writes
+  // localStorage -- that is this browser's last word, and it wins over the
+  // file, which is the standing preference.
+  const CFG_DEFAULTS = { chrome: 'hidden', surface: 'editor', dirMode: 'table', badges: true };
+  let CFG = CFG_DEFAULTS;
+  const cfgReady = fetch(PREFIX + '/apps/shell/ui/explorer/explorer.json', { cache: 'no-store' })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((j) => { if (j && typeof j === 'object') CFG = Object.assign({}, CFG_DEFAULTS, j); })
+    .catch(() => {});
+  // a setting this browser has an opinion about, else the file's, else ours
+  const pref = (key, lsKey, read) => {
+    try { const v = localStorage.getItem(lsKey); if (v != null) return read(v); } catch (_) {}
+    return CFG[key];
+  };
   const viewReady = (MOUNT || !SCOPE) ? Promise.resolve() : viewFor(ROOT).then((v) => {
     if (!v) return;
     if (typeof v.title === 'string' && v.title && !opts.title) { SCOPE_NAME = v.title; setTitle(); }
@@ -347,6 +363,7 @@ function setup(root, opts) {
   const badgesToggle = $('finder-badges-toggle');
   let badgesOn = true;
   try { badgesOn = localStorage.getItem(K + '-badges') !== 'off'; } catch (e) {}
+  cfgReady.then(() => { try { if (localStorage.getItem(K + '-badges') == null) badgesOn = CFG.badges !== false; } catch (_) {} });
 
   // the whole subtree under `here` comes down as ONE nested document from
   // ?tree=1 ({dirs: {name: subtree}, files: [name]}, names only — see
@@ -521,7 +538,7 @@ function setup(root, opts) {
     return g;
   }
   function dirModeDefault() {
-    try { return localStorage.getItem(K + '-dir-mode') === 'grid' ? 'grid' : 'table'; } catch (_) { return 'table'; }
+    return pref('dirMode', K + '-dir-mode', (v) => (v === 'grid' ? 'grid' : 'table')) === 'grid' ? 'grid' : 'table';
   }
   // active/idle look for a tab's view-mode buttons — mirrors the top bar's
   // #view-toggle .on state (blue) vs the plain bordered button
@@ -870,7 +887,9 @@ function setup(root, opts) {
       // The explorer keeps them on its one stream (see live) and tells the
       // mounted pane when they move; absent → the rendering is static.
       const follow = pane.follow ? pane.follow.filter((f) => f.road.startsWith('/')) : null;
-      return { label: v.label, follow, mount: (root, opts) => v.mount(root, Object.assign({}, opts, { args })) };
+      // bare: this pane says it can show itself without its own chrome, so
+      // the host offers the toggle over it. Absent, the pane is left alone.
+      return { label: v.label, follow, bare: !!v.bare, mount: (root, opts) => v.mount(root, Object.assign({}, opts, { args })) };
     } catch (e) { toast('viewer: ' + e.message, true); return null; }
   }
   // a layout template's {name} holes, filled from the rule's `vars` before
@@ -1254,14 +1273,14 @@ function setup(root, opts) {
       // asking the content where to go sent :e to a pane that had moved
       const go = (u) => ps.openFrom(id, psMoment(u));
       // bare is sticky: :e from a bare pane opens the next path bare too,
-      // so editing stays editing across files (leaving bare ends it)
-      const keepBare = (t) => psArgs(path).bare ? psSetArg(t, 'bare', '1') : t;
+      // so a pane you stripped stays stripped as you move through files
+      const keepBare = (t) => psSetBare(t, psBare(path));
       return {
         e: (args) => { const t = target(args); if (t) go(keepBare(t)); },
         vs: (args) => { const t = target(args); ps.splitRight(id, t ? psNs(t) : undefined); },
         sp: (args) => { const t = target(args); ps.splitDown(id, t ? psNs(t) : undefined); },
         q: () => ps.closeActiveTab(id),
-        bare: () => ps.replaceMoment(id, psSetArg(path, 'bare', psArgs(path).bare ? null : '1')),
+        bare: () => ps.replaceMoment(id, psSetBare(path, !psBare(path))),
       };
     };
     // every verb this pane answers to: what the content lends (:w :mime)
@@ -1286,8 +1305,8 @@ function setup(root, opts) {
   // relative to the file's dir, like vim's.
   const exHost = (ps, paneId, ns, route) => {
     const rel = (u) => psRel(ns.replace(/\/[^/]*$/, '') || '/', u);   // absolute, @name and ./ ../ spellings all resolve here
-    // bare is sticky here too: vim's :e from a bare editor opens bare
-    const keepBare = (t) => psArgs(ps.pathOf(paneId) || '').bare ? psSetArg(t, 'bare', '1') : t;
+    // bare is sticky here too: vim's :e carries the chrome state along
+    const keepBare = (t) => psSetBare(t, psBare(ps.pathOf(paneId) || ''));
     return { open: (u) => route(keepBare(rel(u)), null, null),
              close: () => ps.closeActiveTab(paneId),
              splitRight: (u) => ps.splitRight(paneId, u ? psNs(rel(u)) : undefined),
@@ -2757,6 +2776,15 @@ function setup(root, opts) {
     if (!urls.size || !window.FileView || !window.FileView.prefetch) return Promise.resolve();
     return Promise.all([...urls].map((u) => window.FileView.prefetch(u).then((snap) => { if (snap) PRIMES.set(u, { snap, at: Date.now() }); })));
   }
+  // +psBare / +psSetBare: is this moment stripped of the pane's own chrome?
+  // Absent means "whatever explorer.json says", so the setting is the
+  // default and a link can still pin either state. Written explicitly in
+  // both directions: leaning on absence for one of them would make the
+  // written state depend on the config too. Read it NOWHERE else -- '0' is
+  // a truthy string, so a plain `if (args.bare)` reads "show" as "hide".
+  function bareOf(a) { const v = a && a.bare; return v == null ? CFG.chrome !== 'shown' : v !== '0'; }
+  function psBare(p) { return bareOf(psArgs(p)); }
+  function psSetBare(p, on) { return psSetArg(p, 'bare', on ? '1' : '0'); }
   // +psSetArg: a moment with one ?arg set (v) or dropped (null); the rest kept
   function psSetArg(p, k, v) {
     const a = psArgs(p); if (v == null) delete a[k]; else a[k] = v;
@@ -2897,8 +2925,10 @@ function setup(root, opts) {
         return;
       }
       if (viewer && !viewer.blocked && viewer.mount) { el._fv = viewer.mount(el, { url, mode: PS_MODE, onNavigate: onNav, open: vopen, close: vclose, query: psArgs(path) }); paneLive(ps, paneId, el, viewer.follow); psLanded(ps, paneId, el); return; }
+      await cfgReady;                                                        // explorer.json decides what absent args mean
       const t = document.createElement(want === 'grid' ? 'file-grid' : 'file-table');
       t.style.height = '100%';
+      el._bare = true;                                                      // a listing answers the chrome toggle (see psDirHead)
       // ?scope: this listing is the top of what the pane may show. A layout
       // names a dir as `./files?scope=1` and the listing has no `../`;
       // links to child dirs carry `?scope=<that top>` so a descent stays
@@ -2941,16 +2971,30 @@ function setup(root, opts) {
           paint();
         },
       };
-      const head = psDirHead(el, d, ns, abs, url, route, path, trace);
-      el.appendChild(head);
       el.appendChild(t);
       // the listing's own column header is sticky too, so tell it how much
       // chrome stands above it — otherwise the two stick to the same line and
       // the columns ride over the crumbs
-      const seatHeader = () => { const h = head.offsetHeight; if (h) t.style.setProperty('--ft-header-top', h + 'px'); };
-      seatHeader();
-      requestAnimationFrame(seatHeader);                                  // again once it has actually laid out
-      if (window.ResizeObserver) { const ro = new ResizeObserver(seatHeader); ro.observe(head); el._headRO = ro; }
+      let head = null;
+      const seatHeader = () => { const h = head ? head.offsetHeight : 0; t.style.setProperty('--ft-header-top', h + 'px'); };
+      // the listing's chrome: where you are and what it is. Gone when the
+      // moment is bare, the way a file's crumbs and bar go -- this is the
+      // same header, over the other kind of thing. Put up and taken down in
+      // place, so the toggle does not refetch the listing.
+      const setHead = (want) => {
+        if (!want === !head) return;
+        if (!want) {
+          if (el._headRO) { try { el._headRO.disconnect(); } catch (_) {} el._headRO = null; }
+          head.remove(); head = null; seatHeader();
+          return;
+        }
+        head = psDirHead(el, d, ns, abs, url, route, path, trace);
+        el.insertBefore(head, t);
+        seatHeader();
+        requestAnimationFrame(seatHeader);                                // again once it has actually laid out
+        if (window.ResizeObserver) { const ro = new ResizeObserver(seatHeader); ro.observe(head); el._headRO = ro; }
+      };
+      setHead(!psBare(path));
       paint();
       psLanded(ps, paneId, el);                                            // the keyboard lands on the table if this pane is the one chosen
       // the listing follows its dir in FOLD mode: one event whenever anything
@@ -2968,7 +3012,20 @@ function setup(root, opts) {
         // removed should appear faint rather than simply vanish.
         return psGhosts(url, { ...dArgs, trace: '1' }).then((g) => { gone = g; paint(); });
       }).catch(() => {});
-      el._fv = { destroy() { clearTimeout(timer); }, onUpdate() { if (timer) return; timer = setTimeout(() => { timer = null; refreshRows(); }, 500); } };
+      el._fv = {
+        destroy() { clearTimeout(timer); },
+        onUpdate() { if (timer) return; timer = setTimeout(() => { timer = null; refreshRows(); }, 500); },
+        // ?bare is taken in place: the head goes up or comes down and the
+        // rows stay as they are, scroll and all. Any other arg is a
+        // different listing, so the host rebuilds.
+        onArgs(args) {
+          const rest = { ...args }; delete rest.bare;
+          const mine = { ...psArgs(path) }; delete mine.bare;
+          if (JSON.stringify(rest) !== JSON.stringify(mine)) return false;
+          setHead(!bareOf(args));
+          return true;
+        },
+      };
       paneLive(ps, paneId, el, [{ road: abs === '/' ? '/' : abs.replace(/\/$/, '') + '/', fold: true }]);
     }).catch(async (why) => {
       // a 404 keeps watching: the path may yet be made, and `new` revives it
@@ -3041,25 +3098,49 @@ function setup(root, opts) {
       // apart, and its Preview pane still renders markdown.
       const pastArgs = psArgs(path);
       const atPast = pastArgs.asof || pastArgs.case;
-      const bare = !!psArgs(path).bare;                                      // ?bare=1: the source alone in the editor, no declared viewer
-      if (!raw && !bare && !atPast) {
-        let v = null; try { v = await viewerFor(url, 'file', '', psArgs(path).view || null); } catch (_) {}
-        if (v && !v.blocked && v.mount) {
-          // the moment's ?args ride along as `query`: a viewer may read how it
-          // is being looked at (a docs pane's ?page=, say) without parsing urls
-          try { el._fv = v.mount(el, { url, onNavigate: onNav, open: vopen, close: vclose, query: psArgs(path) }); paneLive(ps, paneId, el, v.follow); psLanded(ps, paneId, el); } catch (e) { el.textContent = 'viewer failed: ' + e; }
-          return;                                                         // rendered: the rendering alone
-        }
-      }
+      await cfgReady;                                                        // explorer.json decides what absent args mean
+      const bare = psBare(path);                                             // the pane's own chrome, or none of it
       // every fetch this view makes carries the version it is being read at
       // -- a ?case= of its own, or the ?asof= it inherited walking down
       // from a past directory
       const atCase = pastArgs.asof ? ('asof=' + pastArgs.asof)
                    : pastArgs.case ? ('case=' + pastArgs.case) : '';
+      if (!raw && !atPast) {
+        let v = null; try { v = await viewerFor(url, 'file', '', psArgs(path).view || null); } catch (_) {}
+        if (v && !v.blocked && v.mount) {
+          // the moment's ?args ride along as `query`: a viewer may read how it
+          // is being looked at (a docs pane's ?page=, say) without parsing urls
+          el._bare = !!v.bare;                                            // the pane said whether it answers the chrome toggle
+          try { el._fv = v.mount(el, { url, onNavigate: onNav, open: vopen, close: vclose, query: psArgs(path) }); paneLive(ps, paneId, el, v.follow); psLanded(ps, paneId, el); } catch (e) { el.textContent = 'viewer failed: ' + e; }
+          return;                                                         // rendered: the rendering alone
+        }
+      }
+      // No app declared one, but the kind renders itself: markdown, svg, html,
+      // json, an image. The stock rendering for a file, the way rows is the
+      // stock rendering for a directory -- FileView mounted for that one pane,
+      // following the file, so a save in an editor pane beside this one
+      // redraws it. A past version reaches this and not a declared viewer:
+      // this IS FileView, so it carries the version and wears the version bar.
+      if (!raw && window.FilePreview && FilePreview.kind(psOwn(abs).name)) {
+        try {
+          el._bare = true;                                                 // FileView answers the chrome toggle
+          el._fv = window.FileView.mount(el, {
+            url, view: 'preview', crumbBase: ROOT, onNavigate: onNav,
+            open: vopen, close: vclose, query: psArgs(path),
+            bare, setBare: (on) => ps.replaceMoment(paneId, psSetBare(path, on)),
+            surface: CFG.surface,
+            readOnly: !!atCase, at: atCase ? '&' + atCase : '',
+            versions: psPastBar(ns, path, 'file', onNav),
+            host: exHost(ps, paneId, ns, route) });
+          paneLive(ps, paneId, el, [{ road: abs }]); psLanded(ps, paneId, el);
+          return;
+        } catch (e) { el.textContent = 'open failed: ' + e; return; }
+      }
       const opts = { url, crumbBase: ROOT, onNavigate: onNav, open: vopen, close: vclose,
                      readOnly: !!atCase, at: atCase ? '&' + atCase : '',
                      bare, query: psArgs(path),
-                     setBare: (on) => ps.replaceMoment(paneId, psSetArg(path, 'bare', on ? '1' : null)),
+                     setBare: (on) => ps.replaceMoment(paneId, psSetBare(path, on)),
+                     surface: CFG.surface,
                      host: exHost(ps, paneId, ns, route) };   // raw, or no renderer → the raw package
       // right-click anywhere in the file: the file's own actions
       el._menu = () => { const o = psOwn(abs); return itemMenu(el, { kind: 'file', name: o.name, __dir: o.dir }, true); };
@@ -3081,6 +3162,7 @@ function setup(root, opts) {
       else if (!atCase) { const pre = primeFor(url); if (pre) opts.prime = pre; }   // a restore's up-front fetch
       el._primeFrom = null;
       try {
+        el._bare = true;                                                   // FileView answers the chrome toggle
         el._fv = window.FileView.mount(el, opts);
         paneLive(ps, paneId, el, [{ road: abs }]); psLanded(ps, paneId, el);
       }   // the raw package follows its file
@@ -5151,6 +5233,17 @@ function setup(root, opts) {
       return kept;
     };
     ps.viewModes = [{ id: 'rendered', glyph: '▣', title: 'rendered' }, { id: 'raw', glyph: '◰', title: 'raw file / plain listing' }];
+    // bare: the thing in the pane, without its own chrome. The state is the
+    // moment's (?bare=1), so it is linkable, it survives a reload and a split
+    // carries it -- which is why gmux asks us for it instead of keeping it.
+    // Offered only where the pane said it can answer (el._bare).
+    ps.paneToggles = [{
+      id: 'chrome', glyph: '\u25a4',
+      on: 'Show this pane\'s chrome', off: 'Hide this pane\'s chrome',
+      shows: (id) => { const el = ps.contentOf && ps.contentOf(id); return !!(el && el._bare); },
+      get: (id) => !psBare(ps.pathOf(id) || ''),
+      set: (id, chrome) => ps.replaceMoment(id, psSetBare(ps.pathOf(id) || '', !chrome))
+    }];
     ps.onDestroy = (id, body) => { const c = body.firstChild; try { if (c && c._live) c._live(); } catch (_) {} try { if (c && c._gone) c._gone(); } catch (_) {} try { if (c && c._link) c._link(); } catch (_) {} try { if (c && c._headRO) c._headRO.disconnect(); } catch (_) {} try { if (c && c._fv) c._fv.destroy(); } catch (_) {} };
     root.appendChild(ps);
     paneCmdline(ps);

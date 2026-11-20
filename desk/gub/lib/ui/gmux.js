@@ -205,6 +205,12 @@ class Gmux extends HTMLElement {
                                 // Shared with the phone client — desktop and mobile both
                                 // just sit, there's no separate zoom concept for either.
   viewModes = null;    // optional [{id, glyph, title}] → a per-pane render-mode toggle on the bar; host's renderPath reads viewOf(id)
+  // optional [{id, glyph, title, on, off, get(paneId), set(paneId, want), shows(paneId)}]
+  // → per-pane switches the HOST owns. Unlike viewModes, gmux keeps none of
+  // this state: it asks the host what the switch reads and tells it when the
+  // switch is thrown, because the state belongs to the moment and not to the
+  // tab. A switch the thing in the pane cannot answer says so through shows().
+  paneToggles = null;
 
   #root = null;                 // the root PANE
   #panes = new Map();           // id -> pane
@@ -588,12 +594,20 @@ class Gmux extends HTMLElement {
     };
     const head = (t) => { const d = document.createElement('div'); d.className = 'ps-mlbl'; d.textContent = t; menu.appendChild(d); };
     const sep = () => { const d = document.createElement('div'); d.className = 'ps-msep'; menu.appendChild(d); };
-    if (this.viewModes && this.viewModes.length) {
-      const cur = this.#tabView(p) || this.viewModes[0].id;
-      const i = this.viewModes.findIndex(v => v.id === cur);
-      const next = this.viewModes[(i + 1) % this.viewModes.length];
+    const toggles = (this.paneToggles || []).filter((t) => !t.shows || t.shows(id));
+    if ((this.viewModes && this.viewModes.length) || toggles.length) {
       head('View');
-      row(next.glyph, 'Switch to ' + (next.title || next.id), '', () => this.#cycleView(id));
+      if (this.viewModes && this.viewModes.length) {
+        const cur = this.#tabView(p) || this.viewModes[0].id;
+        const i = this.viewModes.findIndex(v => v.id === cur);
+        const next = this.viewModes[(i + 1) % this.viewModes.length];
+        row(next.glyph, 'Switch to ' + (next.title || next.id), '', () => this.#cycleView(id));
+      }
+      for (const t of toggles) {
+        const on = !!(t.get && t.get(id));
+        row(t.glyph || '\u25a3', on ? (t.off || ('Hide ' + t.id)) : (t.on || ('Show ' + t.id)),
+            t.title || '', () => t.set && t.set(id, !on));
+      }
       sep();
     }
     head('Split');
@@ -1072,6 +1086,9 @@ class Gmux extends HTMLElement {
   }
   // the source a pane's current moment came from (a layout file), or null
   srcOf(id) { const p = this.#panes.get(id ?? this.#activeId); return p ? this.#entrySrc(this.#curEntry(p)) : null; }
+  // the element renderPath gave us for this pane's current moment, so the
+  // host can ask the thing it mounted about itself (see paneToggles.shows)
+  contentOf(id) { const p = this.#panes.get(id ?? this.#activeId); return (p && p.body && p.body.firstChild) || null; }
   // every pane whose current moment came from a layout file: [{id, src}].
   // A restored workspace holds the built structure, not the file, so the
   // host re-follows these sources after a restore (the follow is its)
