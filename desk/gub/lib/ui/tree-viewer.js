@@ -69,8 +69,10 @@ export const panes = (function () {
       tv.root = root;
       tv.persistKey = 'tree-viewer:' + root;
       tv.getChildren = kids;
-      tv.onOpenFile = (item, p) => onNav(p);
-      tv.onOpenDir = (item, p) => onNav(p);
+      //  a row says which it is: the host spells a dir with a trailing
+      //  slash and a file without, and an unsaid kind is taken for a dir
+      tv.onOpenFile = (item, p) => onNav(p, 'file');
+      tv.onOpenDir = (item, p) => onNav(p, 'dir');
       tv.decorateRow = (row, item, p) => {
         // the row carries its item (with the url of the dir it lives in), so a
         // host's context menu finds what was clicked the same way it does in a
@@ -79,7 +81,7 @@ export const panes = (function () {
         row.__item = Object.assign({}, item, { __dir: urlOf(parent) });
         if (typeof window.attachBadges !== 'function') return;
         // the weir shield opens the dir's weir view (where the host opens links); neck and blot open the path
-        window.attachBadges(row, item, { enabled: badgesOn, onWeir: () => onNav(p + '?view=weir', 'dir'), onNeck: () => onNav(p), onBlot: () => onNav(p) });
+        window.attachBadges(row, item, { enabled: badgesOn, onWeir: () => onNav(p + '?view=weir', 'dir'), onNeck: () => onNav(p, 'dir'), onBlot: () => onNav(p, item.kind) });
       };
       body.appendChild(tv);
       tv.render(kids(root));
