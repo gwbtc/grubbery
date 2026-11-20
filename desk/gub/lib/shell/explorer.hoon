@@ -320,7 +320,8 @@
 ::  paths under it open in the explorer. {rules, title, icon}: `rules` is
 ::  an ordered table matched against the paths beneath it (see browse.js
 ::  viewerFor), `title` and `icon` the chrome of an explorer rooted at or
-::  under it. Carrying the file is declaring; nothing registers.
+::  under it. Carrying the file is declaring; nothing registers — but only a
+::  nexus may declare, so the file is read at a nexus root and nowhere else.
 ++  view-file  %'view.json'
 ::  +find-views: every declaration governing `dir`, outermost first. The
 ::  walk climbs from `dir` to `from` — the explorer's scope root, or the
@@ -333,12 +334,24 @@
   =|  out=(list [at=path decl=json])
   |-  ^-  form:m
   ;<  v=view:nexus  bind:m  (peek:io [%& %& dir view-file] `[/ %json])
-  =/  got=(unit json)
+  =/  cand=(unit json)
     ?.  &(?=([%file *] v) !(is-boom:tarball sang.v))  ~
     =/  res  (mule |.(!<(json (need-vase:tarball sang.v))))
     ?.  &(?=(%& -.res) ?=([%o *] p.res))  ~
     `p.res
-  =.  out  ?~(got out [[dir u.got] out])
+  ::  only a nexus declares. A view.json anywhere else is a file that happens
+  ::  to be named that: a checked-out working tree holds every app's source,
+  ::  its declarations included, and browsing the source is not browsing the
+  ::  app. Asked only where one was found, so the walk stays one peek a level.
+  ;<  nexus=?  bind:m
+    =/  m  (fiber:fiber:nexus ,?)
+    ^-  form:m
+    ?~  cand  (pure:m %.n)
+    ;<  nv=view:nexus  bind:m  (peek-shallow:io [%& %| dir] ~)
+    %-  pure:m
+    ?.  ?=([%ball *] nv)  %.n
+    ?~(fil.ball.nv %.n ?=(^ neck.u.fil.ball.nv))
+  =.  out  ?:(|(?=(~ cand) !nexus) out [[dir u.cand] out])
   ?:  |(=(dir from) ?=(~ dir))  (pure:m out)
   $(dir (snip `path`dir))
 ::  +views-json: the declarations as the explorer reads them. The rule
