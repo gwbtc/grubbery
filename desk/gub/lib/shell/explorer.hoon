@@ -317,27 +317,71 @@
   =/  tok  (cook crip (plus ;~(pose low nud hep dot lus cab)))
   (fall (rush txt ;~(pfix (punt fas) (more fas tok))) fallback)
 ::  +view-file: the grub a directory carries to declare its views: how the
-::  paths under it open in the explorer. {viewers, title, icon}: `viewers`
-::  is the url of an endpoint the app serves (asked per path, see
-::  browse.js viewerFor), `title` and `icon` the chrome of an explorer
-::  rooted at or under it. The explorer rooted anywhere finds the nearest
-::  view.json at or above its root (+find-view), nothing registers.
+::  paths under it open in the explorer. {rules, title, icon}: `rules` is
+::  an ordered table matched against the paths beneath it (see browse.js
+::  viewerFor), `title` and `icon` the chrome of an explorer rooted at or
+::  under it. Carrying the file is declaring; nothing registers.
 ++  view-file  %'view.json'
-::  +find-view: walk up from `dir` to the namespace root for the nearest
-::  directory carrying a view.json; its directory and contents, or ~.
-++  find-view
-  |=  dir=path
-  =/  m  (fiber:fiber:nexus ,(unit [at=path decl=json]))
-  ^-  form:m
+::  +find-views: every declaration governing `dir`, outermost first. The
+::  walk climbs from `dir` to `from` — the explorer's scope root, or the
+::  namespace root — collecting each directory that carries one. Rules
+::  concatenate in that order and the first match wins, so an outer
+::  declaration takes the paths it names and stays silent about the rest.
+++  find-views
+  |=  [from=path dir=path]
+  =/  m  (fiber:fiber:nexus ,(list [at=path decl=json]))
+  =|  out=(list [at=path decl=json])
   |-  ^-  form:m
   ;<  v=view:nexus  bind:m  (peek:io [%& %& dir view-file] `[/ %json])
-  ?:  &(?=([%file *] v) !(is-boom:tarball sang.v))
+  =/  got=(unit json)
+    ?.  &(?=([%file *] v) !(is-boom:tarball sang.v))  ~
     =/  res  (mule |.(!<(json (need-vase:tarball sang.v))))
-    ?:  &(?=(%& -.res) ?=([%o *] p.res))  (pure:m `[dir p.res])
-    ?~  dir  (pure:m ~)
-    $(dir (snip `path`dir))
-  ?~  dir  (pure:m ~)
+    ?.  &(?=(%& -.res) ?=([%o *] p.res))  ~
+    `p.res
+  =.  out  ?~(got out [[dir u.got] out])
+  ?:  |(=(dir from) ?=(~ dir))  (pure:m out)
   $(dir (snip `path`dir))
+::  +views-json: the declarations as the explorer reads them. The rule
+::  tables concatenate outermost-first, each rule stamped with the
+::  directory that declared it so a './' inside it is relative to its own
+::  declaration and not to whichever one happens to be nearest. `at`,
+::  `title` and `icon` are the chrome, from the nearest that names them.
+++  views-json
+  |=  decls=(list [at=path decl=json])
+  ^-  json
+  ?~  decls  [%o ~]
+  =/  rules=(list json)
+    %-  zing
+    %+  turn  `(list [at=path decl=json])`decls
+    |=  [at=path decl=json]
+    ^-  (list json)
+    ?.  ?=([%o *] decl)  ~
+    =/  rs=(unit json)  (~(get by p.decl) 'rules')
+    ?.  ?=([~ %a *] rs)  ~
+    %+  turn  p.u.rs
+    |=  r=json
+    ^-  json
+    ?.  ?=([%o *] r)  r
+    [%o (~(put by p.r) 'at' s+(crip (spud at)))]
+  =/  chrome
+    |=  key=@t
+    ^-  json
+    %+  roll  `(list [at=path decl=json])`decls
+    |=  [[at=path decl=json] got=json]
+    ^-  json
+    =/  v=(unit json)  ?.(?=([%o *] decl) ~ (~(get by p.decl) key))
+    ?:(&(?=([~ %s *] v) !=('' p.u.v)) u.v got)
+  ::  the chrome's own directory: the innermost declaration, the last one
+  ::  the walk collected
+  =/  near=path
+    %+  roll  `(list [at=path decl=json])`decls
+    |=([[at=path decl=json] got=path] at)
+  %-  pairs:enjs:format
+  :~  ['at' s+(crip (spud near))]
+      ['rules' a+rules]
+      ['title' (chrome 'title')]
+      ['icon' (chrome 'icon')]
+  ==
 ::  +pant-of: the directories from `from` (exclusive) down to `dir`
 ::  (inclusive), each with its neck: the path as the kernel's pant:nexus
 ::  spells it, so a view rule can switch on the nexuses along the way,
@@ -1257,15 +1301,14 @@
     ;<  ~  bind:m  (send-json eyre-id 200 (pairs:enjs:format ~[['pant' ?~(pant ~ (pant-json u.pant))]]))
     (pure:m ~)
   ?:  is-dir
-    ::  ?view=1: the view declaration that governs this directory: the
-    ::  nearest view.json at or above it, with the directory carrying it
+    ::  ?view=1: the declarations governing this directory, outermost
+    ::  first, climbing no higher than ?from= (the explorer's scope root)
     ?:  =(`'1' (get-key:kv:html-utils 'view' args))
-      ;<  found=(unit [at=path decl=json])  bind:m  (find-view tree-path)
-      =/  jon=json
-        ?~  found  [%o ~]
-        ?.  ?=([%o *] decl.u.found)  [%o ~]
-        [%o (~(put by p.decl.u.found) 'at' s+(crip (spud at.u.found)))]
-      ;<  ~  bind:m  (send-json eyre-id 200 jon)
+      =/  from=path
+        =/  f=(unit @t)  (get-key:kv:html-utils 'from' args)
+        ?~(f / (fall (mole |.((stab u.f))) /))
+      ;<  decls=(list [at=path decl=json])  bind:m  (find-views from tree-path)
+      ;<  ~  bind:m  (send-json eyre-id 200 (views-json decls))
       (pure:m ~)
     ?:  ?&(?=(^ download-param) =(u.download-param 'tar'))
       (serve-tarball eyre-id tree-path ball)

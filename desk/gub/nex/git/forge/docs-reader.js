@@ -1415,12 +1415,6 @@ function makeChatWindow() {
   w.addEventListener('fw-focus', function () { CHAT_TOGGLE.classList.add('active'); });
   return w;
 }
-function loadScript(src) {
-  return new Promise(function (res, rej) {
-    var s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = function () { rej(new Error('failed to load ' + src)); };
-    document.head.appendChild(s);
-  });
-}
 function chatProbe() {
   return fetch(BASE + '/chat', { cache: 'no-store' })
     .then(function (r) { return r.ok ? r.json() : null; })
@@ -1431,9 +1425,9 @@ function chatProbe() {
 function mountChat() {
   if (chatHandle || !chatInfo) return Promise.resolve();
   var info = chatInfo;
-  var ready = (window.Viewers && window.Viewers.chat) ? Promise.resolve() : loadScript(info.viewer);
-  return ready.then(function () {
-    var v = window.Viewers && window.Viewers.chat;
+  // the pane is @clanker's own module, named by /docs/chat
+  return import(info.viewer).then(function (m) {
+    var v = (m.panes || {}).chat;
     if (!v) throw new Error('no chat pane');
     chatHandle = v.mount(CHAT_HOST, { url: info.url, args: { proj: info.proj, chat: info.chat } }) || { destroy: function () {} };
   }).catch(function (e) {

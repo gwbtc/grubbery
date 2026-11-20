@@ -1,16 +1,14 @@
-// forge viewers: the explorer renders a repo's ui grubs through these.
-// Served at /grubbery/forge/viewers.js; named by /grubbery/forge/api/viewers,
-// which also declares what each instance FOLLOWS, so the explorer's stream
-// hands these onUpdate the new grub body the moment it moves. Nothing here
-// polls or opens a connection.
+// repo panes: the explorer renders a repo's ui grubs through these.
+// Named by the forge's view.json rules, which also declare what each
+// instance FOLLOWS, so the explorer's stream hands these onUpdate the new
+// grub body the moment it moves. Nothing here polls or opens a connection.
 //
-//   forge-log   data/ui/commits.json   a branch picker (checks out through
+//   log   data/ui/commits.json   a branch picker (checks out through
 //                                      /api/run) over the log, HEAD marked
 //
 // mount(root, {url, args: {repo, api, base}, onNavigate}) -> {destroy, onUpdate(ev)}
 // ev = {road, kind, path, body}; body is the grub as json for body:true follows.
-(function () {
-  window.Viewers = window.Viewers || {};
+export const panes = (function () {
   var CSS = 'forge-viewers-css';
   function css() {
     if (document.getElementById(CSS)) return;
@@ -76,8 +74,9 @@
   function ends(p, name) { return typeof p === 'string' && p.slice(-name.length - 1) === '/' + name; }
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
 
-  // ---- forge-log: commits with HEAD marked ----
-  window.Viewers['forge-log'] = { label: 'log', mount: function (root, opts) {
+  // ---- log: commits with HEAD marked ----
+  return {
+    'log': { label: 'log', mount: function (root, opts) {
     css();
     var args = opts.args || {}, url = opts.url, api = args.api || '/grubbery/forge/api';
     var commits = [], cur = null, branches = [], busy = false;
@@ -128,10 +127,10 @@
         else if (ends(ev.path, 'branches.json') && Array.isArray(ev.body)) { branches = ev.body; drawHead(); }
       }
     };
-  } };
+    } },
 
-  // ---- forge-status: where HEAD sits, staged/unstaged/untracked, the stash ----
-  window.Viewers['forge-status'] = { label: 'status', mount: function (root, opts) {
+  // ---- status: where HEAD sits, staged/unstaged/untracked, the stash ----
+    'status': { label: 'status', mount: function (root, opts) {
     css();
     var args = opts.args || {}, api = args.api || '/grubbery/forge/api';
     var url = opts.url, st = {}, cur = {}, stash = [], branches = [], busy = false;
@@ -197,10 +196,10 @@
         draw();
       }
     };
-  } };
+    } },
 
-  // ---- forge-run: the serial command queue — its log, and a prompt ----
-  window.Viewers['forge-run'] = { label: 'run', mount: function (root, opts) {
+  // ---- run: the serial command queue — its log, and a prompt ----
+    'run': { label: 'run', mount: function (root, opts) {
     css();
     var args = opts.args || {}, url = opts.url, api = args.api || '/grubbery/forge/api';
     var queue = { queue: [], active: null, log: [] };
@@ -229,9 +228,9 @@
       destroy: function () { box.remove(); },
       onUpdate: function (ev) { if (ends(ev.path, 'run.git-action') && ev.body && typeof ev.body === 'object') { queue = ev.body; draw(); } }
     };
-  } };
+    } },
 
-  // ---- forge-blame: git blame for the file in view, GitHub-style. A PER-FILE
+  // ---- blame: git blame for the file in view, GitHub-style. A PER-FILE
   // viewer: the explorer hands it the open grub's url; the path after
   // /data/tree/ is the repo-relative target. Content comes from the grub (raw);
   // blame comes from the backend. Backend contract (not a materialized grub
@@ -240,7 +239,7 @@
   //     -> text/plain, the output of `git blame --line-porcelain -- <relpath>`
   // If that endpoint isn't there (or 404s), the file still renders, without the
   // gutter, so the tab degrades instead of breaking.
-  window.Viewers['forge-blame'] = { label: 'blame', mount: function (root, opts) {
+    'blame': { label: 'blame', mount: function (root, opts) {
     css();
     var args = opts.args || {}, url = opts.url, api = args.api || '/grubbery/forge/api';
     var box = el('div', 'fgv fgv-blame'); root.appendChild(box);
@@ -303,15 +302,15 @@
       });
     }
     return { destroy: function () { box.remove(); } };
-  } };
+    } },
 
-  // (forge-docs, the handbook pane, lives in docs-pane.js)
+  // (the handbook pane lives in panes/docs.js)
 
-  // ---- forge-repos: the repo selector. One card per repo instance; a click
+  // ---- repos: the repo selector. One card per repo instance; a click
   // navigates the pane to the repo's dir, which forge opens as the workspace
   // layout rooted there. Follows the repos dir (fold): a repo added or
   // removed re-pulls the list. ----
-  window.Viewers['forge-repos'] = { label: 'repos', mount: function (root, opts) {
+    'repos': { label: 'repos', mount: function (root, opts) {
     css();
     var args = opts.args || {}, url = opts.url, api = args.api || '/grubbery/forge/api';
     var repos = [];
@@ -346,12 +345,12 @@
     function load() { get(api + '/list').then(function (r) { repos = Array.isArray(r) ? r : repos; draw(); }); }
     load();
     return { destroy: function () { box.remove(); }, onUpdate: function () { load(); } };
-  } };
+    } },
 
-  // ---- forge-settings: the repo's config.json + poll.json as a form, saved
+  // ---- settings: the repo's config.json + poll.json as a form, saved
   // through /api/config. The stream brings both back when they move; a
   // field you are editing is left alone until you save or blur. ----
-  window.Viewers['forge-settings'] = { label: 'settings', mount: function (root, opts) {
+    'settings': { label: 'settings', mount: function (root, opts) {
     css();
     var args = opts.args || {}, url = opts.url, api = args.api || '/grubbery/forge/api';
     var cfg = {}, poll = null, dirty = false;
@@ -395,5 +394,6 @@
         fill();
       }
     };
-  } };
+    } },
+  };
 })();

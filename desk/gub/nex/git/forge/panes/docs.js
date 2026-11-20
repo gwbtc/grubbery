@@ -1,5 +1,5 @@
-// forge-docs: the repo handbook as a pane. The reader (docs-reader.js) ported
-// to window.Viewers: one mount is one instance, scoped to its root (classes,
+// docs: the repo handbook as a pane. The reader (docs-reader.js) ported
+// to a pane: one mount is one instance, scoped to its root (classes,
 // not ids, so several can coexist), routed by the moment it sits on
 // (?page=<doc> | coverage | coverage/<section>) instead of location.hash, so
 // back/forward and layouts work and the host never knows what a page is.
@@ -14,9 +14,8 @@
 // jump from coverage to a block survives it. The chat is a column inside the
 // pane (clanker's own chat pane mounted on the repo clanker's docs log), not
 // a floating window.
-(function () {
+export const panes = (function () {
   'use strict';
-  window.Viewers = window.Viewers || {};
 
   var CSS_ID = 'forge-docs-css';
   function css() {
@@ -857,6 +856,7 @@
       }
     };
   }
-
-  window.Viewers['forge-docs'] = { label: 'docs', mount: mount };
+  return {
+    'docs': { label: 'docs', mount: mount },
+  };
 })();

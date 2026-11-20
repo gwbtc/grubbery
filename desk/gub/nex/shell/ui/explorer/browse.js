@@ -9,7 +9,7 @@
 //   el.mount({ url, scope, mount, page, storageKey })
 //     url         the namespace path to open (the page passes location.pathname)
 //     scope       ?scope= root, a namespace path (ignored when `mount` is set)
-//     mount       {route, root, title, icon, viewers}: an app serving this
+//     mount       {route, root, title, icon, rules}: an app serving this
 //                 explorer at its own route (see MOUNT below)
 //     page        true when the explorer IS the page: it then writes the
 //                 browser url (history), the document title and favicon,
@@ -40,36 +40,38 @@ function setup(root, opts) {
   // paths underneath are unchanged: every request still goes to the real
   // /grubbery/ball url, nothing is folded or hidden.
   // MOUNT: an app serving this explorer at its own route, declared as
-  // {route, root, title, icon, viewers}: urls under `route` are namespace
+  // {route, root, title, icon, rules}: urls under `route` are namespace
   // paths under `root`, so /grubbery/clanker/x is the explorer rooted at the
   // clanker collection, showing x. Same scope rules as ?scope=, with the
-  // route's url form kept in history. `viewers` (optional) is an endpoint of
-  // the app's that says, per path, which pane it opens in (see viewerFor):
-  // its own files, in its own explorer, open in its own panes. The plain
-  // explorer has no viewers; a path means a pane only where the mounting
-  // app says so.
+  // route's url form kept in history. `rules` (optional) is the same table
+  // a view.json carries, inline: its own files, in its own explorer, open
+  // in its own panes. The plain explorer has no rules; a path means a pane
+  // only where the mounting app says so.
   const MOUNT = (opts.mount && opts.mount.route && opts.mount.root) ? opts.mount : null;
   const SCOPE = (MOUNT ? MOUNT.root : (opts.scope || '')).replace(/\/+$/, '');
   const ROOT = PREFIX + SCOPE;
   let SCOPE_NAME = (MOUNT && MOUNT.title) ? MOUNT.title : (opts.title || SCOPE.slice(SCOPE.lastIndexOf('/') + 1));
   // VIEW: without a mount, views are declared in the namespace: a
-  // directory carries view.json ({viewers, title, icon}) and it governs
-  // everything under it, the nearest one winning. The explorer asks its
-  // server which declaration governs a directory (<dir>?view=1 walks up
-  // and answers it plus `at`, the directory carrying it). Asked for the
-  // root once, for the chrome (title, icon); and per tab, for the tab's
-  // own directory, so a path finds its declaration wherever the sidebar
-  // is rooted, above it or inside it. Paths are asked of `viewers`
-  // relative to `at`: the declaring directory is the one that knows its
-  // tree. Nothing registers: carrying the file is declaring.
+  // directory carries view.json ({rules, title, icon}) and it governs
+  // everything under it. The explorer asks its server which declarations
+  // govern a directory (<dir>?view=1&from= climbs from it to the scope
+  // root and answers them) and matches the rules itself: one request per
+  // directory, cached, and no ask per path. Rules arrive concatenated
+  // outermost-first, each carrying the `at` that declared it, and the
+  // first that matches wins — so an outer declaration takes the paths it
+  // names and whatever it stays silent about falls through to an inner
+  // one. Asked for the root once, for the chrome (title, icon); and per
+  // tab, for the tab's own directory, so a path finds its declarations
+  // wherever the sidebar is rooted, above it or inside it. Nothing
+  // registers: carrying the file is declaring.
   const viewCache = {};   // dir -> Promise<decl|null>
   function viewFor(dir) {
     if (MOUNT) return Promise.resolve(null);
     if (!viewCache[dir]) viewCache[dir] = (async () => {
       try {
-        const r = await fetch(dir + '?view=1', { cache: 'no-store' });
+        const r = await fetch(dir + '?view=1&from=' + encodeURIComponent(SCOPE || '/'), { cache: 'no-store' });
         const v = r.ok ? await r.json() : null;
-        if (v && typeof v.at === 'string' && typeof v.viewers === 'string' && OWN_ROUTE.test(v.viewers)) return v;
+        if (v && typeof v.at === 'string' && Array.isArray(v.rules)) return v;
       } catch (e) { /* no views: the plain explorer */ }
       return null;
     })();
@@ -669,128 +671,212 @@ function setup(root, opts) {
     saveTabs();
   }
 
-  // viewers: the mount's `viewers` is the url of an endpoint the app serves.
-  // When a path opens in a tab, it is asked with the path relative to the
-  // mount root, its kind (file|dir), a file's blot and a dir's neck
-  // (?path=…&kind=…&blot=…&neck=…) and answers {view, script, args?} or an empty
-  // body: the app decides, in its own code, which of its paths open in
-  // which pane, and hands the pane whatever context it needs as `args`
-  // (the pane never has to parse the tree's shape out of a url). The
-  // script registers itself as
-  // window.Viewers[view] = { label, mount(root, opts) -> { destroy() } },
+  // RULES: a declaration's `rules` is an ordered table, matched against a
+  // path to decide how it opens. A rule is
+  //
+  //   {at, match, kind?, view?, layout} | {at, match, kind?, view?, pane}
+  //
+  // `at` is the directory that declared it (stamped on by the server; a
+  // mount names its own root). `match` is the path pattern, relative to
+  // `at`: literal segments, `*` for one segment and `**` for one or more,
+  // either of which may carry a literal tail ('*.json', '**.grp') matched
+  // off the end of the segment and left out of the capture. `kind` is
+  // 'file' or 'dir'; `view` is the ?view= the moment asked for (a string
+  // or a list of them), and a rule that names none answers only the bare
+  // path. The first rule that matches wins.
+  //
+  // What it answers is either {layout: url} — the directory opens as a
+  // workspace laid out by that file — or a pane:
+  //
+  //   pane: {view, script, args?, follow?: [{road, body|fold}]}
+  //
+  // The script is a module exporting
+  // panes = { <view>: { label, mount(root, opts) -> { destroy() } } },
   // the same contract as FileView, with opts = {url, args, onNavigate}. A
+  // name is the module's own, so two apps may both hold a `record`. A
   // file's pane is FileView's first pane; a dir's pane is a third mode of
-  // the dir tab beside rows and desktop. Loaded lazily, once; a path the
-  // app declines (or a script that fails) just gets the usual view. A pane
+  // the dir tab beside rows and desktop. Loaded lazily, once; a path no
+  // rule claims (or a script that fails) just gets the usual view. A pane
   // is about the path it opens on: that is a convention the app keeps, not
   // a rule the explorer enforces. The script runs with this page's reach, so
   // only this ship's own routes are loaded: a /grubbery/... path, never
   // another origin.
-  const MOUNT_VIEWERS = (MOUNT && typeof MOUNT.viewers === 'string' && OWN_ROUTE.test(MOUNT.viewers)) ? MOUNT.viewers : null;
-  const viewerLoads = {};      // script url -> Promise
-  // a stock viewer by name + script: the explorer's own renderers (the tree),
-  // loaded once, mounted like any declared one. null when it will not load.
-  async function stockViewer(view, src) {
-    window.Viewers = window.Viewers || {};
-    if (!window.Viewers[view]) {
-      if (!viewerLoads[src]) viewerLoads[src] = new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('viewer failed to load: ' + src)); document.head.appendChild(s); });
-      try { await viewerLoads[src]; } catch (_) { return null; }
+  //
+  // Urls and roads inside a rule are spelled './x' for the declaring
+  // directory's own files, or absolutely. `{0}` in them is the matched
+  // path, `{1}`… the captures in order, `{view}` the asked view.
+  const MOUNT_RULES = (MOUNT && Array.isArray(MOUNT.rules)) ? MOUNT.rules.map((r) => Object.assign({ at: SCOPE || '/' }, r)) : null;
+  // one pattern against one relative path, yielding the captures or null.
+  // '**' spans any number of segments, none included: a thing found at any
+  // depth is found at the top too.
+  function patMatch(ps, ss, caps) {
+    if (!ps.length) return ss.length ? null : caps;
+    const p = ps[0];
+    const deep = /^\*\*(.*)$/.exec(p);
+    if (deep) {
+      for (let n = deep[1] ? 1 : 0; n <= ss.length; n++) {
+        const taken = ss.slice(0, n);
+        if (deep[1]) {
+          const last = taken[n - 1];
+          if (!last.endsWith(deep[1]) || last.length === deep[1].length) continue;
+          taken[n - 1] = last.slice(0, -deep[1].length);
+        }
+        const got = patMatch(ps.slice(1), ss.slice(n), caps.concat([taken.join('/')]));
+        if (got) return got;
+      }
+      return null;
     }
-    const v = window.Viewers[view];
+    if (!ss.length) return null;
+    const one = /^\*(.*)$/.exec(p);
+    if (one) {
+      let seg = ss[0];
+      if (one[1]) {
+        if (!seg.endsWith(one[1]) || seg.length === one[1].length) return null;
+        seg = seg.slice(0, -one[1].length);
+      }
+      return patMatch(ps.slice(1), ss.slice(1), caps.concat([seg]));
+    }
+    if (ss[0] !== p) return null;
+    return patMatch(ps.slice(1), ss.slice(1), caps);
+  }
+  const subst = (s, caps, rel, view) => String(s).replace(/\{(\d+|view)\}/g, (_m, k) =>
+    k === 'view' ? (view || '') : (k === '0' ? rel : (caps[+k - 1] != null ? caps[+k - 1] : '')));
+  // './x' names a file of the directory that declared the rule; a road is
+  // the namespace path, a url the way this page fetches one
+  const ruleRoad = (s, at) => (s.startsWith('./') ? (at === '/' ? '' : at.replace(/\/+$/, '')) + s.slice(1) : s).replace(/\/{2,}/g, '/');
+  const ruleUrl = (s, at) => s.startsWith('./') ? PREFIX + ruleRoad(s, at) : s;
+  // an arg spelled './x' is a place of the declaring directory's, like a
+  // road; anything else is handed over as written
+  function argsOf(src, fill, at) {
+    const out = {};
+    for (const k of Object.keys(src)) {
+      const v = src[k];
+      out[k] = (typeof v === 'string') ? ruleRoad(fill(v), at) : v;
+    }
+    return out;
+  }
+  // the first rule claiming this path, with its captures filled in
+  function matchRules(rules, path, kind, askView) {
+    const want = askView || '';
+    for (const r of rules) {
+      if (!r || typeof r.at !== 'string' || typeof r.match !== 'string') continue;
+      if (r.kind && r.kind !== kind) continue;
+      // no `view` answers the bare path alone; '*' answers whatever was asked
+      if (r.view === undefined ? want : !(Array.isArray(r.view) ? r.view : [r.view]).some((v) => v === '*' || String(v) === want)) continue;
+      const base = PREFIX + r.at.replace(/\/+$/, '');
+      const rel = path === base ? '' : path.startsWith(base + '/') ? path.slice(base.length + 1) : null;
+      if (rel === null) continue;
+      const caps = patMatch(r.match === '' ? [] : r.match.split('/'), rel === '' ? [] : rel.split('/'), []);
+      if (!caps) continue;
+      // a rule that names neither a layout nor a pane STOPS the search:
+      // this path is the explorer's own to render, and the rules below it
+      // do not get to claim it (+pick-viewer's `~`)
+      if (typeof r.layout !== 'string' && !r.pane) return { none: true };
+      const fill = (s) => subst(s, caps, rel, want);
+      // a layout file is a template: `vars` names what to put in it, so one
+      // file lays out every instance ({"layout": "./repo-layout.json",
+      // "vars": {"repo": "{1}"}} fills {repo} wherever it appears).
+      if (typeof r.layout === 'string') {
+        const vars = {};
+        if (r.vars && typeof r.vars === 'object') for (const k of Object.keys(r.vars)) vars[k] = fill(String(r.vars[k]));
+        return { layout: ruleUrl(fill(r.layout), r.at), vars };
+      }
+      const p = r.pane;
+      if (typeof p.view !== 'string') return { none: true };
+      return {
+        pane: {
+          view: fill(p.view),
+          script: typeof p.script === 'string' ? ruleUrl(fill(p.script), r.at) : '',
+          args: (p.args && typeof p.args === 'object') ? argsOf(p.args, fill, r.at) : {},
+          follow: Array.isArray(p.follow) ? p.follow.filter((f) => f && typeof f.road === 'string')
+            .map((f) => ({ road: ruleRoad(fill(f.road), r.at), body: !!f.body, fold: !!f.fold })) : null,
+        },
+      };
+    }
+    return null;
+  }
+  // ---- where panes come from ----
+  // A pane is addressed by the pair the rule already names: the script
+  // that holds it and the name it has inside that script. The script is
+  // a module exporting `panes` ({name: {label, mount}}), imported once
+  // and filed under its url, so the name is the module's to choose: two
+  // apps may both call a pane `record` and never meet.
+  const viewerLoads = {};      // script url -> Promise<{name: impl}>
+  function paneScript(src) {
+    if (!viewerLoads[src]) viewerLoads[src] = import(src).then((mod) => {
+      const panes = mod && mod.panes;
+      return (panes && typeof panes === 'object') ? panes : {};
+    });
+    return viewerLoads[src];
+  }
+  // one pane, or null when the script will not load or holds no such name
+  async function paneFrom(src, view) {
+    let got;
+    try { got = await paneScript(src); } catch (e) { return null; }
+    const v = got && got[view];
     return (v && typeof v.mount === 'function') ? v : null;
   }
+  // a stock viewer by name + script: the explorer's own renderers (the tree),
+  // loaded once, mounted like any declared one. null when it will not load.
+  const stockViewer = (view, src) => paneFrom(src, view);
   // `view`: the moment's ?view= when it is not one the host renders itself
-  // (rows|grid|tree); the app answers its own view names (a selector, a
-  // record form) and the bare path (no view) with whatever it opens as
-  //
-  // TODO(perf): every leaf costs three serial trips: the ?list=1 probe in
-  // paneContent, this ask, then its data. (1) An app answering a LAYOUT
-  // already knows the layout's leaves: let it inline their rules
-  // ({layout, rules: {path: rule}}) so leaves under it skip the probe and
-  // the ask. (2) Then let it hydrate: each visible leaf's first body in the
-  // same answer, handed to mount as initial state → one request per
-  // visible layout on a cold open. See project memory "gmux".
+  // (rows|grid|tree); a rule names its own view names (a selector, a
+  // record form) and the bare path (no view) opens as whatever claims it
   async function viewerFor(path, kind, neck, askView) {
     try {
       await viewReady;
-      // who answers, and from where paths are relative: the mount's root,
-      // or the directory carrying the view.json that governs THIS path
-      // (the nearest at or above the tab's own directory)
+      // whose rules: the mount's own, or the ones governing THIS path (the
+      // declarations from the scope root down to the tab's own directory)
       const VIEW = MOUNT ? null : await viewFor(kind === 'dir' ? path : path.slice(0, path.lastIndexOf('/')) || PREFIX);
-      const viewers = MOUNT ? MOUNT_VIEWERS : (VIEW ? VIEW.viewers : null);
-      const base = MOUNT ? ROOT : (VIEW ? PREFIX + VIEW.at.replace(/\/+$/, '') : null);
-      if (!viewers || !base) return null;
-      let rel = path === base ? '' : path.startsWith(base + '/') ? path.slice(base.length) : null;
-      if (rel === null) return null; // outside the declaring directory: not its path
+      const rules = MOUNT ? MOUNT_RULES : (VIEW ? VIEW.rules : null);
+      if (!rules || !rules.length) return null;
       // a directory is named by `kind`, not by a trailing slash, and the same
       // directory reached two ways is spelled both ways: a layout entry says
-      // './itineraries', a typed path says 'itineraries/'. Ask about one
+      // './itineraries', a typed path says 'itineraries/'. Match one
       // spelling, or a rule matches depending on how you got there.
-      if (kind === 'dir') rel = rel.replace(/\/+$/, '');
-      let blot = '';
-      if (kind !== 'dir') {
-        const info = await fetch(path + '?info=1').then((r) => r.json());
-        blot = ((info && info.blot) || '').replace(/^\//, '');
-      }
-      // the path as the kernel spells it: its directories from the declaring
-      // one down, each with its neck, so a rule can switch on the nexuses
-      // along the way and not only on names
-      let pant = '';
-      try {
-        const pr = await fetch(path + '?pant=1&from=' + encodeURIComponent(base.slice(PREFIX.length) || '/'), { cache: 'no-store' });
-        const pj = pr.ok ? await pr.json() : null;
-        if (pj && Array.isArray(pj.pant)) pant = JSON.stringify(pj.pant);
-      } catch (e) { /* the rule gets the path alone */ }
-      // a dir is told by its neck (the nexus it runs, '' when plain), a file by
-      // its blot, and EVERY ask carries the mode: an app may answer a phone
-      // with a different pane than it answers a desktop, or the same one
-      const q = '?path=' + encodeURIComponent(rel) + '&kind=' + (kind === 'dir' ? 'dir' : 'file') +
-        '&blot=' + encodeURIComponent(blot) + '&neck=' + encodeURIComponent(kind === 'dir' ? (neck || '') : '') +
-        '&mode=' + PS_MODE +
-        (pant ? '&pant=' + encodeURIComponent(pant) : '') + (askView ? '&view=' + encodeURIComponent(askView) : '');
-      const r = await fetch(viewers + q, { cache: 'no-store' });
-      if (!r.ok) return null;
-      const text = await r.text();
-      const rule = text.trim() ? JSON.parse(text) : null;
-      if (!rule || typeof rule !== 'object') return null;
-      // {layout}: the app says this DIRECTORY opens as a layout (a url on
-      // this ship) rooted at it: entry paths in the layout starting with
-      // './' resolve against the opened dir. One layout, any instance.
-      if (typeof rule.layout === 'string') return OWN_ROUTE.test(rule.layout) ? { layout: rule.layout } : null;
+      const rule = matchRules(rules, kind === 'dir' ? path.replace(/\/+$/, '') : path, kind === 'dir' ? 'dir' : 'file', askView);
+      if (!rule || rule.none) return null;
+      // {layout}: this DIRECTORY opens as a layout (a url on this ship)
+      // rooted at it: entry paths in the layout starting with './'
+      // resolve against the opened dir. One layout, any instance.
+      if (rule.layout) return OWN_ROUTE.test(rule.layout) ? { layout: rule.layout, vars: rule.vars } : null;
+      const pane = rule.pane;
       // {view: 'frame', args: {url}}: the stock frame, no script of the app's
-      if (rule.view === 'frame') { const fa = (rule.args && typeof rule.args === 'object') ? rule.args : {}; return { label: 'frame', follow: null, mount: (root, opts) => frameMount(root, Object.assign({}, opts, { args: fa })) }; }
-      const src = rule.script, view = rule.view;
-      if (typeof view !== 'string' || typeof src !== 'string' || !OWN_ROUTE.test(src)) { toast('viewer refused: needs a view name and a script on this ship', true); return null; }
-      window.Viewers = window.Viewers || {};
-      if (!window.Viewers[view]) {
-        if (!viewerLoads[src]) viewerLoads[src] = new Promise((res, rej) => {
-          const s = document.createElement('script');
-          s.src = src; s.onload = res; s.onerror = () => rej(new Error('viewer failed to load: ' + src));
-          document.head.appendChild(s);
-        });
-        try { await viewerLoads[src]; }
-        catch (e) {
-          // the pane exists but its script would not run. Say WHY, so a
-          // declared view that is not allowed here is shown as such and
-          // not mistaken for no view: the kernel marks a script it served
-          // inert because its app's weir does not reach eyre
-          // (x-grubbery-serve: sandboxed); a 404 is a missing script;
-          // anything else is a broken one.
-          const why = await blockedWhy(src);
-          return { label: view, blocked: why };
-        }
+      if (pane.view === 'frame') return { label: 'frame', follow: null, mount: (root, opts) => frameMount(root, Object.assign({}, opts, { args: pane.args })) };
+      const src = pane.script, view = pane.view;
+      if (!OWN_ROUTE.test(src)) { toast('viewer refused: needs a view name and a script on this ship', true); return null; }
+      let held;
+      try { held = await paneScript(src); }
+      catch (e) {
+        // the pane exists but its script would not run. Say WHY, so a
+        // declared view that is not allowed here is shown as such and
+        // not mistaken for no view: the kernel marks a script it served
+        // inert because its app's weir does not reach eyre
+        // (x-grubbery-serve: sandboxed); a 404 is a missing script;
+        // anything else is a broken one.
+        const why = await blockedWhy(src);
+        return { label: view, blocked: why };
       }
-      const v = window.Viewers[view];
-      if (!v || typeof v.mount !== 'function') return { label: view, blocked: 'the script loaded but registered no "' + view + '" pane' };
-      // the app's args ride along with the pane; a mount passes them through
-      const args = (rule.args && typeof rule.args === 'object') ? rule.args : {};
+      const v = held && held[view];
+      // the script ran: say what it DOES hold, so a renamed pane reads as
+      // a rule pointing at the wrong name rather than as a broken script
+      if (!v || typeof v.mount !== 'function') {
+        const has = Object.keys(held || {});
+        return { label: view, blocked: 'that script has no "' + view + '" pane' + (has.length ? ' (it holds ' + has.join(', ') + ')' : '') };
+      }
+      // the rule's args ride along with the pane; a mount passes them through
+      const args = pane.args;
       // follow: the roads this instance's rendering depends on, [{road, body?}].
       // The explorer keeps them on its one stream (see live) and tells the
       // mounted pane when they move; absent → the rendering is static.
-      const follow = Array.isArray(rule.follow) ? rule.follow.filter((f) => f && typeof f.road === 'string' && f.road.startsWith('/')).map((f) => ({ road: f.road, body: !!f.body, fold: !!f.fold })) : null;
+      const follow = pane.follow ? pane.follow.filter((f) => f.road.startsWith('/')) : null;
       return { label: v.label, follow, mount: (root, opts) => v.mount(root, Object.assign({}, opts, { args })) };
     } catch (e) { toast('viewer: ' + e.message, true); return null; }
   }
+  // a layout template's {name} holes, filled from the rule's `vars` before
+  // it is parsed: one file for every instance of a thing
+  const layoutVars = (txt, vars) => (vars && Object.keys(vars).length)
+    ? txt.replace(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (m, k) => (k in vars ? vars[k] : m)) : txt;
   async function blockedWhy(src) {
     try {
       const r = await fetch(src, { cache: 'no-store' });
@@ -2804,7 +2890,8 @@ function setup(root, opts) {
         const rebase = (o) => Array.isArray(o) ? o.map(rebase)
           : (o && typeof o === 'object') ? Object.fromEntries(Object.keys(o).map((k) => [k, (k === 'path' && typeof o[k] === 'string') ? psRel(ns, o[k]) : rebase(o[k])]))
           : o;
-        fetch(viewer.layout, { cache: 'no-store' }).then((r) => r.ok ? r.json() : Promise.reject('x'))
+        fetch(viewer.layout, { cache: 'no-store' }).then((r) => r.ok ? r.text() : Promise.reject('x'))
+          .then((txt) => JSON.parse(layoutVars(txt, viewer.vars)))
           .then((spec) => { if (el.isConnected) ps.replaceWithLayout(paneId, rebase(spec), path); })   // the source is the moment, ?args and all
           .catch((e) => psWaitFail(el, 'not a valid layout: ' + ((e && e.message) || e), viewer.layout));
         return;

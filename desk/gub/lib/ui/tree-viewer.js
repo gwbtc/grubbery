@@ -3,7 +3,7 @@
 // and any gmux pane (or explorer tab) that opens the declaring path mounts
 // it through the standard viewer system. Zero changes to gmux/explorer.
 //
-// Contract (window.Viewers[name], same as FileView):
+// Contract (an entry of the module's `panes`, same as FileView):
 //   mount(host, { url, args, onNavigate }) -> { destroy, onUpdate }
 // onUpdate  — the host says the root moved: the subtree is re-fetched and
 //             redrawn in place (open dirs stay open).
@@ -15,7 +15,7 @@
 // synchronously; clicks fire onOpenFile/onOpenDir. A compact strip carries the
 // finder's two sidebar affordances: expand/collapse all and show/hide badges
 // (badges via the shared window.attachBadges from lib/ui/badges.js).
-(function () {
+export const panes = (function () {
   const PREFIX = '/grubbery/ball';
   const urlOf = (ns) => (ns === '/' || !ns) ? PREFIX : PREFIX + ns;
 
@@ -92,7 +92,7 @@
 
     return { destroy() { clearTimeout(timer); try { wrap.remove(); } catch (_) {} }, onUpdate: later };
   }
-
-  window.Viewers = window.Viewers || {};
-  window.Viewers.tree = { label: 'tree', mount };
+  return {
+    'tree': { label: 'tree', mount },
+  };
 })();

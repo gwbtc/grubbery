@@ -24,10 +24,10 @@
 /&  icon        forge/icon.svg
 /&  forge-html  forge/index.html
 /&  forge-js    forge/app.js
-/&  forge-viewers-js  forge/viewers.js
+/&  repo-panes-js  forge/panes/repo.js
 ::  the handbook as a pane: the docs reader ported to a viewer (its own file,
-::  served as docs-pane.js; the reader page stays for the original forge ui)
-/&  docs-pane-js  forge/docs/pane.js
+::  served as panes/docs.js; the reader page stays for the original forge ui)
+/&  docs-panes-js  forge/panes/docs.js
 ::  the layouts the explorer opens forge's dirs as, './' paths resolved
 ::  against the dir opened: the forge root (repo selector left, a tab per
 ::  repo right) and a repo (tree, file, and the status/history/run/settings
@@ -93,17 +93,18 @@
           [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
           [%over %& [/ %'index.html'] [[/ %mime] forge-html]]
           [%over %& [/ %'app.js'] [[/ %mime] forge-js]]
-          [%over %& [/ %'viewers.js'] [[/ %mime] forge-viewers-js]]
-          [%over %& [/ %'docs-pane.js'] [[/ %mime] docs-pane-js]]
+          [%fall %| /panes empty-dir:loader]
+          [%over %& [/panes %'repo.js'] [[/ %mime] repo-panes-js]]
+          [%over %& [/panes %'docs.js'] [[/ %mime] docs-panes-js]]
           [%over %& [/ %'layout.json'] [[/ %mime] forge-layout]]
           [%over %& [/ %'repo-layout.json'] [[/ %mime] repo-layout]]
-          ::  the explorer finds this view.json above any forge path and asks
-          ::  /api/viewers how it opens: the root as the forge layout, a repo
-          ::  as the repo layout, a repo's ui grubs as panes
+          ::  the explorer finds this view.json above any forge path and
+          ::  reads how the paths under it open: the root as the forge
+          ::  layout, a repo as the repo layout, a repo's ui grubs as panes
           :^  %over  %&  [/ %'view.json']
           :-  [/ %json]
           %-  pairs:enjs:format
-          :~  ['viewers' s+'/grubbery/forge/api/viewers']
+          :~  ['rules' view-rules]
               ['title' s+'forge']
               ['icon' s+'/grubbery/tiles/icon/apps/shell/forge']
           ==
@@ -161,8 +162,6 @@
           ==
         ?:  ?=([%api %blame ~] suffix)
           (do-blame rail eyre-id args)
-        ?:  ?=([%api %viewers ~] suffix)
-          (do-viewers rail eyre-id args)
         ?:  ?=([%api %defaults ~] suffix)
           ;<  cur=(unit json)  bind:m
             (peek-as:io (nex-road:io rail [%& / %'defaults.json']) ,json)
@@ -202,24 +201,6 @@
         ::  nav.json + coverage.json (read from the data nexus's precomputed
         ::  ui/ grubs), page (markdown + its resolved live blocks in one json),
         ::  and slice (the exact lines of a file at a pinned commit).
-        ::  /repo/<name>/layout.json → this repo's workspace layout: the
-        ::  template with the repo's short name filled in, so its docs tab
-        ::  can name the repo's own clanker chat (@clanker/projects/forge/
-        ::  <short>.clanker/chats/docs) as a pane beside the reader. Asking
-        ::  for the layout is what makes that clanker and its chats exist.
-        ?:  ?=([%repo @ %'layout.json' ~] suffix)
-          =/  seg=tape  (trip i.t.suffix)
-          =/  repo=@ta
-            ?:  =(".git_repo" (slag ?:((gth (lent seg) 9) (sub (lent seg) 9) 0) seg))
-              i.t.suffix
-            (cat 3 i.t.suffix '.git_repo')
-          ;<  got=(unit [cl=path short=@t])  bind:m  (ensure-repo-chats repo)
-          =/  short=@t
-            ?^  got  short.u.got
-            (crip (scag (sub (lent (trip repo)) 9) (trip repo)))
-          =/  txt=@t  (fill-repo q.q.repo-layout short)
-          ;<  ~  bind:m  (send-simple:http-res:io eyre-id (mime-response:http-utils [/application/json (as-octs:mimes:html txt)]))
-          (pure:m ~)
         ?:  ?=([%repo @ %docs *] suffix)
           ::  the url carries the SHORT repo name (as the workspace does); the
           ::  docs arms key by the full instance dir <name>.git_repo
@@ -278,7 +259,7 @@
             :~  ['proj' s+(crip "/forge/{(trip short)}.clanker")]
                 ['chat' s+'docs']
                 ['url' s+(crip "/grubbery/ball{(spud cl.u.got)}/projects/forge/{(trip short)}.clanker/chats/docs/log.chat-log")]
-                ['viewer' s+'/grubbery/clanker/viewer.js']
+                ['viewer' s+'/grubbery/clanker/panes/chat.js']
             ==
             ::  /search?q= → full-text search over this repo's handbook pages,
             ::  the shell docs' search bar: the ship greps the checkout's
@@ -722,18 +703,6 @@
       ['recipe' u.rcp]
       ['files' (pairs:enjs:format files)]
   ==
-::  +fill-repo: a layout template with every {repo} filled with the
-::  repo's short name
-++  fill-repo
-  |=  [tpl=@t short=@t]
-  ^-  @t
-  =/  mark=tape  "\{repo}"
-  =/  s=tape  (trip short)
-  =/  t=tape  (trip tpl)
-  |-  ^-  @t
-  =/  i=(unit @ud)  (find mark t)
-  ?~  i  (crip t)
-  $(t :(weld (scag u.i t) s (slag (add u.i (lent mark)) t)))
 ++  docs-chat-prompt
   ^-  @t
   '''
@@ -893,6 +862,10 @@
     ==
   ;<  ~  bind:m
     (over:io (nex-road:io rail [%& /repos/[dir-name] %'config.json']) [[/ %json] config])
+  ::  the repo's clanker and its chats are part of what a repo is, so they
+  ::  are made with it. The docs reader's /docs/chat ensures them too, for
+  ::  a repo made on a ship that had no clanker installed yet.
+  ;<  *  bind:m  (ensure-repo-chats dir-name)
   ?:  =('' (jstr jon 'repo'))
     (respond rail eyre-id 200 'created')
   ;<  ~  bind:m
@@ -1036,72 +1009,80 @@
 ::  take an empty poke, txt actions the text field as a wain, add
 ::  a json payload
 ::
-::  +do-viewers: GET /api/viewers?path=&kind= — the explorer asks, per path
-::  under the forge root (the dir carrying view.json), how it opens. The
-::  root opens as the forge layout (repo selector | a tab per repo), /repos
-::  as the forge-repos selector (following the dir in fold mode), a repo
-::  dir as the repo layout rooted there, and a repo's status/commits/run/
-::  config grubs as the forge-status/log/run/settings panes, each following
-::  the grubs it draws from with bodies so the stream hands it fresh json.
-::  Everything else (the working tree, its files) answers empty: the
-::  explorer renders those itself.
+::  +view-rules: how the paths under the forge open, the table view.json
+::  carries. The root opens as the forge layout (repo selector | a tab per
+::  repo), /repos as the repos selector (following the dir in fold
+::  mode), a repo dir as the repo layout rooted there, and a repo's
+::  status/commits/run/config grubs as the status/log/run/settings
+::  panes, each following the grubs it draws from with bodies so the
+::  stream hands it fresh json. Everything else (the working tree, its
+::  files) is claimed by no rule: the explorer renders those itself.
 ::
-++  do-viewers
-  |=  [=rail:tarball eyre-id=@ta args=quay:eyre]
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  =/  pax=(unit @t)  (quay-get args 'path')
-  =/  segs=path  ?~(pax / (fall (mole |.((stab u.pax))) /))
-  ::  'file' or 'dir' (browse.js viewerFor); blame is a file-only tab
-  =/  kind=@t  (fall (quay-get args 'kind') 'file')
-  ;<  here=rail:tarball  bind:m  get-here-abs:io
-  =/  repos=path  (weld (snip `path`path.here) /repos)
-  =/  follow  |=(p=path (pairs:enjs:format ~[['road' s+(spat p)] ['body' b+%.y]]))
-  =/  layout  |=(url=@t (pairs:enjs:format ~[['layout' s+url]]))
-  ::  the forge root: the selector on the left, a tab per repo on the right
-  ?~  segs
-    (send-json rail eyre-id (layout '/grubbery/forge/layout.json'))
-  ::  the repos dir: the repo selector, live on the dir's own node
-  ?:  ?=([%repos ~] segs)
-    %^  send-json  rail  eyre-id
+::  Blame is NOT wired as the file viewer -- it walks git history
+::  synchronously and must never run on a file-open, let alone the request
+::  path. It belongs behind an explicit action that caches its result.
+::
+++  view-rules
+  ^-  json
+  =/  follow
+    |=  [road=@t fold=?]
+    (pairs:enjs:format ~[['road' s+road] ['body' b+!fold] ['fold' b+fold]])
+  ::  a repo's own pane: the repo name is the match's one capture, so one
+  ::  rule covers every repo the forge holds
+  =/  repo-pane
+    |=  [match=@t view=@t script=@t follows=(list json)]
+    ^-  json
     %-  pairs:enjs:format
-    :~  ['view' s+'forge-repos']
-        ['script' s+'/grubbery/forge/viewers.js']
-        ['args' (pairs:enjs:format ~[['api' s+'/grubbery/forge/api']])]
-        ['follow' a+~[(pairs:enjs:format ~[['road' s+(cat 3 (spat repos) '/')] ['fold' b+%.y]])]]
+    :~  ['match' s+match]  ['kind' s+'file']
+        :-  'pane'
+        %-  pairs:enjs:format
+        :~  ['view' s+view]
+            ['script' s+script]
+            ['args' (pairs:enjs:format ~[['repo' s+'{1}'] ['api' s+'/grubbery/forge/api']])]
+            ['follow' a+follows]
+        ==
     ==
-  ::  a repo dir: the repo workspace rooted at it, this repo's own copy
-  ::  (its docs tab names the repo's clanker chat by name)
-  ?:  ?=([%repos @ ~] segs)
-    (send-json rail eyre-id (layout (crip "/grubbery/forge/repo/{(trip i.t.segs)}/layout.json")))
-  ::  working-tree files answer empty (below): the explorer renders them
-  ::  itself. Blame is NOT wired as the file viewer -- it walks git history
-  ::  synchronously and must never run on a file-open, let alone the request
-  ::  path. It belongs behind an explicit action that caches its result.
-  ::  the panes the forge page has: status, history, run, settings
-  =/  ui=path  /data/ui
-  =/  rule=(unit [repo=@ta view=@t rails=(list rail:tarball)])
-    ?+  segs  ~
-      [%repos @ %data %ui %'status.json' ~]   `[i.t.segs 'forge-status' ~[[ui %'status.json'] [ui %'current.json'] [ui %'stash.json'] [ui %'branches.json']]]
-      [%repos @ %data %ui %'commits.json' ~]  `[i.t.segs 'forge-log' ~[[ui %'commits.json'] [ui %'current.json'] [ui %'branches.json']]]
-      [%repos @ %'run.git-action' ~]          `[i.t.segs 'forge-run' ~[[/ %'run.git-action']]]
-      [%repos @ %'config.json' ~]             `[i.t.segs 'forge-settings' ~[[/ %'config.json'] [/ %'poll.json']]]
+  =/  ui  |=(name=@t (follow (cat 3 './repos/{1}/data/ui/' name) %.n))
+  :-  %a
+  :~  %-  pairs:enjs:format
+      :~  ['match' s+'']  ['kind' s+'dir']  ['layout' s+'./layout.json']  ==
+      %-  pairs:enjs:format
+      :~  ['match' s+'repos']  ['kind' s+'dir']
+          :-  'pane'
+          %-  pairs:enjs:format
+          :~  ['view' s+'repos']
+              ['script' s+'./panes/repo.js']
+              ['args' (pairs:enjs:format ~[['api' s+'/grubbery/forge/api']])]
+              ['follow' a+~[(follow './repos/' %.y)]]
+          ==
+      ==
+      ::  a repo dir: the repo workspace rooted at it, from the one
+      ::  template. The match takes the instance suffix off the capture,
+      ::  so {repo} is the short name the docs tab spells its clanker
+      ::  chat with (@clanker/projects/forge/<short>.clanker/chats/docs).
+      %-  pairs:enjs:format
+      :~  ['match' s+'repos/*.git_repo']  ['kind' s+'dir']
+          ['layout' s+'./repo-layout.json']
+          ['vars' (pairs:enjs:format ~[['repo' s+'{1}']])]
+      ==
+      %+  repo-pane  'repos/*/data/ui/status.json'
+      :+  'status'  './panes/repo.js'
+      :~  (ui 'status.json')  (ui 'current.json')
+          (ui 'stash.json')   (ui 'branches.json')
+      ==
+      %+  repo-pane  'repos/*/data/ui/commits.json'
+      :+  'log'  './panes/repo.js'
+      ~[(ui 'commits.json') (ui 'current.json') (ui 'branches.json')]
+      %+  repo-pane  'repos/*/run.git-action'
+      :+  'run'  './panes/repo.js'
+      ~[(follow './repos/{1}/run.git-action' %.n)]
+      %+  repo-pane  'repos/*/config.json'
+      :+  'settings'  './panes/repo.js'
+      ~[(follow './repos/{1}/config.json' %.n) (follow './repos/{1}/poll.json' %.n)]
       ::  the handbook: the docs reader page framed over the repo's docs nav
-      [%repos @ %data %ui %'docs-nav.json' ~]  `[i.t.segs 'forge-docs' ~[[ui %'docs-nav.json']]]
-    ==
-  ?~  rule  (respond rail eyre-id 200 '')
-  =/  inst=path  (snoc repos repo.u.rule)
-  =/  follows=(list json)
-    (turn rails.u.rule |=(r=rail:tarball (follow (snoc (weld inst path.r) name.r))))
-  ::  the docs pane is its own script; the rest share viewers.js
-  =/  script=@t
-    ?:(=('forge-docs' view.u.rule) '/grubbery/forge/docs-pane.js' '/grubbery/forge/viewers.js')
-  %^  send-json  rail  eyre-id
-  %-  pairs:enjs:format
-  :~  ['view' s+view.u.rule]
-      ['script' s+script]
-      ['args' (pairs:enjs:format ~[['repo' s+repo.u.rule] ['api' s+'/grubbery/forge/api']])]
-      ['follow' a+follows]
+      %+  repo-pane  'repos/*/data/ui/docs-nav.json'
+      :+  'docs'  './panes/docs.js'
+      ~[(ui 'docs-nav.json')]
   ==
 ::  +do-run: submit a git command to a repo's serial command queue. Pokes
 ::  /run.git-action with {command}; the queue parses and runs it.

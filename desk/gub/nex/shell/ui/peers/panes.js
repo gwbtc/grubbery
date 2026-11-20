@@ -11,7 +11,7 @@
 // A group's files are derived by the shell from your record and from what
 // granted apps declare; this pane edits your part. The raw files stay one
 // click away in Source.
-(function () {
+export const panes = (function () {
   'use strict';
   var API = '/apps/grubbery';
   var CSS =
@@ -242,8 +242,8 @@
     }).catch(function (e) { if (!dead) body.appendChild(el('div', 'err', 'group failed to load: ' + e.message)); });
     return { destroy: function () { dead = true; root.innerHTML = ''; root.classList.remove('pe'); } };
   }
-
-  window.Viewers = window.Viewers || {};
-  window.Viewers['groups'] = { label: 'Groups', mount: mountGroups };
-  window.Viewers['group'] = { label: 'Group', mount: mountGroup };
+  return {
+    'groups': { label: 'Groups', mount: mountGroups },
+    'group': { label: 'Group', mount: mountGroup },
+  };
 })();

@@ -21,7 +21,7 @@
 /<  permits-html   shell/ui/permits.html
 /<  home-html      shell/ui/home.html
 ::  peers: the usergroups panes of the explorer mounted on /sys/ames
-/&  peers-js       shell/ui/peers.js
+/&  peers-panes-js  shell/ui/peers/panes.js
 ::  notifications: the service (lib/shell/notifications), its page at
 ::  /grubbery/inbox, and its tools nexus (push_notify)
 /<  notifications  /lib/shell/notifications.hoon
@@ -58,7 +58,7 @@
 /&  tools-js       shell/ui/tools/app.js
 /&  tools-css      shell/ui/tools/style.css
 ::  the explorer panes for a tools nexus and one of its tools
-/&  tools-pane-js  shell/ui/tools/pane.js
+/&  tools-panes-js  shell/ui/tools/panes.js
 /&  tg-js          /lib/ui/tab-group.js
 /&  md-js          /lib/ui/modal-dialog.js
 =<  ^-  nexus:nexus
@@ -84,7 +84,8 @@
           [%over %& [/ui %'app.js'] [[/ %mime] app-js]]
           [%over %& [/ui %'style.css'] [[/ %mime] app-css]]
           [%over %& [/ui %'permits.html'] [[/ %mime] permits-html]]
-          [%over %& [/ui %'peers.js'] [[/ %mime] peers-js]]
+          [%fall %| /ui/peers empty-dir:loader]
+          [%over %& [/ui/peers %'panes.js'] [[/ %mime] peers-panes-js]]
           [%fall %| /ui/notifications empty-dir:loader]
           [%over %& [/ui/notifications %'index.html'] [[/ %mime] notif-html]]
           [%over %& [/ui/notifications %'app.js'] [[/ %mime] notif-js]]
@@ -102,7 +103,7 @@
           [%over %& [/ui/tools %'components.js'] [[/ %mime] kit-js]]
           [%over %& [/ui/tools %'style.css'] [[/ %mime] tools-css]]
           [%over %& [/ui/tools %'icon.svg'] [[/ %mime] tools-icon]]
-          [%over %& [/ui/tools %'pane.js'] [[/ %mime] tools-pane-js]]
+          [%over %& [/ui/tools %'panes.js'] [[/ %mime] tools-panes-js]]
           ::  usergroups.sig: the shell's ONE registry liaison. Registrant
           ::  prefixes nest-clobber (%how replaces every road under the
           ::  sender's prefix), so exactly one root-prefix fiber makes all
@@ -1085,26 +1086,10 @@
             (send-simple:http-res:io eyre-id [[200 ~[['content-type' 'image/svg+xml']]] `bod])
           (pure:m ~)
         ::  === peers: the explorer mounted on /sys/ames, with panes ===
-        ::  /apps/grubbery/peers.js → the panes (groups, group)
-        ?:  ?=([%'peers.js' ~] suffix)
-          =/  bod=octs  q.peers-js
-          ;<  ~  bind:m
-            (send-simple:http-res:io eyre-id [[200 ~[['content-type' 'application/javascript']]] `bod])
-          (pure:m ~)
         ::  /apps/grubbery/peers.json → every usergroup folded from its files
         ?:  ?=([%'peers.json' ~] suffix)
           ;<  groups=json  bind:m  (peers-groups rail)
           =/  bod=octs  (as-octs:mimes:html (en:json:html groups))
-          ;<  ~  bind:m
-            (send-simple:http-res:io eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
-          (pure:m ~)
-        ::  /apps/grubbery/peers-viewer?path=&kind= → which pane a path under
-        ::  /sys/ames opens in (the explorer asks per tab; see +peers-viewer)
-        ?:  ?=([%'peers-viewer' ~] suffix)
-          =/  args=(map @t @t)  (malt args:(parse-url:http-utils url.request.req))
-          =/  pax=path  (fall (rush (fall (~(get by args) 'path') '') stap) /)
-          =/  pick=(unit json)  (peers-viewer pax =(`'dir' (~(get by args) 'kind')))
-          =/  bod=octs  (as-octs:mimes:html ?~(pick '' (en:json:html u.pick)))
           ;<  ~  bind:m
             (send-simple:http-res:io eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
           (pure:m ~)
@@ -1125,20 +1110,39 @@
 ++  dbg  ^-(? |)
 ::  === peers: usergroups + ships as the explorer mounted on /sys/ames ===
 ::  The page is the explorer's browse page with one declaration injected:
-::  route /apps/grubbery/peers, root /sys/ames, and a viewer endpoint.
-::  +peers-viewer answers it: the usergroups directory opens in the groups
-::  pane, each <name>.grp directory in its group pane (peers.js). The
-::  panes read /peers.json and write through +peers-write; everything else
-::  (the ships listing, the raw who.ships / how.weir, delete) is the
-::  explorer's. A group /a/b is stored at /sys/ames/usergroups/a/b.grp.
+::  route /apps/grubbery/peers, root /sys/ames, and the two rules below.
+::  The usergroups directory opens in the groups pane, each <name>.grp
+::  directory in its group pane (peers.js). The panes read /peers.json and
+::  write through +peers-write; everything else (the ships listing, the
+::  raw who.ships / how.weir, delete) is the explorer's. A group /a/b is
+::  stored at /sys/ames/usergroups/a/b.grp, so the group rule matches any
+::  depth and hands the pane the stem with the .grp taken off.
 ++  peers-mount
   ^-  json
+  =/  pane
+    |=  [view=@t args=(list [@t json])]
+    ^-  json
+    %-  pairs:enjs:format
+    :~  ['view' s+view]
+        ['script' s+'/grubbery/ball/apps/shell/ui/peers/panes.js']
+        ['args' (pairs:enjs:format args)]
+    ==
   %-  pairs:enjs:format
   :~  ['route' s+'/apps/grubbery/peers']
       ['root' s+'/sys/ames']
       ['title' s+'peers']
       ['icon' s+'/apps/grubbery/icon.svg']
-      ['viewers' s+'/apps/grubbery/peers-viewer']
+      :-  'rules'
+      :-  %a
+      :~  %-  pairs:enjs:format
+          :~  ['match' s+'usergroups']  ['kind' s+'dir']
+              ['pane' (pane 'groups' ~)]
+          ==
+          %-  pairs:enjs:format
+          :~  ['match' s+'usergroups/**.grp']  ['kind' s+'dir']
+              ['pane' (pane 'group' ~[['group' s+'/{1}'] ['dir' s+'/{0}']])]
+          ==
+      ==
   ==
 ::  +serve-explorer-page: the explorer's browse page with a mount
 ::  declaration ahead of its scripts, the way a mounting app serves it.
@@ -1157,23 +1161,6 @@
   ;<  ~  bind:m
     (send-simple:http-res:io eyre-id [[200 ~[['content-type' 'text/html']]] `(as-octs:mimes:html (crip out))])
   (pure:m ~)
-::  +peers-viewer: the pane for a path relative to /sys/ames, dirs only
-++  peers-viewer
-  |=  [pax=path dir=?]
-  ^-  (unit json)
-  ?.  dir  ~
-  =/  script=json  s+'/apps/grubbery/peers.js'
-  ?:  =(/usergroups pax)
-    `(pairs:enjs:format ~[['view' s+'groups'] ['script' script] ['args' [%o ~]]])
-  ?.  ?=([%usergroups @ *] pax)  ~
-  =/  grp=(unit path)  (peers-group-of t.pax)
-  ?~  grp  ~
-  :-  ~
-  %-  pairs:enjs:format
-  :~  ['view' s+'group']
-      ['script' script]
-      ['args' (pairs:enjs:format ~[['group' s+(spat u.grp)] ['dir' s+(spat pax)]])]
-  ==
 ::  +peers-group-of: /a/b.grp -> `/a/b; a last segment without .grp is a
 ::  category directory, not a group
 ++  peers-group-of

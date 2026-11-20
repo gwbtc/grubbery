@@ -12,7 +12,7 @@
 // which reads any tools nexus by path. A run is a JSON-RPC tools/call to
 // the same endpoint, the request every MCP client makes: the shell's own
 // tools by name, another nexus's through call_tool with its path.
-(function () {
+export const panes = (function () {
   'use strict';
   var API = '/grubbery/tools';
   var CSS_ID = 'tools-panes-css';
@@ -273,8 +273,8 @@
     load();
     return handle;
   }
-
-  window.Viewers = window.Viewers || {};
-  window.Viewers['tools-nexus'] = { label: 'Tools', mount: mountToolsNexus };
-  window.Viewers['tool'] = { label: 'Tool', mount: mountTool };
+  return {
+    'tools-nexus': { label: 'Tools', mount: mountToolsNexus },
+    'tool': { label: 'Tool', mount: mountTool },
+  };
 })();
