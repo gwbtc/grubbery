@@ -1453,6 +1453,8 @@
     (gather-derived rail)
   ;<  rec=json  bind:m
     (seed-groups-record rail rec0 (silt (turn others head)))
+  ;<  approved=(map @t json)  bind:m  (read-approved rail)
+  =/  pres=(list path)  (app-prefixes approved)
   =/  from-user=(list [grp=path by=@t members=(set @p) =weir:nexus])
     =/  sec=json  (user-section rec)
     ?.  ?=(%o -.sec)  ~
@@ -1461,6 +1463,11 @@
     ^-  (unit [grp=path by=@t members=(set @p) =weir:nexus])
     =/  grp=(unit path)  (rush gkey stap)
     ?~  grp  ~
+    ::  a group under a prefix a granted app runs is that app's. The
+    ::  owner's record holds one only from a seed before the app took
+    ::  the prefix, and it would keep what the app has since taken back
+    ::  (+app-prefixes). The entry stays in the record; it grants nothing.
+    ?:  (lien pres |=(p=path =(p (scag (lent p) u.grp))))  ~
     =/  strs
       |=  k=@t
       ^-  (list @t)
@@ -1471,6 +1478,25 @@
     =/  roads  |=(k=@t (sy (murn (strs k) peers-parse-road)))
     `[u.grp 'manual' (sy (murn (strs 'members') |=(t=@t (slaw %p t)))) [(roads 'make') (roads 'poke') (roads 'peek')]]
   (pure:m (weld from-user others))
+::  +app-prefixes: the prefixes granted apps run groups under, the keys
+::  ending in / among the groups each approved record grants
+++  app-prefixes
+  |=  approved=(map @t json)
+  ^-  (list path)
+  %-  zing
+  %+  turn  ~(val by approved)
+  |=  e=json
+  ^-  (list path)
+  ?.  =('granted' (fall (jget e 'verdict') ''))  ~
+  =/  v=(unit json)  ?.(?=(%o -.e) ~ (~(get by p.e) 'groups'))
+  ?.  ?=([~ %a *] v)  ~
+  %+  murn  p.u.v
+  |=  j=json
+  ^-  (unit path)
+  ?.  ?=([%s *] j)  ~
+  =/  t=tape  (trip p.j)
+  ?.  &((gth (lent t) 1) =('/' (rear t)))  ~
+  (rush (crip (snip t)) stap)
 ::  +gather-derived: every contribution but the user's: the /public base,
 ::  the names opened, the desks opened and each granted app's groups.json
 ++  gather-derived
