@@ -259,6 +259,10 @@
       getValue: function () { return handle.cm ? handle.cm.getValue() : (opts.value || ''); },
       setValue: function (v) { if (handle.cm) handle.cm.setValue(v); },
       focus: function () { if (handle.cm) handle.cm.focus(); },
+      // the element that actually holds the keyboard: a host marking where
+      // focus belongs (gmux reads data-focus) has to point at this, not at
+      // the wrapper -- focusing the wrapper leaves the keys outside vim
+      inputField: function () { return handle.cm ? handle.cm.getInputField() : null; },
       setReadOnly: function (b) { if (handle.cm) handle.cm.setOption('readOnly', !!b); },
       setLineWrapping: function (b) { if (handle.cm) handle.cm.setOption('lineWrapping', !!b); },
       setLineNumbers: function (b) { if (handle.cm) handle.cm.setOption('lineNumbers', !!b); },

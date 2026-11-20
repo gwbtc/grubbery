@@ -568,6 +568,14 @@
       return text;
     }
 
+    // +markFocus: data-focus says where gmux should put the keyboard. One
+    // element carries it; nothing carrying it means the pane itself, which
+    // is right for the reader (its keys are on the pane).
+    function markFocus(el) {
+      var had = root.querySelector('[data-focus]');
+      if (had && had !== el) had.removeAttribute('data-focus');
+      if (el) el.setAttribute('data-focus', '');
+    }
     // +redrawPanes: the panes that render once and cache it, re-rendered if
     // they are the one on screen and dropped if they are not
     function redrawPanes() {
@@ -789,9 +797,16 @@
         ed.style.display = editing ? '' : 'none';
         display.style.display = editing ? 'none' : '';
         mimeInput.readOnly = !editing;
-        if (!editing) { renderSource(); return; }
+        if (!editing) { markFocus(null); renderSource(); return; }
         show('text');
-        ensureEditor().ready.then(function () { ve.refresh(); if (focus) ve.focus(); });
+        ensureEditor().ready.then(function () {
+          ve.refresh();
+          // where the keyboard goes when the host hands this pane focus: the
+          // editor's own input. Without it gmux focuses the pane element and
+          // vim never sees a key, so arriving by Ctrl-B needs a click first.
+          markFocus(ve.inputField ? ve.inputField() : null);
+          if (focus) ve.focus();
+        });
       }
       editBtn.addEventListener('click', function () { setEditing(!editing, true); });
       // which surface the pane opens on: opts.surface, 'editor' unless the

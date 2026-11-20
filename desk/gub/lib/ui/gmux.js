@@ -249,7 +249,7 @@ class Gmux extends HTMLElement {
     // the selection sits in, or the selected pane itself
     const pid = () => (this.#pillPane || this.cursor || {}).id || this.#activeId;
     this.#barToggle.append(
-      act('≡', 'bar: full \u2192 tabs only \u2192 hidden', () => this.cycleBar(pid())));
+      act('\u25be', 'materialize the full topbar', () => { this.setNav(pid(), true); this.setBar(pid(), true); }));
     const count = document.createElement('span'); count.className = 'ps-qb-count';   // sticky countdown, right-aligned
     this.#barToggle.append(count); this.#barToggle._count = count;
     // the same menu the full bar carries, so a hidden bar is not a lesser one
@@ -386,12 +386,16 @@ class Gmux extends HTMLElement {
       this.#closePaneMenu();
       if (!mine) this.#openPaneMenu(id, more);
     });
-    const menu = btn('≡', 'bar: full \u2192 tabs only \u2192 hidden', () => this.cycleBar(id)); menu.classList.add('ps-bar-menu');
+    // two axes, two buttons: the hamburger says how much bar, the arrow says
+    // whether there is one. A single control cycling both made "hide" the
+    // thing you reached by passing through tabs-only.
+    const menu = btn('≡', 'full bar / tabs only', () => this.setNav(id)); menu.classList.add('ps-bar-menu');
+    const hide = btn('\u25b4', 'hide bar', () => this.setBar(id, false)); hide.classList.add('ps-bar-menu');   // stays in tabs-only too
     // closing is one click, not two: it stays on the bar rather than going
     // into the menu with the layout actions
     const shut = btn('×', 'close pane', () => this.closeLeaf(id)); shut.classList.add('ps-bar-shut');
     const spacer = document.createElement('div'); spacer.className = 'ps-bar-spacer';
-    row1.append(menu, tabs, add, spacer, more, shut);
+    row1.append(hide, menu, tabs, add, spacer, more, shut);
     // row 2 — history + navbar
     const row2 = document.createElement('div'); row2.className = 'ps-bar-row';
     // refresh: re-render the current moment in place (what it shows is
@@ -1217,17 +1221,9 @@ class Gmux extends HTMLElement {
   // focus the pane's navbar (materializing its bar if hidden) and select the text,
   // ready for the user to type a path. Enter navigates, Esc restores & blurs.
   focusNav(id) { const p = this.#panes.get(id ?? this.#activeId); if (!p) return; if (!p.showBar) this.setBar(p.id, true); const input = p.bar && p.bar._nav; if (input) { input.focus(); input.select(); } }
-  // the bar has three states and the hamburger walks them: everything,
-  // tabs only, gone (and reachable again from the hover quickbar).
-  cycleBar(id) {
-    const p = this.#panes.get(id ?? this.#activeId); if (!p) return;
-    if (p.showBar && p.nav) { this.setNav(p.id, false); return; }
-    if (p.showBar) { this.setBar(p.id, false); return; }
-    this.setNav(p.id, true);
-    this.setBar(p.id, true);
-  }
-  // the bar's two useful ends, skipping the tabs-only step the hamburger
-  // walks through: everything, or nothing but the hover bar.
+  // the bar's two ends in one call: everything, or nothing but the hover
+  // bar. The bar's own buttons move one axis each -- the hamburger how much
+  // bar, the arrow whether there is one.
   toggleBarFull(id) {
     const p = this.#panes.get(id ?? this.#activeId); if (!p) return;
     if (p.showBar) { this.setBar(p.id, false); return; }
