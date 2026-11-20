@@ -201,6 +201,7 @@
     %invalid        (pure:m [%error 'unrecognized command'])
     %stash-list     op-stash-list
     %stash-show     (op-stash-show index.cmd pax.cmd)
+    %reset-hard     (op-reset-hard ref.cmd)
   ==
 ::  +op-stash, +op-stash-pop, +op-stash-drop: the stash stack, each one
 ::  request to the data nexus, which holds the tree and the index and
@@ -1265,6 +1266,67 @@
   =/  mim=mime  !<(mime (need-vase:tarball sang.view))
   (pure:m (crip (trip q.q.mim)))
 ::
+::  +resolve-any-ref: a commit hash from whatever the caller named.
+::
+::    Three forms, in the order a person means them: a bare 40-character
+::    hash is itself, origin/<branch> reads the remote-tracking ref, and
+::    anything else is a local branch. '' when nothing matches.
+::
+++  resolve-any-ref
+  |=  =ref:git-act
+  =/  m  (fiber:fiber:nexus ,@t)
+  ^-  form:m
+  =/  t=tape  (trip ref)
+  =/  as-hash=(unit hash:git-repo)  (rust t parse-hash-sha-1:git-transport)
+  ?:  &(=(40 (lent t)) ?=(^ as-hash))  (pure:m ref)
+  ?.  =("origin/" (scag 7 t))  (resolve-ref ref)
+  =/  b=@ta  (crip (slag 7 t))
+  ;<  road=road:tarball  bind:m
+    (ancestor-road:io [/git %repo] [%& /data/refs/remotes/origin b])
+  ;<  =view:nexus  bind:m  (peek:io road `[/ %mime])
+  ?.  ?=([%file *] view)  (pure:m '')
+  =/  mim=mime  !<(mime (need-vase:tarball sang.view))
+  (pure:m (crip (trip q.q.mim)))
+::  +op-reset-hard: move the current branch and the working tree to a ref.
+::
+::    The way back when a branch has diverged from origin and a pull can
+::    only refuse. Writes the branch ref and HEAD; the tree follows on its
+::    own, because the data nexus checks out whenever tree-head names a
+::    commit other than HEAD, and that rebuilds the index from the new
+::    tree too.
+::
+::    Uncommitted work is discarded, which is what --hard means. Stash it
+::    first if you want it back.
+::
+++  op-reset-hard
+  |=  =ref:git-act
+  =/  m  (fiber:fiber:nexus ,outcome:git-act)
+  ^-  form:m
+  ?:  =('' ref)  (pure:m [%error 'reset needs a ref'])
+  ;<  target=@t  bind:m  (resolve-any-ref ref)
+  ?:  =('' target)
+    (pure:m [%error (crip "no such ref: {(trip ref)}")])
+  ;<  branch=@t  bind:m  read-head-branch
+  ?:  =('' branch)
+    (pure:m [%error 'HEAD is detached; reset needs a branch'])
+  ;<  was=@t  bind:m  resolve-head
+  ?:  =(was target)
+    (pure:m [%ok (crip "{(trip branch)} already at {(scag 7 (trip target))}")])
+  =/  hash-octs=octs  (as-octt:bytestream (trip target))
+  ;<  ref-rd=road:tarball  bind:m
+    (ancestor-road:io [/git %repo] [%& /data/refs/heads (crip (trip branch))])
+  ;<  ~  bind:m  (write-repo-file ref-rd [[/ %mime] [/text/plain hash-octs]])
+  =/  head-octs=octs
+    (as-octt:bytestream "ref: refs/heads/{(trip branch)}")
+  ;<  head-rd=road:tarball  bind:m
+    (ancestor-road:io [/git %repo] [%& /data %'HEAD'])
+  ;<  ~  bind:m  (write-repo-file head-rd [[/ %mime] [/text/plain head-octs]])
+  ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
+  ;<  ~  bind:m  (reload:io data-rd)
+  %-  pure:m
+  :-  %ok
+  %-  crip
+  "{(trip branch)}: {(scag 7 (trip was))} -> {(scag 7 (trip target))}"
 ::  +load-repo-maybe: rebuild repository from ./data/ if packs exist
 ::
 ::  Returns ~ if no packs found (triggers full clone).

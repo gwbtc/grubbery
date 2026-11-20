@@ -10,6 +10,8 @@
 /<  cmd  /lib/git/cmd.hoon
 |%
 +$  branch  @t
+::  a ref names a commit: a local branch, origin/<branch>, or a hash
++$  ref     @t
 ::  +git-command: a parsed git verb + its parameters. One serial lane runs
 ::  these one at a time — a repo has a single working tree/index/HEAD, so
 ::  git operations must not interleave.
@@ -27,6 +29,7 @@
       [%stash-drop ~]              ::  discard the top stash, tree untouched
       [%stash-list ~]
       [%stash-show index=@ud pax=(unit @t)]  ::  inspect a stash in place
+      [%reset-hard =ref]           ::  move the branch and the tree to ref
       [%invalid raw=@t]                    ::  didn't parse — for the log only
   ==
 ::  +job: a queued or running command. `raw` is the string as typed and is
@@ -96,6 +99,7 @@
     %stash-drop     ~[(pair 'verb' s+'stash-drop')]
     %stash-list     ~[(pair 'verb' s+'stash-list')]
     %stash-show     ~[(pair 'verb' s+'stash-show')]
+    %reset-hard     ~[(pair 'verb' s+'reset-hard') (pair 'ref' s+ref.c)]
     %invalid        ~[(pair 'verb' s+'invalid') (pair 'raw' s+raw.c)]
   ==
 ++  job-to-json
@@ -185,6 +189,14 @@
         ==
         (easy [~ ~])
       ==
+    ==
+    ::  reset --hard <ref>. Only the hard form parses: git's bare reset
+    ::  keeps the working tree, and a command that quietly discarded one
+    ::  because it looked like git would be a trap.
+    %+  cook  |=(r=@t [%reset-hard r])
+    ;~  pfix
+      ;~(plug (jest 'reset') (plus ace) (jest '--hard') (plus ace))
+      tok
     ==
     (cold [%stash-drop ~] ;~(plug (jest 'stash') (plus ace) (jest 'drop')))
     (cold [%stash ~] (jest 'stash'))

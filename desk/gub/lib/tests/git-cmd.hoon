@@ -24,6 +24,17 @@
 ++  test-stash-show-index  |.((chk [~ %stash-show 1 ~] 'stash show 1'))
 ++  test-stash-show-path
   |.((chk [~ %stash-show 0 `'/code/tile.json'] 'stash show 0 /code/tile.json'))
+::  reset --hard <ref>: branch, origin/<branch>, or a hash
+++  test-reset-hard-branch  |.((chk [~ %reset-hard 'main'] 'reset --hard main'))
+++  test-reset-hard-origin
+  |.((chk [~ %reset-hard 'origin/main'] 'reset --hard origin/main'))
+++  test-reset-hard-hash
+  |.  %+  chk  [~ %reset-hard '3482b7e4036f1f5e9c2a1d8e7b6c5a4f3e2d1c0b']
+  'reset --hard 3482b7e4036f1f5e9c2a1d8e7b6c5a4f3e2d1c0b'
+::  a bare reset must NOT parse: git's bare reset keeps the working tree,
+::  and this one would not
+++  test-reset-bare-rejected  |.((chk ~ 'reset main'))
+++  test-reset-no-ref-rejected  |.((chk ~ 'reset --hard'))
 ++  test-stash-show-index-path
   |.((chk [~ %stash-show 2 `'/code/icon.svg'] 'stash show 2 /code/icon.svg'))
 ::  commit — quoted, bare, and --message forms
