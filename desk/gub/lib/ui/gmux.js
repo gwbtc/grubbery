@@ -1582,7 +1582,10 @@ class Gmux extends HTMLElement {
     if (div.fold) { sv.setAttribute('primary', primaryEnd ? 'end' : 'start'); sv.setAttribute('collapsed', ''); }
     else { sv.setAttribute('primary', 'start'); sv.removeAttribute('collapsed'); }
   }
-  #afterStructure() { this.#applySeat(); this.#refIndex = null; this.#reconnectDivs(); this.#reposition(); }
+  // the seat is applied LAST: #reconnectDivs rebinds every pane to its
+  // division and lays the split-views out, which would put a hoisted pane
+  // back in its slot and leave the window on a hidden root
+  #afterStructure() { this.#refIndex = null; this.#reconnectDivs(); this.#applySeat(); this.#reposition(); }
   // walk the visible tree, (re)binding each division's owner + child parents, so
   // backrefs stay correct after history/tab moves, and lay out split-views.
   #reconnectDivs() {
@@ -1899,7 +1902,9 @@ class Gmux extends HTMLElement {
     if (!this.#root) return;
     let want = this.seat ? this.#descend(this.#root, this.seat) : null;
     if (want === this.#root) want = null;   // root already fills the window on its own
-    if (want !== this.#seatHoist) {
+    //  a hoisted pane that something else reparented is no longer seated,
+    //  whatever we remember: reconcile on the DOM, not on the memory
+    if (want !== this.#seatHoist || (want && want.dom.parentElement !== this)) {
       const scroll = this.#snapshotScroll();   // reparenting a pane zeroes its scrollers — keep them
       if (this.#seatHoist) {
         const p = this.#seatHoist, pp = p.parent;
