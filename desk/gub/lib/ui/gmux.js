@@ -19,6 +19,8 @@
 //     division. close(pane) is the inverse — the surviving sibling's history
 //     comes back UP to the parent. So the same picture (a division on screen) can
 //     have its history at the parent (navigated) or in a child (split).
+//   · splitRight/DownWhole(id)  the same, but EVERY tab migrates down and the
+//     new side is born empty; the parent is left holding only the division.
 //
 // Four cursors read this one structure: selection (which pane), zoom (which
 // viewport), tab (which history-line), history (which entry in time).
@@ -45,7 +47,8 @@
 //     seatToggle/seatPane/seatUp/seatRoot · focusPane · climb/descend/sibling · setBar · toggleBars
 //   data: serialize() · restore(spec) · instantiate(spec)
 //
-//   KEYS (after prefix): % / | split right · " / - split down · c collapse · e expand · f flip · r rotate ·
+//   KEYS (after prefix): % split right (this tab) · | split right (whole pane) ·
+//     " split down (this tab) · - split down (whole pane) · c collapse · e expand · f flip · r rotate ·
 //     z seat toggle (fill the window with this pane) · x close · b lock bars · o cycle · m mark · ␣ swap ·
 //     n nest · m mark · M give this pane's tabs to the marked pane and go ·
 //     [ ] climb/descend · Tab sibling · Esc reset · h highlight · 1-9 jump ·
@@ -1221,6 +1224,10 @@ class Gmux extends HTMLElement {
 
   splitRight(id, path) { return this.#split(id ?? this.#activeId, 'horizontal', path); }
   splitDown(id, path) { return this.#split(id ?? this.#activeId, 'vertical', path); }
+  //  the whole pane goes down instead of just the tab you are on: every tab
+  //  moves to the near side and the far side is born empty
+  splitRightWhole(id) { return this.#split(id ?? this.#activeId, 'horizontal', null, true); }
+  splitDownWhole(id) { return this.#split(id ?? this.#activeId, 'vertical', null, true); }
 
   // flip: the two sides of this division trade CONTENTS. The frame does not
   // move with them — same axis, same ratio, same folded slot — so flipping
@@ -1274,7 +1281,7 @@ class Gmux extends HTMLElement {
     return true;
   }
 
-  #split(id, orientation, path) {
+  #split(id, orientation, path, whole) {
     const pane = this.#panes.get(id);
     if (!pane) return null;
     const scroll = this.#snapshotScroll();     // reuse the live DOM across the split → preserve scroll
@@ -1284,11 +1291,26 @@ class Gmux extends HTMLElement {
     // childA keeps the original content AND inherits this tab's whole
     // history, command history included: it IS this tab, moved down.
     const childA = this.#makePane();
-    childA.tabs = [{ entries: tab.entries, cursor: tab.cursor, hist: tab.hist || [] }];
-    childA.activeTab = 0;
-    if (pane.showBar) { childA.showBar = true; childA.dom.classList.add('ps-bar-on'); }  // bar rides with the content
-    if (pane.tabs.length <= 1) { pane.showBar = false; pane.dom.classList.remove('ps-bar-on'); }  // sole tab is now just the division → no bar; KEEP it if other tabs remain
+    if (whole) {
+      //  every tab moves down, in order, the active one still active. The
+      //  pane above is left holding the division and nothing else, so its
+      //  bar goes with the tabs it was showing.
+      childA.tabs = pane.tabs;
+      childA.activeTab = pane.activeTab;
+      childA.showBar = true; childA.dom.classList.add('ps-bar-on');
+    } else {
+      childA.tabs = [{ entries: tab.entries, cursor: tab.cursor, hist: tab.hist || [] }];
+      childA.activeTab = 0;
+      if (pane.showBar) { childA.showBar = true; childA.dom.classList.add('ps-bar-on'); }  // bar rides with the content
+    }
+    if (whole || pane.tabs.length <= 1) { pane.showBar = false; pane.dom.classList.remove('ps-bar-on'); }  // holding only the division → no bar; KEEP it if other tabs remain
     const childB = this.#makePane();
+    //  both sides came from one pane and are the same kind of thing, so the
+    //  sibling is dressed like it: the bar it had, and its nav setting, which
+    //  a fresh pane would otherwise default back on
+    if (childA.showBar) { childB.showBar = true; childB.dom.classList.add('ps-bar-on'); }
+    childA.nav = childB.nav = pane.nav;
+    if (!pane.nav) { childA.dom.classList.add('ps-nav-off'); childB.dom.classList.add('ps-nav-off'); }
     // a split is two views of the same tab: the sibling gets the same
     // history, cursor and all, since after a split neither side is "the
     // original". Entries are paths, so the copy is free. A division or a
@@ -1302,7 +1324,7 @@ class Gmux extends HTMLElement {
       childB.tabs = [{ entries: [{ path }], cursor: 0, label: null, hist: (tab.hist || []).slice() }];
       childB.activeTab = 0;
       this.#renderPane(childB);
-    } else if (curEntry && curEntry.path != null) {
+    } else if (!whole && curEntry && curEntry.path != null) {
       // a layout entry in the stack (a division or a nested pane from an
       // earlier split) is a live object one pane owns, not a path to copy:
       // a stack holding one gives the sibling the current moment alone
@@ -1326,7 +1348,9 @@ class Gmux extends HTMLElement {
     if (liveBody && curEntry && !curEntry.div && !curEntry.pane) { pane.body.removeChild(liveBody); childA.body.textContent = ''; childA.body.appendChild(liveBody); this.#renderBar(childA); }
     else this.#renderPane(childA);
     // the parent tab loses its history to childA; it now holds the division.
-    tab.entries = [{ div }]; tab.cursor = 0;
+    // Whole: the pane had every tab taken, so it is left with one holding it.
+    if (whole) { pane.tabs = [{ entries: [{ div }], cursor: 0 }]; pane.activeTab = 0; }
+    else { tab.entries = [{ div }]; tab.cursor = 0; }
     this.#renderPane(pane);                     // pane.body is now empty → mounts the division
     this.#afterStructure();
     this.#restoreScroll(scroll);
@@ -1381,6 +1405,11 @@ class Gmux extends HTMLElement {
       return;
     }
     this.#cancelClose();
+    //  the seat is an address and closing re-shapes the tree under it, so
+    //  hold the PANE it names across the surgery. Split-then-close is an
+    //  identity (autopromote, below), so a zoom should survive it; only a
+    //  zoom on the pane being closed is really gone.
+    const seated = this.seat ? this.#descend(this.#root, this.seat) : null;
     if (this.seat) this.seatRoot();
     const par = pane.parent;
     if (!par) {
@@ -1438,7 +1467,19 @@ class Gmux extends HTMLElement {
     //   autopromoted ITS sibling, and the sibling came along for the ride.
     //
     const held = owner.tabs.indexOf(ownerTab);
+    //  the survivor's chrome comes up with its tabs. A split hands the bar
+    //  DOWN and strips it from the pane left holding the division, so on the
+    //  way back the owner has no state of its own to keep -- unless it still
+    //  has tabs besides the one that held the division, in which case the bar
+    //  is about those and stays as it is.
+    const soleHolder = owner.tabs.length === 1;
     this.#giveTabsTo(sib, owner);
+    if (soleHolder) {
+      owner.showBar = sib.showBar;
+      owner.dom.classList.toggle('ps-bar-on', !!sib.showBar);
+      owner.nav = sib.nav;
+      owner.dom.classList.toggle('ps-nav-off', !sib.nav);
+    }
     if (held >= 0) {
       owner.tabs.splice(held, 1);                       // it existed only to hold the division
       if (owner.activeTab > held) owner.activeTab--;
@@ -1447,10 +1488,23 @@ class Gmux extends HTMLElement {
     if (owner.activeTab >= owner.tabs.length) owner.activeTab = owner.tabs.length - 1;
     this.#forgetPane(sib);
     this.#renderPane(owner);
+    //  the survivor's tabs were promoted into the owner, so a zoom that was
+    //  on the survivor belongs on the owner now
+    this.#reseat(seated === sib ? owner : seated);
     this.#restoreScroll(scroll);
     this.cursorTo(firstVisibleLeaf(owner, this));
     this.#emit('ps-close', {}); this.#persist();
     this.#refocus();
+  }
+  //  +reseat: put the zoom back on a pane a structural edit kept. Silent when
+  //  the pane is gone or no longer has an address — a seat that cannot be
+  //  read is no seat.
+  #reseat(pane) {
+    if (!pane || !this.#panes.has(pane.id)) return;
+    const addr = this.#addrWithin(this.#root, pane);
+    if (addr == null) return;
+    this.seat = addr;
+    this.#afterStructure();
   }
   // +promote: move a HELD pane's tabs into the pane holding it, and let it go.
   //
@@ -2148,7 +2202,7 @@ class Gmux extends HTMLElement {
     if (!this.#awaiting) {
       if (this.#isPrefix(e)) {
         this.#awaiting = true;
-        this.#flashHint('gmux · % split · " stack · c/e collapse/expand · z seat · f flip · r rotate · x close · t/w tab · T bar · : path · i content · <> tab · ,. back/fwd · R refresh · m mark · ␣ swap · [ ] climb/descend · Tab sibling · h highlight · b bars · 1-9 jump · ←↑↓→ move · ⇧←↑↓→ resize');
+        this.#flashHint('gmux · % split tab · | split pane · " stack tab · - stack pane · c/e collapse/expand · z seat · f flip · r rotate · x close · t/w tab · T bar · : path · i content · <> tab · ,. back/fwd · R refresh · m mark · ␣ swap · [ ] climb/descend · Tab sibling · h highlight · b bars · 1-9 jump · ←↑↓→ move · ⇧←↑↓→ resize');
         clearTimeout(this.#awaitTimer);
         this.#awaitTimer = setTimeout(() => { this.#awaiting = false; this.#flashHint(''); }, 2500);
         e.preventDefault(); e.stopPropagation();
@@ -2160,8 +2214,12 @@ class Gmux extends HTMLElement {
     this.#awaiting = false; clearTimeout(this.#awaitTimer); this.#flashHint('');
     let handled = true;
     const dir = DIR[k];
-    if (k === '%' || k === '|') this.splitRight();
-    else if (k === '"' || k === '-') this.splitDown();
+    //  % and " duplicate the tab you are on; | and - take the whole pane
+    //  down and leave the new side empty
+    if (k === '%') this.splitRight();
+    else if (k === '|') this.splitRightWhole();
+    else if (k === '"') this.splitDown();
+    else if (k === '-') this.splitDownWhole();
     else if (k === 'x') this.close();
     else if (k === 'n') { this.nest(); this.#flashHint('nested: this tab now holds a pane of its own'); }
     else if (k === 'M') { if (this.moveTabs()) this.#flashHint('tabs moved — this pane is gone, what held it stayed'); }
