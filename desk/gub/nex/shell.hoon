@@ -1396,7 +1396,7 @@
     %+  murn  (strs g k)
     |=  t=@t
     ^-  (unit road:tarball)
-    =/  rel=(unit road:tarball)  (peers-parse-road t)
+    =/  rel=(unit road:tarball)  (app-parse-road t)
     ?~  rel  ~
     ?.  ?=(%& -.u.rel)  ~
     ?-  -.p.u.rel
@@ -1655,6 +1655,22 @@
   =/  last=tape  (trip (rear u.pax))
   ?~  (find "." last)
     `[%& %| u.pax]
+  `[%& %& (snip `path`u.pax) (rear u.pax)]
+::  +app-parse-road: a road text in an app's groups.json. A text ending
+::  in / is a directory, any other is a file, so an app can name a file
+::  with no dot in its name (a page's code grub, a registry). The user's
+::  record keeps +peers-parse-road, which guesses by the dot, so nothing
+::  already written there changes meaning.
+++  app-parse-road
+  |=  t=@t
+  ^-  (unit road:tarball)
+  =/  tap=tape  (trip t)
+  ?:  =("/" tap)  `[%& %| /]
+  =/  dir=?  &((gth (lent tap) 1) =('/' (rear tap)))
+  =/  pax=(unit path)  (rush (crip ?:(dir (snip tap) tap)) stap)
+  ?~  pax  ~
+  ?~  u.pax  ~
+  ?:  dir  `[%& %| u.pax]
   `[%& %& (snip `path`u.pax) (rear u.pax)]
 ++  peers-road-text
   |=  =road:tarball
