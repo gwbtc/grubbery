@@ -3795,9 +3795,11 @@
   =/  ask=json  [%o (~(put by (~(put by p.u.jon) 'app' s+app)) 'groups' gkeys)]
   ;<  approved=(map @t json)  bind:m  (read-approved rail)
   ?:  (is-settled ask approved)  (pure:m ~)
-  ::  an app under a %boot stock entry is answered by +auto-consent on the
-  ::  same scan that found it: nothing to tell the user
-  ?:  (under-boot-entry app)  (pure:m ~)
+  ::  an app under a %boot stock entry with no approved record is answered
+  ::  by +auto-consent on the same scan that found it: nothing to tell the
+  ::  user. Once it has a record, auto-consent leaves it alone and a changed
+  ::  ask pends like any other, so the user must hear of it.
+  ?:  &((under-boot-entry app) !(~(has by approved) app))  (pure:m ~)
   ::  every other app asks, the ones that ship with grubbery included. An
   ::  app shipping in the box is a reason to trust its author, not a reason
   ::  to decide for the user what it may reach or open to other ships.
