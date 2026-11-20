@@ -5,6 +5,8 @@
 ::    json accessors   +jget +jnum +post-json
 ::    ball views       +count-files +file-entries +call-status
 ::    poke attribution +caller-path +resolve-up
+::    script bundles   +bundle, a door over a list of files:
+::                     +scoped +shared
 ::    eyre replies     +web, a door over the nexus's web.sig road:
 ::                     +reply +send-json +serve-static
 ::
@@ -96,6 +98,29 @@
   ?:  =(0 up)  base
   ?~  base  ~
   $(up (dec up), base (snip `path`base))
+::  +bundle: several served files welded into one, so a page makes a single
+::  request for them. On a pier that serializes requests, ten scripts cost
+::  ten round trips.
+::
+::    scoped  each part in its own { } block, for web components and other
+::            scripts whose top-level consts would collide. define and
+::            window assignments still run globally.
+::    shared  parts concatenated, for a library and the addons that extend
+::            it, which need each other's top-level names.
+::
+++  bundle
+  |_  =mite
+  ::  123={  125=}  10=newline
+  ++  scoped  (out |=(=mime (rap 3 ~[123 10 q.q.mime 10 125 10])))
+  ++  shared  (out |=(=mime (rap 3 ~[10 q.q.mime 10])))
+  ::  +out: the parts, each through `wrap`, as one file of this type
+  ::
+  ++  out
+    |=  wrap=$-(mime @)
+    |=  parts=(list mime)
+    ^-  mime
+    [mite (as-octs:mimes:html (rap 3 (turn parts wrap)))]
+  --
 ::  +web: eyre replies, a step above +http-res:io.
 ::
 ++  web

@@ -20,9 +20,9 @@
 //   });
 //   fv.setUrl(url)   // re-point at a different file (re-fetches, re-renders)
 //
-// marked (window.marked) renders markdown when the host has loaded it; shiki is
-// imported on demand for source highlighting. Styling is injected once, scoped
-// under .fv; the host sizes the mount element.
+// marked (window.marked) renders markdown when the host has loaded it; source
+// highlighting is VimEditor's, the same one the editor uses. Styling is
+// injected once, scoped under .fv; the host sizes the mount element.
 (function () {
   'use strict';
 
@@ -78,10 +78,10 @@
     '.fv pre.dim{color:#8b949e}' +
     '.fv pre.boom{color:#cf222e;background:#fff8f8}' +
     '.fv code{font:inherit}' +
-    // Line numbers in Source: a CSS counter over the per-line spans (Shiki
-    // emits .line; the plain fallback emits them too, see renderSource), so
-    // the toggle costs nothing to render and leaves the text selectable
-    // without the numbers coming along (user-select:none on the ::before).
+    // Line numbers in Source: a CSS counter over the per-line spans the
+    // highlighter emits, so the toggle costs nothing to render and leaves the
+    // text selectable without the numbers coming along (user-select:none on
+    // the ::before).
     '.fv.nums #src-display code{counter-reset:fvln}' +
     '.fv.nums #src-display .line{counter-increment:fvln}' +
     '.fv.nums #src-display .line::before{content:counter(fvln);display:inline-block;width:3ch;margin-right:16px;text-align:right;color:#8b949e;user-select:none}' +
@@ -193,26 +193,11 @@
     document.head.appendChild(s);
   }
 
-  // one shared highlighter across all instances; hoon grammar loads on demand
-  var shikiP = null;
-  function getShiki(lang) {
-    if (!shikiP) {
-      shikiP = (async function () {
-        var mod = await import('https://esm.sh/shiki@1.24.0');
-        return mod.createHighlighter({ themes: ['github-light'], langs: [] });
-      })();
-    }
-    return shikiP.then(async function (hl) {
-      if (!hl.getLoadedLanguages().includes(lang)) {
-        if (lang === 'hoon') {
-          var grammar = await (await fetch('/grubbery/ball/apps/shell/ui/explorer/hoon-grammar.json')).json();
-          await hl.loadLanguage(grammar);
-        } else {
-          await hl.loadLanguage(lang);
-        }
-      }
-      return hl;
-    });
+  // Source and the editor are the same highlighter, so a file does not
+  // change color when you start editing it. VimEditor owns it: see
+  // +highlight there.
+  function highlight(el, text, name) {
+    return VimEditor.highlight(el, text, VimEditor.modeForName(name));
   }
   function loadScript(src) {
     return new Promise(function (res, rej) {
@@ -221,22 +206,6 @@
       document.head.appendChild(sc);
     });
   }
-
-  var SHIKI_LANG = { js: 'javascript', mjs: 'javascript', ts: 'typescript',
-                     json: 'json', css: 'css', hoon: 'hoon' };
-
-  // CodeMirror mode by extension, so the editor highlights from the same
-  // signal Source does rather than from the file's mime (which a grub needn't
-  // carry, and which doesn't map for hoon). Falls back to mime in VimEditor
-  // when an extension isn't listed. Only modes welded into cm.js appear here
-  // (ts has no CM mode of its own — javascript is close and is what's loaded).
-  var CM_MODE_EXT = {
-    js: 'javascript', mjs: 'javascript', ts: 'javascript', jsx: 'javascript',
-    json: { name: 'javascript', json: true },
-    css: 'css', hoon: 'hoon', html: 'htmlmixed', htm: 'htmlmixed',
-    xml: 'xml', svg: 'xml', md: 'markdown', markdown: 'markdown'
-  };
-  function cmModeForExt(e) { return CM_MODE_EXT[e] || null; }
 
   // +shared: one fetch per url at a time. Several views of the same file
   // mounting together (a restored session with the file in three panes)
@@ -277,7 +246,6 @@
     var segs = here.replace(/\?.*$/, '').split('/');
     var unnamed = segs[segs.length - 1] === '$';
     var name = unnamed ? '' : decodeURIComponent(segs[segs.length - 1] || '');
-    var ext = (name.match(/\.([a-z0-9]+)$/i) || [, ''])[1].toLowerCase();
     // mime-first kind detection — a mime type the server actually resolved
     // (via its marc) is more trustworthy than a filename's extension, which
     // a grub needn't even have (e.g. a mark path's own grub, "run.git-action"
@@ -679,26 +647,10 @@
       applyNums();
     }
 
-    async function renderSource() {
+    function renderSource() {
       if (!editable) return;
       var text = ve ? ve.getValue() : edText;
-      display.textContent = '';
-      if (SHIKI_LANG[ext]) {
-        try {
-          var hl = await getShiki(SHIKI_LANG[ext]);
-          display.innerHTML = hl.codeToHtml(text, { lang: SHIKI_LANG[ext], theme: 'github-light' });
-          return;
-        } catch (_) {}
-      }
-      // plain fallback: still wrap each line in a .line span so the line-number
-      // toggle works the same as it does over Shiki's output
-      var pre = document.createElement('pre'), code = document.createElement('code');
-      text.split('\n').forEach(function (ln, i) {
-        if (i) code.appendChild(document.createTextNode('\n'));
-        var s = document.createElement('span'); s.className = 'line'; s.textContent = ln;
-        code.appendChild(s);
-      });
-      pre.appendChild(code); display.appendChild(pre);
+      return highlight(display, text, name);
     }
 
     // vim keybindings default on, except on a touch/narrow device where a
@@ -734,7 +686,7 @@
         if (ve) return ve;
         ve = VimEditor.mount(ed, {
           value: clean,
-          mode: cmModeForExt(ext),
+          mode: VimEditor.modeForName(name),
           mime: mite,
           vim: vimOn,
           lineNumbers: root.classList.contains('nums'),

@@ -1,1 +1,1 @@
-{"mappings":[{"rhs":"<Esc>","mode":"insert","lhs":"jj"}],"options":{}}
+{"theme": "github-light", "mappings": [{"rhs": "<Esc>", "mode": "insert", "lhs": "jj"}], "options": {}}

@@ -41,6 +41,8 @@
 /&  contacts-html  shell/ui/contacts/index.html
 /&  contacts-js    shell/ui/contacts/app.js
 /&  contacts-css   shell/ui/contacts/style.css
+::  the picture on the seeded Landscape tile, beside its tile.json
+/&  landscape-icon  shell/tiles/landscape/icon.svg
 ::  tools: the MCP endpoint (lib/shell/mcp), its page at /grubbery/tools
 ::  on the kit (tab-group, modal-dialog), and its tools nexus seeded
 ::  from the tool bundle
@@ -206,6 +208,7 @@
           [%fall %| /tiles empty-dir:loader]
           [%fall %| /tiles/landscape empty-dir:loader]
           [%over %& [/tiles/landscape %'tile.json'] [[/ %json] landscape-tile]]
+          [%over %& [/tiles/landscape %'icon.svg'] [[/ %mime] landscape-icon]]
           ::  launcher.json: the launcher's own preferences, as an object of
           ::  named flags. Seeded empty; +read-launcher supplies the
           ::  defaults, so a flag nobody has touched is not written down.
@@ -3061,7 +3064,7 @@
       info+s+'Tlon'
       color+s+'#1a1a1a'
       href+s+'/apps/landscape'
-      image+s+'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fe/Urbit_Logo.svg/3840px-Urbit_Logo.svg.png'
+      image+s+'/grubbery/ball/apps/shell/tiles/landscape/icon.svg'
       kind+s+'utility'
       own+b+&
   ==
@@ -3098,9 +3101,15 @@
       kind+s+'utility'
       own+b+&
   ==
-::  each local tile is its own subdir /tiles/<name>/ holding tile.json
-::  (and optionally icon.svg); the tile's name is the subdir name. They
-::  live in the shell's own root.
+::  each local tile is its own subdir /tiles/<name>/ holding tile.json; the
+::  tile's name is the subdir name. They live in the shell's own root.
+::
+::  TODO: a tile's picture is whatever url its tile.json names. An icon file
+::  in the subdir beside it is not found, so a tile that ships its own icon
+::  has to spell out the ball url to reach it. +read-app-tiles already does
+::  the finding for an app root — the same sweep for an icon.* here, with
+::  /grubbery/tiles/icon widened past /apps, would let a pinned tile carry
+::  its picture instead of addressing it.
 ++  read-local-tiles
   =/  m  (fiber:fiber:nexus ,(list tile))
   ^-  form:m

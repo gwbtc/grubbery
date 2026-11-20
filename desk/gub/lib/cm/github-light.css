@@ -1,0 +1,50 @@
+/* CodeMirror theme: github-light. The palette the explorer's read views had
+   before one highlighter served both reading and editing — kept because it
+   is the nicer one, and now it colors the editor too.
+
+   Set it in vim-editor.json: {"theme": "github-light"}. It is the default;
+   "default" is CodeMirror's own. A theme is one of these blocks plus a line
+   in the cm.css weld (see +bundles in lib/shell/explorer.hoon). */
+
+.cm-s-github-light.CodeMirror,
+.cm-s-github-light { background: #fff; color: #24292f }
+
+/* the editor's own chrome */
+.cm-s-github-light .CodeMirror-gutters { background: #f6f8fa; border-right: 1px solid #e2e7ee }
+.cm-s-github-light .CodeMirror-linenumber { color: #8c959f }
+.cm-s-github-light .CodeMirror-cursor { border-left: 1px solid #24292f }
+.cm-s-github-light .CodeMirror-selected { background: #dbeafe }
+.cm-s-github-light.CodeMirror-focused .CodeMirror-selected { background: #b6d7ff }
+.cm-s-github-light .CodeMirror-line::selection,
+.cm-s-github-light .CodeMirror-line > span::selection,
+.cm-s-github-light .CodeMirror-line > span > span::selection { background: #b6d7ff }
+.cm-s-github-light .CodeMirror-activeline-background { background: #f6f8fa }
+.cm-s-github-light .CodeMirror-matchingbracket { color: #0550ae; font-weight: 600 }
+.cm-s-github-light .CodeMirror-nonmatchingbracket { color: #cf222e }
+.cm-s-github-light .cm-searching { background: #fff8c5 }
+
+/* the tokens */
+.cm-s-github-light .cm-comment { color: #6e7781 }
+.cm-s-github-light .cm-keyword { color: #cf222e }
+.cm-s-github-light .cm-atom { color: #0550ae }
+.cm-s-github-light .cm-number { color: #0550ae }
+.cm-s-github-light .cm-def { color: #8250df }
+.cm-s-github-light .cm-variable { color: #24292f }
+.cm-s-github-light .cm-variable-2 { color: #0550ae }
+.cm-s-github-light .cm-variable-3,
+.cm-s-github-light .cm-type { color: #953800 }
+.cm-s-github-light .cm-property { color: #8250df }
+.cm-s-github-light .cm-operator { color: #0550ae }
+.cm-s-github-light .cm-string { color: #0a3069 }
+.cm-s-github-light .cm-string-2 { color: #0a3069 }
+.cm-s-github-light .cm-meta { color: #6e7781 }
+.cm-s-github-light .cm-qualifier { color: #116329 }
+.cm-s-github-light .cm-builtin { color: #8250df }
+.cm-s-github-light .cm-bracket { color: #24292f }
+.cm-s-github-light .cm-tag { color: #116329 }
+.cm-s-github-light .cm-attribute { color: #0550ae }
+.cm-s-github-light .cm-link { color: #0969da; text-decoration: underline }
+.cm-s-github-light .cm-error { color: #cf222e }
+.cm-s-github-light .cm-header { color: #0550ae; font-weight: 600 }
+.cm-s-github-light .cm-quote { color: #116329 }
+.cm-s-github-light .cm-hr { color: #8c959f }

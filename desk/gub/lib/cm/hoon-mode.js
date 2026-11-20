@@ -1,6 +1,5 @@
 // CodeMirror 5 mode for hoon — a stream parser, deliberately simple.
-// Not the pkova TextMate grammar (shiki renders that in read views); this
-// covers what makes hoon legible while editing: comments, cords/strings,
+// It covers what makes hoon legible: comments, cords/strings,
 // runes, %constants, @auras, arm declarations, numbers, faces. It's a file
 // on the ship — refine it whenever it annoys you.
 (function () {

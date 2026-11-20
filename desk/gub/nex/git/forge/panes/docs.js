@@ -99,7 +99,7 @@ export const panes = (function () {
       '.forge-docs .live-wrap{margin:18px 0;border:1px solid var(--line);border-radius:8px;overflow:hidden;scroll-margin-top:72px}' +
       '.forge-docs .live-wrap.live-focus{border-color:#d4a72c;box-shadow:0 0 0 3px #fff1c2}.forge-docs .live-wrap.live-focus > .live-head{background:#fff8dc}' +
       '.forge-docs .live-head{font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);background:var(--sidebar);padding:7px 14px;border-bottom:1px solid var(--line)}' +
-      '.forge-docs .live-body pre,.forge-docs .live-body .shiki{margin:0;padding:14px 16px;overflow-x:auto;font-size:13px;line-height:1.5}';
+      '.forge-docs .live-body pre{margin:0;padding:14px 16px;overflow-x:auto;font-size:13px;line-height:1.5}';
     document.head.appendChild(s);
   }
 
@@ -133,14 +133,17 @@ export const panes = (function () {
   function sharedFor(repo) {
     return SHARED[repo] || (SHARED[repo] = { tree: null, leaves: [], textCache: {}, blocksCache: {}, pendingScroll: null, covFocus: null, covSecByName: null, covOverall: null, chatInfo: undefined });
   }
-  var shikiP = null;
-  function ensureShiki() {
-    if (shikiP) return shikiP;
-    shikiP = import('https://esm.sh/shiki@1.24.0').then(function (m) {
-      return fetch('/grubbery/ball/apps/shell/ui/explorer/hoon-grammar.json').then(function (r) { return r.json(); })
-        .then(function (grammar) { return m.createHighlighter({ themes: ['github-light'], langs: [grammar, 'javascript', 'css', 'json'] }); });
-    }).catch(function () { return null; });
-    return shikiP;
+  // the explorer's highlighter, from the ship: a file reads the same here as
+  // it does in the editor, and no stylesheet comes from outside
+  function ensureHighlighter() {
+    if (window.VimEditor) return Promise.resolve(window.VimEditor);
+    return new Promise(function (res, rej) {
+      var sc = document.createElement('script');
+      sc.src = '/grubbery/ball/apps/shell/ui/explorer/vim-editor.js';
+      sc.onload = function () { res(window.VimEditor); };
+      sc.onerror = rej;
+      document.head.appendChild(sc);
+    });
   }
   var markedP = null;
   function ensureMarked() {
@@ -288,13 +291,16 @@ export const panes = (function () {
   function collectLeaves(items, out) { items.forEach(function (it) { if (it.path) out.push({ path: it.path, title: it.title }); if (it.kids) collectLeaves(it.kids, out); }); return out; }
   function calloutLabel(t) { return { background: 'Background', note: 'Note', tip: 'Tip', warn: 'Warning', warning: 'Warning' }[t] || (t.charAt(0).toUpperCase() + t.slice(1)); }
   function slugify(t) { return t.toLowerCase().replace(/[^\w]+/g, '-').replace(/^-+|-+$/g, ''); }
-  function langFor(path) { if (/\.hoon$/.test(path)) return 'hoon'; if (/\.js$/.test(path)) return 'javascript'; if (/\.css$/.test(path)) return 'css'; if (/\.json$/.test(path)) return 'json'; return 'text'; }
   function parseRange(r) { if (!r) return null; var m = r.split('-'); var from = parseInt(m[0], 10); if (isNaN(from)) return null; var to = m.length > 1 ? parseInt(m[1], 10) : from; return { from: from, to: isNaN(to) ? from : to }; }
+  // plain if the highlighter does not load: the source is the point
   function highlightInto(target, path, code) {
-    return ensureShiki().then(function (hl) {
-      if (!hl) { var p = document.createElement('pre'); p.textContent = code; target.innerHTML = ''; target.appendChild(p); return; }
-      try { target.innerHTML = hl.codeToHtml(code, { lang: langFor(path), theme: 'github-light' }); }
-      catch (e) { var pre = document.createElement('pre'); pre.textContent = code; target.innerHTML = ''; target.appendChild(pre); }
+    return ensureHighlighter().then(function (ve) {
+      return ve.highlight(target, code, ve.modeForName(path));
+    }).catch(function () {
+      var pre = document.createElement('pre');
+      pre.textContent = code;
+      target.textContent = '';
+      target.appendChild(pre);
     });
   }
   function filePins(f) { var seen = {}, out = []; (f.anchors || []).forEach(function (a) { if (a.status === 'gone' || !a.commit) return; var s = a.commit.slice(0, 7); if (!seen[s]) { seen[s] = true; out.push(s); } }); return out; }
@@ -435,7 +441,11 @@ export const panes = (function () {
           var m = cls.match(/language-([\w-]+)/); if (!m) return;
           var lang = m[1] === 'js' ? 'javascript' : m[1]; if (['hoon', 'javascript', 'css', 'json'].indexOf(lang) < 0) return;
           var text = code.textContent; var pre = code.parentElement;
-          ensureShiki().then(function (hl) { if (!hl || !alive) return; try { var tmp = document.createElement('div'); tmp.innerHTML = hl.codeToHtml(text, { lang: lang, theme: 'github-light' }); if (tmp.firstChild) pre.replaceWith(tmp.firstChild); } catch (e) {} });
+          ensureHighlighter().then(function (ve) {
+            if (!alive) return;
+            var box = document.createElement('div');
+            return ve.highlight(box, text, lang).then(function () { if (alive && box.firstChild) pre.replaceWith(box); });
+          });
         })(blocks[i]);
       }
     }

@@ -18,6 +18,7 @@
 ::  its neck, so the service reads and writes the shell's own tree
 ::  wherever the shell lives; the namespace it browses is absolute.
 ::
+/<  nw  /lib/nexus-web.hoon
 /<  feather  /lib/feather.hoon
 /<  iso-8601  /lib/iso-8601.hoon
 /<  cs        /lib/code-src.hoon
@@ -42,7 +43,7 @@
 /&  browse-html  /nex/shell/ui/explorer/browse.html
 /&  browse-js    /nex/shell/ui/explorer/browse.js
 /&  view-html    /nex/shell/ui/explorer/view.html
-/&  marked-js  /nex/shell/ui/explorer/marked.min.js
+/&  marked-js  /lib/ui/marked.min.js
 ::  snaps: the page renders a pane to a PNG on request (see +rows)
 /&  h2c-js     /nex/shell/ui/explorer/html2canvas.min.js
 ::  graph bundle: cytoscape + its dagre layout adapter + dagre itself,
@@ -59,6 +60,7 @@
 ::  when it doesn't — this addon is what makes openDialog exist.
 /&  cm-dialog-js   /lib/cm/dialog.js
 /&  cm-dialog-css  /lib/cm/dialog.css
+/&  cm-theme       /lib/cm/github-light.css
 ::  the searchcursor addon: vim's "/" and "?" search commands call
 ::  cm.getSearchCursor to actually find matches — without it the search
 ::  resolves and runs but silently finds nothing.
@@ -89,69 +91,33 @@
 ::
 ++  bundles
   ^-  [graph=mime cm=mime cm-css=mime kit=mime]
-  ::  editor bundle: codemirror + vim keymap + modes welded into one
-  ::  served file (same pattern as web-test's components.js)
-  =/  cm-wrap  |=(=mime `@`(rap 3 ~[10 q.q.mime 10]))
-  ::  dagre must come first: the cytoscape adapter looks for it
+  =/  js  /application/javascript
+  ::  the graph: dagre first, because the cytoscape adapter looks for it
+  ::
   =/  graph-bundle=mime
-    :-  /application/javascript
-    %-  as-octs:mimes:html
-    %+  rap  3
-    :~  (cm-wrap dagre-js)
-        (cm-wrap cy-js)
-        (cm-wrap cy-dagre)
-    ==
+    (~(shared bundle:nw js) ~[dagre-js cy-js cy-dagre])
+  ::  the editor: codemirror, the addons it answers to, the vim keymap and
+  ::  the language modes, which all reach for each other's globals
+  ::
   =/  cm-bundle=mime
-    :-  /application/javascript
-    %-  as-octs:mimes:html
-    %+  rap  3
-    :~  (cm-wrap cm-js)
-        (cm-wrap cm-dialog-js)
-        (cm-wrap cm-search-js)
-        (cm-wrap cm-vim)
-        (cm-wrap cm-m-js)
-        (cm-wrap cm-m-css)
-        (cm-wrap cm-m-xml)
-        (cm-wrap cm-m-md)
-        (cm-wrap cm-m-html)
-        (cm-wrap cm-m-hoon)
+    %-  ~(shared bundle:nw js)
+    :~  cm-js  cm-dialog-js  cm-search-js  cm-vim  cm-m-js
+        cm-m-css  cm-m-xml  cm-m-md  cm-m-html  cm-m-hoon
     ==
-  ::  cm.css: codemirror's base styling + the dialog addon's (the "/"
-  ::  search and ":" ex-command bars it draws at the bottom of the
-  ::  editor) — same weld-into-one-file reasoning as cm-bundle above.
+  ::  its styling: codemirror's own, the dialog addon's for the "/" search
+  ::  and ":" ex-command bars at the bottom of the editor, and the themes a
+  ::  reader can name in vim-editor.json
+  ::
   =/  cm-css-bundle=mime
-    :-  /text/css
-    %-  as-octs:mimes:html
-    %+  rap  3
-    :~  (cm-wrap cm-css)
-        (cm-wrap cm-dialog-css)
-    ==
-  ::  kit bundle: the shared ui components + file viewer welded into ONE
-  ::  file, so the browse page makes a single request for all of them —
-  ::  on a pier that serializes requests, ten separate scripts cost ten
-  ::  round trips. Each wrapped in { } so top-level consts don't collide;
-  ::  define/window assignments run globally. The per-file grubs below
-  ::  stay: view.html and FileView's own on-demand loads still use them.
-  ::  123={  125=}  10=newline.
-  =/  wrap  |=(=mime ^-(@ (rap 3 ~[123 10 q.q.mime 10 125 10])))
+    (~(shared bundle:nw /text/css) ~[cm-css cm-dialog-css cm-theme])
+  ::  the page kit: every component the browse page uses, in one file. The
+  ::  per-file grubs below stay — view.html and FileView's own on-demand
+  ::  loads still ask for them one at a time.
+  ::
   =/  kit-js=mime
-    :-  /application/javascript
-    %-  as-octs:mimes:html
-    %+  rap  3
-    :~  (wrap md-js)
-        (wrap dm2-js)
-        (wrap ft-js)
-        (wrap fg-js)
-        (wrap sv-js)
-        (wrap nk-js)
-        (wrap gmux-js)
-        (wrap tg-js)
-        (wrap tv-js)
-        (wrap ba-js)
-        (wrap marked-js)
-        (wrap fp-js)
-        (wrap fv-js)
-        (wrap ve-js)
+    %-  ~(scoped bundle:nw js)
+    :~  md-js  dm2-js  ft-js  fg-js  sv-js  nk-js  gmux-js
+        tg-js  tv-js  ba-js  marked-js  fp-js  fv-js  ve-js
     ==
   [graph-bundle cm-bundle cm-css-bundle kit-js]
 ::  +rows: what the shell lays out for the explorer: its data under

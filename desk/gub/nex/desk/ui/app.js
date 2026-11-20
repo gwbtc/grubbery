@@ -432,24 +432,18 @@ function openFile(full) {
     }).catch(function () { });
 }
 
-// ── shiki syntax highlighting (loaded on demand, plain-text fallback) ──
-var shikiHl = null, shikiTried = false;
-function ensureShiki() {
-  if (shikiHl || shikiTried) return Promise.resolve(shikiHl);
-  shikiTried = true;
-  return import('https://esm.sh/shiki@1.24.0').then(function (m) {
-    return fetch('/grubbery/ball/apps/shell/ui/explorer/hoon-grammar.json')
-      .then(function (r) { return r.json(); })
-      .then(function (grammar) {
-        return m.createHighlighter({ themes: ['github-dark'], langs: [grammar, 'json', 'javascript', 'css', 'xml', 'markdown'] });
-      });
-  }).then(function (hl) { shikiHl = hl; return hl; }).catch(function () { return null; });
-}
-function langForName(name) {
-  var m = /\.([a-z0-9]+)$/i.exec(name);
-  var ext = m ? m[1].toLowerCase() : '';
-  var map = { hoon: 'hoon', js: 'javascript', mjs: 'javascript', json: 'json', css: 'css', svg: 'xml', xml: 'xml', html: 'xml', md: 'markdown', markdown: 'markdown' };
-  return map[ext] || null;
+// ── syntax highlighting ──
+// the explorer's highlighter, loaded from the ship on demand: the same colors
+// a file has in the explorer's own file page, and no stylesheet from outside
+function ensureHighlighter() {
+  if (window.VimEditor) return Promise.resolve(window.VimEditor);
+  return new Promise(function (res, rej) {
+    var sc = document.createElement('script');
+    sc.src = '/grubbery/ball/apps/shell/ui/explorer/vim-editor.js';
+    sc.onload = function () { res(window.VimEditor); };
+    sc.onerror = rej;
+    document.head.appendChild(sc);
+  });
 }
 // remembers each file's Source|Preview choice across re-renders, keyed by path.
 var PV = {};
@@ -483,11 +477,9 @@ function renderViewer(el, d) {
   }
   if (d.text != null) {
     var pre = document.createElement('pre'); pre.textContent = d.text; body.appendChild(pre);
-    var lang = langForName(name);
-    if (!lang) return;
-    ensureShiki().then(function (hl) {
-      if (!hl) return;
-      try { body.innerHTML = hl.codeToHtml(d.text, { lang: lang, theme: 'github-dark' }); } catch (e) { }
+    ensureHighlighter().then(function (ve) {
+      var mode = ve.modeForName(name);
+      if (mode) ve.highlight(body, d.text, mode);
     });
     return;
   }

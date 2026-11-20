@@ -7,18 +7,27 @@
 //   await ve.ready
 //   ve.getValue() / ve.setValue(text) / ve.focus() / ve.refresh() / ve.destroy()
 //
+// VimEditor.highlight(el, text, mode) is the same highlighting without an
+// editor, for a pane that only shows code, and VimEditor.modeForName(name)
+// is the mode a filename implies. One highlighter for reading and editing,
+// so a file does not change color when you start editing it.
+//
 // cm.js (CodeMirror + vim.min.js + language modes, welded into one file by
 // explorer.hoon) is already vendored under /lib/cm and served from the ship —
-// no CDN. It's loaded lazily, once, on first mount(); callers that never show
-// a text pane never pay for it.
+// no CDN. It's loaded lazily, once, on first mount() or highlight(); callers
+// that never show a text pane never pay for it.
 //
-// vim-editor.json (see /lib/ui/vim-editor-config.json) carries your own key
-// mappings and vim options — edit that file, no code change needed. Shape:
-//   { "mappings": [{"lhs":"jj","rhs":"<Esc>","mode":"insert"}, ...],
+// vim-editor.json (see /lib/ui/vim-editor-config.json) carries the palette,
+// your own key mappings and vim options — edit that file, no code change
+// needed. Shape:
+//   { "theme":    "github-light",
+//     "mappings": [{"lhs":"jj","rhs":"<Esc>","mode":"insert"}, ...],
 //     "options":  {"ignorecase": true} }
-// Applied once, globally, through CodeMirror.Vim's own map/setOption API —
+// The theme names a block in cm.css ("github-light", or CodeMirror's own
+// "default") and colors reading and editing alike. Mappings and options are
+// applied once, globally, through CodeMirror.Vim's own map/setOption API —
 // this is not a .vimrc parser, so Vimscript (functions, autocmds, plugins)
-// isn't in scope, just mappings and options.
+// isn't in scope.
 (function () {
   'use strict';
 
@@ -42,6 +51,11 @@
     });
   }
 
+  // the palette, for the editor and the read views alike. cm.css carries
+  // this one and CodeMirror's own 'default'; a new one is a block in
+  // /lib/cm and a line in the cm.css weld.
+  var theme = 'github-light';
+
   function applyConfig() {
     var Vim = CodeMirror.Vim;
     // vim's own: ZZ writes and quits, ZQ quits without writing. Mapped
@@ -52,6 +66,7 @@
       .catch(function () { return null; })
       .then(function (cfg) {
         if (!cfg) return;
+        if (cfg.theme) theme = cfg.theme;
         (cfg.mappings || []).forEach(function (m) {
           try { Vim.map(m.lhs, m.rhs, m.mode); } catch (_) {}
         });
@@ -72,6 +87,12 @@
 
   // the hoon mode (vendored as hoon-mode.js, welded into cm.js) registers
   // itself under 'hoon'; everything else is a stock CodeMirror mode name
+  var MODE_FOR_EXT = {
+    js: 'javascript', mjs: 'javascript', ts: 'javascript', jsx: 'javascript',
+    json: { name: 'javascript', json: true },
+    css: 'css', hoon: 'hoon', html: 'htmlmixed', htm: 'htmlmixed',
+    xml: 'xml', svg: 'xml', md: 'markdown', markdown: 'markdown'
+  };
   var MODE_FOR_MIME = {
     'text/javascript': 'javascript', 'application/javascript': 'javascript',
     'text/css': 'css', 'text/html': 'htmlmixed', 'application/xhtml+xml': 'htmlmixed',
@@ -82,6 +103,74 @@
   };
   function modeFor(mime) {
     return MODE_FOR_MIME[String(mime || '').split(';')[0].trim()] || null;
+  }
+  // the mode for a file's name, which is the signal a reader actually has:
+  // a grub needn't carry a mime type, and no mime type spells hoon
+  function modeForName(name) {
+    var m = /\.([a-z0-9]+)$/i.exec(String(name || ''));
+    return m ? (MODE_FOR_EXT[m[1].toLowerCase()] || null) : null;
+  }
+
+  // Highlighting without an editor, for every pane that only shows code.
+  // CodeMirror tokenizes a line at a time through its public mode API, the
+  // same call the editor itself makes, so a file reads identically whether
+  // you are editing it or looking at it.
+  //
+  // The markup is a <pre><code> of one .line span per line, which is the
+  // shape a caller's own line numbering and wrapping already expect, under
+  // the cm-s-<theme> class that cm.css colors the tokens through.
+  //
+  // The lines a caller hands us are all the context there is: a mode that
+  // asks to look ahead, or for the token around it, gets nothing and
+  // tokenizes the line in front of it.
+  var NO_ORACLE = { lookAhead: function () { return null; },
+                    baseToken: function () { return null; } };
+  function tokenize(text, mode) {
+    var m = CodeMirror.getMode(CodeMirror.defaults, mode || 'null');
+    var state = CodeMirror.startState(m);
+    return String(text).split('\n').map(function (line) {
+      var out = [], stream = new CodeMirror.StringStream(line, 2, NO_ORACLE);
+      if (!line && m.blankLine) m.blankLine(state);
+      while (!stream.eol()) {
+        var style = m.token(stream, state) || null;
+        // a mode that returned without consuming anything would spin here
+        if (stream.pos === stream.start) stream.pos++;
+        var tok = stream.current();
+        stream.start = stream.pos;
+        // a run of one style is one element: modes hand back whitespace and
+        // punctuation a character at a time, and a span each is a lot of
+        // elements for a long file
+        var last = out[out.length - 1];
+        if (last && last[1] === style) last[0] += tok;
+        else out.push([tok, style]);
+      }
+      return out;
+    });
+  }
+  function highlight(el, text, mode) {
+    return loadCM().then(function () {
+      var pre = document.createElement('pre');
+      var code = document.createElement('code');
+      tokenize(text, mode).forEach(function (toks, i) {
+        if (i) code.appendChild(document.createTextNode('\n'));
+        var line = document.createElement('span');
+        line.className = 'line';
+        toks.forEach(function (t) {
+          // unstyled text needs no element of its own
+          if (!t[1]) { line.appendChild(document.createTextNode(t[0])); return; }
+          var s = document.createElement('span');
+          s.className = 'cm-' + t[1].replace(/ +/g, ' cm-');
+          s.textContent = t[0];
+          line.appendChild(s);
+        });
+        code.appendChild(line);
+      });
+      pre.appendChild(code);
+      el.textContent = '';
+      el.classList.add('cm-s-' + theme);
+      el.appendChild(pre);
+      return el;
+    });
   }
 
   // Held-key repeat for normal-mode motions: neither vim.min.js nor the
@@ -137,6 +226,7 @@
       var cm = CodeMirror(el, {
         value: opts.value || '',
         mode: opts.mode || modeFor(opts.mime),
+        theme: theme,
         keyMap: opts.vim === false ? 'default' : 'vim',
         lineNumbers: opts.lineNumbers !== false,
         lineWrapping: !!opts.lineWrapping,
@@ -186,5 +276,9 @@
     };
   }
 
-  window.VimEditor = { mount: mount };
+  window.VimEditor = {
+    mount: mount,
+    highlight: highlight,      // code into an element, read-only
+    modeForName: modeForName   // the mode a filename implies
+  };
 })();

@@ -39,8 +39,9 @@
 /&  forge-css   forge/style.css
 /&  todo        /lib/todo.md
 ::  web-component kit: shared sources in /lib/ui (one copy for all nexuses),
-::  welded into one components.js bundle in on-load so a page makes a single
-::  request (no staggered per-file "flash-in").
+::  served as one components.js (see +bundle:nw) so a page makes a single
+::  request, with no staggered per-file "flash-in".
+/<  nw          /lib/nexus-web.hoon
 /&  modal-js    /lib/ui/modal-dialog.js
 /&  dropmenu-js  /lib/ui/drop-menu.js
 /&  splitview-js  /lib/ui/split-view.js
@@ -51,12 +52,8 @@
 ::  manager publishes window.floatwm and MUST precede float-window
 /&  windowmgr-js  /lib/ui/window-manager.js
 /&  floatwin-js   /lib/ui/float-window.js
-::  shared classic helpers — the FileView editor (and the FilePreview renderer
-::  it leans on) reused from the explorer, loaded before app.js
-/&  fp-js       /lib/ui/file-preview.js
-/&  fv-js       /lib/ui/file-view.js
 ::  marked: renders markdown previews (window.marked), loaded before app.js
-/&  marked-js   forge/marked.min.js
+/&  marked-js   /lib/ui/marked.min.js
 /<  nex-tools   /lib/tools.hoon
 /&  forge-tools  forge/tool-bundle/
 ::  the recipes the forge ships with each repo's clanker: forge/recipes/
@@ -67,13 +64,13 @@
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
-      ::  kit bundle: weld the components into one file. Each is wrapped in a
-      ::  { } block so top-level consts don't collide; define runs globally.
-      ::  123={  125=}  10=newline.
-      =/  wrap  |=(=mime ^-(@ (rap 3 ~[123 10 q.q.mime 10 125 10])))
+      ::  kit bundle: the components this nexus's pages use, in one file
+      ::
       =/  kit-js=mime
-        :-  /application/javascript
-        (as-octs:mimes:html (rap 3 ~[(wrap modal-js) (wrap dropmenu-js) (wrap splitview-js) (wrap tabgroup-js) (wrap treeview-js) (wrap filetable-js) (wrap windowmgr-js) (wrap floatwin-js)]))
+        %-  ~(scoped bundle:nw /application/javascript)
+        :~  modal-js  dropmenu-js  splitview-js  tabgroup-js
+            treeview-js  filetable-js  windowmgr-js  floatwin-js
+        ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
@@ -114,8 +111,6 @@
           [%over %& [/ %'TODO.md'] [[/ %mime] todo]]
           [%over %& [/ %'style.css'] [[/ %mime] forge-css]]
           [%over %& [/ %'components.js'] [[/ %mime] kit-js]]
-          [%over %& [/ %'file-preview.js'] [[/ %mime] fp-js]]
-          [%over %& [/ %'file-view.js'] [[/ %mime] fv-js]]
           [%over %& [/ %'marked.min.js'] [[/ %mime] marked-js]]
           [%over %| /tools (seed-tools:nex-tools forge-tools)]
       ==

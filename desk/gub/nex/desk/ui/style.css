@@ -174,7 +174,6 @@ body { font-family: Inter, system-ui, sans-serif; background: white; color: #111
 .vp-vtab.active { background: #3d3a45; color: #fff; border-color: #3d3a45; }
 .vp-body { flex: 1; min-height: 0; overflow: auto; background: #fafafa; }
 .vp-body > pre, .vp-pre { margin: 0; padding: 12px 14px; font-family: 'SF Mono', Menlo, monospace; font-size: 12px; line-height: 1.5; white-space: pre; tab-size: 2; min-height: 100%; }
-.vp-body > pre.shiki { background: #24292e !important; }
 .vp-img { max-width: 100%; height: auto; display: block; padding: 14px; }
 .vp-reason { padding: 14px; font-size: 12.5px; line-height: 1.6; color: #a05a2c; font-family: monospace; white-space: pre-wrap; }
 

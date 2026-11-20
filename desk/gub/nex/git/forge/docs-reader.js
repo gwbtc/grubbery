@@ -174,7 +174,7 @@ function buildOnThisPage() {
 }
 
 // Syntax-highlight ordinary fenced code blocks (```hoon, ```js, ```css,
-// ```json) with the same shiki + pkova grammar the live embeds use.
+// ```json) with the same highlighter the live embeds use.
 function upgradeStaticBlocks() {
   var blocks = DOC.querySelectorAll('pre > code[class*="language-"]');
   for (var i = 0; i < blocks.length; i++) {
@@ -187,13 +187,11 @@ function upgradeStaticBlocks() {
       if (['hoon', 'javascript', 'css', 'json'].indexOf(lang) < 0) return;
       var text = code.textContent;
       var pre = code.parentElement;
-      ensureShiki().then(function (hl) {
-        if (!hl) return;
-        try {
-          var tmp = document.createElement('div');
-          tmp.innerHTML = hl.codeToHtml(text, { lang: lang, theme: 'github-light' });
-          if (tmp.firstChild) pre.replaceWith(tmp.firstChild);
-        } catch (e) { /* leave plain */ }
+      ensureHighlighter().then(function (ve) {
+        var box = document.createElement('div');
+        return ve.highlight(box, text, lang).then(function () {
+          if (box.firstChild) pre.replaceWith(box);
+        });
       });
     })(blocks[i]);
   }
@@ -202,32 +200,21 @@ function upgradeStaticBlocks() {
 // ---- live code embeds ----
 // A ```live fenced block whose body is "<path> [from-to]" is replaced with
 // the actual lines of that file, read live from the running ship via the
-// explorer's ball endpoint, and highlighted with shiki + the pkova Hoon
-// grammar (same setup forge/explorer use). Never drifts — it's live source.
+// explorer's ball endpoint, and highlighted the way the explorer highlights
+// it. Never drifts — it's live source.
 
-var shikiP = null;
-
-function ensureShiki() {
-  if (shikiP) return shikiP;
-  shikiP = import('https://esm.sh/shiki@1.24.0').then(function (m) {
-    return fetch('/grubbery/ball/apps/shell/ui/explorer/hoon-grammar.json')
-      .then(function (r) { return r.json(); })
-      .then(function (grammar) {
-        return m.createHighlighter({
-          themes: ['github-light'],
-          langs: [grammar, 'javascript', 'css', 'json']
-        });
-      });
-  }).catch(function () { return null; });
-  return shikiP;
-}
-
-function langFor(path) {
-  if (/\.hoon$/.test(path)) return 'hoon';
-  if (/\.js$/.test(path)) return 'javascript';
-  if (/\.css$/.test(path)) return 'css';
-  if (/\.json$/.test(path)) return 'json';
-  return 'text';
+// The code embeds and the explorer's editor highlight the same way: through
+// CodeMirror, from the ship, so a file reads identically wherever you meet it
+// and nothing here reaches outside the ship for a stylesheet.
+function ensureHighlighter() {
+  if (window.VimEditor) return Promise.resolve(window.VimEditor);
+  return new Promise(function (res, rej) {
+    var sc = document.createElement('script');
+    sc.src = '/grubbery/ball/apps/shell/ui/explorer/vim-editor.js';
+    sc.onload = function () { res(window.VimEditor); };
+    sc.onerror = rej;
+    document.head.appendChild(sc);
+  });
 }
 
 function parseRange(r) {
@@ -239,16 +226,17 @@ function parseRange(r) {
   return { from: from, to: isNaN(to) ? from : to };
 }
 
-// resolves once the code is in the element (highlighted, or plain when the
-// highlighter is unavailable), so a caller can wait for the layout to settle
+// resolves once the code is in the element, so a caller can wait for the
+// layout to settle. Plain if the highlighter does not load: the source is
+// the point, the colors are not
 function highlightInto(el, path, code) {
-  return ensureShiki().then(function (hl) {
-    if (!hl) { var p = document.createElement('pre'); p.textContent = code; el.innerHTML = ''; el.appendChild(p); return; }
-    try {
-      el.innerHTML = hl.codeToHtml(code, { lang: langFor(path), theme: 'github-light' });
-    } catch (e) {
-      var pre = document.createElement('pre'); pre.textContent = code; el.innerHTML = ''; el.appendChild(pre);
-    }
+  return ensureHighlighter().then(function (ve) {
+    return ve.highlight(el, code, ve.modeForName(path));
+  }).catch(function () {
+    var pre = document.createElement('pre');
+    pre.textContent = code;
+    el.textContent = '';
+    el.appendChild(pre);
   });
 }
 
