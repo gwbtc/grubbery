@@ -10,6 +10,8 @@
 //   var fv = FileView.mount(document.getElementById('fv'), {
 //     url: '/grubbery/ball/apps/foo/data/tree/readme.md',  // the file's own URL
 //     wrapKey: 'explorer-wrap',   // localStorage key for the wrap toggle
+//     wrap / nums / vim,          // the host's DEFAULTS for those toggles;
+//                                 // this browser's own choice still wins
 //     crumbBase: '/grubbery/ball/apps/some/internal/storage/root',
 //       // optional — the breadcrumb normally shows `url` relative to the
 //       // namespace root (/grubbery/ball). A host whose file lives several
@@ -25,6 +27,17 @@
 // injected once, scoped under .fv; the host sizes the mount element.
 (function () {
   'use strict';
+
+  // the verbs a file pane lends to the pane's `:` prompt, and what they do.
+  // Beside the table that defines them (see baseEx), and on the export too:
+  // a help page has these to show before any file is open.
+  var COMMAND_HELP = [
+    ['w', 'save; with a changed mime type, saves that too'],
+    ['wq', 'save and close the tab'],
+    ['x', 'save if changed, then close'],
+    ['q!', 'close the tab and drop unsaved text'],
+    ['mime <type>', 'set the mime type; bare :mime says what it is'],
+  ];
 
   var CSS =
     '.fv{background:#fff;color:#1f2328;display:flex;flex-direction:column;font:13px/1.5 -apple-system,BlinkMacSystemFont,sans-serif;min-height:0;min-width:0;width:100%;overflow:hidden}' +
@@ -65,10 +78,10 @@
     '.fv #text-view,.fv #mime-view{flex:1;min-height:0;min-width:0;overflow:auto}' +
     '.fv #view-pane{flex:1;min-height:0;min-width:0;overflow:auto;display:flex;flex-direction:column}' +
     '.fv .edwrap,.fv #src-display{height:100%;min-width:0;overflow:auto}' +
-    /* bare: the source alone, an editor and nothing else (opts.bare / onView) */
-    '.fv.bare #versions,.fv.bare #crumbrow,.fv.bare #bar,.fv.bare #tools,.fv.bare #sandbox-banner{display:none!important}' +
-    /* bare keeps one thin line: the blot and the mime type (:mime sets it) */
-    '.fv.bare #mime-row{padding:2px 12px}' +
+    /* no chrome: the file alone, an editor and nothing else (opts.chrome) */
+    '.fv.nochrome #versions,.fv.nochrome #crumbrow,.fv.nochrome #bar,.fv.nochrome #tools,.fv.nochrome #sandbox-banner{display:none!important}' +
+    /* with no chrome one thin line stays: the blot and the mime type */
+    '.fv.nochrome #mime-row{padding:2px 12px}' +
     '.fv #mime-blot{font:11px ui-monospace,SFMono-Regular,Menlo,monospace;color:#57606a;margin-right:6px}' +
     // the Wrap toggle drives the highlighted display; the editor drives its
     // own CodeMirror lineWrapping option (set alongside this, see setupWrap)
@@ -223,10 +236,10 @@
     opts = opts || {};
     injectStyle();
     root.classList.add('fv');
-    // bare before the markup is on screen, not after boot: the chrome is in
-    // the markup, so a class applied at the end of the sequence shows it and
-    // then takes it away
-    root.classList.toggle('bare', !!opts.bare);
+    // the chrome decided before the markup is on screen, not after boot: it
+    // is in the markup, so a class applied at the end of the sequence shows
+    // it and then takes it away
+    root.classList.toggle('nochrome', opts.chrome === false);
     root.innerHTML = MARKUP;
     var wrapKey = opts.wrapKey || 'explorer-wrap';
     var numsKey = opts.numsKey || 'explorer-nums';
@@ -236,8 +249,8 @@
     // opts.readOnly — show the file but never let it be written (past versions)
     var $ = function (id) { return root.querySelector('#' + id); };
     // opts.versions: the host's version bar (this path's history, the way
-    // back to now). It sits above the crumbs, inside the chrome, so bare
-    // hides it with everything else.
+    // back to now). It sits above the crumbs, inside the chrome, so it goes
+    // with everything else.
     if (opts.versions) $('versions').appendChild(opts.versions);
 
     var here = opts.url;
@@ -286,7 +299,7 @@
     // editor is the editor's.
     if (root.tabIndex < 0 && !root.hasAttribute('tabindex')) root.tabIndex = -1;
     // the viewer's own keys, when the keyboard is on the viewer and not in
-    // a field or the editor: e edit · F the bare editor view (Esc leaves it)
+    // a field or the editor: e edit · F the editor alone (Esc brings it back)
     // · 1 3 4 Source Build viewer · s save · w n v wrap numbers
     // vim · c copy · ? this list. Reader keys below scroll.
     // ---- the pane's commands ----
@@ -303,7 +316,7 @@
       return {
         q: function () { if (host.close) host.close(); },
         e: function (args) { if (args[0] && host.open) host.open(target(args)); },
-        bare: function () { bareEditor(!bare); },
+        chrome: function () { editorAlone(chrome); },
         mime: function () { say('mime type: ' + (mimeInput.value || mite)); },
         sp: function (args) { if (host.splitDown) host.splitDown(args[0] ? target(args) : null); },
         vs: function (args) { if (host.splitRight) host.splitRight(args[0] ? target(args) : null); }
@@ -312,7 +325,7 @@
     // a line to the person: vim's notification when the editor is up,
     // the status field otherwise
     function say(text) { status.textContent = text; if (ve && ve.notify) ve.notify(text); }
-    var KEYS = ': command (:e :vs :sp :q :bare :mime, :w in the editor) · e edit · F bare editor (Esc leaves) · 1 3 4 source build viewer · s save · w wrap · n numbers · v vim · c copy · j k ␣ scroll · in the editor :w :q :q! :wq ZZ ZQ :e <path> :sp :vs :bare :mime <type>';
+    var KEYS = ': command (:e :vs :sp :q :chrome :mime, :w in the editor) · e edit · F the editor alone (Esc brings the chrome back) · 1 3 4 source build viewer · s save · w wrap · n numbers · v vim · c copy · j k ␣ scroll · in the editor :w :q :q! :wq ZZ ZQ :e <path> :sp :vs :chrome :mime <type>';
     function press(btn) { if (btn && !btn.hasAttribute('disabled') && btn.offsetParent !== null) btn.click(); }
     root.addEventListener('keydown', function (e) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -320,8 +333,8 @@
       if (tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT' || (t && t.isContentEditable)) return;
       var k = e.key, used = true;
       if (k === 'e') press(editBtn);
-      else if (k === 'F') bareEditor(!bare);
-      else if (k === 'Escape' && bare) { if (opts.setBare) opts.setBare(false); else setBare(false); }
+      else if (k === 'F') editorAlone(chrome);
+      else if (k === 'Escape' && !chrome) { if (opts.setChrome) opts.setChrome(true); else setChrome(true); }
       else if (k === '1') press(tabText);
       else if (k === '3') press(tabBuild);
       else if (k === '4') press(tabView);
@@ -421,21 +434,21 @@
     // same file already holds (its snapshot()), so this one renders from
     // memory and skips the two fetches. Only taken for the same url.
     var prime = (opts.prime && opts.prime.url === here && opts.prime.info) ? opts.prime : null;
-    // bare: the file alone -- no crumbs, tabs, tools or chips. Starts as the
-    // host mounted it, and an onArgs arriving before the file is in writes
-    // here, so whatever this holds at boot is what gets applied.
-    var bare = !!opts.bare, booted = false;
+    // chrome: the crumbs, tabs, tools and chips, or none of them. Starts as
+    // the host mounted it, and an onArgs arriving before the file is in
+    // writes here, so whatever this holds at boot is what gets applied.
+    var chrome = opts.chrome !== false, booted = false;
     // the chrome goes, the file stays. The control is the host's -- the
     // pane's own View menu, beside rendered/raw -- because the state is the
-    // moment's and not this component's (opts.setBare writes it).
+    // moment's and not this component's (opts.setChrome writes it).
     //
-    // Chrome only. Bare is the resting state of a pane, so opening the
+    // Chrome only. No chrome is the resting state of a pane, so opening the
     // editor cannot ride along with it -- every file would arrive in an
     // editor, and CodeMirror would load for a file you only meant to read.
-    // The F gesture asks for both; see +bareEditor.
-    function setBare(on) {
-      bare = !!on;
-      root.classList.toggle('bare', bare);
+    // The F gesture asks for both; see +editorAlone.
+    function setChrome(on) {
+      chrome = !!on;
+      root.classList.toggle('nochrome', !chrome);
       // asked before the file is in (the moment's args changed under a
       // view still fetching): remembered, applied once renderFile is done
       if (!booted) return;
@@ -444,8 +457,8 @@
     // F: the file alone, in the editor -- the raw side's "just let me work on
     // this". On a pane showing a rendering there is nothing to edit, so it is
     // the chrome alone that moves.
-    function bareEditor(on) {
-      if (opts.setBare) opts.setBare(on); else setBare(on);
+    function editorAlone(on) {
+      if (opts.setChrome) opts.setChrome(!on); else setChrome(!on);
       if (!on || !booted) return;
       if (FIXED_PANE[opts.view] && opts.view !== 'source') return;
       show('text');
@@ -547,7 +560,7 @@
       }
       setupPanes(); setupWrap(); setupNums(); setupCopy(); setupEditor(); renderSource();
       booted = true;
-      setBare(bare);
+      setChrome(chrome);
     }
 
     // a failed read is an ERROR, never content: without the status check the
@@ -653,8 +666,8 @@
     }
 
     function setupWrap() {
-      var wrap = true;
-      try { wrap = (localStorage.getItem(wrapKey) == null ? '1' : localStorage.getItem(wrapKey)) === '1'; } catch (_) {}
+      var wrap = opts.wrap !== false;
+      try { var v = localStorage.getItem(wrapKey); if (v != null) wrap = v === '1'; } catch (_) {}
       var applyWrap = function () {
         root.classList.toggle('wrap', wrap);
         wrapBtn.classList.toggle('on', wrap);
@@ -675,8 +688,8 @@
     // spans) and the editor (CodeMirror's own lineNumbers), so the two panes
     // always agree. Default on — the editor already numbered by default.
     function setupNums() {
-      var nums = true;
-      try { nums = (localStorage.getItem(numsKey) == null ? '1' : localStorage.getItem(numsKey)) === '1'; } catch (_) {}
+      var nums = opts.nums !== false;
+      try { var vn = localStorage.getItem(numsKey); if (vn != null) nums = vn === '1'; } catch (_) {}
       var applyNums = function () {
         root.classList.toggle('nums', nums);
         numBtn.classList.toggle('on', nums);
@@ -699,14 +712,15 @@
       return highlight(display, text, name);
     }
 
-    // vim keybindings default on, except on a touch/narrow device where a
-    // physical Escape and chorded motions aren't really available — unless
-    // the person has explicitly toggled it before, which always wins.
+    // this browser's last word, else the host's setting, else on -- except on
+    // a touch or narrow device, where a physical Escape and chorded motions
+    // are not really available.
     function vimPref() {
       try {
         var v = localStorage.getItem('explorer-vim');
         if (v != null) return v === '1';
       } catch (_) {}
+      if (typeof opts.vim === 'boolean') return opts.vim;
       try { return !(window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 760); }
       catch (_) { return true; }
     }
@@ -743,7 +757,7 @@
         return ve;
       }
       // vim's command line, bound to this file and its pane: :w saves, :q
-      // closes the tab (:bare is the way out of bare), :wq both, :e
+      // closes the tab (:chrome brings the chrome back), :wq both, :e
       // <path> opens a path (relative to this file's dir, like vim's; :e
       // alone re-reads the file), :sp / :vs <path> split the pane (the host's
       // opts.host = { open(path), close(), splitDown(path), splitRight(path) }).
@@ -802,8 +816,10 @@
         ensureEditor().ready.then(function () {
           ve.refresh();
           // where the keyboard goes when the host hands this pane focus: the
-          // editor's own input. Without it gmux focuses the pane element and
-          // vim never sees a key, so arriving by Ctrl-B needs a click first.
+          // editor's own input, not the pane element. Marking it is the whole
+          // of this component's part in focus -- a host that wanted the
+          // keyboard here and found nowhere to put it is waiting for exactly
+          // this (see +focusContent).
           markFocus(ve.inputField ? ve.inputField() : null);
           if (focus) ve.focus();
         });
@@ -1023,22 +1039,22 @@
       commands: function () { return exTable || baseEx(); },
       // what another view of this file can start from: see opts.prime
       snapshot: function () { return { url: here, info: info, text: currentText(), sandboxed: sandboxed }; },
-      // the moment's ?args changed under this element. ?bare is taken in
+      // the moment's ?args changed under this element. ?chrome is taken in
       // place, in either direction. Any other change of args is not ours
       // to take.
       onArgs: function (args) {
-        // the host decides what an ABSENT bare means (its own default), so
+        // the host decides what an ABSENT chrome means (its own default), so
         // absence here is "nobody touched it" and the state stands. Only an
         // explicit value moves it -- and '0' is a truthy string, so it has
         // to be compared, never tested.
-        var v = args ? args.bare : null;
-        var want = v == null ? bare : v !== '0';
-        var rest = Object.assign({}, args || {}); delete rest.bare;
-        var mine = Object.assign({}, opts.query || {}); delete mine.bare;
+        var v = args ? args.chrome : null;
+        var want = v == null ? chrome : v !== '0';
+        var rest = Object.assign({}, args || {}); delete rest.chrome;
+        var mine = Object.assign({}, opts.query || {}); delete mine.chrome;
         if (JSON.stringify(rest) !== JSON.stringify(mine)) return false;
-        // taken in place either way: bare is the chrome and nothing else, so
+        // taken in place either way: this is the chrome and nothing else, so
         // neither direction changes which rendering the host would mount
-        setBare(want);
+        setChrome(want);
         return true;
       },
       destroy: function () {
@@ -1072,5 +1088,5 @@
     }).catch(function () { return null; });
   }
 
-  window.FileView = { mount: mount, prefetch: prefetch };
+  window.FileView = { mount: mount, prefetch: prefetch, commandHelp: function () { return COMMAND_HELP; } };
 })();

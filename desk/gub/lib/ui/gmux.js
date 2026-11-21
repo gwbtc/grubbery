@@ -150,10 +150,13 @@ const CSS = `
      Host-level like .ps-histmenu, so a pane's overflow:hidden cannot clip it. */
   .ps-panemenu { position:absolute; z-index:31; display:none; flex-direction:column; min-width:238px; overflow-y:auto; background:#fff; border:1px solid #d0d7de; border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.15); padding:4px; }
   .ps-panemenu.on { display:flex; }
-  .ps-mi { all:unset; cursor:pointer; display:grid; grid-template-columns:18px 1fr; align-items:center; gap:9px; padding:7px 10px; border-radius:6px; font:13px -apple-system,BlinkMacSystemFont,sans-serif; color:#24292f; white-space:nowrap; }
+  .ps-mi { all:unset; cursor:pointer; display:grid; grid-template-columns:18px 1fr auto; align-items:center; gap:9px; padding:7px 10px; border-radius:6px; font:13px -apple-system,BlinkMacSystemFont,sans-serif; color:#24292f; white-space:nowrap; }
   .ps-mi:hover { background:#f2f4f7; }
   .ps-mi-ic { color:#8b949e; text-align:center; font-size:13px; line-height:1; }
   .ps-mi:hover .ps-mi-ic { color:#24292f; }
+  .ps-mi-key { color:#8b949e; font:12px ui-monospace,SFMono-Regular,Menlo,monospace; text-align:right; padding-left:14px; }
+  .ps-mi:hover .ps-mi-key { color:#57606a; }
+  .ps-mfoot { padding:6px 10px 2px; color:#8b949e; font:11px -apple-system,BlinkMacSystemFont,sans-serif; border-top:1px solid #eaeef2; margin-top:4px; }
   .ps-mi.ps-danger:hover, .ps-mi.ps-danger:hover .ps-mi-ic { background:#ffebe9; color:#cf222e; }
   .ps-mlbl { padding:8px 10px 3px; font:10px -apple-system,BlinkMacSystemFont,sans-serif; letter-spacing:.06em; text-transform:uppercase; color:#8b949e; }
   .ps-msep { height:1px; margin:4px 8px; background:#e2e7ee; }
@@ -204,12 +207,165 @@ class Gmux extends HTMLElement {
                                 // within the root, or null (showing the full structure).
                                 // Shared with the phone client — desktop and mobile both
                                 // just sit, there's no separate zoom concept for either.
+  // What gmux can be asked to do, by name, and which key asks it.
+  //
+  // COMMANDS is the behaviour: a name, what group it files under, what it
+  // does for a reader, and the thing it runs. KEYMAP is only the binding,
+  // so a host can hand over its own (see the keymap setter) and nothing
+  // about the commands changes. They meet at the name.
+  //
+  // A command with `fixed` is not bound through the keymap -- a range or the
+  // arrows, which #onKey reads directly -- and `fixed` is how it is written
+  // for a reader. One without `run` is handled there too.
+  static COMMANDS = {
+    'split-right':       { group: 'Split', label: 'split right, this tab beside itself', run: (g) => g.splitRight() },
+    'split-down':        { group: 'Split', label: 'split down, this tab beneath itself', run: (g) => g.splitDown() },
+    'split-right-whole': { group: 'Split', label: 'split right, the whole pane, new side empty', run: (g) => g.splitRightWhole() },
+    'split-down-whole':  { group: 'Split', label: 'split down, the whole pane, new side empty', run: (g) => g.splitDownWhole() },
+    'close-pane':        { group: 'Split', label: 'close this pane \u2014 one with something in it asks first',
+                           then: 'Enter', run: (g) => g.close() },
+    'nest':              { group: 'Split', label: 'nest \u2014 put this tab in a pane of its own, with its own tabs and splits',
+                           run: (g) => { g.nest(); g.#flashHint('nested: this tab now holds a pane of its own'); } },
+    'promote':           { group: 'Split', label: 'promote \u2014 take this pane\u2019s tabs back out into the tab holding it',
+                           run: (g) => g.promote() },
+
+    'new-tab':    { group: 'Tabs', label: 'new tab, empty', run: (g) => g.newTab(g.#activeId) },
+    'close-tab':  { group: 'Tabs', label: 'close this tab', run: (g) => g.closeTab(g.#activeId, g.cursor ? g.cursor.activeTab : -1) },
+    'prev-tab':   { group: 'Tabs', label: 'previous tab', run: (g) => g.#cycleTab(-1) },
+    'next-tab':   { group: 'Tabs', label: 'next tab', run: (g) => g.#cycleTab(1) },
+    'back':       { group: 'Tabs', label: 'back, in this tab\u2019s history', run: (g) => g.back() },
+    'forward':    { group: 'Tabs', label: 'forward, in this tab\u2019s history', run: (g) => g.forward() },
+
+    'focus-next':    { group: 'Move', label: 'focus the next pane', run: (g) => g.focusNext() },
+    'focus-sibling': { group: 'Move', label: 'focus this pane\u2019s sibling', run: (g) => g.sibling() },
+    'climb':         { group: 'Move', label: 'climb \u2014 to what holds this pane', run: (g) => g.climb() },
+    'descend':       { group: 'Move', label: 'descend \u2014 into this pane', run: (g) => g.descend() },
+    'focus-nth':     { group: 'Move', label: 'focus the nth pane', fixed: '1\u20139' },
+    'focus-move':    { group: 'Move', label: 'focus the pane that way', fixed: '\u2190\u2191\u2193\u2192' },
+    'mark':          { group: 'Move', label: 'mark \u2014 this pane, as the one a swap or a move will use',
+                       run: (g) => g.#flashHint(g.markToggle() ? 'marked \u2014 space on another pane swaps' : 'mark cleared') },
+    'swap':          { group: 'Move', label: 'swap \u2014 this pane and the marked one trade places; no prefix once marked', after: 'mark', run: (g) => g.swap() },
+    'move-tabs':     { group: 'Move', label: 'hand these tabs to the marked pane; this pane goes \u2014 mark where they go, come back, then M, no prefix', after: 'mark',
+                       run: (g) => { if (g.moveTabs()) g.#flashHint('tabs moved \u2014 this pane is gone, what held it stayed'); } },
+    'escape':        { group: 'Move', label: 'back out \u2014 of a zoom, a resize, or a close that is waiting', run: (g) => g.escape() },
+
+    'flip':        { group: 'Arrange', label: 'flip \u2014 this pane and the one beside it trade places', run: (g) => g.flip() },
+    'rotate':      { group: 'Arrange', label: 'rotate a quarter turn clockwise \u2014 horizontal siblings become vertical and vice versa', run: (g) => g.rotate() },
+    'minimize':    { group: 'Arrange', label: 'toggle: collapse this pane, expand its sibling', run: (g) => g.collapse() },
+    'expand':      { group: 'Arrange', label: 'toggle: expand this pane, collapse its sibling', run: (g) => g.expand() },
+    'full-screen': { group: 'Arrange', label: 'zoom \u2014 this pane alone, filling the workspace', run: (g) => g.seatToggle() },
+    'resize':      { group: 'Arrange', label: 'resize \u2014 the arrows keep resizing until any other key', fixed: 'Shift \u2190\u2191\u2193\u2192' },
+
+    'bar-full':      { group: 'View', label: 'the full bar, or none of it', run: (g) => g.toggleBarFull(g.#activeId) },
+    'bar-tabs':      { group: 'View', label: 'the full bar, or just its tabs', run: (g) => g.setNav(g.#activeId) },
+    'refresh':       { group: 'View', label: 'refresh this moment in place', run: (g) => g.refresh(g.#activeId) },
+    'focus-navbar':  { group: 'View', label: 'type a path in the navbar', run: (g) => g.focusNav(g.#activeId) },
+    'cycle-view':    { group: 'View', label: 'the next render mode for this pane', run: (g) => g.cycleView(g.#activeId) },
+  };
+  // the keys as they come. A host replaces or extends this through `keymap`.
+  static KEYMAP = {
+    '%': 'split-right', '"': 'split-down', '|': 'split-right-whole', '-': 'split-down-whole',
+    'x': 'close-pane', 'n': 'nest', 'N': 'promote', 'M': 'move-tabs',
+    't': 'new-tab', 'w': 'close-tab', '<': 'prev-tab', '>': 'next-tab', ',': 'back', '.': 'forward',
+    'o': 'focus-next', 'Tab': 'focus-sibling', '[': 'climb', ']': 'descend',
+    'm': 'mark', ' ': 'swap', 'Escape': 'escape',
+    'f': 'flip', 'r': 'rotate', 'c': 'minimize', 'e': 'expand', 'E': 'expand', 'z': 'full-screen',
+    'T': 'bar-full', 'b': 'bar-tabs', 'R': 'refresh',
+    ':': 'focus-navbar', 'v': 'cycle-view',
+  };
+  #userKeys = null;
+  // The bindings in force. A host that was given a keymap is using THAT, whole
+  // -- a key it does not mention is a key that does nothing. The defaults live
+  // here in the code, and `defaultKeys` is what a host seeds or resets from,
+  // so a file of bindings is the present state rather than a diff against
+  // something it cannot see.
+  //
+  // A switch the host declared is bound by NAME like anything else: resolving
+  // a name costs gmux no knowledge of what the switch does, which is the only
+  // thing it must not have.
+  get defaultKeys() {
+    const out = Object.assign({}, Gmux.KEYMAP);
+    for (const t of this.paneToggles || []) if (t.key && t.id) out[t.key] = t.id;
+    return out;
+  }
+  get #keys() { return this.#userKeys || this.defaultKeys; }
+  // nothing, or an empty map, means the defaults. A name that names nothing is
+  // dropped loudly rather than binding a key to silence.
+  set keymap(m) {
+    if (!m || !Object.keys(m).length) { this.#userKeys = null; this.#hintLine = null; return; }
+    const out = {};
+    for (const [k, name] of Object.entries(m)) {
+      if (name == null) continue;                        // left out is left unbound
+      if (!Gmux.COMMANDS[name] && !(this.paneToggles || []).some((t) => t.id === name)) {
+        console.warn('gmux: nothing named ' + name + ' (key ' + k + ')'); continue;
+      }
+      out[k] = name;
+    }
+    this.#userKeys = out;
+    this.#hintLine = null;
+  }
+  get keymap() { return Object.assign({}, this.#keys); }
+  // the keys #onKey reads directly: a range, the arrows, and the Enter that
+  // confirms a close. They are not in the keymap, so an editor has to be told
+  // they are taken or it will happily bind a command over one.
+  static RESERVED = { '1': 'focus-nth', '2': 'focus-nth', '3': 'focus-nth', '4': 'focus-nth',
+                      '5': 'focus-nth', '6': 'focus-nth', '7': 'focus-nth', '8': 'focus-nth',
+                      '9': 'focus-nth', 'ArrowLeft': 'focus-move', 'ArrowRight': 'focus-move',
+                      'ArrowUp': 'focus-move', 'ArrowDown': 'focus-move', 'Enter': 'the close confirm',
+                      'Escape': 'escape' };
+  // how a key is written for a reader. The glyphs for these are standard and
+  // still have to be explained, which is a key you cannot read.
+  static keyName(k) { return ({ ' ': 'Space', 'Tab': 'Tab', 'Escape': 'Esc' })[k] || k; }
+  // the key a command is reached by, for a menu or a help page to print
+  // beside it. Static against any keymap, so a page with no host of its own
+  // can still show what the keys are.
+  static keyFor(name, keys = Gmux.KEYMAP) {
+    for (const [k, n] of Object.entries(keys)) if (n === name) return Gmux.keyName(k);
+    const c = Gmux.COMMANDS[name];
+    return (c && c.fixed) || '';
+  }
+  // Every command as a reader sees it: what reaches it, and what it does.
+  //
+  //   then   a second key finishes it, after this one
+  //   after  a command that has to run first; its key is the first step
+  //
+  static keyHelp(keys = Gmux.KEYMAP) {
+    return Object.entries(Gmux.COMMANDS).map(([name, c]) => ({
+      name, k: Gmux.keyFor(name, keys), group: c.group, label: c.label,
+      then: c.then || null, after: c.after ? Gmux.keyFor(c.after, keys) : null,
+      afterName: c.after || null,     // so an editor can resolve it against its own pending bindings
+    }));
+  }
+  keyFor(name) { return Gmux.keyFor(name, this.#keys); }
+  // this host's commands and the switches it was given, which carry their own
+  keyHelp() {
+    const mine = (this.paneToggles || []).filter((t) => t.id)
+      .map((t) => ({ name: t.id, k: this.keyFor(t.id), group: 'View', label: t.label || (t.off || t.id) }));
+    return Gmux.keyHelp(this.#keys).concat(mine);
+  }
+  #hintLine = null;
+  // a reminder while the prefix waits: the keys by group, and where the full
+  // list is. Every label would be 700 characters in a small box.
+  hintLine() {
+    if (this.#hintLine) return this.#hintLine;
+    const by = new Map();
+    for (const e of this.keyHelp()) {
+      if (!e.k) continue;
+      if (!by.has(e.group)) by.set(e.group, []);
+      by.get(e.group).push(e.k);
+    }
+    const parts = [...by].map(([g, ks]) => g.toLowerCase() + ' ' + ks.join(' '));
+    this.#hintLine = 'gmux \u00b7 ' + parts.join(' \u00b7 ');
+    return this.#hintLine;
+  }
   viewModes = null;    // optional [{id, glyph, title}] → a per-pane render-mode toggle on the bar; host's renderPath reads viewOf(id)
-  // optional [{id, glyph, title, on, off, get(paneId), set(paneId, want), shows(paneId)}]
+  // optional [{id, key, glyph, title, on, off, get(paneId), set(paneId, want), shows(paneId)}]
   // → per-pane switches the HOST owns. Unlike viewModes, gmux keeps none of
   // this state: it asks the host what the switch reads and tells it when the
   // switch is thrown, because the state belongs to the moment and not to the
   // tab. A switch the thing in the pane cannot answer says so through shows().
+  // Its `key` is bound like a command's: the host owns the switch, so the
+  // host names the key, and the menu and any help page read it from here.
   paneToggles = null;
 
   #root = null;                 // the root PANE
@@ -431,7 +587,10 @@ class Gmux extends HTMLElement {
     input.addEventListener('keydown', (e) => {
       e.stopPropagation();
       if (e.key === 'Enter') { const v = (chip ? chip.get() : input.value).trim(); if (v) { this.focusPane(id); this.navigate(id, v); if (this.onNavigate) try { this.onNavigate(id, v); } catch (_) {} } }
-      else if (e.key === 'Escape') { const p = this.#curPath(id) || ''; if (chip) chip.set(p); else input.value = p; input.blur(); }
+      // Esc puts the path back and hands the keyboard to the pane, the way
+      // every prefixed key ends. Blurring and stopping left focus nowhere,
+      // and the next keystroke went to the page.
+      else if (e.key === 'Escape') { const p = this.#curPath(id) || ''; if (chip) chip.set(p); else input.value = p; input.blur(); this.focusContent(id); }
     });
     nav.append(copy, input);                                                 // copy sits inside the field, left of the chip
     copy.classList.add('ps-nav-copy');
@@ -585,13 +744,18 @@ class Gmux extends HTMLElement {
     const menu = this.#paneMenu, p = this.#panes.get(id);
     if (!menu || !p) return;
     menu.textContent = '';
-    const row = (glyph, label, title, fn, cls) => {
+    let anyKey = false;
+    const row = (glyph, label, title, fn, key) => {
       const b = document.createElement('button');
-      b.className = 'ps-mi' + (cls ? ' ' + cls : '');
+      b.className = 'ps-mi';
       if (title) b.title = title;
       const ic = document.createElement('span'); ic.className = 'ps-mi-ic'; ic.textContent = glyph;
       const tx = document.createElement('span'); tx.className = 'ps-mi-tx'; tx.textContent = label;
-      b.append(ic, tx);
+      // the key alone: every one of them is the prefix then this, and the
+      // footer says the prefix once rather than each row repeating it
+      const kx = document.createElement('span'); kx.className = 'ps-mi-key'; kx.textContent = key || '';
+      if (key) anyKey = true;
+      b.append(ic, tx, kx);
       b.addEventListener('mousedown', (ev) => ev.stopPropagation());
       b.addEventListener('click', (ev) => { ev.stopPropagation(); this.#closePaneMenu(); fn(); });
       menu.appendChild(b);
@@ -605,27 +769,39 @@ class Gmux extends HTMLElement {
         const cur = this.#tabView(p) || this.viewModes[0].id;
         const i = this.viewModes.findIndex(v => v.id === cur);
         const next = this.viewModes[(i + 1) % this.viewModes.length];
-        row(next.glyph, 'Switch to ' + (next.title || next.id), '', () => this.#cycleView(id));
+        row(next.glyph, 'Switch to ' + (next.title || next.id), '', () => this.#cycleView(id), this.keyFor('cycle-view'));
       }
       for (const t of toggles) {
         const on = !!(t.get && t.get(id));
         row(t.glyph || '\u25a3', on ? (t.off || ('Hide ' + t.id)) : (t.on || ('Show ' + t.id)),
-            t.title || '', () => t.set && t.set(id, !on));
+            t.title || '', () => t.set && t.set(id, !on), this.keyFor(t.id));
       }
       sep();
     }
     head('Split');
-    row('\u25e8', 'Split right', '', () => this.splitRight(id));
-    row('\u2b13', 'Split down', '', () => this.splitDown(id));
+    row('\u25e8', 'Split right', 'the new side opens on this same thing', () => this.splitRight(id), this.keyFor('split-right'));
+    row('\u2b13', 'Split down', 'the new side opens on this same thing', () => this.splitDown(id), this.keyFor('split-down'));
+    row('\u25e8', 'Split right, empty', 'this pane and its tabs move left; the new side opens on nothing', () => this.splitRightWhole(id), this.keyFor('split-right-whole'));
+    row('\u2b13', 'Split down, empty', 'this pane and its tabs move up; the new side opens on nothing', () => this.splitDownWhole(id), this.keyFor('split-down-whole'));
+    // only when something holds it: a row that cannot act is worse than none
+    if (p.parent && !p.parent.div && p.parent.host) {
+      row('\u2912', 'Out of this nesting', 'this pane\u2019s tabs go back into the tab holding it, and the pane goes',
+          () => this.promote(id), this.keyFor('promote'));
+    }
     sep();
     head('Arrange');
-    row('\u21c4', 'Flip this division', 'the two panes trade places', () => this.flip(id));
-    row('\u27f3', 'Rotate a quarter turn', 'clockwise', () => this.rotate(id));
-    // both of these are toggles, so each row says what it will do next
-    const folded = !!(p.parent && p.parent.div && p.parent.div.fold === p.parent.slot);
-    row(folded ? '\u2912' : '\u2913', folded ? 'Restore' : 'Minimize', '', () => this.collapse(id));
+    row('\u21c4', 'Swap the two sides', 'this pane and the one beside it trade places', () => this.flip(id), this.keyFor('flip'));
+    row('\u27f3', 'Rotate a quarter turn', 'clockwise', () => this.rotate(id), this.keyFor('rotate'));
+    // one row per direction, each its own toggle. Only where there is a
+    // sibling to give the space to or take it from.
+    if (p.parent && p.parent.div) {
+      row('\u2913', 'Minimize', 'this pane collapses and its sibling fills; again to undo',
+          () => this.collapse(id), this.keyFor('minimize'));
+      row('\u2912', 'Expand', 'this pane fills and its sibling collapses; again to undo',
+          () => this.expand(id), this.keyFor('expand'));
+    }
     const seated = !!(this.seat && this.#addrWithin(this.#root, p) === this.seat);
-    row('\u26f6', seated ? 'Exit full screen' : 'Full screen', '', () => this.seatToggle(p));
+    row('\u26f6', seated ? 'Exit full screen' : 'Full screen', '', () => this.seatToggle(p), this.keyFor('full-screen'));
     // anchored under the trigger and right-aligned with it, then held inside
     // the host: a pane near the right edge still shows the whole menu, and a
     // pane near the bottom gets it above the trigger instead. Whichever side
@@ -1312,7 +1488,10 @@ class Gmux extends HTMLElement {
       childA.activeTab = pane.activeTab;
       childA.showBar = true; childA.dom.classList.add('ps-bar-on');
     } else {
-      childA.tabs = [{ entries: tab.entries, cursor: tab.cursor, hist: tab.hist || [] }];
+      // the render mode is the TAB's, so a tab moved down carries it: a raw
+      // pane splits into two raw panes. The chrome needs no carrying -- it is
+      // a ?arg on the moment, and the entries come across whole.
+      childA.tabs = [{ entries: tab.entries, cursor: tab.cursor, hist: tab.hist || [], view: tab.view || null }];
       childA.activeTab = 0;
       if (pane.showBar) { childA.showBar = true; childA.dom.classList.add('ps-bar-on'); }  // bar rides with the content
     }
@@ -1334,7 +1513,7 @@ class Gmux extends HTMLElement {
       // with a browsing history that starts there. The COMMAND history
       // comes along: it is what was typed at this pane, not a property of
       // the moment, so both sides of a split inherit it.
-      childB.tabs = [{ entries: [{ path }], cursor: 0, label: null, hist: (tab.hist || []).slice() }];
+      childB.tabs = [{ entries: [{ path }], cursor: 0, label: null, hist: (tab.hist || []).slice(), view: tab.view || null }];
       childB.activeTab = 0;
       this.#renderPane(childB);
     } else if (!whole && curEntry && curEntry.path != null) {
@@ -1342,7 +1521,7 @@ class Gmux extends HTMLElement {
       // earlier split) is a live object one pane owns, not a path to copy:
       // a stack holding one gives the sibling the current moment alone
       const plain = tab.entries.every((e) => e.path != null && !e.div && !e.pane);
-      childB.tabs = [{ entries: plain ? tab.entries.map((e) => Object.assign({}, e)) : [Object.assign({}, curEntry)], cursor: plain ? tab.cursor : 0, label: null, hist: (tab.hist || []).slice() }];
+      childB.tabs = [{ entries: plain ? tab.entries.map((e) => Object.assign({}, e)) : [Object.assign({}, curEntry)], cursor: plain ? tab.cursor : 0, label: null, hist: (tab.hist || []).slice(), view: tab.view || null }];
       childB.activeTab = 0;
       // and it renders: a second live view of that moment, following the
       // ship on its own. childA keeps the element already on screen below;
@@ -1509,6 +1688,56 @@ class Gmux extends HTMLElement {
     this.#emit('ps-close', {}); this.#persist();
     this.#refocus();
   }
+  // +promote: a held pane's tabs go up into the tab that held it, and the pane
+  // goes. The inverse of nest: nest puts a tab's content in a pane of its own,
+  // this takes it back out, and nest-then-promote is the identity.
+  //
+  //   ALL of its tabs move, in their order, with the active one still active,
+  //   and they arrive where the holding tab was rather than at the end --
+  //   coming out of a nesting is going back to where you were, not arriving
+  //   somewhere new. The holding tab existed only to hold the pane, so it
+  //   goes with it.
+  //
+  //   Only a HELD pane answers. One side of a division has a sibling, not a
+  //   holder, and taking its tabs up would leave the other side behind: that
+  //   is what close does, deliberately, with a confirm.
+  promote(id) {
+    const pane = this.#panes.get(id ?? this.#activeId);
+    if (!pane) return false;
+    const par = pane.parent;
+    const owner = par && !par.div ? par.host : null;
+    const held = owner ? owner.tabs.findIndex((t) => ((t.entries[t.cursor] || {}).pane === pane)) : -1;
+    if (held < 0) { this.#flashHint('nothing holds this pane \u2014 promote comes back out of a nesting'); return false; }
+    const scroll = this.#snapshotScroll();
+    const seated = this.seat ? this.#descend(this.#root, this.seat) : null;
+    //  its chrome comes up with its tabs, the way a closed split's survivor
+    //  hands its bar to the pane left holding it -- unless the owner has tabs
+    //  of its own, whose bar is about those and stays as it is
+    const soleHolder = owner.tabs.length === 1;
+    const mine = pane.tabs.length;
+    this.#giveTabsTo(pane, owner);
+    if (soleHolder) {
+      owner.showBar = pane.showBar;
+      owner.dom.classList.toggle('ps-bar-on', !!pane.showBar);
+      owner.nav = pane.nav;
+      owner.dom.classList.toggle('ps-nav-off', !pane.nav);
+    }
+    //  giveTabsTo appends; the tabs belong where the holding tab stood
+    const moved = owner.tabs.splice(owner.tabs.length - mine, mine);
+    owner.tabs.splice(held, 1, ...moved);
+    owner.activeTab = held + (pane.activeTab || 0);
+    if (!owner.tabs.length) owner.tabs.push({ entries: [], cursor: -1 });
+    if (owner.activeTab >= owner.tabs.length) owner.activeTab = owner.tabs.length - 1;
+    this.#forgetPane(pane);
+    this.#renderPane(owner);
+    this.#reseat(seated === pane ? owner : seated);
+    this.#restoreScroll(scroll);
+    this.cursorTo(firstVisibleLeaf(owner, this));
+    this.#emit('ps-promote', { id: owner.id, from: pane.id });
+    this.#persist();
+    this.#refocus();
+    return true;
+  }
   //  +reseat: put the zoom back on a pane a structural edit kept. Silent when
   //  the pane is gone or no longer has an address — a seat that cannot be
   //  read is no seat.
@@ -1599,7 +1828,7 @@ class Gmux extends HTMLElement {
     const dst = this.#mark;
     if (!src) return false;
     if (!dst) { this.#flashHint('mark a destination first — m on the pane the tabs should go to'); return false; }
-    if (dst === src) { this.#flashHint('a pane cannot take its own tabs'); return false; }
+    if (dst === src) { this.#flashHint('that is this pane \u2014 mark where the tabs should GO, then come back here and press M'); return false; }
     // #within(anc, pane) asks whether PANE sits under ANC. The move to refuse
     // is into a destination that lives inside the source — the source is about
     // to go, taking the destination with it. A source inside the DESTINATION is
@@ -1719,9 +1948,42 @@ class Gmux extends HTMLElement {
     p = firstVisibleLeaf(p, this);                                   // a container: its first leaf is where content is
     const c = p.body.firstChild;
     if (!c || c.tagName === 'SPLIT-VIEW' || c.classList.contains('ps-pane')) return;
-    const t = c.querySelector('[data-focus]') || c.querySelector('[data-nk]') || c;
+    const want = c.querySelector('[data-focus]') || c.querySelector('[data-nk]');
+    const t = want || c;
     if (t.tabIndex < 0 && !t.hasAttribute('tabindex')) t.tabIndex = -1;
     try { t.focus({ preventScroll: true }); } catch (_) {}
+    // Nothing in it says where the keyboard goes yet: the content mounts on
+    // its own clock (an editor is a fetch and a lazy script away), and this
+    // ran the instant the pane did. So the focus becomes an INTENT the
+    // content can satisfy when it is ready, instead of a push that lands on
+    // the pane element and stays there. Every content gets this by marking
+    // data-focus whenever it becomes focusable -- none of them has to know
+    // the host already tried.
+    if (!want) this.#awaitFocus(c);
+  }
+  #focusWatch = null;
+  #awaitFocus(c) {
+    this.#dropFocusWatch();
+    if (!window.MutationObserver) return;
+    const mo = new MutationObserver(() => {
+      const t = c.querySelector('[data-focus]');
+      if (!t) return;
+      this.#dropFocusWatch();
+      // only if the intent still stands: focus sitting on the pane itself (or
+      // nowhere) means nobody has chosen otherwise since.
+      const a = document.activeElement;
+      if (a === c || a === document.body || a == null) { try { t.focus({ preventScroll: true }); } catch (_) {} }
+    });
+    mo.observe(c, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-focus'] });
+    this.#focusWatch = { mo, timer: setTimeout(() => this.#dropFocusWatch(), 5000) };
+  }
+  //  one at a time, and never left watching: a pane that never becomes
+  //  focusable would hold an observer for the life of the page
+  #dropFocusWatch() {
+    if (!this.#focusWatch) return;
+    clearTimeout(this.#focusWatch.timer);
+    this.#focusWatch.mo.disconnect();
+    this.#focusWatch = null;
   }
   // the pane one level up: the owner of the division this pane sits in, or
   // the host whose tab holds this pane (a pane moment)
@@ -2002,8 +2264,8 @@ class Gmux extends HTMLElement {
     this.#applyDivLayout(par.div); this.#render(); this.#persist();
   }
   // expand: fold the COUNTERPART's slot → the selected pane fills (toggle).
-  expand() {
-    const pane = this.cursor, par = pane && pane.parent;
+  expand(id) {
+    const pane = id != null ? this.#panes.get(id) : this.cursor, par = pane && pane.parent;
     if (!par || !par.div) return;
     const other = par.slot === 'a' ? 'b' : 'a';
     par.div.fold = (par.div.fold === other) ? null : other;
@@ -2031,7 +2293,16 @@ class Gmux extends HTMLElement {
   clearMark() { this.#mark = null; this.#renderMark(); }
   swap() {
     const c = this.cursor;
-    if (this.#mark && this.#mark !== c) { if (this.#swapPanes(c, this.#mark)) { this.clearMark(); this.cursorTo(c); this.#persist(); } return; }
+    // the cursor goes with the MARKED pane, not with the one you completed
+    // on: marking is choosing the content you mean to move, so afterwards you
+    // are looking at it, in the place you brought it to. Keeping the other
+    // one threw your focus across the screen to where the marked pane had
+    // been, which is the one place you were not looking.
+    if (this.#mark && this.#mark !== c) {
+      const moved = this.#mark;
+      if (this.#swapPanes(c, moved)) { this.clearMark(); this.cursorTo(moved); this.#persist(); }
+      return;
+    }
     const p = c && c.parent;
     if (!p || !p.div) return;
     const div = p.div, scroll = this.#snapshotScroll();
@@ -2183,13 +2454,24 @@ class Gmux extends HTMLElement {
     return { key: raw.pop(), ctrl: raw.includes('ctrl'), meta: raw.includes('meta') || raw.includes('cmd'), alt: raw.includes('alt') };
   }
   #isPrefix(e) { const p = this.#prefix; return e.key.toLowerCase() === p.key && e.ctrlKey === p.ctrl && e.metaKey === p.meta && e.altKey === p.alt; }
-  // a set mark ARMS a swap: bare Space completes it from anywhere on the page
-  // (no prefix, even mid-move), as long as you're not typing in a field. Lives
-  // at window level so it fires regardless of which element holds focus.
+  // A set mark ARMS its completions: every command declaring `after: 'mark'`
+  // answers its own key BARE from anywhere on the page, no prefix, as long as
+  // you are not typing in a field. Lives at window level so it fires whichever
+  // element holds focus.
+  //
+  //   Both of them, not just the swap. One completion taking a bare key while
+  //   the other wanted the prefix again is the kind of difference nobody can
+  //   be told once and remember.
   #onKeyGlobal = (e) => {
-    if (!this.#mark || e.key !== ' ' || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (!this.#mark || e.ctrlKey || e.metaKey || e.altKey) return;
     if (isEditable(e.target) || isEditable(document.activeElement)) return;
-    this.#endRepeat(); this.swap(); e.preventDefault(); e.stopPropagation();
+    const cmd = Gmux.COMMANDS[this.#keys[e.key]];
+    if (!cmd || cmd.after !== 'mark' || !cmd.run) return;
+    // #endRepeat hands focus to the content, so it comes BEFORE the move and
+    // the focus AFTER it: a swap re-appends both panes, and focus given out
+    // first lands on an element that then moves
+    this.#endRepeat(); cmd.run(this); this.focusContent();
+    e.preventDefault(); e.stopPropagation();
   };
   #cancelClose() { if (!this.#pendingClose) return; this.#pendingClose = null; this.#flashHint(''); }
   #onKey = (e) => {
@@ -2215,7 +2497,7 @@ class Gmux extends HTMLElement {
     if (!this.#awaiting) {
       if (this.#isPrefix(e)) {
         this.#awaiting = true;
-        this.#flashHint('gmux · % split tab · | split pane · " stack tab · - stack pane · c/e collapse/expand · z seat · f flip · r rotate · x close · t/w tab · T bar · : path · i content · <> tab · ,. back/fwd · R refresh · m mark · ␣ swap · [ ] climb/descend · Tab sibling · h highlight · b bars · 1-9 jump · ←↑↓→ move · ⇧←↑↓→ resize');
+        this.#flashHint(this.hintLine());
         clearTimeout(this.#awaitTimer);
         this.#awaitTimer = setTimeout(() => { this.#awaiting = false; this.#flashHint(''); }, 2500);
         e.preventDefault(); e.stopPropagation();
@@ -2227,42 +2509,19 @@ class Gmux extends HTMLElement {
     this.#awaiting = false; clearTimeout(this.#awaitTimer); this.#flashHint('');
     let handled = true;
     const dir = DIR[k];
-    //  % and " duplicate the tab you are on; | and - take the whole pane
-    //  down and leave the new side empty
-    if (k === '%') this.splitRight();
-    else if (k === '|') this.splitRightWhole();
-    else if (k === '"') this.splitDown();
-    else if (k === '-') this.splitDownWhole();
-    else if (k === 'x') this.close();
-    else if (k === 'n') { this.nest(); this.#flashHint('nested: this tab now holds a pane of its own'); }
-    else if (k === 'M') { if (this.moveTabs()) this.#flashHint('tabs moved — this pane is gone, what held it stayed'); }
-    else if (k === 'z') this.seatToggle();
-    else if (k === 'b') { const on = this.toggleBars(); this.#flashHint('pane bars: ' + (on ? 'toggleable on hover' : 'locked')); }
-    else if (k === 'f') this.flip();                   // swap the two sides of this division
-    else if (k === 'c') this.collapse();
-    else if (k === 'e' || k === 'E') this.expand();
-    else if (k === 'h') { const lv = this.cycleHighlight(); this.#flashHint('highlight: ' + ['none', 'active only', 'full'][lv]); }
-    else if (k === 'o') this.focusNext();
-    else if (k === ' ') this.swap();
-    else if (k === 'm') { const on = this.markToggle(); this.#flashHint(on ? 'marked — space on another pane swaps' : 'mark cleared'); }
-    else if (k === 't') this.newTab(this.#activeId);   // always an EMPTY tab: passing a path would dedupe against the tab you are standing in
-    else if (k === 'T') this.toggleBarFull(this.#activeId);   // full bar or the hover bar, nothing between
-    else if (k === ':') this.focusNav(this.#activeId); // jump to the navbar to type a path
-    else if (k === 'i') { /* into the content: its input or navigator (focusContent runs below) */ }
-    else if (k === 'w') this.closeTab(this.#activeId, this.cursor ? this.cursor.activeTab : -1);
-    else if (k === '<' || k === ',') { if (k === '<') this.#cycleTab(-1); else this.back(); }
-    else if (k === '>' || k === '.') { if (k === '>') this.#cycleTab(1); else this.forward(); }
-    else if (k === '[') this.climb();
-    else if (k === ']') this.descend();
-    else if (k === 'Tab') this.sibling();
-    else if (k === 'Escape') this.escape();
+    //  The table above owns every key that is just "do this". What is left
+    //  here is what a table cannot say: a range, and the arrows, whose
+    //  meaning changes with shift and which arm a repeat.
+    const named = this.#keys[k];
+    const cmd = Gmux.COMMANDS[named];
+    const tog = cmd ? null : (this.paneToggles || []).find((t) => t.id === named);
+    if (cmd) { if (cmd.run) cmd.run(this); }
+    else if (tog) { const id = this.#activeId; if (!tog.shows || tog.shows(id)) tog.set(id, !tog.get(id)); }
     else if (k >= '1' && k <= '9') this.focusIndex(+k - 1);
-    else if (k === 'r') this.rotate();                 // a quarter turn clockwise; four of them are the identity
-    else if (k === 'R') this.refresh(this.#activeId);   // refresh the moment in place
     else if (dir && e.shiftKey) { this.nudge(dir); this.#arm('resize'); }
     // a prefixed arrow moves ONCE and hands the keys to the pane it landed in,
-    // so ↓ ↑ there walk its navigator right away; another move is another
-    // prefix. Only resize (r, ⇧arrows) keeps the arrows as a repeat.
+    // so down/up there walk its navigator right away; another move is another
+    // prefix. Only resize (shift-arrows) keeps the arrows as a repeat.
     else if (dir) this.focusMove(dir);
     else handled = false;
     if (handled) { e.preventDefault(); e.stopPropagation(); }

@@ -24,6 +24,8 @@
 // Light DOM on purpose: FileView and the app panes mount into the normal
 // document, inject their own styles, and the kit components stay reachable.
 const PREFIX = '/grubbery/ball';
+const CFG_URL = PREFIX + '/apps/shell/ui/explorer/explorer.json';   // the settings grub, read and written
+const VIM_URL = PREFIX + '/apps/shell/ui/explorer/vim-editor.json'; // the editor's own, the same way
 // this ship's own routes, the only places a mount may load a pane script or
 // ask for viewers from: the kernel's /grubbery/... and the shell's /apps/grubbery/...
 const OWN_ROUTE = /^\/(grubbery|apps\/grubbery)\/[^\s]*$/;
@@ -82,12 +84,50 @@ function setup(root, opts) {
   // nobody set is simply absent. A toggle in the page still writes
   // localStorage -- that is this browser's last word, and it wins over the
   // file, which is the standing preference.
-  const CFG_DEFAULTS = { chrome: 'hidden', surface: 'editor', dirMode: 'table', badges: true };
   let CFG = CFG_DEFAULTS;
-  const cfgReady = fetch(PREFIX + '/apps/shell/ui/explorer/explorer.json', { cache: 'no-store' })
+  const cfgReady = fetch(CFG_URL, { cache: 'no-store' })
     .then((r) => (r.ok ? r.json() : null))
-    .then((j) => { if (j && typeof j === 'object') CFG = Object.assign({}, CFG_DEFAULTS, j); })
-    .catch(() => {});
+    .then(async (j) => {
+      if (!j || typeof j !== 'object') return;
+      CFG = Object.assign({}, CFG_DEFAULTS, j);
+      // a setting the file has never held is written in, once, so the file
+      // says what the page is doing instead of leaving you to infer it from
+      // code. Only what is ABSENT: a value already there is a choice, and
+      // this must never be able to undo one.
+      const missing = Object.keys(CFG_DEFAULTS).filter((k) => !(k in j));
+      const noKeys = !('keys' in j);
+      if (!missing.length && !noKeys) return;
+      // the keymap is written out in full, so the file says what every key
+      // does instead of being an empty object you have to read code to
+      // understand. The cost: a binding recorded here stops following the
+      // code, and a name that later stops existing is dropped with a warning
+      // rather than silently doing nothing (see the keymap setter).
+      const out = Object.assign({}, CFG);
+      if (noKeys) out.keys = defaultKeys();
+      try {
+        const r = await fetch(CFG_URL, {
+          method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ action: 'write-text', content: JSON.stringify(out, null, 2) + '\n' }),
+        });
+        if (!r.ok) throw new Error('http ' + r.status + ' ' + (await r.text()));
+        CFG = Object.assign({}, CFG_DEFAULTS, out);
+      } catch (e) {
+        // said, not swallowed: this fills the settings file in, and a silent
+        // failure here is a file that never gains the keys with nothing
+        // anywhere to say why
+        console.warn('explorer: could not fill in ' + CFG_URL + ': ' + (e && e.message));
+      }
+    })
+    .catch((e) => { console.warn('explorer: settings not read: ' + (e && e.message)); });
+  // the bindings as they come: gmux's own, plus the default key of every
+  // switch this page declares. The host computes the same thing, but the
+  // sessions page has no host to ask.
+  const defaultKeys = () => {
+    const G = customElements.get('gmux-host');
+    const out = Object.assign({}, (G && G.KEYMAP) || {});
+    for (const t of PANE_TOGGLES) if (t.key && t.id) out[t.key] = t.id;
+    return out;
+  };
   // a setting this browser has an opinion about, else the file's, else ours
   const pref = (key, lsKey, read) => {
     try { const v = localStorage.getItem(lsKey); if (v != null) return read(v); } catch (_) {}
@@ -887,9 +927,9 @@ function setup(root, opts) {
       // The explorer keeps them on its one stream (see live) and tells the
       // mounted pane when they move; absent → the rendering is static.
       const follow = pane.follow ? pane.follow.filter((f) => f.road.startsWith('/')) : null;
-      // bare: this pane says it can show itself without its own chrome, so
-      // the host offers the toggle over it. Absent, the pane is left alone.
-      return { label: v.label, follow, bare: !!v.bare, mount: (root, opts) => v.mount(root, Object.assign({}, opts, { args })) };
+      // chrome: this pane says it can show itself without its own chrome,
+      // so the host offers the toggle over it. Absent, the pane is left alone.
+      return { label: v.label, follow, chrome: !!v.chrome, mount: (root, opts) => v.mount(root, Object.assign({}, opts, { args })) };
     } catch (e) { toast('viewer: ' + e.message, true); return null; }
   }
   // a layout template's {name} holes, filled from the rule's `vars` before
@@ -1155,7 +1195,7 @@ function setup(root, opts) {
   // ---- the pane's command line ----
   // `:` on a pane opens a one-line prompt at its foot, the way vim's `:`
   // does inside the editor, and runs the same verbs: the pane's own (:e
-  // :vs :sp :q :bare) here, and whatever the content answers (:w :mime,
+  // :vs :sp :q :chrome) here, and whatever the content answers (:w :mime,
   // the dirty-aware :q) through its handle's commands(). One grammar for
   // every pane, whatever it shows; the gmux prefix stays for WHERE the
   // pane is, `:` is for WHAT it shows.
@@ -1272,19 +1312,21 @@ function setup(root, opts) {
       // element to a new pane while its _ctx still names the old one, so
       // asking the content where to go sent :e to a pane that had moved
       const go = (u) => ps.openFrom(id, psMoment(u));
-      // bare is sticky: :e from a bare pane opens the next path bare too,
-      // so a pane you stripped stays stripped as you move through files
-      const keepBare = (t) => psSetBare(t, psBare(path));
+      // the chrome state is sticky: :e from a stripped pane opens the next
+      // path stripped too, as you move through files
+      const keepChrome = (t) => psSetChrome(t, psChromeOn(path));
       return {
-        e: (args) => { const t = target(args); if (t) go(keepBare(t)); },
-        vs: (args) => { const t = target(args); ps.splitRight(id, t ? psNs(t) : undefined); },
-        sp: (args) => { const t = target(args); ps.splitDown(id, t ? psNs(t) : undefined); },
+        e: (args) => { const t = target(args); if (t) go(keepChrome(t)); },
+        // the new side inherits the chrome, the way :e does: opening something
+        // beside a stripped pane should not dress it back up
+        vs: (args) => { const t = target(args); ps.splitRight(id, t ? keepChrome(t) : undefined); },
+        sp: (args) => { const t = target(args); ps.splitDown(id, t ? keepChrome(t) : undefined); },
         q: () => ps.closeActiveTab(id),
-        bare: () => ps.replaceMoment(id, psSetBare(path, !psBare(path))),
+        chrome: () => ps.replaceMoment(id, psSetChrome(path, !psChromeOn(path))),
       };
     };
     // every verb this pane answers to: what the content lends (:w :mime)
-    // over the pane's own (:e :vs :sp :q :bare)
+    // over the pane's own (:e :vs :sp :q :chrome)
     const table = (p) => {
       const el = p.body && p.body.firstChild;
       const own = el && el._fv && typeof el._fv.commands === 'function' ? (el._fv.commands() || {}) : {};
@@ -1305,9 +1347,9 @@ function setup(root, opts) {
   // relative to the file's dir, like vim's.
   const exHost = (ps, paneId, ns, route) => {
     const rel = (u) => psRel(ns.replace(/\/[^/]*$/, '') || '/', u);   // absolute, @name and ./ ../ spellings all resolve here
-    // bare is sticky here too: vim's :e carries the chrome state along
-    const keepBare = (t) => psSetBare(t, psBare(ps.pathOf(paneId) || ''));
-    return { open: (u) => route(keepBare(rel(u)), null, null),
+    // sticky here too: vim's :e carries the chrome state along
+    const keepChrome = (t) => psSetChrome(t, psChromeOn(ps.pathOf(paneId) || ''));
+    return { open: (u) => route(keepChrome(rel(u)), null, null),
              close: () => ps.closeActiveTab(paneId),
              splitRight: (u) => ps.splitRight(paneId, u ? psNs(rel(u)) : undefined),
              splitDown: (u) => ps.splitDown(paneId, u ? psNs(rel(u)) : undefined) };
@@ -2776,15 +2818,16 @@ function setup(root, opts) {
     if (!urls.size || !window.FileView || !window.FileView.prefetch) return Promise.resolve();
     return Promise.all([...urls].map((u) => window.FileView.prefetch(u).then((snap) => { if (snap) PRIMES.set(u, { snap, at: Date.now() }); })));
   }
-  // +psBare / +psSetBare: is this moment stripped of the pane's own chrome?
+  // +psChromeOn / +psSetChrome: is this moment showing the pane's own
+  // chrome? (+psChrome is the workspace's stylesheet, further up.)
   // Absent means "whatever explorer.json says", so the setting is the
   // default and a link can still pin either state. Written explicitly in
   // both directions: leaning on absence for one of them would make the
   // written state depend on the config too. Read it NOWHERE else -- '0' is
-  // a truthy string, so a plain `if (args.bare)` reads "show" as "hide".
-  function bareOf(a) { const v = a && a.bare; return v == null ? CFG.chrome !== 'shown' : v !== '0'; }
-  function psBare(p) { return bareOf(psArgs(p)); }
-  function psSetBare(p, on) { return psSetArg(p, 'bare', on ? '1' : '0'); }
+  // a truthy string, so a plain `if (args.chrome)` reads "hide" as "show".
+  function chromeOn(a) { const v = a && a.chrome; return v == null ? CFG.chrome === 'shown' : v !== '0'; }
+  function psChromeOn(p) { return chromeOn(psArgs(p)); }
+  function psSetChrome(p, on) { return psSetArg(p, 'chrome', on ? '1' : '0'); }
   // +psSetArg: a moment with one ?arg set (v) or dropped (null); the rest kept
   function psSetArg(p, k, v) {
     const a = psArgs(p); if (v == null) delete a[k]; else a[k] = v;
@@ -2928,7 +2971,7 @@ function setup(root, opts) {
       await cfgReady;                                                        // explorer.json decides what absent args mean
       const t = document.createElement(want === 'grid' ? 'file-grid' : 'file-table');
       t.style.height = '100%';
-      el._bare = true;                                                      // a listing answers the chrome toggle (see psDirHead)
+      el._chrome = true;                                                    // a listing answers the chrome toggle (see psDirHead)
       // ?scope: this listing is the top of what the pane may show. A layout
       // names a dir as `./files?scope=1` and the listing has no `../`;
       // links to child dirs carry `?scope=<that top>` so a descent stays
@@ -2994,7 +3037,7 @@ function setup(root, opts) {
         requestAnimationFrame(seatHeader);                                // again once it has actually laid out
         if (window.ResizeObserver) { const ro = new ResizeObserver(seatHeader); ro.observe(head); el._headRO = ro; }
       };
-      setHead(!psBare(path));
+      setHead(psChromeOn(path));
       paint();
       psLanded(ps, paneId, el);                                            // the keyboard lands on the table if this pane is the one chosen
       // the listing follows its dir in FOLD mode: one event whenever anything
@@ -3015,14 +3058,14 @@ function setup(root, opts) {
       el._fv = {
         destroy() { clearTimeout(timer); },
         onUpdate() { if (timer) return; timer = setTimeout(() => { timer = null; refreshRows(); }, 500); },
-        // ?bare is taken in place: the head goes up or comes down and the
+        // ?chrome is taken in place: the head goes up or comes down and the
         // rows stay as they are, scroll and all. Any other arg is a
         // different listing, so the host rebuilds.
         onArgs(args) {
-          const rest = { ...args }; delete rest.bare;
-          const mine = { ...psArgs(path) }; delete mine.bare;
+          const rest = { ...args }; delete rest.chrome;
+          const mine = { ...psArgs(path) }; delete mine.chrome;
           if (JSON.stringify(rest) !== JSON.stringify(mine)) return false;
-          setHead(!bareOf(args));
+          setHead(chromeOn(args));
           return true;
         },
       };
@@ -3099,7 +3142,7 @@ function setup(root, opts) {
       const pastArgs = psArgs(path);
       const atPast = pastArgs.asof || pastArgs.case;
       await cfgReady;                                                        // explorer.json decides what absent args mean
-      const bare = psBare(path);                                             // the pane's own chrome, or none of it
+      const chrome = psChromeOn(path);                                       // the pane's own chrome, or none of it
       // every fetch this view makes carries the version it is being read at
       // -- a ?case= of its own, or the ?asof= it inherited walking down
       // from a past directory
@@ -3110,7 +3153,7 @@ function setup(root, opts) {
         if (v && !v.blocked && v.mount) {
           // the moment's ?args ride along as `query`: a viewer may read how it
           // is being looked at (a docs pane's ?page=, say) without parsing urls
-          el._bare = !!v.bare;                                            // the pane said whether it answers the chrome toggle
+          el._chrome = !!v.chrome;                                        // the pane said whether it answers the chrome toggle
           try { el._fv = v.mount(el, { url, onNavigate: onNav, open: vopen, close: vclose, query: psArgs(path) }); paneLive(ps, paneId, el, v.follow); psLanded(ps, paneId, el); } catch (e) { el.textContent = 'viewer failed: ' + e; }
           return;                                                         // rendered: the rendering alone
         }
@@ -3123,12 +3166,12 @@ function setup(root, opts) {
       // this IS FileView, so it carries the version and wears the version bar.
       if (!raw && window.FilePreview && FilePreview.kind(psOwn(abs).name)) {
         try {
-          el._bare = true;                                                 // FileView answers the chrome toggle
+          el._chrome = true;                                               // FileView answers the chrome toggle
           el._fv = window.FileView.mount(el, {
             url, view: 'preview', crumbBase: ROOT, onNavigate: onNav,
             open: vopen, close: vclose, query: psArgs(path),
-            bare, setBare: (on) => ps.replaceMoment(paneId, psSetBare(path, on)),
-            surface: CFG.surface,
+            chrome, setChrome: (on) => ps.replaceMoment(paneId, psSetChrome(path, on)),
+            surface: CFG.surface, wrap: CFG.wrap, nums: CFG.nums, vim: CFG.vim,
             readOnly: !!atCase, at: atCase ? '&' + atCase : '',
             versions: psPastBar(ns, path, 'file', onNav),
             host: exHost(ps, paneId, ns, route) });
@@ -3138,9 +3181,9 @@ function setup(root, opts) {
       }
       const opts = { url, crumbBase: ROOT, onNavigate: onNav, open: vopen, close: vclose,
                      readOnly: !!atCase, at: atCase ? '&' + atCase : '',
-                     bare, query: psArgs(path),
-                     setBare: (on) => ps.replaceMoment(paneId, psSetBare(path, on)),
-                     surface: CFG.surface,
+                     chrome, query: psArgs(path),
+                     setChrome: (on) => ps.replaceMoment(paneId, psSetChrome(path, on)),
+                     surface: CFG.surface, wrap: CFG.wrap, nums: CFG.nums, vim: CFG.vim,
                      host: exHost(ps, paneId, ns, route) };   // raw, or no renderer → the raw package
       // right-click anywhere in the file: the file's own actions
       el._menu = () => { const o = psOwn(abs); return itemMenu(el, { kind: 'file', name: o.name, __dir: o.dir }, true); };
@@ -3162,7 +3205,7 @@ function setup(root, opts) {
       else if (!atCase) { const pre = primeFor(url); if (pre) opts.prime = pre; }   // a restore's up-front fetch
       el._primeFrom = null;
       try {
-        el._bare = true;                                                   // FileView answers the chrome toggle
+        el._chrome = true;                                                 // FileView answers the chrome toggle
         el._fv = window.FileView.mount(el, opts);
         paneLive(ps, paneId, el, [{ road: abs }]); psLanded(ps, paneId, el);
       }   // the raw package follows its file
@@ -3238,9 +3281,16 @@ function setup(root, opts) {
   const vList = $('v-list');
   const vGrid = $('v-grid');
   const vCols = $('v-cols');
-  // an embedder can fix the view (opts.view): that view, and no toggle
-  let view = opts.view || localStorage.getItem(K + '-view') || 'list';
+  // an embedder can fix the view (opts.view): that view, and no toggle.
+  // Otherwise this browser's last choice, else explorer.json's. The settings
+  // land after this runs, so a page that opens on the config's shape is told
+  // again once it is in.
+  let view = opts.view || localStorage.getItem(K + '-view') || CFG_DEFAULTS.finderView;
   if (opts.view) $('view-toggle').style.display = 'none';
+  else cfgReady.then(() => {
+    try { if (localStorage.getItem(K + '-view') != null) return; } catch (_) {}
+    if (CFG.finderView && CFG.finderView !== view) setView(CFG.finderView);
+  });
 
   function setView(v) {
     view = v;
@@ -5233,17 +5283,23 @@ function setup(root, opts) {
       return kept;
     };
     ps.viewModes = [{ id: 'rendered', glyph: '▣', title: 'rendered' }, { id: 'raw', glyph: '◰', title: 'raw file / plain listing' }];
-    // bare: the thing in the pane, without its own chrome. The state is the
-    // moment's (?bare=1), so it is linkable, it survives a reload and a split
-    // carries it -- which is why gmux asks us for it instead of keeping it.
-    // Offered only where the pane said it can answer (el._bare).
-    ps.paneToggles = [{
-      id: 'chrome', glyph: '\u25a4',
-      on: 'Show this pane\'s chrome', off: 'Hide this pane\'s chrome',
-      shows: (id) => { const el = ps.contentOf && ps.contentOf(id); return !!(el && el._bare); },
-      get: (id) => !psBare(ps.pathOf(id) || ''),
-      set: (id, chrome) => ps.replaceMoment(id, psSetBare(ps.pathOf(id) || '', !chrome))
-    }];
+    // explorer.json's `keys`: your bindings over gmux's, key to command name
+    // (the names are in the keys list, and `null` drops one). Applied when the
+    // settings land -- the defaults are already in force before that.
+    cfgReady.then(() => {
+      if (CFG.keys && Object.keys(CFG.keys).length) ps.keymap = CFG.keys;
+      if (CFG.hoverBars === false) ps.toggleBars();          // a hidden bar stays hidden
+      if (CFG.highlight !== 2) ps.highlight = CFG.highlight;  // 2 box and dim, 1 outline, 0 nothing
+    });
+    // the thing in the pane, without its own chrome. The state is the
+    // moment's (?chrome=0), so it is linkable, it survives a reload and a
+    // split carries it -- which is why gmux asks us for it instead of
+    // keeping it. Offered only where the pane said it can answer (el._chrome).
+    ps.paneToggles = PANE_TOGGLES.map((t) => Object.assign({}, t, {
+      shows: (id) => { const el = ps.contentOf && ps.contentOf(id); return !!(el && el._chrome); },
+      get: (id) => psChromeOn(ps.pathOf(id) || ''),
+      set: (id, on) => ps.replaceMoment(id, psSetChrome(ps.pathOf(id) || '', on)),
+    }));
     ps.onDestroy = (id, body) => { const c = body.firstChild; try { if (c && c._live) c._live(); } catch (_) {} try { if (c && c._gone) c._gone(); } catch (_) {} try { if (c && c._link) c._link(); } catch (_) {} try { if (c && c._headRO) c._headRO.disconnect(); } catch (_) {} try { if (c && c._fv) c._fv.destroy(); } catch (_) {} };
     root.appendChild(ps);
     paneCmdline(ps);
@@ -5282,6 +5338,391 @@ function setup(root, opts) {
 // it last changed; open attaches this tab (taking over). The list scrolls;
 // the new-session form stays put. New: a name, and either an empty
 // workspace or a layout file to start from.
+// The pane switches this explorer offers, as they read. The workspace adds
+// what they do (get/set/shows, over the moment); this page-level half is
+// what a reference needs, and the sessions page has no workspace to ask.
+const PANE_TOGGLES = [{
+  id: 'chrome', glyph: '\u25a4', key: 'C',
+  label: 'the pane\u2019s own chrome, or none of it',
+  on: 'Show this pane\u2019s chrome', off: 'Hide this pane\u2019s chrome',
+}];
+
+// What the page opens with when the file says nothing. Beside the fields that
+// describe them, so the form can fall back to the same value the page does --
+// reading the file raw left a setting the file has never held with no value at
+// all, and its control blank.
+const CFG_DEFAULTS = { chrome: 'hidden', surface: 'editor', dirMode: 'table', badges: true,
+                       hoverBars: true, highlight: 2, wrap: true, nums: true,
+                       vim: true, finderView: 'list' };
+
+// The settings explorer.json holds, as a form: what each one is called, what
+// it means, and what it may be. Declared beside CFG_DEFAULTS -- a new setting
+// is a default and a line here, and the panel grows by itself.
+const CFG_FIELDS = [
+  ['Opening', 'surface', 'A file opens in', 'the editor, or the reader (no vim, but the browser can find in it)',
+   [['editor', 'the editor'], ['reader', 'the reader']]],
+  ['Opening', 'dirMode', 'A directory opens as', 'rows, or the desktop grid',
+   [['table', 'rows'], ['grid', 'the grid']]],
+  ['Opening', 'chrome', 'A pane\u2019s own chrome', 'the crumbs, bar and tools it draws around what it holds',
+   [['hidden', 'hidden'], ['shown', 'shown']]],
+  ['Panes', 'hoverBars', 'Hover brings a hidden bar back', 'with a pane\u2019s bar hidden, its top edge drops the bar in for a moment',
+   'bool'],
+  ['Panes', 'highlight', 'The keyboard\u2019s selection shows as', 'how plainly the chosen pane is marked, and a chosen GROUP of panes especially',
+   [[2, 'a box, and the rest dimmed'], [1, 'an outline on the pane'], [0, 'nothing']]],
+  ['Listings', 'badges', 'Badges beside a name', 'the marks a listing puts on what it lists',
+   'bool'],
+  ['Listings', 'finderView', 'The finder opens as', 'the shape the finder page lays its listing out in',
+   [['list', 'a list'], ['grid', 'a grid'], ['cols', 'columns']]],
+  ['Editing', 'vim', 'Vim keybindings', 'off on a touch device whatever this says \u2014 a finger has no keyboard to map',
+   'bool'],
+  ['Editing', 'wrap', 'Wrap long lines', 'in the reader and the editor alike', 'bool'],
+  ['Editing', 'nums', 'Line numbers', 'down the left of the source', 'bool'],
+];
+
+// What a pane's own `:` verbs are for. Declared beside nothing in
+// particular because two pages show them and only one of them has panes;
+// the verbs themselves are in `verbs` inside paneCmdline.
+const VERB_HELP = [
+  ['e <path>', 'open that path in this pane; bare :e re-reads the file'],
+  ['vs <path>', 'split right, the path there (or empty)'],
+  ['sp <path>', 'split down, the path there (or empty)'],
+  ['q', 'close this tab \u2014 in a file with unsaved text it refuses, and :q! drops them'],
+  ['chrome', 'the pane\u2019s own chrome, or none of it \u2014 in a file, the editor alone'],
+];
+
+// +prefsModal: one panel for everything about how this explorer behaves --
+// the settings, the prefixed keys (which it also lets you rebind) and the `:`
+// verbs. Built
+// rather than written into the page template -- the panes workspace empties
+// the element it mounts into, so anything in a template is gone there.
+//
+// Both lists come from where the things are defined: gmux's command table
+// and the verb tables. `verbs` is a function because what a pane lends
+// changes with the pane.
+function prefsModal(host, verbs, cfg, url, vimFor, vimUrl) {
+  const md = document.createElement('modal-dialog');
+  md.style.cssText = '--md-width: 780px';
+  const title = document.createElement('h3'); title.className = 'm-title'; title.textContent = 'explorer';
+  const tabs = document.createElement('div'); tabs.className = 'kh-tabs';
+  const bSet = document.createElement('button'); bSet.className = 'kh-tab on'; bSet.textContent = 'settings';
+  const bKeys = document.createElement('button'); bKeys.className = 'kh-tab'; bKeys.textContent = '\u2303B keys';
+  const bVim = document.createElement('button'); bVim.className = 'kh-tab'; bVim.textContent = 'vim';
+  const bVerbs = document.createElement('button'); bVerbs.className = 'kh-tab'; bVerbs.textContent = ': commands';
+  tabs.append(bSet, bKeys, bVim, bVerbs);
+  const boxSet = document.createElement('div'); boxSet.className = 'kh-body';
+  const boxKeys = document.createElement('div'); boxKeys.className = 'kh-body'; boxKeys.hidden = true;
+  const boxVim = document.createElement('div'); boxVim.className = 'kh-body'; boxVim.hidden = true;
+  const boxVerbs = document.createElement('div'); boxVerbs.className = 'kh-body'; boxVerbs.hidden = true;
+  const note = document.createElement('div'); note.className = 'kh-note';
+  const actions = document.createElement('div'); actions.className = 'm-actions';
+  const reset = document.createElement('button'); reset.textContent = 'back to the defaults';
+  const save = document.createElement('button'); save.className = 'primary'; save.textContent = 'save';
+  actions.append(reset, save);
+  md.append(title, tabs, boxSet, boxKeys, boxVim, boxVerbs, note, actions);
+  host.appendChild(md);
+  const rows = (box, groups, note, bothEnds) => {
+    box.textContent = '';
+    const say = (text) => {
+      const n = document.createElement('div'); n.className = 'kh-note'; n.textContent = text;
+      box.appendChild(n);
+    };
+    if (note && bothEnds) say(note);
+    for (const [name, list] of groups) {
+      if (!list || !list.length) continue;
+      // an unnamed group is just the rows: one flat list needs no heading
+      if (name) { const h = document.createElement('div'); h.className = 'kh-grp'; h.textContent = name; box.appendChild(h); }
+      for (const [k, d, name, then, after] of list) {
+        const r = document.createElement('div'); r.className = 'kh-row';
+        // the key column: what comes before, the key itself, what finishes it.
+        // A sequence reads as a sequence rather than as a sentence about one.
+        const cell = document.createElement('span'); cell.className = 'kh-keys';
+        if (after) cell.append(Object.assign(document.createElement('span'), { className: 'kh-k kh-dim', textContent: after }),
+                               Object.assign(document.createElement('span'), { className: 'kh-then', textContent: '\u2026' }));
+        // a command's key is a button you can press a key into; a range or
+        // the arrows are not ours to move, so they stay as text
+        const g2 = G();
+        const pinned = !name || (g2 && g2.RESERVED && g2.RESERVED[keyOf(name)]);
+        cell.appendChild((name && k && !pinned && !/[\u2013\u2190]/.test(k)) ? keyBtn(name)
+                 : Object.assign(document.createElement('span'), { className: 'kh-k', textContent: k }));
+        if (then) cell.append(Object.assign(document.createElement('span'), { className: 'kh-then', textContent: 'then' }),
+                              Object.assign(document.createElement('span'), { className: 'kh-k kh-dim', textContent: then }));
+        const de = document.createElement('span'); de.className = 'kh-d'; de.textContent = d;
+        r.append(cell, de); box.appendChild(r);
+      }
+    }
+    if (note) say(note);
+  };
+  // which tab, and what the buttons at the foot mean on it: the `:` verbs are
+  // a reference with nothing to save, so the actions go away there
+  let shown = 'settings';
+  const tab = (which) => {
+    shown = which;
+    bSet.classList.toggle('on', which === 'settings');
+    bKeys.classList.toggle('on', which === 'keys');
+    bVim.classList.toggle('on', which === 'vim');
+    bVerbs.classList.toggle('on', which === 'verbs');
+    boxSet.hidden = which !== 'settings';
+    boxKeys.hidden = which !== 'keys';
+    boxVim.hidden = which !== 'vim';
+    boxVerbs.hidden = which !== 'verbs';
+    actions.hidden = which === 'verbs';
+    reset.hidden = which !== 'keys';
+    reset.textContent = 'back to the default keys';
+    note.textContent = '';
+  };
+  bSet.addEventListener('click', () => tab('settings'));
+  bVim.addEventListener('click', () => tab('vim'));
+  bKeys.addEventListener('click', () => tab('keys'));
+  bVerbs.addEventListener('click', () => tab('verbs'));
+  // ---- the settings ----
+  const inputs = new Map();
+  {
+    let group = null;
+    for (const [grp, key, label, about, kind] of CFG_FIELDS) {
+      if (grp !== group) {
+        group = grp;
+        const h = document.createElement('div'); h.className = 'kh-grp'; h.textContent = grp;
+        boxSet.appendChild(h);
+      }
+      const row = document.createElement('div'); row.className = 'cfg-row';
+      const l = document.createElement('label'); l.textContent = label;
+      let input;
+      if (kind === 'bool') { input = document.createElement('input'); input.type = 'checkbox'; }
+      else {
+        input = document.createElement('select');
+        for (const [v, text] of kind) {
+          const o = document.createElement('option'); o.value = String(v); o.textContent = text;
+          input.appendChild(o);
+        }
+      }
+      const d = document.createElement('div'); d.className = 'cfg-about'; d.textContent = about;
+      row.append(l, input); boxSet.append(row, d);
+      inputs.set(key, [input, kind]);
+    }
+  }
+  const fillSettings = () => {
+    const c = Object.assign({}, CFG_DEFAULTS, cfg ? cfg() : {});
+    for (const [key, [input, kind]] of inputs) {
+      if (kind === 'bool') input.checked = c[key] !== false;
+      else input.value = String(c[key]);
+    }
+  };
+  const settingsOut = () => {
+    const out = {};
+    for (const [key, [input, kind]] of inputs) {
+      if (kind === 'bool') { out[key] = input.checked; continue; }
+      // the value off the option, not the string in the field: `highlight` is
+      // a number, and a config that has never held it cannot say so
+      const hit = kind.find(([v]) => String(v) === input.value);
+      out[key] = hit ? hit[0] : input.value;
+    }
+    return out;
+  };
+
+  // ---- the editor's own config ----
+  // vim-editor.json: the palette, and the mappings VimEditor hands to
+  // CodeMirror.Vim at load. `options` is a free map passed straight to
+  // Vim.setOption, so there is no set of controls to draw for it -- it stays
+  // in the file, and this panel keeps whatever is there.
+  let vimCfg = {};
+  const vimTheme = document.createElement('select');
+  for (const [v, t] of [['github-light', 'github light'], ['default', 'codemirror default']]) {
+    const o = document.createElement('option'); o.value = v; o.textContent = t; vimTheme.appendChild(o);
+  }
+  {
+    const h = document.createElement('div'); h.className = 'kh-grp'; h.textContent = 'Colours';
+    const row = document.createElement('div'); row.className = 'cfg-row';
+    const l = document.createElement('label'); l.textContent = 'Highlighting';
+    row.append(l, vimTheme);
+    const d = document.createElement('div'); d.className = 'cfg-about';
+    d.textContent = 'the palette, for reading and editing alike \u2014 both use the same highlighter';
+    boxVim.append(h, row, d);
+  }
+  const mapHead = document.createElement('div'); mapHead.className = 'kh-grp'; mapHead.textContent = 'Mappings';
+  const mapList = document.createElement('div');
+  const addMap = document.createElement('button'); addMap.className = 'cfg-add'; addMap.textContent = '+ a mapping';
+  const mapNote = document.createElement('div'); mapNote.className = 'cfg-about';
+  mapNote.textContent = 'typed in the editor: a key sequence, what it stands for, and the mode it applies in. Taken at load, so a change needs a reload.';
+  boxVim.append(mapHead, mapList, addMap, mapNote);
+
+  const mapRow = (m) => {
+    const row = document.createElement('div'); row.className = 'cfg-map';
+    const lhs = document.createElement('input'); lhs.placeholder = 'jj'; lhs.value = m.lhs || '';
+    const rhs = document.createElement('input'); rhs.placeholder = '<Esc>'; rhs.value = m.rhs || '';
+    const mode = document.createElement('select');
+    for (const v of ['insert', 'normal', 'visual']) {
+      const o = document.createElement('option'); o.value = v; o.textContent = v; mode.appendChild(o);
+    }
+    mode.value = m.mode || 'insert';
+    const del = document.createElement('button'); del.className = 'cfg-del'; del.textContent = '\u00d7';
+    del.title = 'drop this mapping';
+    del.addEventListener('click', () => row.remove());
+    row.append(lhs, rhs, mode, del);
+    mapList.appendChild(row);
+  };
+  addMap.addEventListener('click', () => mapRow({}));
+  const fillVim = () => {
+    vimCfg = vimFor ? (vimFor() || {}) : {};
+    vimTheme.value = vimCfg.theme || 'github-light';
+    mapList.textContent = '';
+    for (const m of (Array.isArray(vimCfg.mappings) ? vimCfg.mappings : [])) mapRow(m);
+  };
+  const vimOut = () => {
+    const maps = [];
+    for (const row of mapList.children) {
+      const [lhs, rhs, mode] = row.children;
+      if (!lhs.value.trim() || !rhs.value.trim()) continue;        // half a mapping is not one
+      maps.push({ lhs: lhs.value.trim(), rhs: rhs.value.trim(), mode: mode.value });
+    }
+    return Object.assign({}, vimCfg, { theme: vimTheme.value, mappings: maps });
+  };
+
+  // ---- remapping ----
+  // The keys tab IS the editor: a key is a button, pressing a key into it
+  // rebinds the command, and what you change is written to explorer.json as
+  // key-to-command. Nothing is saved until you say so, and reset empties the
+  // override rather than writing the defaults out -- a default that is
+  // recorded stops following the code.
+  // `binds` is the whole map being edited, not a diff: the file holds the
+  // bindings in force, so this holds them too and the save writes them out.
+  let binds = {};
+  let listening = null;
+  const G = () => customElements.get('gmux-host');
+  const defaults = () => {
+    const g = G();
+    const out = Object.assign({}, (g && g.KEYMAP) || {});
+    for (const t of PANE_TOGGLES) if (t.key && t.id) out[t.key] = t.id;
+    return out;
+  };
+  const bindings = () => binds;
+  const keyOf = (name) => {
+    for (const k of Object.keys(binds)) if (binds[k] === name) return k;
+    return '';
+  };
+  // one at a time, and it gives up on its own. Restoring the TEXT is the
+  // point: dropping only the class left a button still saying "press a key"
+  // while another one listened, so every one you had clicked looked armed.
+  const stopListening = (why) => {
+    if (!listening) return;
+    clearTimeout(listening.timer);
+    listening.el.classList.remove('kh-listen');
+    listening.el.textContent = G() ? G().keyName(keyOf(listening.name)) : '';
+    listening = null;
+    if (why) note.textContent = why;
+  };
+  const rebind = (name, k) => {
+    const g = G();
+    const held = g && g.RESERVED ? g.RESERVED[k] : null;
+    if (held) return 'that key is ' + held + '\u2019s, and not through the keymap';
+    const taken = binds[k];
+    if (taken && taken !== name) return 'that key runs ' + taken;
+    for (const old of Object.keys(binds)) if (binds[old] === name) delete binds[old];
+    binds[k] = name;
+    return null;
+  };
+  const keyBtn = (name) => {
+    const b = document.createElement('button');
+    b.className = 'kh-k kh-edit';
+    b.textContent = G() ? G().keyName(keyOf(name)) : '';
+    b.title = 'press a key to rebind';
+    b.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      if (listening && listening.el === b) { stopListening(); return; }   // clicking it again backs out
+      stopListening();
+      note.textContent = 'press a key \u2014 Esc or click away to leave it alone (Esc itself cannot be assigned)';
+      listening = { el: b, name, timer: setTimeout(() => stopListening('nothing pressed \u2014 the key is unchanged'), 5000) };
+      b.classList.add('kh-listen');
+      b.textContent = 'press a key';
+    });
+    return b;
+  };
+  // captured here, not on the button: the key has to be ours before the
+  // modal's own Esc-to-close takes it
+  md.addEventListener('click', () => stopListening());
+  md.addEventListener('keydown', (ev) => {
+    if (!listening) return;
+    ev.preventDefault(); ev.stopPropagation();
+    if (ev.ctrlKey || ev.metaKey || ev.altKey) return;      // the prefix is the chord; this is one key
+    const { el, name } = listening;
+    // Esc is the way out of listening, so it is the one key you cannot
+    // assign. It costs nothing: Esc already runs `escape`, and moving that
+    // somewhere else is not a thing anyone wants.
+    if (ev.key === 'Escape') { stopListening(); return; }
+    const why = rebind(name, ev.key);
+    stopListening();
+    if (why) { note.textContent = why; return; }
+    note.textContent = 'changed \u2014 save to keep it';
+    render();
+  }, true);
+
+  // writing them: the override only, the rest of the settings kept as they
+  // are. Reset EMPTIES it rather than writing today's defaults out -- a
+  // default recorded in the file stops following the code.
+  const writeTo = async (where, out) => {
+    note.textContent = 'saving\u2026';
+    try {
+      const r = await fetch(where, {
+        method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ action: 'write-text', content: JSON.stringify(out, null, 2) + '\n' }),
+      });
+      note.textContent = r.ok ? 'saved \u2014 taken when a workspace next opens'
+                              : 'could not save: ' + (await r.text());
+      return r.ok;
+    } catch (e) { note.textContent = 'could not save: ' + e.message; return false; }
+  };
+  const write = (patch, dropKeys) => {
+    const out = Object.assign({}, cfg ? cfg() : {}, patch || {});
+    if (dropKeys) delete out.keys;
+    return writeTo(url, out);
+  };
+  save.addEventListener('click', () => {
+    if (shown === 'settings') { write(settingsOut()); return; }
+    if (shown === 'vim') { writeTo(vimUrl, vimOut()); return; }
+    write({ keys: binds });
+  });
+  reset.addEventListener('click', async () => {
+    binds = defaults();
+    if (await write({ keys: binds })) render();
+  });
+  let render = () => {};
+  return (which) => {
+    const fileKeys = cfg && cfg().keys;
+    binds = (fileKeys && Object.keys(fileKeys).length) ? Object.assign({}, fileKeys) : defaults();
+    fillSettings();
+    fillVim();
+    render = () => {
+    const by = new Map();
+    const g = G();
+    const rowsIn = (g && g.keyHelp ? g.keyHelp() : [])
+      .concat(PANE_TOGGLES.filter((t) => t.id)
+        .map((t) => ({ name: t.id, k: g ? g.keyName(keyOf(t.id)) : t.key, group: 'View', label: t.label })));
+    for (const e of rowsIn) {
+      if (!by.has(e.group)) by.set(e.group, []);
+      // the prerequisite's key as THIS editor has it, pending edits included
+      const after = e.afterName ? (g ? g.keyName(keyOf(e.afterName)) : e.after) : e.after;
+      by.get(e.group).push([e.k, e.label, e.name, e.then, after]);
+    }
+    rows(boxKeys, by, '\u2303B then the key \u2014 the prefix waits a moment, so it is two presses and not a chord.', true);
+    };
+    render();
+    // one list, but a verb and its banged form belong together even though
+    // the pane declares one and what is in it declares the other
+    const v = verbs();
+    const base = (spelt) => String(spelt).split(/[ !]/)[0];
+    const merged = v.pane.slice();
+    for (const row of v.content) {
+      let at = -1;
+      merged.forEach((r, i) => { if (base(r[0]) === base(row[0])) at = i; });
+      if (at >= 0) merged.splice(at + 1, 0, row); else merged.push(row);
+    }
+    rows(boxVerbs, new Map([['', merged]]),
+         'Typed at a pane\u2019s : prompt (\u2303B :) and, in a file, at vim\u2019s own. The ones that save answer only where there is something to save.');
+    note.textContent = '';
+    tab(which || 'settings');
+    md.show();
+  };
+}
+
 function sessionsPage(root, api, wait, waitFail) {
   const css = document.createElement('style');
   css.textContent = '.ss-wrap{max-width:720px;margin:0 auto;padding:40px 24px 24px;height:100%;box-sizing:border-box;display:flex;flex-direction:column;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#1f2328}' +
@@ -5289,6 +5730,8 @@ function sessionsPage(root, api, wait, waitFail) {
     '.ss-list{border:1px solid #d0d7de;border-radius:8px;overflow:auto;margin-bottom:28px;flex:0 1 auto;min-height:0}.ss-list.loading{border-color:transparent;min-height:96px}.ss-row,.ss-row:hover,.ss-row *{text-decoration:none}.ss-row{display:flex;align-items:center;gap:14px;padding:12px 16px;border-top:1px solid #d0d7de;color:inherit}.ss-row:first-child{border-top:0}.ss-row:hover{background:#f6f8fa}' +
     '.ss-name{font:600 14px ui-monospace,Menlo,monospace;min-width:140px;overflow-wrap:anywhere}.ss-meta{color:#57606a;flex:1;min-width:0}.ss-held{color:#9a6700}.ss-free{color:#1a7f37}.ss-del{border:0;background:none;color:#8c959f;cursor:pointer;font-size:16px;padding:0 4px}.ss-del:hover{color:#cf222e}' +
     '.ss-empty{padding:20px 16px;color:#57606a}' +
+    '.ss-gear{margin-left:auto;background:none;border:1px solid transparent;border-radius:8px;color:#8c959f;cursor:pointer;padding:5px;line-height:0;display:inline-flex}' +
+    '.ss-gear:hover{color:#24292f;background:#f6f8fa;border-color:#d0d7de}' +
     '.ss-new{border:1px solid #d0d7de;border-radius:8px;padding:16px;flex:0 0 auto}.ss-hint{color:#57606a;font-size:13px;margin:0 0 10px}.ss-hint code{font:12px ui-monospace,Menlo,monospace;background:#f6f8fa;padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}.ss-new h2{font-size:14px;font-weight:600;margin:0 0 12px}.ss-new label{display:flex;gap:10px;align-items:center;margin:10px 0 2px}.ss-new label span{min-width:90px;color:#57606a}.ss-new input[type=text]{flex:1;font:13px ui-monospace,Menlo,monospace;padding:6px 8px;border:1px solid #d0d7de;border-radius:6px}.ss-help{margin:0 0 6px 100px;color:#57606a;font-size:12px}' +
     '.ss-new button{font:inherit;font-weight:600;padding:6px 14px;border-radius:6px;border:1px solid #1f883d;background:#2da44e;color:#fff;cursor:pointer;margin-top:12px}.ss-err{color:#cf222e;margin-top:8px}' +
     // a phone: the page is the same page, with the room it actually has. The
@@ -5313,6 +5756,37 @@ function sessionsPage(root, api, wait, waitFail) {
   const wrap = document.createElement('div'); wrap.className = 'ss-wrap'; root.appendChild(wrap);
   const h1 = document.createElement('h1'); h1.textContent = 'gmux sessions'; wrap.appendChild(h1);
   const sub = document.createElement('p'); sub.className = 'ss-sub'; sub.textContent = 'A workspace the ship keeps. One tab holds a session at a time; opening it here takes it over.'; wrap.appendChild(sub);
+  // the keys and commands, from here: this page is where you arrive, and a
+  // workspace gives no other place to ask. With no panes of its own, the
+  // verbs it can speak for are the pane's and the file viewer's.
+  // read fresh whenever either opens: the file is the setting, and this page
+  // is the only place that edits it
+  let cfg = {}, vim = {};
+  const readCfg = async () => {
+    const one = async (u) => { try { const r = await fetch(u, { cache: 'no-store' }); return r.ok ? await r.json() : {}; } catch (_) { return {}; } };
+    [cfg, vim] = await Promise.all([one(CFG_URL), one(VIM_URL)]);
+  };
+  const openPrefs = prefsModal(root, () => ({
+    pane: VERB_HELP,
+    content: (window.FileView && window.FileView.commandHelp) ? window.FileView.commandHelp() : [],
+  }), () => cfg, CFG_URL, () => vim, VIM_URL);
+  const gear = document.createElement('button');
+  gear.className = 'ss-gear';
+  gear.title = 'settings, keys and commands';
+  gear.innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+    + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    + '<circle cx="12" cy="12" r="3"/>'
+    + '<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33'
+    + ' 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06'
+    + 'a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09'
+    + 'A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6'
+    + 'a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06'
+    + 'a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09'
+    + 'a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+  gear.addEventListener('click', async () => { await readCfg(); openPrefs('settings'); });
+  // the gear sits with the title, not in the prose under it
+  h1.style.cssText = 'display:flex;align-items:center;gap:10px';
+  h1.appendChild(gear);
   const list = document.createElement('div'); list.className = 'ss-list'; wrap.appendChild(list);
   const when = (ms) => { if (!ms) return ''; const d = new Date(ms); const today = new Date(); return d.toDateString() === today.toDateString() ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : d.toLocaleDateString(); };
   let known = [];                                                  // the names in the list, for a default that is new
@@ -5459,6 +5933,11 @@ namespace-explorer #finder-tree:not(:defined) { display: none; }
 namespace-explorer #finder-preview { height: 100%; overflow: hidden; background: #fff; display: flex; flex-direction: column; }
 namespace-explorer #finder-tabs { flex: 1; min-height: 0; }
 namespace-explorer #finder-tabs[hidden] { display: none; }
+/* the hidden attribute is only the UA's display:none, which any rule setting
+   display beats -- and all:unset on a button wipes even that. Two places in
+   this page already needed their own [hidden] rule; this makes the attribute
+   mean what it says for everything under the component. */
+namespace-explorer [hidden] { display: none !important; }
 namespace-explorer #finder-preview .finder-empty { flex: 1; }
 namespace-explorer #finder-tabs [tab-label] { overflow: auto; }
 /* gmux workspace: tab strip auto-hides at one tab (pane chrome is gmux's own) */
@@ -5477,6 +5956,43 @@ namespace-explorer .m-title { margin: 0 0 12px; font-size: 15px; overflow-wrap: 
 namespace-explorer #w-path { word-break: break-all; }
 namespace-explorer .m-sec { margin-bottom: 14px; }
 namespace-explorer .m-sec h4 { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #8b949e; margin: 0 0 6px; }
+namespace-explorer .kh-tabs { display:flex; gap:2px; margin:0 0 12px; border-bottom:1px solid #e2e7ee; }
+namespace-explorer .kh-tab { all:unset; cursor:pointer; padding:7px 14px; font:13px -apple-system,BlinkMacSystemFont,sans-serif; color:#57606a; border-bottom:2px solid transparent; }
+namespace-explorer .kh-tab:hover { color:#24292f; }
+namespace-explorer .kh-tab.on { color:#0969da; border-bottom-color:#0969da; font-weight:600; }
+namespace-explorer .kh-body { height:58vh; min-height:300px; overflow:auto; overscroll-behavior:contain; padding-right:2px; }
+namespace-explorer .kh-grp { font:600 10px -apple-system,sans-serif; text-transform:uppercase; letter-spacing:.06em; color:#8b949e; padding:12px 0 5px; }
+namespace-explorer .kh-grp:first-child { padding-top:0; }
+namespace-explorer .kh-row { display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:baseline; padding:3px 0; font-size:13px; }
+namespace-explorer .kh-keys { display:inline-flex; align-items:baseline; gap:5px; min-width:118px; }
+namespace-explorer .kh-k.kh-dim { color:#8b949e; background:#fff; }
+namespace-explorer .kh-then { color:#8b949e; font-size:11px; }
+namespace-explorer .kh-k { font:12px ui-monospace,SFMono-Regular,Menlo,monospace; color:#24292f; background:#f6f8fa; border:1px solid #e2e7ee; border-radius:5px; padding:1px 6px; justify-self:start; white-space:nowrap; }
+namespace-explorer .kh-d { color:#57606a; }
+namespace-explorer .kh-note { color:#8b949e; font-size:12px; padding:12px 0 0; }
+namespace-explorer .kh-note:first-child { padding:0 0 10px; border-bottom:1px solid #f0f2f5; margin-bottom:4px; }
+namespace-explorer .kh-k.kh-edit { cursor:pointer; }
+namespace-explorer .kh-k.kh-edit:hover { border-color:#0969da; color:#0969da; }
+namespace-explorer .kh-k.kh-listen { border-color:#0969da; background:#ddf4ff; color:#0969da; }
+namespace-explorer .cfg-row { display:flex; align-items:center; gap:12px; padding:10px 0 2px; }
+namespace-explorer .cfg-row label { flex:1; font-size:13px; color:#1f2328; }
+namespace-explorer .cfg-row select, namespace-explorer .cfg-map select { font:13px -apple-system,BlinkMacSystemFont,sans-serif; padding:5px 30px 5px 10px; border:1px solid #d0d7de; border-radius:6px; background-color:#fff; color:#1f2328; cursor:pointer;
+  appearance:none; -webkit-appearance:none;
+  background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2357606a' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 10px center; }
+namespace-explorer .cfg-row select:hover, namespace-explorer .cfg-map select:hover { border-color:#8c959f; }
+namespace-explorer .cfg-row select:focus, namespace-explorer .cfg-map select:focus { border-color:#0969da; outline:none; box-shadow:0 0 0 3px #ddf4ff; }
+namespace-explorer .cfg-about { color:#8b949e; font-size:12px; padding:0 0 8px; border-bottom:1px solid #f0f2f5; }
+namespace-explorer .cfg-about:last-child { border-bottom:0; }
+namespace-explorer .cfg-map { display:grid; grid-template-columns:1fr 1fr 7.5rem 1.6rem; gap:8px; align-items:center; padding:4px 0; }
+namespace-explorer .cfg-map input { font:12px ui-monospace,SFMono-Regular,Menlo,monospace; padding:6px 9px; border:1px solid #d0d7de; border-radius:6px; min-width:0; color:#1f2328; }
+namespace-explorer .cfg-map input::placeholder { color:#b1b8c0; }
+namespace-explorer .cfg-map input:hover { border-color:#8c959f; }
+namespace-explorer .cfg-map input:focus { border-color:#0969da; outline:none; box-shadow:0 0 0 3px #ddf4ff; }
+namespace-explorer .cfg-del { all:unset; cursor:pointer; color:#8c959f; font-size:17px; padding:0 6px; line-height:1 }
+namespace-explorer .cfg-del:hover { color:#cf222e }
+namespace-explorer .cfg-add { all:unset; cursor:pointer; color:#0969da; font-size:12px; padding:8px 0 2px }
+namespace-explorer .cfg-add:hover { color:#0550ae; text-decoration:underline }
 namespace-explorer .m-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
 namespace-explorer .m-row input[type="text"] { flex: 1; min-width: 120px; font: 12px ui-monospace, Menlo, monospace; padding: 5px 9px; border: 1px solid #d0d7de; border-radius: 7px; outline: none; }
 namespace-explorer .m-row input[type="text"]:focus { border-color: #0969da; }
