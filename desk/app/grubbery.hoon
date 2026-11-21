@@ -1356,6 +1356,11 @@
         ?~  case.req
           =/  cas=(unit cass:clay)  (top:hist:nexus sk)
           ?~  cas  ~
+          ::  a culled path is gone, however much of it born still holds
+          ::  (+gone-file, as +peek-grub-now asks it): a peer must not read
+          ::  a deleted or unpublished file's last content. A cased peek
+          ::  below still reads its history.
+          ?:  (~(gone-file pk:nexus peak) r u.cas)  ~
           =/  pac  (get-pace:hist:nexus sk u.cas)
           ?~  pac  ~
           (some [cass=u.cas pace=u.pac])
