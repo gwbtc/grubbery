@@ -863,6 +863,18 @@
     ^-  ?
     =/  mark=(unit cass:clay)  (get-file here)
     &(?=(^ mark) (gth ud.u.mark ud.top))
+  ::  +live-top: the version a write at this rail replaces. That is
+  ::  born's top while the rail lives, and nothing once it is dead: a
+  ::  gained path keeps its record past its death, but it holds nothing
+  ::  now, so a write there is a new life, not a repeat of the last one.
+  ::
+  ++  live-top
+    |=  [here=rail:tarball sok=hist]
+    ^-  (unit cass:clay)
+    =/  top=(unit cass:clay)  (top:hist sok)
+    ?~  top  ~
+    ?:  (gone-file here u.top)  ~
+    top
   ++  gone-fold
     |=  [here=fold:tarball top=cass:clay]
     ^-  ?

@@ -339,6 +339,38 @@
     %+  expect-eq  !>(`(unit cass:clay)``[7 ~2023.1.1])  !>((~(get-file pk:nexus same) [/a %file]))
   ==
 ::
+++  test-pk-live-top-dead-rail-remakes
+  ::  a gained file is culled: its firm record stays, its death is a
+  ::  number in peak above it. Making it again with the SAME content is
+  ::  a new life. Deduped against the kept record, it changed nothing
+  ::  and the path stayed dead.
+  =/  here=rail:tarball  [/a %file]
+  =/  =bask:tarball  [[/ %txt] 'last words']
+  =/  [* silo1=silo:nexus hist1=hist:nexus]
+    (~(record si:nexus *silo:nexus) q.bask p.bask 0v0 / %.y [0 ~2024.1.1] [0 ~2024.1.1] ~)
+  =/  live=peak:nexus  (~(put-file pk:nexus *peak:nexus) here [0 ~2024.1.1])
+  =/  dead=peak:nexus  (~(put-file pk:nexus live) here [1 ~2024.1.2])
+  ::  the remake, as +record does it: replacing the live top, else the
+  ::  death, numbered above that
+  =/  top=(unit cass:clay)  (~(live-top pk:nexus dead) here hist1)
+  =/  file-cass=cass:clay  (fall top (need (~(get-file pk:nexus dead) here)))
+  =/  [* * hist2=hist:nexus]
+    (~(record si:nexus silo1) q.bask p.bask 0v0 / %.y [2 ~2024.1.3] file-cass hist1)
+  ;:  weld
+    ::  a living rail's top is born's top, so a same-content write there
+    ::  still dedupes
+    %+  expect-eq  !>(`(unit cass:clay)``[0 ~2024.1.1])
+      !>((~(live-top pk:nexus live) here hist1))
+    ::  a dead rail has no live top
+    %+  expect-eq  !>(`(unit cass:clay)`~)  !>(top)
+    ::  the remake lands above the death, and the rail lives again
+    %+  expect-eq  !>(`(unit cass:clay)``[2 ~2024.1.3])  !>((top:hist:nexus hist2))
+    %+  expect-eq  !>(%.n)
+      !>((~(gone-file pk:nexus dead) here (need (top:hist:nexus hist2))))
+    ::  the kept record is still history
+    %+  expect-eq  !>(`@ud`2)  !>((lent (tap:hon:hist:nexus hist2)))
+  ==
+::
 ++  test-bo-next-cass-future-da
   ::  next-cass uses +(da.cass) when da.cass >= now
   =/  now=@da  ~2024.1.1
