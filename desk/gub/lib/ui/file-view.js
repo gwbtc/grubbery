@@ -28,17 +28,6 @@
 (function () {
   'use strict';
 
-  // the verbs a file pane lends to the pane's `:` prompt, and what they do.
-  // Beside the table that defines them (see baseEx), and on the export too:
-  // a help page has these to show before any file is open.
-  var COMMAND_HELP = [
-    ['w', 'save; with a changed mime type, saves that too'],
-    ['wq', 'save and close the tab'],
-    ['x', 'save if changed, then close'],
-    ['q!', 'close the tab and drop unsaved text'],
-    ['mime <type>', 'set the mime type; bare :mime says what it is'],
-  ];
-
   var CSS =
     '.fv{background:#fff;color:#1f2328;display:flex;flex-direction:column;font:13px/1.5 -apple-system,BlinkMacSystemFont,sans-serif;min-height:0;min-width:0;width:100%;overflow:hidden}' +
     '.fv #crumbrow{flex:none;padding:6px 12px 0;background:#f6f8fa;overflow-x:auto;overflow-y:hidden;white-space:nowrap}' +
@@ -793,6 +782,10 @@
           w: function () { if (writable) save(); },
           mime: mimeCmd,
           q: quit,
+          // the same verb twice: vim writes on :wq and only when changed on
+          // :x, and here both only when changed. The explorer owns the verb
+          // list (VERB_HELP in browse.js) and calls through to these when a
+          // file is open; this table is also vim's own `:` line.
           wq: function () { if (writable && ve && ve.getValue() !== clean) save().then(quit); else quit(); },
           x: function () { if (writable && ve && ve.getValue() !== clean) save().then(quit); else quit(); },
           e: open
@@ -1088,5 +1081,5 @@
     }).catch(function () { return null; });
   }
 
-  window.FileView = { mount: mount, prefetch: prefetch, commandHelp: function () { return COMMAND_HELP; } };
+  window.FileView = { mount: mount, prefetch: prefetch };
 })();

@@ -115,6 +115,10 @@ const CSS = `
   .ps-tab-edit::placeholder { color:#8b949e; font-weight:400; }
   .ps-tab.editing { cursor:text; }
   .ps-tab-ic { font-weight:400; opacity:.85; }
+  /* the app's declared mark: sized to the text beside it, never taller than
+     the tab, and square whatever the file's own proportions are */
+  .ps-tab-img { width:13px; height:13px; object-fit:contain; flex:none; display:block; border-radius:2px; }
+  .ps-tab.dead .ps-tab-img { opacity:.45; filter:grayscale(1); }
   .ps-tab-x { opacity:.5; padding:0 2px; border-radius:3px; font-weight:400; }
   .ps-tab-x:hover { opacity:1; background:#d7dde3; }
   .ps-nav { flex:1 1 auto; min-width:40px; display:flex; align-items:center; border:1px solid #e2e7ee; background:#fff; border-radius:6px; }
@@ -639,7 +643,19 @@ class Gmux extends HTMLElement {
       const named = !!tab.label || !!m.offered;
       b.className = 'ps-tab' + (i === pane.activeTab ? ' on' : '') + (named ? ' named' : '') + (m.dead ? ' dead' : '');
       b.title = this.#tabTitle(tab) + (m.dead ? '\n(deleted)' : '') + '\n(double-click to name)';
-      if (m.icon && !named) { const ic = document.createElement('span'); ic.className = 'ps-tab-ic'; ic.textContent = m.icon; b.appendChild(ic); }
+      // the app's own mark on this moment, if its rules gave it one. Unlike
+      // the kind glyph it SURVIVES naming: the glyph says what a tab is and
+      // the name says that better, but the icon says whose it is, and that
+      // is still worth knowing on a tab you have named yourself.
+      if (m.img) {
+        const im = document.createElement('img'); im.className = 'ps-tab-img';
+        im.src = m.img; im.alt = ''; im.decoding = 'async'; im.loading = 'lazy';
+        // a declaration naming a file that is not there must cost a broken
+        // image icon on every tab, not a missing one
+        im.addEventListener('error', () => im.remove());
+        b.appendChild(im);
+      }
+      if (m.icon && !named && !m.img) { const ic = document.createElement('span'); ic.className = 'ps-tab-ic'; ic.textContent = m.icon; b.appendChild(ic); }
       const txt = document.createElement('span'); txt.className = 'ps-tab-t'; txt.textContent = m.label; b.appendChild(txt);
       b.addEventListener('click', (e) => { e.stopPropagation(); this.selectTab(pane.id, i); });
       b.addEventListener('dblclick', (e) => { e.stopPropagation(); e.preventDefault(); this.#editTabName(pane, i, b, txt); });
@@ -662,20 +678,27 @@ class Gmux extends HTMLElement {
   #entryMeta(e) {
     if (!e) return { icon: '', label: 'empty' };
     // `dead` (from the host's tabInfo): the path this entry shows is gone
+    // a layout or a nested pane: its SOURCE moment is what it shows, so the
+    // icon declared for that moment is this tab's too. An app's root is
+    // usually a layout, which makes this the case that matters most; the
+    // glyph stands in where nothing was declared (#renderBar prefers the
+    // icon when there is one).
     if (e.div || e.pane) {
-      const s = this.#entrySrc(e); let dead = false;
-      if (s && this.tabInfo) { try { const m = this.tabInfo(s); dead = !!(m && m.dead); } catch (_) {} }
-      return { icon: '▣', label: s ? base(s) : 'layout', dead };
+      const s = this.#entrySrc(e); let dead = false, img = '';
+      if (s && this.tabInfo) { try { const m = this.tabInfo(s); dead = !!(m && m.dead); img = (m && m.img) || ''; } catch (_) {} }
+      return { icon: '▣', img, label: s ? base(s) : 'layout', dead };
     }
-    if (this.tabInfo) { try { const m = this.tabInfo(e.path); if (m) return { icon: m.icon || '', label: m.label || base(e.path) || 'empty', dead: !!m.dead }; } catch (_) {} }
-    return { icon: '', label: base(e.path) || 'empty' };
+    if (this.tabInfo) { try { const m = this.tabInfo(e.path); if (m) return { icon: m.icon || '', img: m.img || '', label: m.label || base(e.path) || 'empty', dead: !!m.dead }; } catch (_) {} }
+    return { icon: '', img: '', label: base(e.path) || 'empty' };
   }
   // a tab's chip: the user's name (tab.label) over the moment's offered name
-  // (entry.name, given when content opened it) over the derived description
+  // (entry.name, given when content opened it) over the derived description.
+  // The declared icon rides along through all three: it belongs to the
+  // moment, not to how the tab came to be called what it is.
   #tabMeta(tab) {
     const e = tab.entries[tab.cursor], m = this.#entryMeta(e);
-    if (tab.label) return { icon: m.icon, label: tab.label, dead: m.dead };
-    if (e && e.name) return { icon: '', label: e.name, dead: m.dead, offered: true };
+    if (tab.label) return { icon: m.icon, img: m.img, label: tab.label, dead: m.dead };
+    if (e && e.name) return { icon: '', img: m.img, label: e.name, dead: m.dead, offered: true };
     return m;
   }
   // the tab's entry list (its history) for a back/forward dropdown.
@@ -2524,10 +2547,15 @@ class Gmux extends HTMLElement {
     // prefix. Only resize (shift-arrows) keeps the arrows as a repeat.
     else if (dir) this.focusMove(dir);
     else handled = false;
-    if (handled) { e.preventDefault(); e.stopPropagation(); }
-    // the keyboard chose a pane: give its content the keys. Not while a
-    // move/resize repeat is armed (the arrows are ours until it ends) and not
-    // after `:`, which put the caret in the navbar on purpose
+    // the prefix owns the key that follows it, bound or not. An unbound one
+    // does nothing and stops here: letting it through hands the keystroke to
+    // whatever holds focus, so the chord ends by pressing the row, link or
+    // button the pane happens to be sitting on.
+    e.preventDefault(); e.stopPropagation();
+    // the keyboard chose a pane: give its content the keys. Only when the key
+    // did something -- an unbound one chose nothing. Not while a move/resize
+    // repeat is armed (the arrows are ours until it ends) and not after `:`,
+    // which put the caret in the navbar on purpose
     if (handled && !this.#repeat && k !== ':') this.focusContent();
   };
   #cycleTab(delta) { const p = this.cursor; if (!p || p.tabs.length < 2) return; this.selectTab(p.id, (p.activeTab + delta + p.tabs.length) % p.tabs.length); }

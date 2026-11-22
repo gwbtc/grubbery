@@ -607,7 +607,11 @@
   =/  detach=(unit @t)  (jstr in 'detach')
   ?^  detach
     ?.  =(detach client-id)  ~
-    `(build spec ~ ops seq)
+    ::  a client leaving hands its last spec over with the detach: its
+    ::  write-back is debounced and the page is going, so this is the
+    ::  only chance the final move has to land. Absent, the stored one
+    ::  stands.
+    `(build (fall (jget in 'spec') spec) ~ ops seq)
   =/  op=(unit json)  (jget in 'op')
   ?^  op
     ?.  ?=([~ %o *] op)  ~

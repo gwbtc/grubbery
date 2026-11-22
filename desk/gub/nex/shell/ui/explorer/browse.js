@@ -832,22 +832,34 @@ function setup(root, opts) {
       if (rel === null) continue;
       const caps = patMatch(r.match === '' ? [] : r.match.split('/'), rel === '' ? [] : rel.split('/'), []);
       if (!caps) continue;
+      const fill = (s) => subst(s, caps, rel, want);
+      // `icon`: what the tab of a moment matching this rule wears. Per RULE,
+      // so one app marks the parts worth marking -- a chat, a clanker, its
+      // own root -- and says nothing about the rest, which is most of them.
+      // There is no inheriting: an icon appears where one was asked for.
+      // './icon.svg' is the declaring nexus's, and the captures are in hand,
+      // so './{1}/{2}.clanker/icon.svg' is each instance's own. On this ship
+      // only: a tab icon is fetched by every tab that shows it, and a
+      // declaration naming somewhere else would make that a beacon.
+      const iconUrl = (typeof r.icon === 'string' && r.icon) ? ruleUrl(fill(r.icon), r.at) : '';
+      const icon = (iconUrl && OWN_ROUTE.test(iconUrl)) ? iconUrl : '';
       // a rule that names neither a layout nor a pane STOPS the search:
       // this path is the explorer's own to render, and the rules below it
-      // do not get to claim it (+pick-viewer's `~`)
-      if (typeof r.layout !== 'string' && !r.pane) return { none: true };
-      const fill = (s) => subst(s, caps, rel, want);
+      // do not get to claim it (+pick-viewer's `~`). It may still have said
+      // what the tab wears -- marking a path is not claiming how it renders.
+      if (typeof r.layout !== 'string' && !r.pane) return { none: true, icon };
       // a layout file is a template: `vars` names what to put in it, so one
       // file lays out every instance ({"layout": "./repo-layout.json",
       // "vars": {"repo": "{1}"}} fills {repo} wherever it appears).
       if (typeof r.layout === 'string') {
         const vars = {};
         if (r.vars && typeof r.vars === 'object') for (const k of Object.keys(r.vars)) vars[k] = fill(String(r.vars[k]));
-        return { layout: ruleUrl(fill(r.layout), r.at), vars };
+        return { layout: ruleUrl(fill(r.layout), r.at), vars, icon };
       }
       const p = r.pane;
       if (typeof p.view !== 'string') return { none: true };
       return {
+        icon,
         pane: {
           view: fill(p.view),
           script: typeof p.script === 'string' ? ruleUrl(fill(p.script), r.at) : '',
@@ -885,6 +897,22 @@ function setup(root, opts) {
   const stockViewer = (view, src) => paneFrom(src, view);
   // `view`: the moment's ?view= when it is not one the host renders itself
   // (rows|grid|tree); a rule names its own view names (a selector, a
+  // +declaredIcon: the icon the rules give this moment, or '' for the many
+  // that are given none. Asked apart from +viewerFor because it is a
+  // different question: a rule may name an icon and no pane, name one on a
+  // layout, or be the rule that stops the search -- all of which are a `null`
+  // viewer. The walk it reads is memoized per declaring directory and has
+  // already run for this pane, so asking costs a match, not a fetch.
+  async function declaredIcon(path, kind, askView) {
+    try {
+      await viewReady;
+      const VIEW = MOUNT ? null : await viewFor(kind === 'dir' ? path : path.slice(0, path.lastIndexOf('/')) || PREFIX);
+      const rules = MOUNT ? MOUNT_RULES : (VIEW ? VIEW.rules : null);
+      if (!rules || !rules.length) return '';
+      const rule = matchRules(rules, kind === 'dir' ? path.replace(/\/+$/, '') : path, kind === 'dir' ? 'dir' : 'file', askView);
+      return (rule && rule.icon) || '';
+    } catch (_) { return ''; }
+  }
   // record form) and the bare path (no view) opens as whatever claims it
   async function viewerFor(path, kind, neck, askView) {
     try {
@@ -1312,6 +1340,12 @@ function setup(root, opts) {
     // a path as typed, resolved: absolute and @name paths stand; the rest
     // is relative to the moment's directory, like vim's :e
     const resolveFrom = (id, p) => { p = (p || '').trim(); if (!p) return null; const dir = baseDir(id); return /^(\/|@|\.\.?\/)/.test(p) ? psRel(dir, p) : psRel(dir, './' + p); };
+    // THE verbs. All of them: the explorer owns this table, and VERB_HELP
+    // beside it says what each one is for. Some need a file to act on, and
+    // a file open in this pane supplies that behaviour (see +fileVerb) --
+    // but the verb is the explorer's either way, so there is one table, one
+    // list, and no guessing which layer a name came from. A command a NEXUS
+    // declares for its own paths would come in here too, beside these.
     const verbs = (id) => {
       const path = ps.pathOf(id) || '/';
       const target = (args) => resolveFrom(id, args[0]);
@@ -1322,23 +1356,44 @@ function setup(root, opts) {
       // the chrome state is sticky: :e from a stripped pane opens the next
       // path stripped too, as you move through files
       const keepChrome = (t) => psSetChrome(t, psChromeOn(path));
+      // the file open in this pane, as the verbs it answers to -- null when
+      // the pane holds a directory, an empty pane, or a view with no file
+      const fileVerb = (name) => {
+        const el = ps.contentOf(id);
+        const t = el && el._fv && typeof el._fv.commands === 'function' ? (el._fv.commands() || {}) : null;
+        return t && typeof t[name] === 'function' ? t[name] : null;
+      };
+      // a verb that is meaningless without a file: say so, rather than
+      // leaving it to read as a verb that does not exist
+      const needsFile = (name) => (args, ctx) => {
+        const f = fileVerb(name);
+        if (!f) { toast(psNs(path) + ' \u2014 not a file; :' + name + ' needs one', true); return; }
+        f(args, ctx);
+      };
+      // a verb the pane answers anyway, which a file answers BETTER: :q
+      // guards unsaved text, :wq and :x write first. With no file the pane's
+      // own answer stands, and says why nothing was written.
+      const orPane = (name, fallback) => (args, ctx) => {
+        const f = fileVerb(name);
+        if (f) { f(args, ctx); return; }
+        fallback(args, ctx);
+      };
+      const closeSaying = (why) => () => { if (why) toast(psNs(path) + ' \u2014 ' + why); ps.closeActiveTab(id); };
       return {
         e: (args) => { const t = target(args); if (t) go(keepChrome(t)); },
         // the new side inherits the chrome, the way :e does: opening something
         // beside a stripped pane should not dress it back up
         vs: (args) => { const t = target(args); ps.splitRight(id, t ? keepChrome(t) : undefined); },
         sp: (args) => { const t = target(args); ps.splitDown(id, t ? keepChrome(t) : undefined); },
-        q: () => ps.closeActiveTab(id),
-        chrome: () => ps.replaceMoment(id, psSetChrome(path, !psChromeOn(path))),
+        q: orPane('q', closeSaying(null)),
+        wq: orPane('wq', closeSaying('not a file; no file saved')),
+        x: orPane('x', closeSaying('not a file; no file saved')),
+        w: needsFile('w'),
+        mime: needsFile('mime'),
+        chrome: orPane('chrome', () => ps.replaceMoment(id, psSetChrome(path, !psChromeOn(path)))),
       };
     };
-    // every verb this pane answers to: what the content lends (:w :mime)
-    // over the pane's own (:e :vs :sp :q :chrome)
-    const table = (p) => {
-      const el = p.body && p.body.firstChild;
-      const own = el && el._fv && typeof el._fv.commands === 'function' ? (el._fv.commands() || {}) : {};
-      return Object.assign({}, verbs(p.id), own);
-    };
+    const table = (p) => verbs(p.id);
     const run = (lineText) => {
       const m = String(lineText || '').trim().match(/^([a-z]+)(!?)\s*(.*)$/i);
       if (!m) return;
@@ -1378,7 +1433,29 @@ function setup(root, opts) {
   // a tab is its name; no glyph guessed from kind. A moment with ?page= (a
   // rendering's own sub-page: the docs pane) is named by that page, so the
   // history reads as the pages visited, not the same grub nine times
-  function paneTabInfo(p) { const pg = psArgs(p).page; return { icon: '', label: pg ? (pg.split('/').filter(Boolean).pop() || pg) : psLabel(p), dead: psDead.has(psNs(p).replace(/\/$/, '') || '/') }; }
+  // What the app declares a moment's tab should wear, by moment: a url, or
+  // '' for a path whose rule names no icon -- which is most of them, and is
+  // why the absence is RECORDED rather than left to mean "not looked up
+  // yet". Filled when a pane resolves its viewer (the declaration is in hand
+  // there, see paneContentAt) and read here, where the bar is drawn and
+  // nothing may wait. A moment the walk has not reached yet wears nothing
+  // and gains its icon on the redraw that follows.
+  const psIcons = new Map();
+  function psSetIcon(ps, path, url) {
+    const k = psNs(path).replace(/\/$/, '') || '/';
+    if (psIcons.get(k) === (url || '')) return;                            // nothing moved: no redraw
+    psIcons.set(k, url || '');
+    ps.redrawBars();
+  }
+  function paneTabInfo(p) {
+    const pg = psArgs(p).page;
+    return {
+      icon: '',
+      img: psIcons.get(psNs(p).replace(/\/$/, '') || '/') || '',
+      label: pg ? (pg.split('/').filter(Boolean).pop() || pg) : psLabel(p),
+      dead: psDead.has(psNs(p).replace(/\/$/, '') || '/'),
+    };
+  }
   // ---- deletion: a moment whose path is gone is DEAD, not closed ----
   // Every content moment follows its parent dir, folded (one event when a
   // direct child is made or culled). On that event the moment's own path is
@@ -1464,12 +1541,18 @@ function setup(root, opts) {
     psDead.delete(key);
     ps.redrawBars();
   }
+  // psPaneId: which pane this element is in NOW. A split hands the mounted
+  // element to the new side and close/moveTabs carry it elsewhere again, so
+  // the pane an element was BUILT for is not the pane it sits in. Anything
+  // that acts on the pane after mount -- a refresh, a route, a menu -- asks
+  // the DOM; the id it mounted under is only the answer while it is detached.
+  const psPaneId = (el) => { const p = el.closest('.ps-pane'); return p ? p.dataset.paneId : null; };
   // ns is the moment's path (symbolic under an @name: the dead key the tab
   // chips look up); abs is the place actually kept
-  function psWatchFile(ps, paneId, el, ns, abs) {
+  function psWatchFile(ps, el, ns, abs) {
     if (!abs || abs === '/') return () => {};
     const key = ns.replace(/\/$/, '');
-    const idOf = () => { const p = el.closest('.ps-pane'); return p ? p.dataset.paneId : paneId; };
+    const idOf = () => psPaneId(el);
     return live([{ road: abs.replace(/\/$/, '') }], (ev) => {
       if (ev.kind === 'del') psMarkDead(ps, el, ns, 'deleted');
       else if (el._dead) { psDead.delete(key); ps.redrawBars(); ps.refresh(idOf()); }
@@ -1477,10 +1560,10 @@ function setup(root, opts) {
   }
   // an @name moment follows its name's dest.lanes: a re-claim or a move of
   // the app drops the cached lanes and re-renders the pane where it sits
-  function psWatchLink(ps, paneId, el, ns) {
+  function psWatchLink(ps, el, ns) {
     const l = psLink(ns);
     if (!l) return () => {};
-    const idOf = () => { const p = el.closest('.ps-pane'); return p ? p.dataset.paneId : paneId; };
+    const idOf = () => psPaneId(el);
     return live([{ road: psLinkRoad(l.name) }], () => { psLanes.delete(l.name); psResolved.delete(ns); ps.refresh(idOf()); }, null);
   }
   // live: the page's one SSE stream and the follow set behind it. Every
@@ -1573,8 +1656,8 @@ function setup(root, opts) {
   // this pane's bare content while it loaded), land the keyboard on it:
   // the chat's message box, a navigator's list. Covers page load, where
   // the active pane's content arrives after the workspace is built.
-  function psLanded(ps, paneId, el) {
-    const p = el.closest('.ps-pane'), id = p ? p.dataset.paneId : paneId;
+  function psLanded(ps, el) {
+    const id = psPaneId(el);
     if (!ps.cursor) return;
     // the active pane, or a container selected above it (a layout whose
     // first leaf this is)
@@ -1583,12 +1666,10 @@ function setup(root, opts) {
     if (a && a !== document.body && a !== ps && a !== el && !el.contains(a)) return;   // ps itself: the host's own focus on load
     ps.focusContent(id);
   }
-  function paneLive(ps, paneId, el, follow, gate) {
+  function paneLive(ps, el, follow, gate) {
     if (!el.isConnected) return;                                   // the pane moved on while we fetched: nothing to keep live
     const fv = el._fv, on = (fv && typeof fv.onUpdate === 'function') ? (ev) => fv.onUpdate(ev) : null;
-    // a split moves this element into a new child pane: find the pane it is
-    // in NOW rather than the id it mounted under
-    const idOf = () => { const p = el.closest('.ps-pane'); return p ? p.dataset.paneId : paneId; };
+    const idOf = () => psPaneId(el);
     el._live = live(follow, on, () => ps.refresh(idOf()), gate);
   }
   // ---- workspace actions: right-click menus and inline asks, no modals ----
@@ -2252,7 +2333,7 @@ function setup(root, opts) {
     // the field the keyboard lands on, IF this pane is the one selected and
     // nothing else holds it: a form opening in another pane never steals
     // the keys from the pane you are in (psLanded is the one judge of that)
-    const want = (x) => { x.setAttribute('data-focus', ''); psLanded(ps, paneId, el); };
+    const want = (x) => { x.setAttribute('data-focus', ''); psLanded(ps, el); };
     if (view === 'make') {
       // nothing at this path yet: make it. The name is the path's own; the
       // kind defaults from the spelling (a trailing slash is a folder).
@@ -2685,7 +2766,7 @@ function setup(root, opts) {
     const load = () => fetch(url + '?list=1', { cache: 'no-store' }).then((r) => r.ok ? r.json() : null).then((d) => { if (!el.isConnected) return; weir = (d && d.weir) || null; draw(); }).catch(() => {});
     load();
     el._fv = { destroy() {}, onUpdate() { load(); } };
-    paneLive(ps, paneId, el, [{ road: ns === '/' ? '/' : ns.replace(/\/$/, '') + '/', fold: true }]);
+    paneLive(ps, el, [{ road: ns === '/' ? '/' : ns.replace(/\/$/, '') + '/', fold: true }]);
   }
   // re-read a layout file and reapply it to the pane showing it (a refresh
   // on a layout pane, or a followed source that changed)
@@ -2847,13 +2928,13 @@ function setup(root, opts) {
     el._moment = path;                                                        // what this content shows (updateContent compares against it)
     el._primeFrom = from || null;                                             // a live element on this same moment (a split's original) to start from
     const raw = !!(ps.viewOf && ps.viewOf(paneId) === 'raw');                 // the mode this element is FOR, fixed now
-    if (psIsUrl(path)) { el._fv = frameMount(el, { url: path, ps, paneId }); psLanded(ps, paneId, el); return el; }   // a served page, framed
+    if (psIsUrl(path)) { el._fv = frameMount(el, { url: path, ps, paneId }); psLanded(ps, el); return el; }   // a served page, framed
     const ns = psNs(path);
     if (!psLink(ns)) { paneContentAt(ps, paneId, el, path, ns, ns, raw); return el; }
     // an @name moment: resolve the name first, then render at the place it
     // stands for. The name is followed for the life of this content
     psWait(el, 'resolving', ns);
-    el._link = psWatchLink(ps, paneId, el, ns);
+    el._link = psWatchLink(ps, el, ns);
     psResolve(ns).then((abs) => { if (!el._dead) { psClear(el); ps.redrawBars(); paneContentAt(ps, paneId, el, path, ns, abs, raw); } })
       .catch((e) => psWaitFail(el, 'link: ' + (e && e.message ? e.message : e), ns));
     return el;
@@ -2892,19 +2973,20 @@ function setup(root, opts) {
       if (!(dest === anchor || dest.startsWith(base))) return h;            // left the subtree
       return h + (h.indexOf('?') >= 0 ? '&' : '?') + 'asof=' + anchor + ':' + ver;
     };
+    const idOf = () => psPaneId(el);
     const route = (href, kind, mods, name) => {
       const bare = (typeof href === 'string' && href.startsWith(PREFIX)) ? (href.slice(PREFIX.length) || '/') : href;
       let h = psCarry(psMoment(psRel(ns, bare)));                           // relative to this moment, as spelled
       if (kind === 'dir') { const m = psSplit(h); if (!/\/$/.test(m.path)) h = m.path + '/' + (m.query ? '?' + m.query : ''); }   // a directory is spelled with its slash
       if (mods && (mods.meta || mods.ctrl)) { ps.open(h, 'beside'); return; }   // ⌘-click → new pane
-      ps.openFrom(paneId, h, name);
+      ps.openFrom(idOf(), h, name);
     };
-    const unroute = (href) => ps.closeFrom(paneId, psMoment(psRel(ns, href)));   // the view says a moment is gone
-    el._ctx = { ps, paneId, route };                                        // menus route through the pane's target via this
+    const unroute = (href) => ps.closeFrom(idOf(), psMoment(psRel(ns, href)));   // the view says a moment is gone
+    el._ctx = { ps, get paneId() { return idOf(); }, route };               // menus route through the pane's target via this
     // `raw` arrives from paneContent: the mode this element was BUILT for, so
     // an @name that renders after its link resolves still renders that mode
     if (ACTION_VIEWS[psArgs(path).view]) { actionView(ps, paneId, el, path, abs); return; }   // a form over this path
-    if (psArgs(path).view === 'frame') { el._fv = frameMount(el, { url: path }); psLanded(ps, paneId, el); return; }   // a page on this ship, framed
+    if (psArgs(path).view === 'frame') { el._fv = frameMount(el, { url: path }); psLanded(ps, el); return; }   // a page on this ship, framed
     if (!raw && /\.layout$/.test(abs)) {                                   // this pane landed ON a layout → become it
       psWait(el, 'opening layout', ns);
       fetch(url).then((r) => r.ok ? r.json() : Promise.reject('x')).then((spec) => {
@@ -2920,6 +3002,15 @@ function setup(root, opts) {
     const mods = (o) => (o && o.beside) ? { meta: true } : null;
     const onNav = (u, k, o) => route(u, k === 'file' ? 'file' : 'dir', mods(o), o && o.name);
     const vopen = (u, o) => route(u, null, mods(o), o && o.name);
+    // what this moment's tab wears, asked once the KIND is settled and
+    // recorded -- including the '' that most paths get, so the bar can tell
+    // "nothing here" from "not asked yet". The kind cannot be read off the
+    // spelling here: an @name moment arrives without its slash and gains it
+    // only when the listing answers, so asking before that would put every
+    // app's root to the rules as a file and match none of their dir rules.
+    // Not awaited anywhere: the tab redraws when it lands.
+    const markTab = (kind) => declaredIcon(url, kind, psArgs(path).view || null)
+      .then((u) => psSetIcon(ps, path, u));
     psWait(el, 'loading', ns);                                                // until the first answer lands (fades in after a beat)
     const vclose = (u) => unroute(u);
     // THE LISTING IS READ AT THE VERSION THE PANE IS ON. The server takes
@@ -2933,6 +3024,7 @@ function setup(root, opts) {
       if (!d || !Array.isArray(d.children)) throw 'f';
       psClear(el);
       psAlive(ps, ns);                                                     // it answered: clear any stale dead mark
+      markTab('dir');                                                      // it lists: the rules see a directory
       // it lists, so it is a directory: spelled with its slash from here on
       if (!psIsDir(ns)) { const m = psSplit(path); const np = m.path + '/' + (m.query ? '?' + m.query : ''); el._moment = np; ps.respell(paneId, np); }
       el._dirUrl = url;                                                    // whitespace right-click: this dir's actions
@@ -2954,7 +3046,7 @@ function setup(root, opts) {
         // follows its root dir in fold mode like the rows view does, so a
         // file made or removed under it redraws the tree; without this the
         // tree pane was the one pane subscribed to nothing
-        if (tv) { el._fv = tv.mount(el, { url, args: { root: abs }, onNavigate: onNav, open: vopen, close: vclose }); el._menu = (e) => listingMenu(e, el, url); paneLive(ps, paneId, el, [{ road: abs === '/' ? '/' : abs.replace(/\/$/, '') + '/', fold: true }]); psLanded(ps, paneId, el); return; }
+        if (tv) { el._fv = tv.mount(el, { url, args: { root: abs }, onNavigate: onNav, open: vopen, close: vclose }); el._menu = (e) => listingMenu(e, el, url); paneLive(ps, el, [{ road: abs === '/' ? '/' : abs.replace(/\/$/, '') + '/', fold: true }]); psLanded(ps, el); return; }
       }
       // the app is asked for the bare dir and for any view name of its own;
       // the host's own views (rows, grid, tree) never reach it
@@ -2974,7 +3066,7 @@ function setup(root, opts) {
           .catch((e) => psWaitFail(el, 'not a valid layout: ' + ((e && e.message) || e), viewer.layout));
         return;
       }
-      if (viewer && !viewer.blocked && viewer.mount) { el._fv = viewer.mount(el, { url, mode: PS_MODE, onNavigate: onNav, open: vopen, close: vclose, query: psArgs(path) }); paneLive(ps, paneId, el, viewer.follow); psLanded(ps, paneId, el); return; }
+      if (viewer && !viewer.blocked && viewer.mount) { el._fv = viewer.mount(el, { url, mode: PS_MODE, onNavigate: onNav, open: vopen, close: vclose, query: psArgs(path) }); paneLive(ps, el, viewer.follow); psLanded(ps, el); return; }
       await cfgReady;                                                        // explorer.json decides what absent args mean
       const t = document.createElement(want === 'grid' ? 'file-grid' : 'file-table');
       t.style.height = '100%';
@@ -3046,7 +3138,7 @@ function setup(root, opts) {
       };
       setHead(psChromeOn(path));
       paint();
-      psLanded(ps, paneId, el);                                            // the keyboard lands on the table if this pane is the one chosen
+      psLanded(ps, el);                                            // the keyboard lands on the table if this pane is the one chosen
       // the listing follows its dir in FOLD mode: one event whenever anything
       // under it moves. The answer is a row refresh on the SAME table, never a
       // pane re-render: a dir with busy nexuses beneath it (/apps) moves
@@ -3076,7 +3168,7 @@ function setup(root, opts) {
           return true;
         },
       };
-      paneLive(ps, paneId, el, [{ road: abs === '/' ? '/' : abs.replace(/\/$/, '') + '/', fold: true }]);
+      paneLive(ps, el, [{ road: abs === '/' ? '/' : abs.replace(/\/$/, '') + '/', fold: true }]);
     }).catch(async (why) => {
       // a 404 keeps watching: the path may yet be made, and `new` revives it
       if (why === 404) {
@@ -3108,8 +3200,8 @@ function setup(root, opts) {
           const bar = psPastBar(ns, path, 'file', route); if (bar) el.appendChild(bar);
           el.appendChild(psCrumbRow(abs, route));
           actionView(ps, paneId, el, psSetArg(path, 'view', 'make'), abs);
-          psLanded(ps, paneId, el);
-          el._gone = psWatchFile(ps, paneId, el, ns, abs);
+          psLanded(ps, el);
+          el._gone = psWatchFile(ps, el, ns, abs);
           return;
         }
         // A path that is not here still has a PLACE and may still have a
@@ -3128,12 +3220,13 @@ function setup(root, opts) {
         // kind from the next listing either way.
         psNoVersion(el, 'nothing here', 'this path is not here',
                     [psPastBar(ns, path, 'file', route), psCrumbRow(abs, route)]);
-        el._gone = psWatchFile(ps, paneId, el, ns, abs);                   // not there YET: `new` brings it back by itself
+        el._gone = psWatchFile(ps, el, ns, abs);                   // not there YET: `new` brings it back by itself
         return;
       }
       psClear(el);
       psAlive(ps, ns);                                                     // it answered: clear any stale dead mark
-      el._gone = psWatchFile(ps, paneId, el, ns, abs);                      // its own file, one keep: del → dead, new → back
+      markTab('file');                                                     // it did not list: the rules see a file
+      el._gone = psWatchFile(ps, el, ns, abs);                      // its own file, one keep: del → dead, new → back
       // rendered = JUST the declared viewer's rendering (no FileView chrome);
       // raw = the full Source|Preview|Build package. The viewer never rides
       // along inside raw — the two are separate panes you toggle between.
@@ -3161,7 +3254,7 @@ function setup(root, opts) {
           // the moment's ?args ride along as `query`: a viewer may read how it
           // is being looked at (a docs pane's ?page=, say) without parsing urls
           el._chrome = !!v.chrome;                                        // the pane said whether it answers the chrome toggle
-          try { el._fv = v.mount(el, { url, onNavigate: onNav, open: vopen, close: vclose, query: psArgs(path) }); paneLive(ps, paneId, el, v.follow); psLanded(ps, paneId, el); } catch (e) { el.textContent = 'viewer failed: ' + e; }
+          try { el._fv = v.mount(el, { url, onNavigate: onNav, open: vopen, close: vclose, query: psArgs(path) }); paneLive(ps, el, v.follow); psLanded(ps, el); } catch (e) { el.textContent = 'viewer failed: ' + e; }
           return;                                                         // rendered: the rendering alone
         }
       }
@@ -3182,7 +3275,7 @@ function setup(root, opts) {
             readOnly: !!atCase, at: atCase ? '&' + atCase : '',
             versions: psPastBar(ns, path, 'file', onNav),
             host: exHost(ps, paneId, ns, route) });
-          paneLive(ps, paneId, el, [{ road: abs }]); psLanded(ps, paneId, el);
+          paneLive(ps, el, [{ road: abs }]); psLanded(ps, el);
           return;
         } catch (e) { el.textContent = 'open failed: ' + e; return; }
       }
@@ -3214,7 +3307,7 @@ function setup(root, opts) {
       try {
         el._chrome = true;                                                 // FileView answers the chrome toggle
         el._fv = window.FileView.mount(el, opts);
-        paneLive(ps, paneId, el, [{ road: abs }]); psLanded(ps, paneId, el);
+        paneLive(ps, el, [{ road: abs }]); psLanded(ps, el);
       }   // the raw package follows its file
       catch (e) { el.textContent = 'open failed: ' + e; }
     });
@@ -4090,12 +4183,12 @@ function setup(root, opts) {
     ].filter(Boolean);
     // the session's grub by name (the default session's is the empty name
     // under the dir, so the dir is followed for it) and the slog stream
-    paneLive(ps, paneId, el, own ? [{ road: abs }, { road: LOGS, body: true }] : [{ road: SESSIONS }]);
+    paneLive(ps, el, own ? [{ road: abs }, { road: LOGS, body: true }] : [{ road: SESSIONS }]);
     // the keystrokes go to the hidden input: mark it, and psLanded decides
     // whether this pane may take the keyboard (not a terminal restoring
     // beside the pane you are in)
     inp.setAttribute('data-focus', '');
-    psLanded(ps, paneId, el);
+    psLanded(ps, el);
   }
 
   // ---- toast ----
@@ -4222,7 +4315,17 @@ function setup(root, opts) {
       }
       if (!passive && attached) applyOps(st.ops);
     }, null);
-    window.addEventListener('pagehide', () => { if (attached && !passive) { try { navigator.sendBeacon(SESSION_API, new Blob([JSON.stringify({ name: sessionName, detach: clientId })], { type: 'application/json' })); } catch (_) {} } });
+    // leaving: the spec rides out WITH the detach. writeBack is debounced, so
+    // a change made in the last quarter second before a reload or a close
+    // would otherwise go with the timer and the session would come back a
+    // move behind. One beacon, because a detach and a write are two different
+    // pokes and only the last of them would hold.
+    window.addEventListener('pagehide', () => {
+      if (!attached || passive) return;
+      clearTimeout(wbTimer);
+      const body = { name: sessionName, detach: clientId, spec: ps.serialize() };
+      try { navigator.sendBeacon(SESSION_API, new Blob([JSON.stringify(body)], { type: 'application/json' })); } catch (_) {}
+    });
     return { attach: attach, writeBack: writeBack, active: () => (attached && !passive ? clientId : null) };
   }
   // ---- mobile: the palace through a phone-sized aperture ----
@@ -5368,18 +5471,18 @@ const CFG_DEFAULTS = { chrome: 'hidden', surface: 'editor', dirMode: 'table', ba
 const CFG_FIELDS = [
   ['Opening', 'surface', 'A file opens in', 'the editor, or the reader (no vim, but the browser can find in it)',
    [['editor', 'the editor'], ['reader', 'the reader']]],
-  ['Opening', 'dirMode', 'A directory opens as', 'rows, or the desktop grid',
+  ['Opening', 'dirMode', 'In a pane, a directory opens as', 'rows down the pane, or a grid of icons',
    [['table', 'rows'], ['grid', 'the grid']]],
-  ['Opening', 'chrome', 'A pane\u2019s own chrome', 'the crumbs, bar and tools it draws around what it holds',
+  ['Opening', 'chrome', 'A pane starts with its own trim', 'the path crumbs, the tab bar and the buttons a pane draws around what it holds \u2014 hidden leaves the content alone on screen',
    [['hidden', 'hidden'], ['shown', 'shown']]],
   ['Panes', 'hoverBars', 'Hover brings a hidden bar back', 'with a pane\u2019s bar hidden, its top edge drops the bar in for a moment',
    'bool'],
   ['Panes', 'highlight', 'The keyboard\u2019s selection shows as', 'how plainly the chosen pane is marked, and a chosen GROUP of panes especially',
    [[2, 'a box, and the rest dimmed'], [1, 'an outline on the pane'], [0, 'nothing']]],
-  ['Listings', 'badges', 'Badges beside a name', 'the marks a listing puts on what it lists',
+  ['Listings', 'badges', 'Tags in the sidebar tree', 'a shield on a directory that is restricted, and a chip naming a directory\u2019s neck or a file\u2019s blot \u2014 click one to open it',
    'bool'],
-  ['Listings', 'finderView', 'The finder opens as', 'the shape the finder page lays its listing out in',
-   [['list', 'a list'], ['grid', 'a grid'], ['cols', 'columns']]],
+  ['Listings', 'finderView', 'Outside a workspace, a directory opens as', 'the page at a directory\u2019s own url, where the explorer is the whole window rather than a pane',
+   [['list', 'rows down the page'], ['grid', 'a grid of icons'], ['cols', 'columns you walk rightward']]],
   ['Editing', 'vim', 'Vim keybindings', 'off on a touch device whatever this says \u2014 a finger has no keyboard to map',
    'bool'],
   ['Editing', 'wrap', 'Wrap long lines', 'in the reader and the editor alike', 'bool'],
@@ -5394,6 +5497,9 @@ const VERB_HELP = [
   ['vs <path>', 'split right, the path there (or empty)'],
   ['sp <path>', 'split down, the path there (or empty)'],
   ['q', 'close this tab \u2014 in a file with unsaved text it refuses, and :q! drops them'],
+  ['wq / x', 'save if the file changed, then close \u2014 with no file, closes anyway and says so'],
+  ['w', 'save \u2014 needs a file; with a changed mime type, saves that too'],
+  ['mime <type>', 'set the mime type \u2014 needs a file; bare :mime says what it is'],
   ['chrome', 'the pane\u2019s own chrome, or none of it \u2014 in a file, the editor alone'],
 ];
 
@@ -5404,8 +5510,7 @@ const VERB_HELP = [
 // the element it mounts into, so anything in a template is gone there.
 //
 // Both lists come from where the things are defined: gmux's command table
-// and the verb tables. `verbs` is a function because what a pane lends
-// changes with the pane.
+// and VERB_HELP.
 function prefsModal(host, verbs, cfg, url, vimFor, vimUrl) {
   const md = document.createElement('modal-dialog');
   md.style.cssText = '--md-width: 780px';
@@ -5712,18 +5817,8 @@ function prefsModal(host, verbs, cfg, url, vimFor, vimUrl) {
     rows(boxKeys, by, '\u2303B then the key \u2014 the prefix waits a moment, so it is two presses and not a chord.', true);
     };
     render();
-    // one list, but a verb and its banged form belong together even though
-    // the pane declares one and what is in it declares the other
-    const v = verbs();
-    const base = (spelt) => String(spelt).split(/[ !]/)[0];
-    const merged = v.pane.slice();
-    for (const row of v.content) {
-      let at = -1;
-      merged.forEach((r, i) => { if (base(r[0]) === base(row[0])) at = i; });
-      if (at >= 0) merged.splice(at + 1, 0, row); else merged.push(row);
-    }
-    rows(boxVerbs, new Map([['', merged]]),
-         'Typed at a pane\u2019s : prompt (\u2303B :) and, in a file, at vim\u2019s own. The ones that save answer only where there is something to save.');
+    rows(boxVerbs, new Map([['', verbs()]]),
+         'Typed at a pane\u2019s : prompt (\u2303B :) and, in a file, at vim\u2019s own. The ones that need a file say so, and answer nowhere else.');
     note.textContent = '';
     tab(which || 'settings');
     md.show();
@@ -5773,10 +5868,7 @@ function sessionsPage(root, api, wait, waitFail) {
     const one = async (u) => { try { const r = await fetch(u, { cache: 'no-store' }); return r.ok ? await r.json() : {}; } catch (_) { return {}; } };
     [cfg, vim] = await Promise.all([one(CFG_URL), one(VIM_URL)]);
   };
-  const openPrefs = prefsModal(root, () => ({
-    pane: VERB_HELP,
-    content: (window.FileView && window.FileView.commandHelp) ? window.FileView.commandHelp() : [],
-  }), () => cfg, CFG_URL, () => vim, VIM_URL);
+  const openPrefs = prefsModal(root, () => VERB_HELP, () => cfg, CFG_URL, () => vim, VIM_URL);
   const gear = document.createElement('button');
   gear.className = 'ss-gear';
   gear.title = 'settings, keys and commands';
