@@ -85,40 +85,47 @@ function setup(root, opts) {
   // localStorage -- that is this browser's last word, and it wins over the
   // file, which is the standing preference.
   let CFG = CFG_DEFAULTS;
+  // Reading them gates every pane: a dir and a file both wait on this before
+  // they can know what an absent ?chrome means. So it settles as soon as the
+  // settings are IN HAND -- the filling-in below is a write, and a write the
+  // renders waited on was a workspace that did not render while a POST was
+  // slow, or at all if it hung.
   const cfgReady = fetch(CFG_URL, { cache: 'no-store' })
     .then((r) => (r.ok ? r.json() : null))
-    .then(async (j) => {
+    .then((j) => {
       if (!j || typeof j !== 'object') return;
       CFG = Object.assign({}, CFG_DEFAULTS, j);
-      // a setting the file has never held is written in, once, so the file
-      // says what the page is doing instead of leaving you to infer it from
-      // code. Only what is ABSENT: a value already there is a choice, and
-      // this must never be able to undo one.
-      const missing = Object.keys(CFG_DEFAULTS).filter((k) => !(k in j));
-      const noKeys = !('keys' in j);
-      if (!missing.length && !noKeys) return;
-      // the keymap is written out in full, so the file says what every key
-      // does instead of being an empty object you have to read code to
-      // understand. The cost: a binding recorded here stops following the
-      // code, and a name that later stops existing is dropped with a warning
-      // rather than silently doing nothing (see the keymap setter).
-      const out = Object.assign({}, CFG);
-      if (noKeys) out.keys = defaultKeys();
-      try {
-        const r = await fetch(CFG_URL, {
-          method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({ action: 'write-text', content: JSON.stringify(out, null, 2) + '\n' }),
-        });
-        if (!r.ok) throw new Error('http ' + r.status + ' ' + (await r.text()));
-        CFG = Object.assign({}, CFG_DEFAULTS, out);
-      } catch (e) {
-        // said, not swallowed: this fills the settings file in, and a silent
-        // failure here is a file that never gains the keys with nothing
-        // anywhere to say why
-        console.warn('explorer: could not fill in ' + CFG_URL + ': ' + (e && e.message));
-      }
+      fillIn(j);                                      // deliberately not awaited
     })
     .catch((e) => { console.warn('explorer: settings not read: ' + (e && e.message)); });
+  // a setting the file has never held is written in, once, so the file says
+  // what the page is doing instead of leaving you to infer it from code. Only
+  // what is ABSENT: a value already there is a choice, and this must never be
+  // able to undo one.
+  //
+  //   The keymap goes in whole, so the file says what every key does rather
+  //   than being an empty object you have to read code to understand. The
+  //   cost: a binding recorded here stops following the code, and a name that
+  //   later stops existing is dropped with a warning (see the keymap setter).
+  async function fillIn(j) {
+    const missing = Object.keys(CFG_DEFAULTS).filter((k) => !(k in j));
+    const noKeys = !('keys' in j);
+    if (!missing.length && !noKeys) return;
+    const out = Object.assign({}, CFG);
+    if (noKeys) out.keys = defaultKeys();
+    try {
+      const r = await fetch(CFG_URL, {
+        method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ action: 'write-text', content: JSON.stringify(out, null, 2) + '\n' }),
+      });
+      if (!r.ok) throw new Error('http ' + r.status + ' ' + (await r.text()));
+      CFG = Object.assign({}, CFG_DEFAULTS, out);
+    } catch (e) {
+      // said, not swallowed: a silent failure here is a file that never gains
+      // the keys with nothing anywhere to say why
+      console.warn('explorer: could not fill in ' + CFG_URL + ': ' + (e && e.message));
+    }
+  }
   // the bindings as they come: gmux's own, plus the default key of every
   // switch this page declares. The host computes the same thing, but the
   // sessions page has no host to ask.
