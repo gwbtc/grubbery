@@ -895,8 +895,6 @@ function setup(root, opts) {
   // a stock viewer by name + script: the explorer's own renderers (the tree),
   // loaded once, mounted like any declared one. null when it will not load.
   const stockViewer = (view, src) => paneFrom(src, view);
-  // `view`: the moment's ?view= when it is not one the host renders itself
-  // (rows|grid|tree); a rule names its own view names (a selector, a
   // +declaredIcon: the icon the rules give this moment, or '' for the many
   // that are given none. Asked apart from +viewerFor because it is a
   // different question: a rule may name an icon and no pane, name one on a
@@ -913,6 +911,8 @@ function setup(root, opts) {
       return (rule && rule.icon) || '';
     } catch (_) { return ''; }
   }
+  // `view`: the moment's ?view= when it is not one the host renders itself
+  // (rows|grid|tree); a rule names its own view names (a selector, a
   // record form) and the bare path (no view) opens as whatever claims it
   async function viewerFor(path, kind, neck, askView) {
     try {
@@ -1447,11 +1447,42 @@ function setup(root, opts) {
     psIcons.set(k, url || '');
     ps.redrawBars();
   }
-  function paneTabInfo(p) {
+  // asking, once, for a moment the bar has drawn but nothing has rendered.
+  // Only a pane's ACTIVE tab renders, so its other tabs would otherwise
+  // never put their moment to the rules -- they would wear the icon they
+  // were last seen with, or nothing at all if they have never been open.
+  // The bar is the one place that sees every tab, so it is the one place
+  // that can ask. A name resolves first; a moment spelled without its slash
+  // is tried as a directory too, since that is how an app root is written.
+  const psIconAsked = new Set();
+  function psAskIcon(ps, path) {
+    const key = psNs(path).replace(/\/$/, '') || '/';
+    if (psIconAsked.has(key) || psIcons.has(key)) return;
+    psIconAsked.add(key);
+    const ns = psNs(path);
+    psResolve(ns)
+      .then(async (abs) => {
+        const url = psUrl(abs), view = psArgs(path).view || null;
+        const first = psIsDir(ns) ? 'dir' : 'file';
+        return (await declaredIcon(url, first, view))
+            || (await declaredIcon(url, first === 'dir' ? 'file' : 'dir', view));
+      })
+      .then((u) => psSetIcon(ps, path, u))
+      .catch(() => { psIconAsked.delete(key); });          // let a later draw try again
+  }
+  function paneTabInfo(ps, p) {
     const pg = psArgs(p).page;
     return {
       icon: '',
-      img: psIcons.get(psNs(p).replace(/\/$/, '') || '/') || '',
+      // '' is "the rules give this moment none"; undefined is "not asked
+      // yet", which a restored workspace is full of. The bar keeps the last
+      // icon it drew for a tab and needs to know which of the two it has.
+      img: (() => {
+        const k = psNs(p).replace(/\/$/, '') || '/';
+        if (psIcons.has(k)) return psIcons.get(k);
+        psAskIcon(ps, p);                                  // not known: ask, and redraw when it lands
+        return undefined;
+      })(),
       label: pg ? (pg.split('/').filter(Boolean).pop() || pg) : psLabel(p),
       dead: psDead.has(psNs(p).replace(/\/$/, '') || '/'),
     };
@@ -5370,7 +5401,7 @@ function setup(root, opts) {
     const booted = () => { if (!booting) return; booting = false; for (const w of ps.querySelectorAll('.ps-pane-body > .ps-wait')) { const p = w.closest('.ps-pane'); if (p && ps.pathOf(p.dataset.paneId) == null) ps.refresh(p.dataset.paneId); } };
     ps.style.cssText = 'display:block;height:100%';
     ps.renderPath = (path, paneId, from) => paneContent(ps, paneId, path, from);
-    ps.tabInfo = paneTabInfo;
+    ps.tabInfo = (p) => paneTabInfo(ps, p);          // the workspace is the host's, not this function's
     ps.pathHint = (p) => { const ns = psNs(p); return psLink(ns) ? (psResolved.get(ns) || 'resolving ' + ns) : ''; };   // an @name moment's tooltip: where it landed
     ps.pathChip = psChipParse;
     ps.pathChipAlt = psChipAlt;
@@ -5435,7 +5466,23 @@ function setup(root, opts) {
     }, true);
     // ---- a session: this tab is its one client ----
     document.title = sessionName + ' · gmux';
-    const client = sessionClient(ps, root, sessionName, () => { booted(); ps.layoutSources().forEach(({ id, src }) => psFollowLayout(ps, id, src)); });
+    // a restored workspace holds the BUILT layout, not the file, so the
+    // moment that built it never renders and never asks the rules what its
+    // tab wears. The tab shows the icon it cached meanwhile; this reads the
+    // rules again so a declaration that has changed since is taken.
+    const relayout = ({ id, src }) => {
+      psFollowLayout(ps, id, src);
+      // the rules are read at the place the moment STANDS FOR: an @name has
+      // to resolve first, exactly as paneContentAt does, or the url is
+      // nonsense and the answer is a confident "no icon" that would wipe the
+      // one the tab is wearing. A name that will not resolve leaves the
+      // cached icon alone rather than clearing it on a guess.
+      psResolve(psNs(src))
+        .then((abs) => declaredIcon(psUrl(abs), 'dir', psArgs(src).view || null))
+        .then((u) => psSetIcon(ps, src, u))
+        .catch(() => {});
+    };
+    const client = sessionClient(ps, root, sessionName, () => { booted(); ps.layoutSources().forEach(relayout); });
     psSnaps(ps, (session) => session === sessionName ? client.active() : null);   // the attached client's id, or nothing
     client.attach();
     return;

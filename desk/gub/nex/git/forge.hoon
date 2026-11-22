@@ -1040,8 +1040,9 @@
   =/  ui  |=(name=@t (follow (cat 3 './repos/{1}/data/ui/' name) %.n))
   :-  %a
   ::  `icon`: what the TAB of a moment matching the rule wears. The forge
-  ::  marks itself and each repo workspace; the files under a repo are
-  ::  files and wear nothing, which is the usual case.
+  ::  marks ITSELF and nothing else: a mark earns its place by telling the
+  ::  tabs apart, and every repo wearing the same one says only what the
+  ::  name beside it already says.
   :~  %-  pairs:enjs:format
       :~  ['match' s+'']  ['kind' s+'dir']  ['layout' s+'./layout.json']
           ['icon' s+'./icon.svg']
@@ -1064,7 +1065,6 @@
       :~  ['match' s+'repos/*.git_repo']  ['kind' s+'dir']
           ['layout' s+'./repo-layout.json']
           ['vars' (pairs:enjs:format ~[['repo' s+'{1}']])]
-          ['icon' s+'./icon.svg']
       ==
       %+  repo-pane  'repos/*/data/ui/status.json'
       :+  'status'  './panes/repo.js'

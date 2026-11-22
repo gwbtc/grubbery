@@ -195,6 +195,9 @@ let SEQ = 0;
 const DIR = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' };
 const MODS = { Shift: 1, Control: 1, Alt: 1, Meta: 1 };
 const base = (p) => (p || '').split('/').filter(Boolean).pop() || p || '';
+// the "and keep where I am" modifier on a click. ⌘ on a mac, Ctrl elsewhere,
+// which is the pair every browser uses for it.
+const mod = (e) => !!(e && (e.metaKey || e.ctrlKey));
 
 class Gmux extends HTMLElement {
   renderPath = null;
@@ -527,7 +530,7 @@ class Gmux extends HTMLElement {
   #makeBar(id) {
     const bar = document.createElement('div');
     bar.className = 'ps-bar';
-    const btn = (t, title, fn) => { const b = document.createElement('button'); b.className = 'ps-bar-btn'; b.textContent = t; b.title = title; b.addEventListener('click', (e) => { e.stopPropagation(); fn(); }); return b; };
+    const btn = (t, title, fn) => { const b = document.createElement('button'); b.className = 'ps-bar-btn'; b.textContent = t; b.title = title; b.addEventListener('click', (e) => { e.stopPropagation(); fn(e); }); return b; };
     // row 1 — tabs + structure controls
     const row1 = document.createElement('div'); row1.className = 'ps-bar-row';
     const tabs = document.createElement('div'); tabs.className = 'ps-bar-tabs';
@@ -560,7 +563,11 @@ class Gmux extends HTMLElement {
     const row2 = document.createElement('div'); row2.className = 'ps-bar-row';
     // refresh: re-render the current moment in place (what it shows is
     // refetched; history, tabs and scroll stay)
-    const reload = btn('↻', 'refresh this moment', () => this.refresh(id));
+    // ⌘-click makes a second tab on this same moment instead, beside this
+    // one -- what a browser's reload button does, and the plainest way to
+    // put the same thing side by side
+    const reload = btn('↻', 'refresh this moment (⌘ for a copy in a new tab)',
+                       (e) => (mod(e) ? this.cloneTab(id, 0) : this.refresh(id)));
     // copy the moment as TEXT. The path field renders an @name as a chip,
     // which is the right thing to read and the wrong thing to select --
     // dragging across a chip gets you nothing to paste. The button hands
@@ -577,10 +584,12 @@ class Gmux extends HTMLElement {
         input.focus(); input.select();
       }
     });
-    const back = document.createElement('button'); back.className = 'ps-bar-btn'; back.textContent = '◀'; back.title = 'back (hold for history)';
-    const fwd = document.createElement('button'); fwd.className = 'ps-bar-btn'; fwd.textContent = '▶'; fwd.title = 'forward (hold for history)';
-    this.#wireHold(back, id, () => this.back(id), 'back');     // click = step, hold = history dropdown
-    this.#wireHold(fwd, id, () => this.forward(id), 'forward');
+    const back = document.createElement('button'); back.className = 'ps-bar-btn'; back.textContent = '◀'; back.title = 'back (hold for history, ⌘ for a new tab)';
+    const fwd = document.createElement('button'); fwd.className = 'ps-bar-btn'; fwd.textContent = '▶'; fwd.title = 'forward (hold for history, ⌘ for a new tab)';
+    // click = step, hold = history dropdown, ⌘-click = step a COPY of this
+    // tab, beside it, leaving this one where it stands
+    this.#wireHold(back, id, (e) => (mod(e) ? this.cloneTab(id, -1) : this.back(id)), 'back');
+    this.#wireHold(fwd, id, (e) => (mod(e) ? this.cloneTab(id, 1) : this.forward(id)), 'forward');
     const nav = document.createElement('div'); nav.className = 'ps-nav';
     const input = document.createElement('input');
     input.type = 'text'; input.spellcheck = false; input.placeholder = 'path…';
@@ -647,15 +656,25 @@ class Gmux extends HTMLElement {
       // the kind glyph it SURVIVES naming: the glyph says what a tab is and
       // the name says that better, but the icon says whose it is, and that
       // is still worth knowing on a tab you have named yourself.
-      if (m.img) {
+      // The host knows a moment's icon only once that moment has rendered,
+      // and a RESTORED workspace has rendered nothing: its layouts are
+      // rebuilt from the spec, so the path that asks never runs. So the tab
+      // keeps the last icon drawn on it and wears that until the host says
+      // otherwise -- a cache, written back into the workspace so it survives
+      // the reload, and replaced the moment the rules are actually read.
+      // `undefined` from the host is "not asked yet"; '' is "asked, none".
+      const known = m.img !== undefined;
+      const img = known ? m.img : (tab.icon || '');
+      if (known && (m.img || '') !== (tab.icon || '')) { tab.icon = m.img || null; this.#persist(); }
+      if (img) {
         const im = document.createElement('img'); im.className = 'ps-tab-img';
-        im.src = m.img; im.alt = ''; im.decoding = 'async'; im.loading = 'lazy';
+        im.src = img; im.alt = ''; im.decoding = 'async'; im.loading = 'lazy';
         // a declaration naming a file that is not there must cost a broken
         // image icon on every tab, not a missing one
         im.addEventListener('error', () => im.remove());
         b.appendChild(im);
       }
-      if (m.icon && !named && !m.img) { const ic = document.createElement('span'); ic.className = 'ps-tab-ic'; ic.textContent = m.icon; b.appendChild(ic); }
+      if (m.icon && !named && !img) { const ic = document.createElement('span'); ic.className = 'ps-tab-ic'; ic.textContent = m.icon; b.appendChild(ic); }
       const txt = document.createElement('span'); txt.className = 'ps-tab-t'; txt.textContent = m.label; b.appendChild(txt);
       b.addEventListener('click', (e) => { e.stopPropagation(); this.selectTab(pane.id, i); });
       b.addEventListener('dblclick', (e) => { e.stopPropagation(); e.preventDefault(); this.#editTabName(pane, i, b, txt); });
@@ -677,19 +696,18 @@ class Gmux extends HTMLElement {
   // {icon,label} for one entry — host's tabInfo(path) wins for leaf entries.
   #entryMeta(e) {
     if (!e) return { icon: '', label: 'empty' };
-    // `dead` (from the host's tabInfo): the path this entry shows is gone
-    // a layout or a nested pane: its SOURCE moment is what it shows, so the
-    // icon declared for that moment is this tab's too. An app's root is
-    // usually a layout, which makes this the case that matters most; the
-    // glyph stands in where nothing was declared (#renderBar prefers the
-    // icon when there is one).
+    // A layout or a nested pane: its SOURCE moment is what it shows, so
+    // that moment's icon and its `dead` are this tab's too. An app's root
+    // is usually a layout, which makes this the case that matters most;
+    // the glyph stands in where no icon was declared (#renderBar prefers
+    // the icon when there is one).
     if (e.div || e.pane) {
-      const s = this.#entrySrc(e); let dead = false, img = '';
-      if (s && this.tabInfo) { try { const m = this.tabInfo(s); dead = !!(m && m.dead); img = (m && m.img) || ''; } catch (_) {} }
+      const s = this.#entrySrc(e); let dead = false, img;
+      if (s && this.tabInfo) { try { const m = this.tabInfo(s); dead = !!(m && m.dead); img = m ? m.img : undefined; } catch (_) {} }
       return { icon: '▣', img, label: s ? base(s) : 'layout', dead };
     }
-    if (this.tabInfo) { try { const m = this.tabInfo(e.path); if (m) return { icon: m.icon || '', img: m.img || '', label: m.label || base(e.path) || 'empty', dead: !!m.dead }; } catch (_) {} }
-    return { icon: '', img: '', label: base(e.path) || 'empty' };
+    if (this.tabInfo) { try { const m = this.tabInfo(e.path); if (m) return { icon: m.icon || '', img: m.img, label: m.label || base(e.path) || 'empty', dead: !!m.dead }; } catch (_) {} }
+    return { icon: '', img: undefined, label: base(e.path) || 'empty' };
   }
   // a tab's chip: the user's name (tab.label) over the moment's offered name
   // (entry.name, given when content opened it) over the derived description.
@@ -754,7 +772,7 @@ class Gmux extends HTMLElement {
   #wireHold(el, id, step, dir) {
     let timer = null, held = false;
     el.addEventListener('mousedown', () => { held = false; timer = setTimeout(() => { held = true; timer = null; this.#openHistMenu(id, el, dir); }, 350); });
-    el.addEventListener('mouseup', () => { if (timer) { clearTimeout(timer); timer = null; } if (!held) step(); });
+    el.addEventListener('mouseup', (e) => { if (timer) { clearTimeout(timer); timer = null; } if (!held) step(e); });
     el.addEventListener('mouseleave', () => { if (timer) { clearTimeout(timer); timer = null; } });
     el.addEventListener('click', (e) => { e.preventDefault(); });   // handled via mousedown/up
   }
@@ -1337,6 +1355,53 @@ class Gmux extends HTMLElement {
   }
   back(id) { const p = this.#panes.get(id ?? this.#activeId); if (!this.#canBack(p)) return; p.tabs[p.activeTab].cursor--; this.#renderPane(p); this.#afterStructure(); this.#persist(); }
   forward(id) { const p = this.#panes.get(id ?? this.#activeId); if (!this.#canFwd(p)) return; p.tabs[p.activeTab].cursor++; this.#renderPane(p); this.#afterStructure(); this.#persist(); }
+  // cloneTab(id, delta): this tab again, beside it, with its cursor where
+  // the button would have put it -- back, forward, or where it already is.
+  // One operation for all three: a tab IS its entries and a cursor, so the
+  // step is the only difference between them.
+  //
+  // It does NOT go through newTab, which selects a tab already showing the
+  // moment rather than making a second one -- and a second one is the whole
+  // request here.
+  cloneTab(id, delta) {
+    const p = this.#panes.get(id ?? this.#activeId); if (!p) return;
+    const tab = p.tabs[p.activeTab]; if (!tab) return;
+    const at = tab.cursor + (delta || 0);
+    if (at < 0 || at >= tab.entries.length) return;        // nowhere to step: inert, like the button
+    const want = tab.entries[at];
+    if (!want) return;
+    // a division or a nested pane is a live object THIS pane owns, so it is
+    // not copied -- but it was opened on a moment, and the copy opens there
+    // and builds the layout again. An app's root is a layout, which makes
+    // this the ordinary case rather than the odd one.
+    // The whole history comes across, as PATHS. A division or a nested pane
+    // is a live object this pane owns and cannot be handed to a second tab,
+    // but the moment it was built FROM is a path like any other: the copy
+    // carries that, and builds the layout again when it lands there. An
+    // entry naming nothing at all is the only one dropped, and the cursor
+    // moves with what survives. The COMMAND history comes along too -- it
+    // is what was typed at this tab, not a property of any one moment. The
+    // name does not: two tabs under one name is worse than one with none.
+    const asPath = (e) => {
+      if (!(e.div || e.pane)) return e.path != null ? Object.assign({}, e) : null;
+      const src = this.#entrySrc(e);
+      return src ? { path: src } : null;
+    };
+    const mapped = tab.entries.map(asPath);
+    if (!mapped[at]) return;                               // the moment asked for names nothing
+    const entries = [], kept = [];
+    mapped.forEach((e, i) => { if (e) { entries.push(e); kept.push(i); } });
+    p.tabs.splice(p.activeTab + 1, 0, {
+      entries,
+      cursor: kept.indexOf(at),
+      label: null,
+      hist: (tab.hist || []).slice(),
+      view: tab.view || null,                              // the render mode is the tab's, so the copy opens the same way
+    });
+    // beside, not in front: the tab you were on is the tab you keep. The
+    // splice is after activeTab, so the active one does not move.
+    this.#renderPane(p); this.#afterStructure(); this.#persist();
+  }
   // newTab(id, path, name): `name` is the moment's offered name (content's
   // description, kept on the entry); the tab's own name stays the user's.
   newTab(id, path, name) {
@@ -2354,7 +2419,7 @@ class Gmux extends HTMLElement {
   cursorToAddr(addr) { if (!this.#root || typeof addr !== 'string') return false; const t = this.#descend(this.#root, addr); if (!t) return false; this.cursorTo(t); return true; }
   #serPane(pane) {
     if (!pane) return null;
-    return { id: pane.ref || undefined, tabs: pane.tabs.map(t => ({ entries: t.entries.map(e => this.#serEntry(e)), cursor: t.cursor, label: t.label || undefined, view: t.view || undefined, hist: (t.hist && t.hist.length) ? t.hist : undefined })), activeTab: pane.activeTab, bar: pane.showBar || undefined, nav: pane.nav === false ? false : undefined, open: pane.open || undefined };
+    return { id: pane.ref || undefined, tabs: pane.tabs.map(t => ({ entries: t.entries.map(e => this.#serEntry(e)), cursor: t.cursor, label: t.label || undefined, view: t.view || undefined, icon: t.icon || undefined, hist: (t.hist && t.hist.length) ? t.hist : undefined })), activeTab: pane.activeTab, bar: pane.showBar || undefined, nav: pane.nav === false ? false : undefined, open: pane.open || undefined };
   }
   #serEntry(e) {
     const name = e.name || undefined;
@@ -2407,6 +2472,7 @@ class Gmux extends HTMLElement {
       hist: Array.isArray(t.hist) ? t.hist.filter(x => typeof x === 'string') : [],
       label: (typeof t.label === 'string' && t.label) || null,
       view: (typeof t.view === 'string' && t.view) || null,
+      icon: (typeof t.icon === 'string' && t.icon) || null,   // the last icon drawn: shown until the rules are read again
     }));
     pane.activeTab = typeof spec.activeTab === 'number' ? spec.activeTab : 0;
     pane.open = (spec.open && typeof spec.open === 'object') ? spec.open : null;
