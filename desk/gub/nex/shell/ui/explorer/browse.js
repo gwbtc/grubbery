@@ -5466,23 +5466,7 @@ function setup(root, opts) {
     }, true);
     // ---- a session: this tab is its one client ----
     document.title = sessionName + ' · gmux';
-    // a restored workspace holds the BUILT layout, not the file, so the
-    // moment that built it never renders and never asks the rules what its
-    // tab wears. The tab shows the icon it cached meanwhile; this reads the
-    // rules again so a declaration that has changed since is taken.
-    const relayout = ({ id, src }) => {
-      psFollowLayout(ps, id, src);
-      // the rules are read at the place the moment STANDS FOR: an @name has
-      // to resolve first, exactly as paneContentAt does, or the url is
-      // nonsense and the answer is a confident "no icon" that would wipe the
-      // one the tab is wearing. A name that will not resolve leaves the
-      // cached icon alone rather than clearing it on a guess.
-      psResolve(psNs(src))
-        .then((abs) => declaredIcon(psUrl(abs), 'dir', psArgs(src).view || null))
-        .then((u) => psSetIcon(ps, src, u))
-        .catch(() => {});
-    };
-    const client = sessionClient(ps, root, sessionName, () => { booted(); ps.layoutSources().forEach(relayout); });
+    const client = sessionClient(ps, root, sessionName, () => { booted(); ps.layoutSources().forEach(({ id, src }) => psFollowLayout(ps, id, src)); });
     psSnaps(ps, (session) => session === sessionName ? client.active() : null);   // the attached client's id, or nothing
     client.attach();
     return;

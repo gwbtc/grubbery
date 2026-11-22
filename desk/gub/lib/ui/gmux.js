@@ -1370,10 +1370,6 @@ class Gmux extends HTMLElement {
     if (at < 0 || at >= tab.entries.length) return;        // nowhere to step: inert, like the button
     const want = tab.entries[at];
     if (!want) return;
-    // a division or a nested pane is a live object THIS pane owns, so it is
-    // not copied -- but it was opened on a moment, and the copy opens there
-    // and builds the layout again. An app's root is a layout, which makes
-    // this the ordinary case rather than the odd one.
     // The whole history comes across, as PATHS. A division or a nested pane
     // is a live object this pane owns and cannot be handed to a second tab,
     // but the moment it was built FROM is a path like any other: the copy
