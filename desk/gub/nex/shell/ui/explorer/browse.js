@@ -3337,7 +3337,18 @@ function setup(root, opts) {
       el._primeFrom = null;
       try {
         el._chrome = true;                                                 // FileView answers the chrome toggle
+        // the viewer draws its chrome at once and fetches the bytes after,
+        // so without this the pane shows an empty editor until they land.
+        // Hold the same loading block a dir pane uses over it, and drop it
+        // when the viewer says its first load settled (onReady). psWait fades
+        // in after a beat, so a primed/instant open never flashes a spinner.
+        let fvReady = false;
+        const cover = document.createElement('div');
+        psWait(cover, 'loading', ns);
+        cover.style.cssText = 'position:absolute;inset:0;z-index:5;background:#fff';
+        opts.onReady = () => { fvReady = true; cover.remove(); };
         el._fv = window.FileView.mount(el, opts);
+        if (!fvReady) { el.style.position = 'relative'; el.appendChild(cover); }
         paneLive(ps, el, [{ road: abs }]); psLanded(ps, el);
       }   // the raw package follows its file
       catch (e) { el.textContent = 'open failed: ' + e; }

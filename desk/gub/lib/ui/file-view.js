@@ -474,7 +474,14 @@
       if (info.kind === 'missing') return renderMissing();
       if (info.kind === 'boom') return renderBoom();
       await renderFile();
-    })();
+    })().finally(function () {
+      // the first load has settled -- rendered, missing, boomed or errored.
+      // A host holding a loading indicator over this pane (see browse.js)
+      // takes this as the cue to drop it: the viewer renders its chrome at
+      // once and fetches the bytes after, so without it the spinner would
+      // clear onto an empty editor.
+      if (opts.onReady) { try { opts.onReady(); } catch (_) {} }
+    });
 
     // A file that cannot be shown is a STATE OF THE PANE, not an alert over
     // it. A modal gets dismissed and leaves the viewer looking like it holds
