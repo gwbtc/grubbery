@@ -3547,34 +3547,13 @@
   =?  this  (lien ~(tap in changed) usergroups-lane)  recompute-all-weirs
   ::  If the upki file changed, give udiffs to gall subscribers
   =.  this  (maybe-give-jael changed)
-  ::  For each watched lane, find subscribers and send news
-  =/  watched=(list [target=lane:tarball watchers=(map rail:tarball [=wire blot=(unit blot:tarball)])])
-    tap-fwd
+  ::  Only the watchers on the changed paths are told: walk fwd.subs
+  ::  down each changed lane instead of listing every watcher
+  =/  reached=(list [target=lane:tarball watchers=subscribers:nexus relevant=(set lane:tarball)])
+    ~(tap by (reach-fwd:nexus fwd.subs changed))
   |-
-  ?~  watched  this
-  =/  [target=lane:tarball watchers=(map rail:tarball [=wire blot=(unit blot:tarball)])]  i.watched
-  ::  Find all changed lanes that are inside this target (or equal to target)
-  =/  relevant=(set lane:tarball)
-    %-  ~(gas in *(set lane:tarball))
-    %+  murn  ~(tap in changed)
-    |=  chg=lane:tarball
-    ^-  (unit lane:tarball)
-    ?-    -.target
-        ::  File target: only exact match counts
-        %&
-      ?.  &(?=(%& -.chg) =(p.chg p.target))  ~
-      `chg
-        ::  Dir target: changed lane must be under target dir
-        %|
-      ?-  -.chg
-        ::  Changed file: file's dir must be under target dir
-        %&  ?~((decap:tarball p.target path.p.chg) ~ `chg)
-        ::  Changed dir: must be under or equal to target dir
-        %|  ?~((decap:tarball p.target p.chg) ~ `chg)
-      ==
-    ==
-  ::  Skip if nothing relevant changed
-  ?:  =(~ relevant)  $(watched t.watched)
+  ?~  reached  this
+  =/  [target=lane:tarball watchers=subscribers:nexus relevant=(set lane:tarball)]  i.reached
   ::  Build wavefront for relevant lanes, relativized to target
   =/  =wave:nexus  (wave-at:nexus born target)
   ::  Send wavefront to each watcher
@@ -3610,7 +3589,7 @@
       acc
     ::  Local watcher: deliver directly
     (enqu-take:acc watcher ~ ~ %news wire wave)
-  $(watched t.watched)
+  $(reached t.reached)
 ::  Handle jael on-watch: give initial udiffs on subscription.
 ::  path=~ gives all udiffs, path=[@ ~] filters per ship.
 ::
