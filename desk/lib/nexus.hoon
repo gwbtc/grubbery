@@ -1272,6 +1272,57 @@
   ^-  (set lane:tarball)
   (diff-born-at / old new %state)
 ::
+::  +reach: watched targets that a change set reaches
+::
+::  Each target comes with its watchers and with the changed lanes that
+::  reach it.
+::
++$  reach
+  (map lane:tarball [watchers=subscribers relevant=(set lane:tarball)])
+::
+::  +reach-fwd: find the watched targets that a change set reaches
+::
+::  A dir target is reached by every changed lane under it or equal to
+::  it. A file target is reached only by that exact file. So the walk
+::  follows each changed lane's path down fwd, reading the dir watchers
+::  at every prefix and, for a changed file, the file watchers of its
+::  name at the end. The cost follows the depth of the changed paths and
+::  not the number of watchers on the ship.
+::
+++  reach-fwd
+  |=  $:  fwd=(axal [dir=subscribers fil=(map @ta subscribers)])
+          changed=(set lane:tarball)
+      ==
+  ^-  reach
+  =/  lanes=(list lane:tarball)  ~(tap in changed)
+  =|  hits=reach
+  |-  ^+  hits
+  ?~  lanes  hits
+  =/  chg=lane:tarball  i.lanes
+  =/  rest=path  ?-(-.chg %& path.p.chg, %| p.chg)
+  =|  here=path
+  =/  node=_fwd  fwd
+  =.  hits
+    |-  ^+  hits
+    =?  hits  &(?=(^ fil.node) ?=(^ dir.u.fil.node))
+      (reach-put hits [%| here] dir.u.fil.node chg)
+    ?~  rest
+      ?.  &(?=(%& -.chg) ?=(^ fil.node))  hits
+      =/  fw=subscribers  (fall (~(get by fil.u.fil.node) name.p.chg) ~)
+      ?~  fw  hits
+      (reach-put hits [%& here name.p.chg] fw chg)
+    =/  kid=(unit _fwd)  (~(get by dir.node) i.rest)
+    ?~  kid  hits
+    $(rest t.rest, here (snoc here i.rest), node u.kid)
+  $(lanes t.lanes)
+::
+++  reach-put
+  |=  [hits=reach target=lane:tarball watchers=subscribers chg=lane:tarball]
+  ^+  hits
+  =/  old=[watchers=subscribers relevant=(set lane:tarball)]
+    (~(gut by hits) target [watchers ~])
+  (~(put by hits) target [watchers (~(put in relevant.old) chg)])
+::
 ++  diff-born-at
   |=  [here=fold:tarball old=born new=born mode=?(%all %state)]
   ^-  (set lane:tarball)
