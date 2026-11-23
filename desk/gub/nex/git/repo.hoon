@@ -836,16 +836,26 @@
   =/  remote-hash=@ux
     ?:  =('' chain-base)  0x0
     (fall (rust (trip chain-base) parse-hash-sha-1:git-transport) 0x0)
-  =/  chain=(list hash:git-repo)
+  ::  walk local's first-parent chain back toward the remote tip. `reached`
+  ::  records WHETHER the walk arrived at remote-hash: if it did, local
+  ::  descends from the remote tip and the push is a fast-forward; if it
+  ::  ran out at the root instead, local has diverged and the push would
+  ::  OVERWRITE commits the remote holds that we never saw. The remote-tip
+  ::  compare-and-set below guards against the remote moving since our last
+  ::  fetch, but NOT against this: a fetch can advance our tracking ref to
+  ::  the remote's new tip while our local branch still sits on a commit
+  ::  that tip does not descend from, and then the compare-and-set passes
+  ::  for a non-fast-forward update the server accepts as a force-push.
+  =/  [chain=(list hash:git-repo) reached=?]
     =|  acc=(list hash:git-repo)
     =/  h=hash:git-repo  u.local-hash
-    |-
-    ?:  =(h remote-hash)  acc
-    ?:  =(h 0x0)  acc
+    |-  ^-  [(list hash:git-repo) ?]
+    ?:  =(h remote-hash)  [acc &]
+    ?:  =(h 0x0)  [acc |]
     =/  com=(unit commit:git-repo)  (get-commit:sto h)
-    ?~  com  acc
+    ?~  com  [acc |]
     =/  new-acc=(list hash:git-repo)  [h acc]
-    ?~  parents.u.com  new-acc
+    ?~  parents.u.com  [new-acc |]
     $(h i.parents.u.com, acc new-acc)
   ?~  chain
     (pure:m [%ok 'nothing to push'])
@@ -866,6 +876,13 @@
   ?.  =(remote-tip remote-hash)
     =/  short=tape  (scag 7 (print-hash-sha-1:git-transport remote-tip))
     (pure:m [%error (crip "remote {(trip branch)} has moved ({short}): pull first")])
+  ::  a push MUST be a fast-forward: local has to descend from the remote
+  ::  tip, or we would discard commits the remote holds. A non-empty remote
+  ::  tip the chain never reached means the branches have diverged — refuse,
+  ::  rather than send a force-push that silently overwrites the remote.
+  ?:  &(!=(remote-tip 0x0) !reached)
+    =/  short=tape  (scag 7 (print-hash-sha-1:git-transport remote-tip))
+    (pure:m [%error (crip "local {(trip branch)} diverged from origin ({short}): not a fast-forward — pull and merge or reset before pushing, rather than overwrite the remote")])
   ::  every object reachable from the chain's commits that the remote
   ::  tip can't already reach: the commits, their trees, their blobs
   =/  get-tree=$-(@ux (unit tree-dir:git-repo))
