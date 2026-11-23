@@ -554,7 +554,12 @@
       } else {
         src.className = 'dim'; src.textContent = 'binary content'; src.style.display = '';
       }
-      setupPanes(); setupWrap(); setupNums(); setupCopy(); setupEditor(); renderSource();
+      var paneReady = setupPanes();
+      setupWrap(); setupNums(); setupCopy(); setupEditor(); renderSource();
+      // the chrome is up, but a rendered pane paints after its renderer loads.
+      // Hold the first load open until it has, so a host's loading block clears
+      // onto the file itself, not onto the bar with nothing under it.
+      if (paneReady && paneReady.then) { try { await paneReady; } catch (_) {} }
       booted = true;
       setChrome(chrome);
     }
@@ -607,12 +612,17 @@
       // file does not carry them
       var rendering = which === 'view' || which === 'mime';
       $('mime-row').style.display = rendering ? 'none' : '';
-      if (which === 'mime' && !mimeRendered) { renderMime(); mimeRendered = true; }
+      // a rendered pane paints asynchronously -- a preview loads its renderer
+      // and then draws -- so hand that promise back: the first show can be
+      // held under the host's loading block until the file is on screen
+      var pending;
+      if (which === 'mime' && !mimeRendered) { pending = renderMime(); mimeRendered = true; }
       if (which === 'build' && !buildRendered) { renderBuild(); buildRendered = true; }
       if (which === 'view' && viewer && !viewerHandle) {
         try { viewerHandle = viewer.mount(viewPane, { url: here, onNavigate: opts.onNavigate }) || { destroy: function () {} }; }
         catch (e) { viewPane.textContent = 'viewer failed: ' + e; }
       }
+      return pending;
     }
     // Preview is not in here: a rendering of the file is the OTHER side of
     // the pane's rendered/raw toggle, following the file so it redraws when
@@ -623,10 +633,10 @@
       tabText.addEventListener('click', function () { show('text'); });
       tabBuild.addEventListener('click', function () { show('build'); });
       tabView.addEventListener('click', function () { show('view'); });
-      if (fixed) { show(fixed); return; }
+      if (fixed) return show(fixed);
       tabText.style.display = buildStatus || viewer ? '' : 'none';
       if (viewer) { tabView.textContent = viewer.label || 'View'; tabView.style.display = ''; }
-      show(viewer ? 'view' : 'text');
+      return show(viewer ? 'view' : 'text');
     }
 
     // +currentText: what Source is showing right now — the editor's buffer

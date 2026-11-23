@@ -1354,8 +1354,10 @@ function setup(root, opts) {
       // asking the content where to go sent :e to a pane that had moved
       const go = (u) => ps.openFrom(id, psMoment(u));
       // the chrome state is sticky: :e from a stripped pane opens the next
-      // path stripped too, as you move through files
-      const keepChrome = (t) => psSetChrome(t, psChromeOn(path));
+      // path stripped too, as you move through files. Only a pane that SET
+      // chrome carries it along -- a default pane leaves the next moment
+      // bare, rather than stamping it with the setting's current value.
+      const keepChrome = (t) => { const c = psArgs(path).chrome; return c == null ? t : psSetChrome(t, c !== '0'); };
       // the file open in this pane, as the verbs it answers to -- null when
       // the pane holds a directory, an empty pane, or a view with no file
       const fileVerb = (name) => {
@@ -1409,8 +1411,9 @@ function setup(root, opts) {
   // relative to the file's dir, like vim's.
   const exHost = (ps, paneId, ns, route) => {
     const rel = (u) => psRel(ns.replace(/\/[^/]*$/, '') || '/', u);   // absolute, @name and ./ ../ spellings all resolve here
-    // sticky here too: vim's :e carries the chrome state along
-    const keepChrome = (t) => psSetChrome(t, psChromeOn(ps.pathOf(paneId) || ''));
+    // sticky here too: vim's :e carries a SET chrome state along, and leaves
+    // a default pane's next moment bare rather than stamping the setting on it
+    const keepChrome = (t) => { const c = psArgs(ps.pathOf(paneId) || '').chrome; return c == null ? t : psSetChrome(t, c !== '0'); };
     return { open: (u) => route(keepChrome(rel(u)), null, null),
              close: () => ps.closeActiveTab(paneId),
              splitRight: (u) => ps.splitRight(paneId, u ? psNs(rel(u)) : undefined),
@@ -2970,6 +2973,27 @@ function setup(root, opts) {
       .catch((e) => psWaitFail(el, 'link: ' + (e && e.message ? e.message : e), ns));
     return el;
   }
+  // mount FileView holding a loading block over the pane until its first
+  // load settles. The viewer draws its chrome at once and fetches the bytes
+  // after, so without this the pane shows an empty editor until they land.
+  // psWait fades in after a beat, so a primed or instant open never flashes
+  // a spinner; onReady (see file-view.js) is the cue that the bytes are in.
+  function mountFileCovered(el, opts, ns) {
+    let ready = false;
+    // an OPAQUE block from the first frame: the viewer draws its bar at once
+    // and the content under it lands later, so a block that showed through
+    // would just reveal the bar with nothing beneath. psWait's own fade-in
+    // rides a child, so the spinner still waits a beat (no flash on a fast
+    // open) while the white is there the whole time to hide the chrome.
+    const cover = document.createElement('div');
+    cover.style.cssText = 'position:absolute;inset:0;z-index:5;background:#fff';
+    const spin = document.createElement('div'); spin.style.cssText = 'height:100%';
+    psWait(spin, 'loading', ns); cover.appendChild(spin);
+    opts.onReady = () => { ready = true; cover.remove(); };
+    const fv = window.FileView.mount(el, opts);
+    if (!ready) { el.style.position = 'relative'; el.appendChild(cover); }
+    return fv;
+  }
   // render a moment whose place is known: ns is the moment's own path (what
   // links under it are spelled with, what the tab chips show), abs the place
   // fetched and followed; they differ only under an @name
@@ -3298,14 +3322,14 @@ function setup(root, opts) {
       if (!raw && window.FilePreview && FilePreview.kind(psOwn(abs).name)) {
         try {
           el._chrome = true;                                               // FileView answers the chrome toggle
-          el._fv = window.FileView.mount(el, {
+          el._fv = mountFileCovered(el, {
             url, view: 'preview', crumbBase: ROOT, onNavigate: onNav,
             open: vopen, close: vclose, query: psArgs(path),
             chrome, setChrome: (on) => ps.replaceMoment(paneId, psSetChrome(path, on)),
             surface: CFG.surface, wrap: CFG.wrap, nums: CFG.nums, vim: CFG.vim,
             readOnly: !!atCase, at: atCase ? '&' + atCase : '',
             versions: psPastBar(ns, path, 'file', onNav),
-            host: exHost(ps, paneId, ns, route) });
+            host: exHost(ps, paneId, ns, route) }, ns);
           paneLive(ps, el, [{ road: abs }]); psLanded(ps, el);
           return;
         } catch (e) { el.textContent = 'open failed: ' + e; return; }
@@ -3337,18 +3361,7 @@ function setup(root, opts) {
       el._primeFrom = null;
       try {
         el._chrome = true;                                                 // FileView answers the chrome toggle
-        // the viewer draws its chrome at once and fetches the bytes after,
-        // so without this the pane shows an empty editor until they land.
-        // Hold the same loading block a dir pane uses over it, and drop it
-        // when the viewer says its first load settled (onReady). psWait fades
-        // in after a beat, so a primed/instant open never flashes a spinner.
-        let fvReady = false;
-        const cover = document.createElement('div');
-        psWait(cover, 'loading', ns);
-        cover.style.cssText = 'position:absolute;inset:0;z-index:5;background:#fff';
-        opts.onReady = () => { fvReady = true; cover.remove(); };
-        el._fv = window.FileView.mount(el, opts);
-        if (!fvReady) { el.style.position = 'relative'; el.appendChild(cover); }
+        el._fv = mountFileCovered(el, opts, ns);
         paneLive(ps, el, [{ road: abs }]); psLanded(ps, el);
       }   // the raw package follows its file
       catch (e) { el.textContent = 'open failed: ' + e; }
