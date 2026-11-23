@@ -278,7 +278,7 @@
     // the text actually on disk / last saved; the VimEditor instance (mounted
     // lazily on first Edit click, see setupEditor) is the live source of truth
     // for unsaved edits once it exists
-    var edText = '', ve = null;
+    var edText = '', ve = null, edResize = null;
     var textView = $('text-view'), mimeView = $('mime-view'), buildView = $('build-view'), viewPane = $('view-pane');
     var tabText = $('tab-text'), tabMime = $('tab-mime'), tabBuild = $('tab-build'), tabView = $('tab-view');
     // the keyboard lands on the root when the pane is chosen by keyboard
@@ -743,6 +743,17 @@
           onChange: function () { syncSaveBtn(); if (live) scheduleLive(); },
           ex: exTable
         });
+        // CodeMirror measures its viewport once, at mount. A pane that was
+        // hidden or unsized then -- an inactive tab, a split still settling --
+        // leaves it blank until a click forces a re-measure. Refreshing when
+        // the editor's box gains or changes size paints it the moment it is
+        // shown, and keeps its gutter and viewport right as the pane resizes.
+        if (window.ResizeObserver) {
+          edResize = new ResizeObserver(function () {
+            if (ve && ed.clientWidth > 0 && ed.clientHeight > 0) ve.refresh();
+          });
+          edResize.observe(ed);
+        }
         return ve;
       }
       // vim's command line, bound to this file and its pane: :w saves, :q
@@ -1051,6 +1062,7 @@
         return true;
       },
       destroy: function () {
+        if (edResize) { try { edResize.disconnect(); } catch (_) {} }
         if (viewerHandle && viewerHandle.destroy) { try { viewerHandle.destroy(); } catch (_) {} }
         if (ve) { try { ve.destroy(); } catch (_) {} }
         errOverlay.remove(); root.innerHTML = '';
