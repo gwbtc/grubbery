@@ -232,7 +232,7 @@ class Gmux extends HTMLElement {
     'close-pane':        { group: 'Split', label: 'close this pane \u2014 one with something in it asks first',
                            then: 'Enter', run: (g) => g.close() },
     'nest':              { group: 'Split', label: 'nest \u2014 put this tab in a pane of its own, with its own tabs and splits',
-                           run: (g) => { g.nest(); g.#flashHint('nested: this tab now holds a pane of its own'); } },
+                           run: (g) => { g.nest(); g.#flashHint('nested: this tab now holds a pane of its own', 2500); } },
     'promote':           { group: 'Split', label: 'promote \u2014 take this pane\u2019s tabs back out into the tab holding it',
                            run: (g) => g.promote() },
 
@@ -249,11 +249,11 @@ class Gmux extends HTMLElement {
     'descend':       { group: 'Move', label: 'descend \u2014 into this pane', run: (g) => g.descend() },
     'focus-nth':     { group: 'Move', label: 'focus the nth pane', fixed: '1\u20139' },
     'focus-move':    { group: 'Move', label: 'focus the pane that way', fixed: '\u2190\u2191\u2193\u2192' },
-    'mark':          { group: 'Move', label: 'mark \u2014 this pane, as the one a swap or a move will use',
-                       run: (g) => g.#flashHint(g.markToggle() ? 'marked \u2014 space on another pane swaps' : 'mark cleared') },
+    'mark':          { group: 'Move', label: 'mark \u2014 this pane: the one a swap trades, or a move relocates',
+                       run: (g) => g.#flashHint(g.markToggle() ? 'marked \u2014 space to swap it with another pane, M to move it to one' : 'mark cleared') },
     'swap':          { group: 'Move', label: 'swap \u2014 this pane and the marked one trade places; no prefix once marked', after: 'mark', run: (g) => g.swap() },
-    'move-tabs':     { group: 'Move', label: 'hand these tabs to the marked pane; this pane goes \u2014 mark where they go, come back, then M, no prefix', after: 'mark',
-                       run: (g) => { if (g.moveTabs()) g.#flashHint('tabs moved \u2014 this pane is gone, what held it stayed'); } },
+    'move-tabs':     { group: 'Move', label: 'move the marked pane here; it goes \u2014 mark the pane to move, come to where it lands, then M, no prefix', after: 'mark',
+                       run: (g) => { if (g.moveTabs()) g.#flashHint('tabs moved \u2014 the marked pane is gone, what held it stayed', 2500); } },
     'escape':        { group: 'Move', label: 'back out \u2014 of a zoom, a resize, or a close that is waiting', run: (g) => g.escape() },
 
     'flip':        { group: 'Arrange', label: 'flip \u2014 this pane and the one beside it trade places', run: (g) => g.flip() },
@@ -393,6 +393,7 @@ class Gmux extends HTMLElement {
   #awaiting = false;
   #awaitTimer = null;
   #saveTimer = null;
+  #hintTimer = null;
   #hint = null;
   #selBox = null;
   #markBox = null;
@@ -1899,27 +1900,27 @@ class Gmux extends HTMLElement {
     else if (t.cursor >= t.entries.length) t.cursor = t.entries.length - 1;
     return host;
   }
-  // +moveTabs: give this pane's tabs to the MARKED pane, and go.
+  // +moveTabs: give the MARKED pane's tabs to this one; the marked pane goes.
   //
-  //   Mark a destination with m, then move. The tabs append there; this pane
-  //   goes; and what contained it is left as it stands — a division holding
-  //   the sibling alone, or an empty tab. Nothing follows along and nothing
-  //   collapses, which is what "promote" got wrong: it closed itself, close
-  //   autopromoted the survivor, and the sibling came too.
+  //   You mark the pane you want to MOVE, come to where it should land, and
+  //   press M. Its tabs append here; it goes; and what contained it is left
+  //   as it stands — a division holding the sibling alone, or an empty tab.
+  //   Nothing follows along and nothing collapses, which is what "promote"
+  //   got wrong: it closed itself, close autopromoted the survivor, and the
+  //   sibling came too.
   //
   moveTabs(id) {
-    const src = id ? this.#panes.get(id) : this.cursor;
-    const dst = this.#mark;
-    if (!src) return false;
-    if (!dst) { this.#flashHint('mark a destination first — m on the pane the tabs should go to'); return false; }
-    if (dst === src) { this.#flashHint('that is this pane \u2014 mark where the tabs should GO, then come back here and press M'); return false; }
-    // #within(anc, pane) asks whether PANE sits under ANC. The move to refuse
-    // is into a destination that lives inside the source — the source is about
-    // to go, taking the destination with it. A source inside the DESTINATION is
-    // the ordinary case (a child handing its tabs up to its host), so the test
-    // reads this way round and not the other.
-    if (this.#within(src, dst)) { this.#flashHint('that destination is inside this pane'); return false; }
-    if (!src.parent) { this.#flashHint('nothing contains this pane: close it instead'); return false; }
+    const src = this.#mark;
+    const dst = id ? this.#panes.get(id) : this.cursor;
+    if (!dst) return false;
+    if (!src) { this.#flashHint('mark the pane to move first \u2014 m on it, then come here and press M'); return false; }
+    if (src === dst) { this.#flashHint('that is the marked pane \u2014 go to where it should land, then press M'); return false; }
+    // moving `src` removes it, so a destination that lives INSIDE src would go
+    // with it: refuse. #within(anc, pane) asks whether PANE sits under ANC, so
+    // this asks "is dst inside src". The ordinary case — src inside the
+    // destination, a pane handing its tabs up to a container — is allowed.
+    if (this.#within(src, dst)) { this.#flashHint('can\u2019t move a pane into one it contains'); return false; }
+    if (!src.parent) { this.#flashHint('the marked pane is not contained: close it instead'); return false; }
     const scroll = this.#snapshotScroll();
     this.#giveTabsTo(src, dst);
     const left = this.#unhook(src);
@@ -2093,6 +2094,10 @@ class Gmux extends HTMLElement {
   }
   sibling() { const c = this.cursor; if (c && c.parent && c.parent.div) { const d = c.parent.div; this.cursorTo(c.parent.slot === 'a' ? d.b : d.a); } }
   escape() {
+    // a set mark is a pending intent (swap, move): escape is backing out, so
+    // it drops it, the way m again does -- otherwise the only way to un-mark
+    // is to remember which pane holds the mark and toggle it there.
+    if (this.#mark) this.clearMark();
     if (this.seat) this.seatRoot();
     else this.#render();
   }
@@ -2623,7 +2628,18 @@ class Gmux extends HTMLElement {
   #cycleTab(delta) { const p = this.cursor; if (!p || p.tabs.length < 2) return; this.selectTab(p.id, (p.activeTab + delta + p.tabs.length) % p.tabs.length); }
   #arm(kind) { this.#repeat = kind; this.#flashHint((kind === 'resize' ? 'resize' : 'move') + ': ←↑↓→  (any other key or Esc to exit)'); }
   #endRepeat() { this.#repeat = null; this.#flashHint(''); this.focusContent(); }
-  #flashHint(msg) { if (!this.#hint) return; this.#hint.textContent = msg; this.#hint.classList.toggle('on', !!msg); }
+  // A hint with no `ms` persists until the next one replaces it: the awaiting
+  // menu and a move/resize repeat are live state, shown for as long as they
+  // hold. A completion toast ("tabs moved") has no ongoing state behind it, so
+  // it passes an `ms` and clears itself -- otherwise it sits there until the
+  // next prefix, which reads as stuck.
+  #flashHint(msg, ms) {
+    if (!this.#hint) return;
+    clearTimeout(this.#hintTimer);
+    this.#hint.textContent = msg;
+    this.#hint.classList.toggle('on', !!msg);
+    if (msg && ms) this.#hintTimer = setTimeout(() => { if (this.#hint && this.#hint.textContent === msg) this.#flashHint(''); }, ms);
+  }
   #emit(name, detail) { this.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true })); }
 }
 
