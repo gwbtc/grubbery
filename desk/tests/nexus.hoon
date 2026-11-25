@@ -975,7 +975,7 @@
   =/  s  ~(. si:nexus *silo:nexus)
   =/  [noun-lobe=nobe:nexus silo1=silo:nexus]  (put:s 'hello')
   =/  [leaf-lobe=jobe:nexus silo2=silo:nexus]
-    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0 /] %.n ~])
+    (~(put-ject si:nexus silo1) [%leaf noun-lobe [/ %txt] %.n ~])
   =/  =tree:nexus
     [~ %.n ~ (~(put by *(map @ta jobe:nexus)) %foo leaf-lobe) ~]
   =/  [* silo3=silo:nexus]  (~(put-ject si:nexus silo2) [%tree tree])
@@ -999,7 +999,7 @@
   =/  s  ~(. si:nexus *silo:nexus)
   =/  [noun-lobe=nobe:nexus silo1=silo:nexus]  (put:s 'hello')
   =/  [leaf-lobe=jobe:nexus silo2=silo:nexus]
-    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0 /] %.n ~])
+    (~(put-ject si:nexus silo1) [%leaf noun-lobe [/ %txt] %.n ~])
   =/  =tree:nexus
     [~ %.n ~ (~(put by *(map @ta jobe:nexus)) %foo leaf-lobe) ~]
   =/  [=jobe:nexus silo3=silo:nexus]  (~(put-ject si:nexus silo2) [%tree tree])
@@ -1060,7 +1060,7 @@
   =/  s  ~(. si:nexus *silo:nexus)
   =/  [noun-lobe=nobe:nexus silo1=silo:nexus]  (put:s 'hello')
   =/  [leaf-lobe=jobe:nexus silo2=silo:nexus]
-    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0 /] %.n ~])
+    (~(put-ject si:nexus silo1) [%leaf noun-lobe [/ %txt] %.n ~])
   =/  =tree:nexus
     [~ %.n ~ (~(put by *(map @ta jobe:nexus)) %foo leaf-lobe) ~]
   =/  [tree-lobe=jobe:nexus silo3=silo:nexus]
@@ -1093,7 +1093,7 @@
   =/  s  ~(. si:nexus *silo:nexus)
   =/  [noun-lobe=nobe:nexus silo1=silo:nexus]  (put:s 'data')
   =/  [leaf-lobe=jobe:nexus silo2=silo:nexus]
-    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0 /] %.n ~])
+    (~(put-ject si:nexus silo1) [%leaf noun-lobe [/ %txt] %.n ~])
   =/  child=tree:nexus
     [~ %.n ~ (~(put by *(map @ta jobe:nexus)) %f leaf-lobe) ~]
   =/  [child-lobe=jobe:nexus silo3=silo:nexus]
@@ -1117,7 +1117,7 @@
   =/  s  ~(. si:nexus *silo:nexus)
   =/  [noun-lobe=nobe:nexus silo1=silo:nexus]  (put:s 'data')
   =/  [leaf-lobe=jobe:nexus silo2=silo:nexus]
-    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0 /] %.n ~])
+    (~(put-ject si:nexus silo1) [%leaf noun-lobe [/ %txt] %.n ~])
   =/  child=tree:nexus
     [~ %.n ~ (~(put by *(map @ta jobe:nexus)) %f leaf-lobe) ~]
   =/  [child-lobe=jobe:nexus silo3=silo:nexus]

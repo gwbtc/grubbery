@@ -97,7 +97,7 @@
   ::  at: the grub's position, where its mark resolves from. The path it
   ::  was read at; for a remote grub, its stand-in under /sys/ames.
   $%  [%file =cass:clay lobe=jobe conv=(unit blot:tarball) at=path]
-      [%ball =wave lobe=jobe deep=?]
+      [%ball =wave lobe=jobe deep=? at=path]
       [%none ~]
       [%miss ~]
       [%veto ~]
@@ -523,11 +523,11 @@
 ::  jobes; leaf content and bangs are always nobes. Use the alias
 ::  in every signature so kind confusion is visible at the type.
 ::
-::  Jects hash the file-as-experienced: noun, mark (compile key
-::  included), health. A mark recompile changes what a file means,
-::  so it changes the file's identity; reload detection, vale, snap,
-::  and subscribers depend on exactly this. Deliberate — don't
-::  "purify" these to content-only hashes. Anything wanting pure
+::  Jects hash the file-as-experienced: noun, mark blot, health. The
+::  governing build and namespace are derived at read, not stored, so
+::  a mark recompile no longer rewrites a grub's identity -- only a
+::  change to the noun, blot, gain, or bang does. Reload detection,
+::  vale, snap, and subscribers key off this. Anything wanting pure
 ::  data identity (dedup, signatures, version control) builds it as
 ::  a separate projection on top.
 ::
@@ -535,12 +535,12 @@
 +$  nobe  lobe:clay                ::  hash naming a noun (nouns.silo)
 +$  leaf
   $:  lobe=nobe
-      mark=[=blot:tarball ckey=@uv ns=path]
+      =blot:tarball
       gain=?
       bang=(unit nobe)
   ==
 +$  tree
-  $:  nek=(unit [=neck:tarball ckey=@uv ns=path])
+  $:  nek=(unit neck:tarball)
       gain=?
       bang=(unit nobe)
       fil=(map @ta jobe)
@@ -628,25 +628,10 @@
     ?~  jot  ~
     ?.  ?=(%tree -.ject.u.jot)  ~
     `tree.ject.u.jot
-  ::  nek: nexus identity + ckey from existing tree ject
-  =/  nek=(unit [=neck:tarball ckey=@uv ns=path])
-    ?~  existing-tree  ~
-    ?~  nek.u.existing-tree  ~
-    =/  =neck:tarball  neck.u.nek.u.existing-tree
-    ::  the namespace whose artifact governs this nexus: the first
-    ::  candidate (code-candidates order) whose keys have its source
-    =/  src=rail:tarball  (source-rail:tarball %nex neck)
-    =/  hit=(unit [ns=fold:tarball ckey=@uv])
-      =/  cands=(list fold:tarball)  (code-candidates:tarball dir)
-      |-
-      ?~  cands  ~
-      =/  lod=(unit lode)  (~(get by code) i.cands)
-      ?~  lod  $(cands t.cands)
-      =/  k=(unit @uv)  (~(get by keys.u.lod) src)
-      ?~  k  $(cands t.cands)
-      `[i.cands u.k]
-    ?~  hit  `[neck 0v0 /]
-    `[neck ckey.u.hit ns.u.hit]
+  ::  nek: the nexus identity (its neck), carried from the existing tree
+  ::  ject. The governing build (ckey) and namespace are resolved at
+  ::  read, not stored.
+  =/  nek=(unit neck:tarball)  ?~(existing-tree ~ nek.u.existing-tree)
   ::  fil: each grub's current ject-lobe from hist (skip deleted/tombed)
   =/  fil=(map @ta jobe)
     %-  ~(rep by file.node)
@@ -1158,13 +1143,12 @@
       ?~  got  ~
       ?.  ?=(%leaf -.ject.u.got)  ~
       `leaf.ject.u.got
-    ::  Skip if blot, governing marc, namespace, and content are unchanged
+    ::  Skip if blot, gain, and content are unchanged. Interpretation
+    ::  (which build, which namespace) is derived at read, not stored.
     =/  noun-lobe=nobe  (hash noun)
     ?:  ?&  ?=(^ prev-leaf)
             =(noun-lobe lobe.u.prev-leaf)
-            =(blot blot.mark.u.prev-leaf)
-            =(ckey ckey.mark.u.prev-leaf)
-            =(ns ns.mark.u.prev-leaf)
+            =(blot blot.u.prev-leaf)
             =(gain gain.u.prev-leaf)
         ==
       [noun-lobe silo hist]
@@ -1175,7 +1159,7 @@
       ?^  (~(get by nouns.silo) noun-lobe)  silo
       silo(nouns (~(put by nouns.silo) noun-lobe [0 noun]))
     =/  [ject-lobe=jobe newer-silo=^silo]
-      (~(put-ject si new-silo) [%leaf noun-lobe [blot ckey ns] gain prev-bang])
+      (~(put-ject si new-silo) [%leaf noun-lobe blot gain prev-bang])
     ::  the pace this one replaces goes if it was %temp (delete, not
     ::  tomb); a %firm one is kept history
     =/  [dropped-silo=^silo dropped-hist=^hist]

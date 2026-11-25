@@ -59,7 +59,8 @@
 /=  t-  /tests/loader
 |%
 +$  versioned-state
-  $%  state-16:migrations
+  $%  state-17:migrations
+      state-16:migrations
       state-15:migrations
       state-14:migrations
       state-13:migrations
@@ -177,7 +178,7 @@
 ::  reference, and it only changes with the agent itself.
 ::
 =/  sut-hash=@uv  (sham q:sut)
-=|  state-16:migrations
+=|  state-17:migrations
 =*  state  -
 ::
 =<
@@ -210,30 +211,34 @@
   |=  old-state=vase
   ^-  (quip card _this)
   =/  old  !<(versioned-state old-state)
-  ?:  ?=(%16 -.old)
+  ?:  ?=(%17 -.old)
     =.  state  old
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
-  ::  %15 -> %16: the kernel gains a halt flag, and parked takes stop
+  ::  %16 -> %17: ckey and namespace leave the ject; every stored ject is
+  ::  rewritten to the new shape in place.
+  ?:  ?=(%16 -.old)
+    =.  state  (state-16-to-17:migrations old)
+    =^  start-cards  state
+      abet:cold-start:hc
+    [start-cards this]
+  ::  %15 -> %17: the kernel gained a halt flag, and parked takes stopped
   ::  being discarded at save -- see +on-save.
   ?:  ?=(%15 -.old)
-    ~>  %slog.[0 leaf+"grubbery: migrating state %15 -> %16"]
-    =.  state  (state-15-to-16:migrations old)
+    =.  state  (state-15-to-17:migrations old)
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
   ::  %14 -> %15: no tomb pace; a dropped version is absent.
   ?:  ?=(%14 -.old)
-    ~>  %slog.[0 leaf+"grubbery: migrating state %14 -> %15 -> %16"]
-    =.  state  (state-15-to-16:migrations (state-14-to-15:migrations old))
+    =.  state  (state-15-to-17:migrations (state-14-to-15:migrations old))
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
   ::  %13 -> %14: the take queue gets a place to wait between events.
   ?:  ?=(%13 -.old)
-    ~>  %slog.[0 leaf+"grubbery: migrating state %13 -> %14 -> %15 -> %16"]
-    =.  state  (state-15-to-16:migrations (state-14-to-15:migrations (state-13-to-14:migrations old)))
+    =.  state  (state-15-to-17:migrations (state-14-to-15:migrations (state-13-to-14:migrations old)))
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
@@ -241,24 +246,21 @@
   ::  reference goes, and a rail left with no versions goes with them --
   ::  peak still holds its number.
   ?:  ?=(%12 -.old)
-    ~>  %slog.[0 leaf+"grubbery: migrating state %12 -> %13 -> %14 -> %15 -> %16"]
-    =.  state  (state-15-to-16:migrations (state-14-to-15:migrations (state-13-to-14:migrations (state-12-to-13:migrations old))))
+    =.  state  (state-15-to-17:migrations (state-14-to-15:migrations (state-13-to-14:migrations (state-12-to-13:migrations old))))
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
   ::  %11 -> %12: the %firm load carries the labels to set on the
   ::  version it promotes. A queued %firm carried none, so it gets none.
   ?:  ?=(%11 -.old)
-    ~>  %slog.[0 leaf+"grubbery: migrating state %11 -> %12 -> %13 -> %14 -> %15 -> %16"]
-    =.  state  (state-15-to-16:migrations (state-14-to-15:migrations (state-13-to-14:migrations (state-12-to-13:migrations (state-11-to-12:migrations old)))))
+    =.  state  (state-15-to-17:migrations (state-14-to-15:migrations (state-13-to-14:migrations (state-12-to-13:migrations (state-11-to-12:migrations old)))))
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
   ::  %10 -> %11: a %file cite carries the grub's position. A queued
   ::  peek is given its reader's, where its mark resolved from before.
   ?:  ?=(%10 -.old)
-    ~>  %slog.[0 leaf+"grubbery: migrating state %10 -> %11 -> %12 -> %13 -> %14 -> %15 -> %16"]
-    =.  state  (state-15-to-16:migrations (state-14-to-15:migrations (state-13-to-14:migrations (state-12-to-13:migrations (state-11-to-12:migrations (state-10-to-11:migrations old))))))
+    =.  state  (state-15-to-17:migrations (state-14-to-15:migrations (state-13-to-14:migrations (state-12-to-13:migrations (state-11-to-12:migrations (state-10-to-11:migrations old))))))
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
@@ -266,8 +268,7 @@
   ::  but a suspended process is typed by it, so +proc-9-to-proc-10 replaces
   ::  live continuations with a crash tang and the reload rebuilds them.
   ?:  ?=(%9 -.old)
-    ~>  %slog.[0 leaf+"grubbery: migrating state %9 -> %10 -> %11 -> %12 -> %13 -> %14 -> %15 -> %16"]
-    =.  state  (state-15-to-16:migrations (state-14-to-15:migrations (state-13-to-14:migrations (state-12-to-13:migrations (state-11-to-12:migrations (state-10-to-11:migrations (state-9-to-10:migrations old)))))))
+    =.  state  (state-15-to-17:migrations (state-14-to-15:migrations (state-13-to-14:migrations (state-12-to-13:migrations (state-11-to-12:migrations (state-10-to-11:migrations (state-9-to-10:migrations old)))))))
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
@@ -292,20 +293,15 @@
           ==
         =/  as-5=state-5:migrations
           ?~  to-4  ?>(?=(%5 -.old) old)
-          ~>  %slog.[0 leaf+"grubbery: migrating state {<-.old>} -> %5"]
           (state-4-to-5:migrations u.to-4)
         =/  six=state-6:migrations
-          ~>  %slog.[0 leaf+"grubbery: migrating state %5 -> %6"]
           (state-5-to-6:migrations as-5)
         =/  fsr=[pool-10:migrations silo:nexus]  (fsr-pool:hc pool.six silo.six)
         six(pool -.fsr, silo +.fsr)
-      ~>  %slog.[0 leaf+"grubbery: migrating state %6 -> %7"]
       (state-6-to-7:migrations as-6)
-    ~>  %slog.[0 leaf+"grubbery: migrating state %7 -> %8"]
     (state-7-to-8:migrations as-7)
-  ~>  %slog.[0 leaf+"grubbery: migrating state %8 -> %9 -> %10 -> %11 -> %12 -> %13 -> %14 -> %15 -> %16"]
   =.  state
-    %-  state-15-to-16:migrations
+    %-  state-15-to-17:migrations
     %-  state-14-to-15:migrations
     %-  state-13-to-14:migrations
     %-  state-12-to-13:migrations
@@ -1119,7 +1115,11 @@
   ~?  dbg  [%peek-discharged ship.pk dest.pk key=key peeks-remaining=~(wyt by peeks.remo)]
   =/  =cite:nexus
     ?-  -.dest.pk
-      %|  [%ball *wave:nexus lobe.pace.u.snap.pk deep.pk]
+        %|
+      ::  the directory's position here is its stand-in under /sys/ames
+      :*  %ball  *wave:nexus  lobe.pace.u.snap.pk  deep.pk
+          (weld /sys/ames/ships/[(scot %p ship.pk)]/root p.dest.pk)
+      ==
         %&
       ::  the grub's position here is its stand-in under /sys/ames
       :*  %file  cass.u.snap.pk  lobe.pace.u.snap.pk  blot.pk
@@ -2403,7 +2403,7 @@
 ::  rather than handed a boom indistinguishable from bad data.
 ::
 ++  peek-grub
-  |=  =jobe:nexus
+  |=  [at=path =jobe:nexus]
   ^-  (unit sang:tarball)
   =/  jot  (~(get by jects.silo) jobe)
   ?~  jot  ~
@@ -2411,20 +2411,18 @@
   ?.  ?=(%leaf -.jt)  ~
   =/  raw  (~(get si:nexus silo) lobe.leaf.jt)
   ?~  raw  ~
-  =/  =blot:tarball  blot.mark.leaf.jt
-  =/  ckey=@uv  ckey.mark.leaf.jt
+  =/  =blot:tarball  blot.leaf.jt
+  ::  resolve the mark fresh from the current build at this position; the
+  ::  ckey and namespace are derived here, never read off the leaf
+  =/  res  (resolve-built at %mar blot)
+  ?~  res
+    `[blot %| [~[leaf+"peek-grub: mark not resolvable {<blot>} from {(spud at)}"] u.raw]]
+  =/  ckey=@uv  ckey.u.res
   =/  hit  (vale-hit lobe.leaf.jt ckey)
-  =/  entry=(unit [refs=@ud =built:nexus])  (~(get by bins) ckey)
-  =?  entry  ?=(~ entry)
-    =/  res  (resolve-built ns.mark.leaf.jt %mar blot)
-    ?~  res  ~
-    (~(get by bins) ckey.u.res)
-  ?~  entry
-    `[blot %| [~[leaf+"peek-grub: mark not in bins {<blot>} ckey={<ckey>}"] u.raw]]
-  ?.  ?=(%vase -.built.u.entry)
-    `[blot %| [~[leaf+"peek-grub: bins entry not a vase {<blot>} ckey={<ckey>}"] u.raw]]
+  ?.  ?=(%vase -.built.u.res)
+    `[blot %| [~[leaf+"peek-grub: mark not a vase {<blot>} ckey={<ckey>}"] u.raw]]
   =/  marc-res=(each marc:tarball tang)
-    (mule |.(!<(marc:tarball vase.built.u.entry)))
+    (mule |.(!<(marc:tarball vase.built.u.res)))
   ?:  ?=(%| -.marc-res)
     `[blot %| [(weld ~[leaf+"peek-grub: marc extraction failed {<blot>}"] p.marc-res) u.raw]]
   ?^  hit
@@ -2440,20 +2438,19 @@
 ::  recurse into fil (leaf children) and dir (tree children).
 ::
 ++  peek-ball
-  |=  =jobe:nexus
+  |=  [at=path =jobe:nexus]
   ^-  ball:tarball
   =/  jot  (~(get by jects.silo) jobe)
   ?~  jot  *ball:tarball
   =/  jt=ject:nexus  ject.u.jot
   ?.  ?=(%tree -.jt)  *ball:tarball
-  =/  nek=(unit neck:tarball)
-    (bind nek.tree.jt |=([=neck:tarball *] neck))
+  =/  nek=(unit neck:tarball)  nek.tree.jt
   =/  contents=(map @ta [=sang:tarball gain=? bang=(unit tang)])
     %-  ~(gas by *(map @ta [=sang:tarball gain=? bang=(unit tang)]))
     %+  murn  ~(tap by fil.tree.jt)
     |=  [name=@ta =jobe:nexus]
     ^-  (unit [@ta [=sang:tarball gain=? bang=(unit tang)]])
-    =/  got  (peek-grub jobe)
+    =/  got  (peek-grub at jobe)
     ?~  got  ~
     =/  leaf-jot  (~(get by jects.silo) jobe)
     =/  leaf-gain=?
@@ -2480,7 +2477,7 @@
     %+  turn  ~(tap by dir.tree.jt)
     |=  [name=@ta =jobe:nexus weir=(unit weir:tarball)]
     ^-  [@ta ball:tarball]
-    =/  child=ball:tarball  (peek-ball jobe)
+    =/  child=ball:tarball  (peek-ball (snoc `path`at name) jobe)
     =/  child-fil=lump:tarball  (fall fil.child [~ ~ %.n ~ ~])
     [name child(fil `child-fil(weir weir))]
   [`lump sub-dirs]
@@ -2493,8 +2490,7 @@
   ?~  jot  *bole:tarball
   =/  jt=ject:nexus  ject.u.jot
   ?.  ?=(%tree -.jt)  *bole:tarball
-  =/  nek=(unit neck:tarball)
-    (bind nek.tree.jt |=([=neck:tarball *] neck))
+  =/  nek=(unit neck:tarball)  nek.tree.jt
   =/  contents=(map @ta [=bask:tarball gain=?])
     %-  ~(gas by *(map @ta [=bask:tarball gain=?]))
     %+  murn  ~(tap by fil.tree.jt)
@@ -2505,7 +2501,7 @@
     ?.  ?=(%leaf -.ject.u.leaf-jot)  ~
     =/  raw  (~(get si:nexus silo) lobe.leaf.ject.u.leaf-jot)
     ?~  raw  ~
-    =/  =blot:tarball  blot.mark.leaf.ject.u.leaf-jot
+    =/  =blot:tarball  blot.leaf.ject.u.leaf-jot
     =/  leaf-gain=?  gain.leaf.ject.u.leaf-jot
     `[name [blot u.raw] leaf-gain]
   =/  weir=(unit weir:nexus)  ~
@@ -2535,20 +2531,19 @@
 ::  No recursion — O(files at this level) instead of O(all files).
 ::
 ++  peek-ball-shallow
-  |=  =jobe:nexus
+  |=  [at=path =jobe:nexus]
   ^-  ball:tarball
   =/  jot  (~(get by jects.silo) jobe)
   ?~  jot  *ball:tarball
   =/  jt=ject:nexus  ject.u.jot
   ?.  ?=(%tree -.jt)  *ball:tarball
-  =/  nek=(unit neck:tarball)
-    (bind nek.tree.jt |=([=neck:tarball *] neck))
+  =/  nek=(unit neck:tarball)  nek.tree.jt
   =/  contents=(map @ta [=sang:tarball gain=? bang=(unit tang)])
     %-  ~(gas by *(map @ta [=sang:tarball gain=? bang=(unit tang)]))
     %+  murn  ~(tap by fil.tree.jt)
     |=  [name=@ta =jobe:nexus]
     ^-  (unit [@ta [=sang:tarball gain=? bang=(unit tang)]])
-    =/  got  (peek-grub jobe)
+    =/  got  (peek-grub at jobe)
     ?~  got  ~
     =/  leaf-jot  (~(get by jects.silo) jobe)
     =/  leaf-gain=?
@@ -2613,7 +2608,7 @@
   ::  as its content now it made the cull never take for a reader
   ?:  (~(gone-file pk:nexus peak) rail key.u.got)  ~
   =/  =pace:hist:nexus  pace.val.u.got
-  (peek-grub lobe.pace)
+  (peek-grub path.rail lobe.pace)
 ::  Peek the current ball at a fold (born lookup + peek-ball).
 ::
 ++  peek-ball-now
@@ -2628,7 +2623,7 @@
   ::  a culled directory is gone, however much of it born still holds
   ?:  (~(gone-fold pk:nexus peak) fold key.u.got)  *ball:tarball
   =/  =pace:hist:nexus  pace.val.u.got
-  (peek-ball lobe.pace)
+  (peek-ball fold lobe.pace)
 ::  Look up a directory's weir from its parent's tree ject.
 ::
 ++  get-weir-for
@@ -2669,7 +2664,7 @@
   =/  jot  (~(get by jects.silo) lobe.pace)
   ?~  jot  ~
   ?.  ?=(%tree -.ject.u.jot)  ~
-  (bind nek.tree.ject.u.jot |=([=neck:tarball *] neck))
+  nek.tree.ject.u.jot
 ::  Shallow peek: files at fold + subdir names, no recursion.
 ::
 ++  peek-ball-shallow-now
@@ -2684,7 +2679,7 @@
   ::  a culled directory is gone, however much of it born still holds
   ?:  (~(gone-fold pk:nexus peak) fold key.u.got)  *ball:tarball
   =/  =pace:hist:nexus  pace.val.u.got
-  (peek-ball-shallow lobe.pace)
+  (peek-ball-shallow fold lobe.pace)
 ::  List file names at a directory (from born).
 ::
 ++  lis-born
@@ -4119,7 +4114,7 @@
     ::  Bump ref to keep tree alive while queued
     =.  silo  (~(bump-ject-ref si:nexus silo) u.root-lobe)
     =/  =wave:nexus  (wave-from-born:nexus sub-born)
-    (enqu-take here ~ ~ %peek wire.dart [%ball wave u.root-lobe deep.load.dart])
+    (enqu-take here ~ ~ %peek wire.dart [%ball wave u.root-lobe deep.load.dart dest])
     ::
       %&
     =/  dest=rail:tarball  p.dest-lane
@@ -4517,13 +4512,13 @@
           =/  tn  (~(get si:nexus silo) u.bang.leaf.jt)
           ?~  tn  ~
           `!<(tang [-:!>(*tang) u.tn])
-        =/  =bask:tarball  [blot.mark.leaf.jt u.got]
+        =/  =bask:tarball  [blot.leaf.jt u.got]
         ::  the mark resolves from the grub's own position when it is
         ::  found there, else from the reader's
         =/  pos=path  (mark-position cod at.cite p.bask)
         =/  res  (validate-known pos p.bask q.bask lobe.leaf.jt)
         ?:  ?=(%| -.res)
-          [%file cass.cite [blot.mark.leaf.jt %| [p.res u.got]] bang]
+          [%file cass.cite [blot.leaf.jt %| [p.res u.got]] bang]
         =/  =sage:tarball  p.res
         =/  result=sang:tarball
           ?~  conv.cite  (sage-to-sang:tarball sage)
@@ -4534,8 +4529,8 @@
           %ball
         =/  sub-ball
           ?:  deep.cite
-            (peek-ball lobe.cite)
-          (peek-ball-shallow lobe.cite)
+            (peek-ball at.cite lobe.cite)
+          (peek-ball-shallow at.cite lobe.cite)
         [%ball wave.cite sub-ball]
       ==
     ::  The cite's ref is released by the eval loop when THIS take is
@@ -4557,7 +4552,7 @@
       ?.  ?=(%leaf -.jt)  ~
       =/  got=(unit noun)  (~(get si:nexus silo) lobe.leaf.jt)
       ?~  got  ~
-      =/  res  (validate-known cod blot.mark.leaf.jt u.got lobe.leaf.jt)
+      =/  res  (validate-known cod blot.leaf.jt u.got lobe.leaf.jt)
       ?:  ?=(%| -.res)  ~
       `[cas p.res]
     ::  Refs released on consume (+drop-pend-refs), not per read: see the
@@ -5045,7 +5040,7 @@
     ?~  jot  ~
     =/  jt=ject:nexus  ject.u.jot
     ?.  ?=(%tree -.jt)  ~
-    (bind nek.tree.jt |=([=neck:tarball *] neck))
+    nek.tree.jt
   $(remaining ancestor, pant [[dir neck] pant])
 ::
 ::  Sandboxing / weir filtering
@@ -5358,9 +5353,7 @@
           =(u.cas file-cass)
           ?=(^ prev-leaf)
           ?|  !=((~(hash si:nexus silo) raw) lobe.u.prev-leaf)
-              !=(p.bask blot.mark.u.prev-leaf)
-              !=(marc-ckey ckey.mark.u.prev-leaf)
-              !=(marc-ns ns.mark.u.prev-leaf)
+              !=(p.bask blot.u.prev-leaf)
               !=(gain gain.u.prev-leaf)
           ==
       ==
@@ -5585,15 +5578,11 @@
   =/  settled-born=born:nexus  (~(dip of born) here)
   =/  settled-node=[fold=hist:nexus file=(map @ta hist:nexus)]
     (fall fil.settled-born default-node:boo)
-  ::  Neck from bole
-  =/  nek=(unit [neck:tarball @uv ns=path])
+  ::  Neck from bole. The governing build and namespace are derived at
+  ::  read, not stored, so the neck carries through as-is.
+  =/  nek=(unit neck:tarball)
     ?~  fil.bol  ~
-    ?~  neck.u.fil.bol  ~
-    =/  =neck:tarball  u.neck.u.fil.bol
-    ::  the nexus that governs here, by the ordinary resolution
-    =/  res  (resolve-built here %nex neck)
-    ?~  res  `[neck 0v0 /]
-    `[neck ckey.u.res namespace.u.res]
+    neck.u.fil.bol
   ::  File lobes from born, the dead ones left out
   =/  fil=(map @ta jobe:nexus)
     %-  ~(rep by file.settled-node)
@@ -6053,7 +6042,13 @@
   ^-  vale:nexus
   ?~  prev  vale
   ?:  (~(has by nouns.silo) lobe.u.prev)  vale
-  (~(del by vale) [lobe.u.prev ckey.mark.u.prev])
+  ::  evict every cached verdict for this noun, across any build key —
+  ::  the ckey is derived at read now, not stored on the leaf. Over-
+  ::  eviction is harmless: entries rebuild lazily on miss.
+  %-  ~(gas by *vale:nexus)
+  %+  skip  ~(tap by vale)
+  |=  [[n=nobe:nexus @uv] (unit tang)]
+  =(n lobe.u.prev)
 ::  The same incremental eviction for a transfer's released refs. A
 ::  transfer used to run the full +gc-vale-cache sweep, which rebuilds
 ::  the whole map, on every want, data merge and snap expiry
@@ -6065,22 +6060,23 @@
 ::
 ++  vale-keys-of
   |=  refs=lobes:nexus
-  ^-  (list [nobe:nexus @uv])
+  ^-  (list nobe:nexus)
   %+  murn  ~(tap in jects.refs)
   |=  j=jobe:nexus
-  ^-  (unit [nobe:nexus @uv])
+  ^-  (unit nobe:nexus)
   =/  got  (~(get by jects.silo) j)
   ?~  got  ~
   ?.  ?=(%leaf -.ject.u.got)  ~
-  `[lobe.leaf.ject.u.got ckey.mark.leaf.ject.u.got]
+  `lobe.leaf.ject.u.got
 ::
 ++  gc-vale-keys
-  |=  keys=(list [nobe:nexus @uv])
+  |=  nobes=(list nobe:nexus)
   ^-  vale:nexus
-  %+  roll  keys
-  |=  [k=[nobe:nexus @uv] v=_vale]
-  ?:  (~(has by nouns.silo) -.k)  v
-  (~(del by v) k)
+  =/  gone=(set nobe:nexus)  (silt nobes)
+  %-  ~(gas by *vale:nexus)
+  %+  skip  ~(tap by vale)
+  |=  [[n=nobe:nexus @uv] (unit tang)]
+  &((~(has in gone) n) !(~(has by nouns.silo) n))
 ::  Validate marks: for each changed mark in bin/mar/, build a vale gate
 ::  Walk ball under a code namespace, pruning at child code namespaces.
 ::  Returns all [fold lump] pairs governed by this code namespace —
@@ -6179,10 +6175,18 @@
     =/  top=(unit [key=cass:clay val=entry:hist:nexus])
       (ram:hon:hist:nexus sk)
     ?~  top  ~
+    ::  a culled grub is retained in born but gone to any reader; it is
+    ::  not live state to validate, and re-recording it would un-cull it
+    ?:  (~(gone-file pk:nexus peak) [fold name] key.u.top)  ~
     =/  entry  (~(get by jects.silo) lobe.pace.val.u.top)
     ?~  entry  ~
     ?.  ?=(%leaf -.ject.u.entry)  ~
-    ?.  =(cod ns.mark.leaf.ject.u.entry)  ~
+    ::  the namespace a grub resolves its mark from is derived at its
+    ::  position, not stored; keep only grubs governed by the namespace
+    ::  whose marks changed
+    =/  res  (resolve-built fold %mar blot.leaf.ject.u.entry)
+    ?~  res  ~
+    ?.  =(cod namespace.u.res)  ~
     `[[fold name] lobe.pace.val.u.top leaf.ject.u.entry]
   ::  Process each changed mark
   =/  remaining=_changed  changed
@@ -6198,7 +6202,7 @@
   =/  grubs=(list [=rail:tarball lob=jobe:nexus =leaf:nexus])
     %+  skim  all-grubs
     |=  [=rail:tarball lob=jobe:nexus =leaf:nexus]
-    =(blot blot.mark.leaf)
+    =(blot blot.leaf)
   ?~  grubs  $(remaining t.remaining)
   ::  Get marc, or skip if mark failed to compile
   =/  marc-res=(each marc:tarball tang)
@@ -6226,7 +6230,7 @@
     =?  this  ?=(~ hit)
       (vale-put lob ckey ?:(?=(%& -.res) ~ `p.res))
     ?:  ?=(%& -.res)
-      =.  this  (save-file rail [blot.mark.leaf noun])
+      =.  this  (save-file rail [blot.leaf noun])
       =.  n-ok  +(n-ok)
       $(grubs t.grubs)
     ~&  >>  "validate-marks: boom {(spud (snoc path.rail name.rail))}"
@@ -6261,25 +6265,20 @@
     ~?  dbg  "revalidate-all: done — {<n-ok>} ok, {<n-boom>} boom, {<n-skip>} skip"
     this
   =/  [=rail:tarball lob=jobe:nexus =leaf:nexus]  i.all-grubs
-  =/  nam=@tas  (rail-to-arm:tarball blot.mark.leaf)
+  =/  nam=@tas  (rail-to-arm:tarball blot.leaf)
   ?:  ?=(?(%hoon %tang %mime %kelvin) nam)
     $(all-grubs t.all-grubs, n-skip +(n-skip))
-  =/  cod=path  ns.mark.leaf
-  =/  mark-ckey=(unit @uv)
-    =/  cod-lode=(unit lode:nexus)  (~(get by code) cod)
-    ?~  cod-lode  ~
-    (~(get by keys.u.cod-lode) (source-rail:tarball %mar blot.mark.leaf))
-  ?~  mark-ckey
-    ~&  >>  "revalidate-all: no ckey for {(spud (snoc path.blot.mark.leaf name.blot.mark.leaf))}"
+  ::  resolve the mark fresh from the current build at this position; the
+  ::  ckey and namespace are derived here, never read off the leaf
+  =/  res-built  (resolve-built path.rail %mar blot.leaf)
+  ?~  res-built
+    ~&  >>  "revalidate-all: mark not resolvable for {(trip nam)}"
     $(all-grubs t.all-grubs, n-skip +(n-skip))
-  =/  bin-entry=(unit [refs=@ud =built:nexus])  (~(get by bins) u.mark-ckey)
-  ?~  bin-entry
-    ~&  >>  "revalidate-all: no bin for {(trip nam)}"
-    $(all-grubs t.all-grubs, n-skip +(n-skip))
+  =/  mark-ckey=@uv  ckey.u.res-built
   =/  marc-res=(each marc:tarball tang)
-    ?.  ?=(%vase -.built.u.bin-entry)
+    ?.  ?=(%vase -.built.u.res-built)
       |+~[leaf+"revalidate-all: {(trip nam)} not a vase"]
-    (mule |.(!<(marc:tarball vase.built.u.bin-entry)))
+    (mule |.(!<(marc:tarball vase.built.u.res-built)))
   ?:  ?=(%| -.marc-res)
     ~&  >>  "revalidate-all: marc failed for {(trip nam)}"
     $(all-grubs t.all-grubs, n-skip +(n-skip))
@@ -6287,13 +6286,13 @@
   =/  res=(each vase tang)
     =/  val  (validate-vase vale:p.marc-res noun)
     ?:(?=(%| -.val) val &+[type:p.marc-res noun])
-  =.  this  (vale-put lob u.mark-ckey ?:(?=(%& -.res) ~ `p.res))
+  =.  this  (vale-put lob mark-ckey ?:(?=(%& -.res) ~ `p.res))
   ?:  ?=(%& -.res)
-    =.  this  (save-file rail [blot.mark.leaf noun])
+    =.  this  (save-file rail [blot.leaf noun])
     $(all-grubs t.all-grubs, n-ok +(n-ok))
   ~&  >>  "revalidate-all: boom {(spud (snoc path.rail name.rail))}"
   %-  (slog p.res)
-  =.  this  (save-file rail [blot.mark.leaf noun])
+  =.  this  (save-file rail [blot.leaf noun])
   $(all-grubs t.all-grubs, n-boom +(n-boom))
 ::  Reload nexuses: for each changed nexus in bin/nex/, find all
 ::  directories using that neck, run on-load with the new code, and
@@ -6327,8 +6326,12 @@
     ?~  entry  ~
     ?.  ?=(%tree -.ject.u.entry)  ~
     ?~  nek.tree.ject.u.entry  ~
-    ?.  =(cod ns.u.nek.tree.ject.u.entry)  ~
-    ?.  =(neck neck.u.nek.tree.ject.u.entry)  ~
+    ?.  =(neck u.nek.tree.ject.u.entry)  ~
+    ::  the namespace this nexus builds from is derived at its position,
+    ::  not stored; keep only dirs governed by the namespace that changed
+    =/  res  (resolve-built pax %nex u.nek.tree.ject.u.entry)
+    ?~  res  ~
+    ?.  =(cod namespace.u.res)  ~
     `pax
   ?~  dirs  $(remaining t.remaining)
   ::  Run on-load and apply results for each directory
@@ -8078,10 +8081,10 @@
     =/  bal=(unit ball:tarball)
       ?^  as
         =/  jb  (asof-jobe u.as api-path %.n)
-        ?~(jb ~ `(peek-ball-shallow u.jb))
+        ?~(jb ~ `(peek-ball-shallow api-path u.jb))
       ?~  cas  `(peek-ball-now api-path)
       =/  jb  (jobe-at-case [%| api-path] u.cas)
-      ?~(jb ~ `(peek-ball-shallow u.jb))
+      ?~(jb ~ `(peek-ball-shallow api-path u.jb))
     ?~  bal
       ?^  as  (err 410 'that directory was not there in that version')
       (err 410 (case-gone [%| api-path] (need cas)))
@@ -8098,10 +8101,10 @@
     =/  bal=(unit ball:tarball)
       ?^  as
         =/  jb  (asof-jobe u.as api-path %.n)
-        ?~(jb ~ `(peek-ball u.jb))
+        ?~(jb ~ `(peek-ball api-path u.jb))
       ?~  cas  `(peek-ball-now api-path)
       =/  jb  (jobe-at-case [%| api-path] u.cas)
-      ?~(jb ~ `(peek-ball u.jb))
+      ?~(jb ~ `(peek-ball api-path u.jb))
     ?~  bal
       ?^  as  (err 410 'that directory was not there in that version')
       (err 410 (case-gone [%| api-path] (need cas)))
@@ -8195,10 +8198,10 @@
     =/  content=(unit sang:tarball)
       ?^  as
         =/  jb  (asof-jobe u.as api-path %.y)
-        ?~(jb ~ (peek-grub u.jb))
+        ?~(jb ~ (peek-grub dir u.jb))
       ?~  cas  (peek-grub-now dir name)
       =/  jb  (jobe-at-case [%& [dir name]] u.cas)
-      ?~(jb ~ (peek-grub u.jb))
+      ?~(jb ~ (peek-grub dir u.jb))
     ?~  content
       ?^  as  (err 410 'that file was not there in that version')
       ?~  cas  (gone 'Not found')

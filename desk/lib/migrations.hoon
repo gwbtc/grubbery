@@ -388,6 +388,7 @@
 ++  state-0-to-1
   |=  old=state-0
   ^-  state-1
+  ~>  %slog.[0 leaf+"grubbery: migrating state %0 -> %1"]
   :*  %1
       born.old
       silo.old
@@ -404,6 +405,7 @@
 ++  state-1-to-2
   |=  old=state-1
   ^-  state-2
+  ~>  %slog.[0 leaf+"grubbery: migrating state %1 -> %2"]
   :*  %2
       born.old
       silo.old
@@ -420,6 +422,7 @@
 ++  state-2-to-3
   |=  old=state-2
   ^-  state-3
+  ~>  %slog.[0 leaf+"grubbery: migrating state %2 -> %3"]
   :*  %3
       born.old
       silo.old
@@ -436,6 +439,7 @@
 ++  state-3-to-4
   |=  old=state-3
   ^-  state-4
+  ~>  %slog.[0 leaf+"grubbery: migrating state %3 -> %4"]
   :*  %4
       born.old
       silo.old
@@ -541,6 +545,7 @@
 ++  state-9-to-10
   |=  old=state-9
   ^-  state-10
+  ~>  %slog.[0 leaf+"grubbery: migrating state %9 -> %10"]
   :*  %10
       born.old
       peak.old
@@ -637,6 +642,7 @@
 ++  state-10-to-11
   |=  old=state-10
   ^-  state-11
+  ~>  %slog.[0 leaf+"grubbery: migrating state %10 -> %11"]
   :*  %11
       born.old
       peak.old
@@ -693,6 +699,7 @@
 ++  state-8-to-9
   |=  old=state-8
   ^-  state-9
+  ~>  %slog.[0 leaf+"grubbery: migrating state %8 -> %9"]
   ::  the peak is seeded from the swept born: same tops, and a damaged
   ::  history's right spine is never read
   =/  swept=born-12  (sweep-dead-born born.old)
@@ -833,6 +840,7 @@
 ++  state-7-to-8
   |=  old=state-7
   ^-  state-8
+  ~>  %slog.[0 leaf+"grubbery: migrating state %7 -> %8"]
   :*  %8
       born.old  *peak:nexus
       silo.old  subs.old  pool.old  code.old
@@ -842,6 +850,7 @@
 ++  state-6-to-7
   |=  old=state-6
   ^-  state-7
+  ~>  %slog.[0 leaf+"grubbery: migrating state %6 -> %7"]
   :*  %7
       (prune-dead-born born.old)
       silo.old  subs.old  pool.old  code.old
@@ -886,6 +895,7 @@
 ++  state-5-to-6
   |=  old=state-5
   ^-  state-6
+  ~>  %slog.[0 leaf+"grubbery: migrating state %5 -> %6"]
   :*  %6
       born.old  silo.old  subs.old  pool.old  code.old
       bins.old  vale.old  remo.old  upki.old  last.old
@@ -893,6 +903,7 @@
 ++  state-4-to-5
   |=  old=state-4
   ^-  state-5
+  ~>  %slog.[0 leaf+"grubbery: migrating state %4 -> %5"]
   :*  %5
       born.old
       silo.old
@@ -988,6 +999,7 @@
 ++  state-11-to-12
   |=  old=state-11
   ^-  state-12
+  ~>  %slog.[0 leaf+"grubbery: migrating state %11 -> %12"]
   :*  %12
       born.old
       peak.old
@@ -1108,15 +1120,14 @@
 +$  peek-14   [ship=@p dest=lane:tarball deep=? blot=(unit blot:tarball) snap=(unit snap-14) snap-id=@uvJ]
 +$  peeks-14  (map [rail:tarball wire] peek-14)
 +$  remo-14   [peeks=peeks-14 snaps=snaps:remo:nexus]
-::  state-16: the kernel can be halted. A halted kernel parks every take
-::  in `owed` and drains none of it, while eyre's kernel-served routes go
-::  on answering -- the door that has to stay open when a fiber loop has
-::  saturated the event queue. It persists because the useful case is
-::  coming up ALREADY halted: a flood that resumes a second after boot
-::  leaves no room to ask for the halt.
+::  state-17: ject identity sheds its compile key and namespace. A leaf
+::  is [lobe blot gain bang]; a tree's neck carries no ckey or ns. Which
+::  build interpreted a grub, and from which namespace, is derived at
+::  read, not stored -- so a mark recompile no longer rewrites or
+::  re-versions every grub that mark touches.
 ::
-+$  state-16
-  $:  %16
++$  state-17
+  $:  %17
       =born:nexus
       =peak:nexus
       =silo:nexus
@@ -1132,19 +1143,197 @@
       owed=(qeu take:nexus)
       halt=_|
   ==
-++  state-15-to-16
+::  state-15-to-17: a %15 or earlier ship predates the ckey/ns split, so
+::  its stored silo is already read through the new type by the time it
+::  reaches here. Only the halt flag and the %17 tag are added; parked
+::  takes are carried, not emptied (a ship upgrading mid-cascade keeps
+::  its place), and an upgrade is never itself a halt.
+::
+++  state-15-to-17
   |=  old=state-15
-  ^-  state-16
-  :*  %16
+  ^-  state-17
+  ~>  %slog.[0 leaf+"grubbery: migrating state %15 -> %17"]
+  :*  %17
       born.old  peak.old  silo.old  subs.old  pool.old  code.old
       bins.old  vale.old  remo.old  upki.old  last.old  conns.old
-      ::  carried, not emptied: %16 is where parked takes start surviving
-      ::  a save. A ship upgrading mid-cascade keeps its place.
       owed.old
-      ::  an upgrade is not a halt: the flag is a deliberate act and is
-      ::  never inherited.
       |
   ==
+::  state-16: the kernel can be halted. A halted kernel parks every take
+::  in `owed` and drains none of it, while eyre's kernel-served routes go
+::  on answering -- the door that has to stay open when a fiber loop has
+::  saturated the event queue.
+::
+::  Its ject carries the compile key and namespace on the leaf and tree,
+::  and its %ball cite carries no reader position. The shapes below are
+::  frozen only to read a %16 disk; nothing produces them, and the state
+::  is identical to %17 but for silo and the cite inside owed and pool.
+::
++$  leaf-16
+  $:  lobe=nobe:nexus
+      mark=[=blot:tarball ckey=@uv ns=path]
+      gain=?
+      bang=(unit nobe:nexus)
+  ==
++$  tree-16
+  $:  nek=(unit [=neck:tarball ckey=@uv ns=path])
+      gain=?
+      bang=(unit nobe:nexus)
+      fil=(map @ta jobe:nexus)
+      dir=(map @ta [lobe=jobe:nexus weir=(unit weir:nexus)])
+  ==
++$  ject-16
+  $%  [%leaf leaf=leaf-16]
+      [%tree tree=tree-16]
+  ==
++$  silo-16
+  $:  nouns=(map nobe:nexus [refs=@ud =noun])
+      jects=(map jobe:nexus [refs=@ud ject=ject-16])
+  ==
+::  the %16 cite: a %ball peek carries no reader position, so peek-ball
+::  had no namespace to resolve a mark from. These sit inside queued
+::  takes, in owed and in every fiber's input queues.
+::
++$  cite-16
+  $%  [%file =cass:clay lobe=jobe conv=(unit blot:tarball) at=path]
+      [%ball =wave lobe=jobe deep=?]
+      [%none ~]
+      [%miss ~]
+      [%veto ~]
+  ==
++$  pend-16
+  $%  [%poke =from =bask:tarball]
+      [%peek =wire cite=cite-16]
+      [%peep =wire res=(each (list [=cass:clay lobe=jobe]) tang)]
+      [%code =wire res=(each (axal (map @ta @uv)) (each @uv tang))]
+      [%news =wire =wave]
+      [%kept =wire =kept]
+      [%made =wire err=(unit tang)]
+      [%gone =wire err=(unit tang)]
+      [%pack =wire err=(unit tang)]
+      [%sand =wire err=(unit tang)]
+      [%load =wire err=(unit tang)]
+      [%lost =wire err=(unit tang)]
+      [%gain =wire err=(unit tang)]
+      [%held =wire err=(unit tang)]
+      [%seek =wire res=(each (list [=rail:tarball =cass:clay]) tang)]
+      [%born =wire res=(each (list [=cass:clay tags=(set @t)]) tang)]
+      [%fell =wire]
+      [%veto =dart]
+      [%here =wire =here]
+  ==
+::  ftake-16: the fiber-level take (held in a process's queues). otake-16:
+::  the kernel-level take in owed, which also carries its grub position.
+::
++$  ftake-16  [give=(unit give) in=(unit pend-16)]
++$  otake-16  [here=rail:tarball ftake-16]
++$  proc-16
+  $:  process=(each * tang)
+      next=(qeu ftake-16)
+      skip=(qeu ftake-16)
+  ==
++$  pipe-16  [bang=(unit tang) proc=(map @ta proc-16)]
++$  pool-16  (axal pipe-16)
++$  state-16
+  $:  %16
+      =born:nexus
+      =peak:nexus
+      silo=silo-16
+      =subs:nexus
+      pool=pool-16
+      =code:nexus
+      =bins:nexus
+      =vale:nexus
+      =remo:nexus
+      =upki:nexus
+      =last:nexus
+      conns=(map @ta binding:eyre)
+      owed=(qeu otake-16)
+      halt=_|
+  ==
+::  state-16-to-17: a non-destructive, in-place rewrite. Every durable
+::  thing is preserved -- born's full version history, the silo, peak,
+::  subs, remo, code, bins, vale. Nothing is wiped and nothing replayed.
+::
+::  Each stored ject is rewritten to the new shape, dropping the compile
+::  key and namespace from the leaf and the tree's neck. The jobe key is
+::  kept as it stands -- it named the old-shape content and now names the
+::  new; born and every queued reference still resolve, and a rail
+::  re-hashes to its pure-content key on its next write. The only things
+::  that do not survive are ephemeral: live fiber continuations are
+::  rebuilt on load (as +pool-14-to-pool already does), and a queued
+::  %ball peek, which carried no reader position, is given root.
+::
+++  state-16-to-17
+  |=  old=state-16
+  ^-  state-17
+  ~>  %slog.[0 leaf+"grubbery: migrating state %16 -> %17"]
+  =/  new-jects=(map jobe:nexus [refs=@ud ject=ject:nexus])
+    %-  ~(run by jects.silo.old)
+    |=  [refs=@ud j=ject-16]
+    ^-  [refs=@ud ject=ject:nexus]
+    :-  refs
+    ?-  -.j
+        %leaf
+      =/  l=leaf-16  leaf.j
+      [%leaf lobe.l blot.mark.l gain.l bang.l]
+        %tree
+      =/  t=tree-16  tree.j
+      [%tree (bind nek.t |=([n=neck:tarball *] n)) gain.t bang.t fil.t dir.t]
+    ==
+  :*  %17
+      born.old  peak.old
+      [nouns.silo.old new-jects]
+      subs.old
+      (pool-16-to-pool pool.old)
+      code.old  bins.old  vale.old  remo.old
+      upki.old  last.old  conns.old
+      (otakes-16-to-otakes owed.old)
+      halt.old
+  ==
+::  %16 -> %17 cite: a %ball peek gains a reader position. A queued peek
+::  has none to recover, so it is given root -- a mark resolved from there
+::  finds every desk-wide mark, and these are in-flight reads that rerun.
+::
+++  cite-16-to-cite
+  |=  c=cite-16
+  ^-  cite:nexus
+  ?.  ?=(%ball -.c)  c
+  [%ball wave.c lobe.c deep.c /]
+++  pend-16-to-pend
+  |=  p=pend-16
+  ^-  pend:fiber:nexus
+  ?.  ?=(%peek -.p)  p
+  [%peek wire.p (cite-16-to-cite cite.p)]
+++  ftake-16-to-ftake
+  |=  t=ftake-16
+  ^-  take:fiber:nexus
+  [give.t ?~(in.t ~ `(pend-16-to-pend u.in.t))]
+++  ftakes-16-to-ftakes
+  |=  q=(qeu ftake-16)
+  ^-  (qeu take:fiber:nexus)
+  (~(gas to *(qeu take:fiber:nexus)) (turn ~(tap to q) ftake-16-to-ftake))
+++  otakes-16-to-otakes
+  |=  q=(qeu otake-16)
+  ^-  (qeu take:nexus)
+  %-  ~(gas to *(qeu take:nexus))
+  %+  turn  ~(tap to q)
+  |=  t=otake-16
+  ^-  take:nexus
+  [here.t (ftake-16-to-ftake +.t)]
+++  proc-16-to-proc
+  |=  p=proc-16
+  ^-  proc:fiber:nexus
+  :+  ?:  ?=(%| -.process.p)  process.p
+      |+~[leaf+"migrated: process rebuilt on load (%16 -> %17)"]
+    (ftakes-16-to-ftakes next.p)
+  (ftakes-16-to-ftakes skip.p)
+++  pool-16-to-pool
+  |=  p=pool-16
+  ^-  pool:nexus
+  :-  ?~  fil.p  ~
+      `[bang.u.fil.p (~(run by proc.u.fil.p) proc-16-to-proc)]
+  (~(run by dir.p) pool-16-to-pool)
 ::  state-15: the tomb pace is gone from the type. Nothing minted one
 ::  since %9 except a silo repair, so a stored history should hold none;
 ::  one that does loses that entry, which referenced nothing anyway.
@@ -1168,6 +1357,7 @@
 ++  state-14-to-15
   |=  old=state-14
   ^-  state-15
+  ~>  %slog.[0 leaf+"grubbery: migrating state %14 -> %15"]
   :*  %15
       (born-14-to-born born.old)
       peak.old  silo.old  subs.old  (pool-14-to-pool pool.old)  code.old
@@ -1212,7 +1402,15 @@
     ?:  ?=(%| -.res.p)  res.p
     [%& (turn p.res.p |=([=cass:clay tags=(set @t) *] [cass tags]))]
   ?:  ?=(%peek -.p)
-    [%peek wire.p ?:(?=(%tomb -.cite.p) [%none ~] cite.p)]
+    :+  %peek  wire.p
+    ?-  -.cite.p
+      %tomb  [%none ~]
+      %none  [%none ~]
+      %miss  [%miss ~]
+      %veto  [%veto ~]
+      %file  cite.p
+      %ball  [%ball wave.cite.p lobe.cite.p deep.cite.p /]
+    ==
   p
 ++  born-14-to-born
   |=  b=born-14
@@ -1311,6 +1509,7 @@
 ++  state-12-to-13
   |=  old=state-12
   ^-  state-13
+  ~>  %slog.[0 leaf+"grubbery: migrating state %12 -> %13"]
   :*  %13
       (born-12-to-born born.old)
       peak.old
@@ -1348,6 +1547,7 @@
 ++  state-13-to-14
   |=  old=state-13
   ^-  state-14
+  ~>  %slog.[0 leaf+"grubbery: migrating state %13 -> %14"]
   :*  %14
       born.old  peak.old  silo.old  subs.old  pool.old  code.old
       bins.old  vale.old  remo.old  upki.old  last.old  conns.old
