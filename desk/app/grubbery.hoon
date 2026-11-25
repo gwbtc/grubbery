@@ -4415,6 +4415,19 @@
       ==
     =/  id=@ta  i.t.wire.dart.u.in.take
     (give-client-fact id [%ack `~[leaf+"vetoed by weir"]])
+  ::  anything else landing on a ship.sig that is not a poke is the
+  ::  outcome of a dart run for that ship (+take-remote-load: a make,
+  ::  cull, sand or load, or a veto), which no one waits for: the ship
+  ::  learns the result by reading again. The representative is inert
+  ::  (+stay), so feeding it one crashed and banged it, and every later
+  ::  take paid a rebuild. Drop it, releasing any refs it carries.
+  ::  Pokes still reach the representative, which nacks them.
+  ?:  ?&  ?=([%sys %ames %ships @ ~] path.here)
+          =(%'ship.sig' name.here)
+          ?=(^ in.take)
+          !?=(%poke -.u.in.take)
+      ==
+    (drop-pend-refs in.take)
   ::  Get pipe at directory
   =/  =pipe:nexus  (fall (~(get of pool) path.here) *pipe:nexus)
   ::  Get proc for this file - must exist
