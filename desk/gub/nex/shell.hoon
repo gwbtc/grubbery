@@ -1399,7 +1399,7 @@
     %+  murn  (strs g k)
     |=  t=@t
     ^-  (unit road:tarball)
-    =/  rel=(unit road:tarball)  (peers-parse-road t)
+    =/  rel=(unit road:tarball)  (app-parse-road t)
     ?~  rel  ~
     ?.  ?=(%& -.u.rel)  ~
     ?-  -.p.u.rel
@@ -1452,7 +1452,12 @@
   =/  m  (fiber:fiber:nexus ,(list [grp=path by=@t members=(set @p) =weir:nexus]))
   ^-  form:m
   ;<  rec0=json  bind:m  (read-groups-record rail)
-  ;<  rec=json  bind:m  (seed-groups-record rail rec0)
+  ;<  others=(list [grp=path by=@t members=(set @p) =weir:nexus])  bind:m
+    (gather-derived rail)
+  ;<  rec=json  bind:m
+    (seed-groups-record rail rec0 (silt (turn others head)))
+  ;<  approved=(map @t json)  bind:m  (read-approved rail)
+  =/  pres=(list path)  (app-prefixes approved)
   =/  from-user=(list [grp=path by=@t members=(set @p) =weir:nexus])
     =/  sec=json  (user-section rec)
     ?.  ?=(%o -.sec)  ~
@@ -1461,6 +1466,11 @@
     ^-  (unit [grp=path by=@t members=(set @p) =weir:nexus])
     =/  grp=(unit path)  (rush gkey stap)
     ?~  grp  ~
+    ::  a group under a prefix a granted app runs is that app's. The
+    ::  owner's record holds one only from a seed before the app took
+    ::  the prefix, and it would keep what the app has since taken back
+    ::  (+app-prefixes). The entry stays in the record; it grants nothing.
+    ?:  (lien pres |=(p=path =(p (scag (lent p) u.grp))))  ~
     =/  strs
       |=  k=@t
       ^-  (list @t)
@@ -1470,6 +1480,32 @@
       (murn p.u.v |=(j=json ?.(?=([%s *] j) ~ `p.j)))
     =/  roads  |=(k=@t (sy (murn (strs k) peers-parse-road)))
     `[u.grp 'manual' (sy (murn (strs 'members') |=(t=@t (slaw %p t)))) [(roads 'make') (roads 'poke') (roads 'peek')]]
+  (pure:m (weld from-user others))
+::  +app-prefixes: the prefixes granted apps run groups under, the keys
+::  ending in / among the groups each approved record grants
+++  app-prefixes
+  |=  approved=(map @t json)
+  ^-  (list path)
+  %-  zing
+  %+  turn  ~(val by approved)
+  |=  e=json
+  ^-  (list path)
+  ?.  =('granted' (fall (jget e 'verdict') ''))  ~
+  =/  v=(unit json)  ?.(?=(%o -.e) ~ (~(get by p.e) 'groups'))
+  ?.  ?=([~ %a *] v)  ~
+  %+  murn  p.u.v
+  |=  j=json
+  ^-  (unit path)
+  ?.  ?=([%s *] j)  ~
+  =/  t=tape  (trip p.j)
+  ?.  &((gth (lent t) 1) =('/' (rear t)))  ~
+  (rush (crip (snip t)) stap)
+::  +gather-derived: every contribution but the user's: the /public base,
+::  the names opened, the desks opened and each granted app's groups.json
+++  gather-derived
+  |=  rail=rail:tarball
+  =/  m  (fiber:fiber:nexus ,(list [grp=path by=@t members=(set @p) =weir:nexus]))
+  ^-  form:m
   =/  base=[grp=path by=@t members=(set @p) =weir:nexus]
     :^  /public  'shell'  ~
     :+  ~  ~
@@ -1530,7 +1566,7 @@
     %+  weld
       (turn mine |=([grp=path members=(set @p) w=weir:nexus] [grp app.i.todo members w]))
     rest
-  (pure:m :(weld from-user [base ~] from-names from-desks from-facets from-apps))
+  (pure:m :(weld [base ~] from-names from-desks from-facets from-apps))
 ::  +apply-groups: every group's who.ships and how.weir, rewritten whole
 ::  from the union of every contribution (+gather-groups). A group nobody
 ::  contributes to is culled; /public always stands.
@@ -1598,8 +1634,13 @@
 ::  +seed-groups-record: a ship whose groups predate the record keeps
 ::  them: every group's members, and the roads of every group but
 ::  /public (whose roads are derived), become the user's section, once.
+::  Once means once: the record is written even when nothing is found,
+::  so an empty record is never taken as unseeded again. A group that an
+::  app or a shell feature names (`others`) is theirs, not the user's: a
+::  seed that took it would keep its members and roads after the app
+::  took them back.
 ++  seed-groups-record
-  |=  [rail=rail:tarball rec=json]
+  |=  [rail=rail:tarball rec=json others=(set path)]
   =/  m  (fiber:fiber:nexus ,json)
   ^-  form:m
   ?.  ?=(%o -.rec)  (pure:m rec)
@@ -1616,6 +1657,7 @@
     ::  /public is the shell's to name; the user's record carries only
     ::  what the user adds to it
     ?:  =(/public name)  ~
+    ?:  (~(has in others) name)  ~
     =/  who=(unit sang:tarball)  (~(get ba:tarball grp) [/ %'who.ships'])
     =/  how=(unit sang:tarball)  (~(get ba:tarball grp) [/ %'how.weir'])
     =/  members=(set @p)
@@ -1634,7 +1676,6 @@
         ['poke' (roads poke.weir)]
         ['peek' (roads peek.weir)]
     ==
-  ?:  =(~ user)  (pure:m rec)
   =/  rec2=json  [%o (~(put by *(map @t json)) 'user' [%o user])]
   ;<  ~  bind:m
     (put:io (nex-road:io rail [%& /permit %'groups.json']) [[/ %json] rec2])
@@ -1658,6 +1699,22 @@
   =/  last=tape  (trip (rear u.pax))
   ?~  (find "." last)
     `[%& %| u.pax]
+  `[%& %& (snip `path`u.pax) (rear u.pax)]
+::  +app-parse-road: a road text in an app's groups.json. A text ending
+::  in / is a directory, any other is a file, so an app can name a file
+::  with no dot in its name (a page's code grub, a registry). The user's
+::  record keeps +peers-parse-road, which guesses by the dot, so nothing
+::  already written there changes meaning.
+++  app-parse-road
+  |=  t=@t
+  ^-  (unit road:tarball)
+  =/  tap=tape  (trip t)
+  ?:  =("/" tap)  `[%& %| /]
+  =/  dir=?  &((gth (lent tap) 1) =('/' (rear tap)))
+  =/  pax=(unit path)  (rush (crip ?:(dir (snip tap) tap)) stap)
+  ?~  pax  ~
+  ?~  u.pax  ~
+  ?:  dir  `[%& %| u.pax]
   `[%& %& (snip `path`u.pax) (rear u.pax)]
 ++  peers-road-text
   |=  =road:tarball
@@ -3804,9 +3861,11 @@
   =/  ask=json  [%o (~(put by (~(put by p.u.jon) 'app' s+app)) 'groups' gkeys)]
   ;<  approved=(map @t json)  bind:m  (read-approved rail)
   ?:  (is-settled ask approved)  (pure:m ~)
-  ::  an app under a %boot stock entry is answered by +auto-consent on the
-  ::  same scan that found it: nothing to tell the user
-  ?:  (under-boot-entry app)  (pure:m ~)
+  ::  an app under a %boot stock entry with no approved record is answered
+  ::  by +auto-consent on the same scan that found it: nothing to tell the
+  ::  user. Once it has a record, auto-consent leaves it alone and a changed
+  ::  ask pends like any other, so the user must hear of it.
+  ?:  &((under-boot-entry app) !(~(has by approved) app))  (pure:m ~)
   ::  every other app asks, the ones that ship with grubbery included. An
   ::  app shipping in the box is a reason to trust its author, not a reason
   ::  to decide for the user what it may reach or open to other ships.
