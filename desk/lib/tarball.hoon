@@ -1122,6 +1122,15 @@
   ++  sage-to-mime
     |=  =sage
     ^-  mime
+    ::  a grub already stored as /mime IS the file's bytes: extract the
+    ::  mime straight from the vase. Without this it falls through to the
+    ::  jam below — there is no mime->mime conversion tube — so every raw
+    ::  asset (a served .js, .json, an uploaded file) tarred as a jammed
+    ::  noun instead of its contents.
+    ?:  =(p.sage [/ %mime])
+      =/  got=(each mime tang)  (mule |.(!<(mime q.sage)))
+      ?:  ?=([%& *] got)  p.got
+      [/application/x-urb-jam (as-octs:mimes:html (jam q.sage))]
     =/  key=bars  [p.sage [/ %mime]]
     ?~  tube=(~(get by conversions) key)
       ::  No conversion available, fall back to jamming like mar/noun.hoon
