@@ -226,19 +226,19 @@
   ::  %15 -> %17: the kernel gained a halt flag, and parked takes stopped
   ::  being discarded at save -- see +on-save.
   ?:  ?=(%15 -.old)
-    =.  state  (state-15-to-17:migrations old)
+    =.  state  (state-16-to-17:migrations (state-15-to-16:migrations old))
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
   ::  %14 -> %15: no tomb pace; a dropped version is absent.
   ?:  ?=(%14 -.old)
-    =.  state  (state-15-to-17:migrations (state-14-to-15:migrations old))
+    =.  state  (state-16-to-17:migrations (state-15-to-16:migrations (state-14-to-15:migrations old)))
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
   ::  %13 -> %14: the take queue gets a place to wait between events.
   ?:  ?=(%13 -.old)
-    =.  state  (state-15-to-17:migrations (state-14-to-15:migrations (state-13-to-14:migrations old)))
+    =.  state  (state-16-to-17:migrations (state-15-to-16:migrations (state-14-to-15:migrations (state-13-to-14:migrations old))))
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
@@ -246,21 +246,21 @@
   ::  reference goes, and a rail left with no versions goes with them --
   ::  peak still holds its number.
   ?:  ?=(%12 -.old)
-    =.  state  (state-15-to-17:migrations (state-14-to-15:migrations (state-13-to-14:migrations (state-12-to-13:migrations old))))
+    =.  state  (state-16-to-17:migrations (state-15-to-16:migrations (state-14-to-15:migrations (state-13-to-14:migrations (state-12-to-13:migrations old)))))
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
   ::  %11 -> %12: the %firm load carries the labels to set on the
   ::  version it promotes. A queued %firm carried none, so it gets none.
   ?:  ?=(%11 -.old)
-    =.  state  (state-15-to-17:migrations (state-14-to-15:migrations (state-13-to-14:migrations (state-12-to-13:migrations (state-11-to-12:migrations old)))))
+    =.  state  (state-16-to-17:migrations (state-15-to-16:migrations (state-14-to-15:migrations (state-13-to-14:migrations (state-12-to-13:migrations (state-11-to-12:migrations old))))))
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
   ::  %10 -> %11: a %file cite carries the grub's position. A queued
   ::  peek is given its reader's, where its mark resolved from before.
   ?:  ?=(%10 -.old)
-    =.  state  (state-15-to-17:migrations (state-14-to-15:migrations (state-13-to-14:migrations (state-12-to-13:migrations (state-11-to-12:migrations (state-10-to-11:migrations old))))))
+    =.  state  (state-16-to-17:migrations (state-15-to-16:migrations (state-14-to-15:migrations (state-13-to-14:migrations (state-12-to-13:migrations (state-11-to-12:migrations (state-10-to-11:migrations old)))))))
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
@@ -268,7 +268,7 @@
   ::  but a suspended process is typed by it, so +proc-9-to-proc-10 replaces
   ::  live continuations with a crash tang and the reload rebuilds them.
   ?:  ?=(%9 -.old)
-    =.  state  (state-15-to-17:migrations (state-14-to-15:migrations (state-13-to-14:migrations (state-12-to-13:migrations (state-11-to-12:migrations (state-10-to-11:migrations (state-9-to-10:migrations old)))))))
+    =.  state  (state-16-to-17:migrations (state-15-to-16:migrations (state-14-to-15:migrations (state-13-to-14:migrations (state-12-to-13:migrations (state-11-to-12:migrations (state-10-to-11:migrations (state-9-to-10:migrations old))))))))
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
@@ -296,12 +296,13 @@
           (state-4-to-5:migrations u.to-4)
         =/  six=state-6:migrations
           (state-5-to-6:migrations as-5)
-        =/  fsr=[pool-10:migrations silo:nexus]  (fsr-pool:hc pool.six silo.six)
+        =/  fsr=[pool-10:migrations silo-16:migrations]  (fsr-pool:hc pool.six silo.six)
         six(pool -.fsr, silo +.fsr)
       (state-6-to-7:migrations as-6)
     (state-7-to-8:migrations as-7)
   =.  state
-    %-  state-15-to-17:migrations
+    %-  state-16-to-17:migrations
+    %-  state-15-to-16:migrations
     %-  state-14-to-15:migrations
     %-  state-13-to-14:migrations
     %-  state-12-to-13:migrations
@@ -813,8 +814,8 @@
   =.  this  (save-file new-rail [[/ %behn-state] merged])
   (cull-if-exists %& old-rail)
 ++  fsr-pool
-  |=  [pol=pool-10:migrations sil=silo:nexus]
-  ^-  [pool-10:migrations silo:nexus]
+  |=  [pol=pool-10:migrations sil=silo-16:migrations]
+  ^-  [pool-10:migrations silo-16:migrations]
   =^  nfil  sil
     ?~  fil.pol  [fil.pol sil]
     =^  procs  sil  (fsr-procs proc.u.fil.pol sil)
@@ -822,32 +823,42 @@
   =^  ndir  sil
     =/  kids=(list [p=@ta q=pool-10:migrations])  ~(tap by dir.pol)
     =|  acc=(map @ta pool-10:migrations)
-    |-  ^-  [(map @ta pool-10:migrations) silo:nexus]
+    |-  ^-  [(map @ta pool-10:migrations) silo-16:migrations]
     ?~  kids  [acc sil]
     =^  sub  sil  (fsr-pool q.i.kids sil)
     $(kids t.kids, acc (~(put by acc) p.i.kids sub))
   [[nfil ndir] sil]
 ++  fsr-procs
-  |=  [ps=(map @ta proc-10:migrations) sil=silo:nexus]
-  ^-  [(map @ta proc-10:migrations) silo:nexus]
+  |=  [ps=(map @ta proc-10:migrations) sil=silo-16:migrations]
+  ^-  [(map @ta proc-10:migrations) silo-16:migrations]
   =/  items=(list [p=@ta q=proc-10:migrations])  ~(tap by ps)
   =|  acc=(map @ta proc-10:migrations)
-  |-  ^-  [(map @ta proc-10:migrations) silo:nexus]
+  |-  ^-  [(map @ta proc-10:migrations) silo-16:migrations]
   ?~  items  [acc sil]
   =^  sk  sil  (fsr-queue skip.q.i.items sil)
   $(items t.items, acc (~(put by acc) p.i.items q.i.items(skip sk)))
 ++  fsr-queue
-  |=  [q=(qeu take-10:migrations) sil=silo:nexus]
-  ^-  [(qeu take-10:migrations) silo:nexus]
+  |=  [q=(qeu take-10:migrations) sil=silo-16:migrations]
+  ^-  [(qeu take-10:migrations) silo-16:migrations]
   =/  items=(list take-10:migrations)  ~(tap to q)
   =|  acc=(list take-10:migrations)
-  |-  ^-  [(qeu take-10:migrations) silo:nexus]
+  |-  ^-  [(qeu take-10:migrations) silo-16:migrations]
   ?~  items  [(~(gas to *(qeu take-10:migrations)) (flop acc)) sil]
   =^  tk  sil  (fsr-take i.items sil)
   $(items t.items, acc [tk acc])
+::  +fsr-bump: increment a ject's refcount in a %16-shape silo. The live
+::  +bump-ject-ref is typed on the current silo; this repair runs on the
+::  frozen one, and a refcount is all it touches.
+::
+++  fsr-bump
+  |=  [sil=silo-16:migrations lobe=jobe:nexus]
+  ^-  silo-16:migrations
+  =/  got  (~(get by jects.sil) lobe)
+  ?~  got  sil
+  sil(jects (~(put by jects.sil) lobe [+(refs.u.got) ject.u.got]))
 ++  fsr-take
-  |=  [tk=take-10:migrations sil=silo:nexus]
-  ^-  [take-10:migrations silo:nexus]
+  |=  [tk=take-10:migrations sil=silo-16:migrations]
+  ^-  [take-10:migrations silo-16:migrations]
   ?~  in.tk  [tk sil]
   ?+    -.u.in.tk  [tk sil]
       %peep
@@ -857,7 +868,7 @@
     =.  sil
       %+  roll  present
       |=  [[* lobe=jobe:nexus] s=_sil]
-      (~(bump-ject-ref si:nexus s) lobe)
+      (fsr-bump s lobe)
     [tk(in `[%peep wire.u.in.tk &+present]) sil]
   ::
       %peek
@@ -865,7 +876,7 @@
         ?(%file %ball)
       =/  lobe=jobe:nexus  lobe.cite.u.in.tk
       ?:  (~(has by jects.sil) lobe)
-        [tk (~(bump-ject-ref si:nexus sil) lobe)]
+        [tk (fsr-bump sil lobe)]
       [tk(in `[%peek wire.u.in.tk [%none ~]]) sil]
     ==
   ==

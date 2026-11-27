@@ -251,7 +251,7 @@
 +$  state-0
   $:  %0
       born=born-12  ::  truth: version history for every directory and file
-      =silo:nexus   ::  truth: content-addressed object store with refcounts
+      silo=silo-16  ::  truth: content-addressed object store with refcounts
       =subs:nexus   ::  live: subscription indexes, by target and by watcher
       pool=pool-0   ::  live: the running process for each grub (frozen)
       code=code-2   ::  derived: the build index for each code namespace (frozen)
@@ -266,7 +266,7 @@
 +$  state-1
   $:  %1
       born=born-12  ::  truth: version history for every directory and file
-      =silo:nexus   ::  truth: content-addressed object store with refcounts
+      silo=silo-16  ::  truth: content-addressed object store with refcounts
       =subs:nexus   ::  live: subscription indexes, by target and by watcher
       pool=pool-1   ::  live: the running process for each grub (frozen)
       code=code-2   ::  derived: the build index for each code namespace (frozen)
@@ -282,7 +282,7 @@
 +$  state-2
   $:  %2
       born=born-12  ::  truth: version history for every directory and file
-      =silo:nexus   ::  truth: content-addressed object store with refcounts
+      silo=silo-16  ::  truth: content-addressed object store with refcounts
       =subs:nexus   ::  live: subscription indexes, by target and by watcher
       pool=pool-3   ::  live: the running process for each grub (frozen)
       code=code-2   ::  derived: the build index for each code namespace (frozen)
@@ -298,7 +298,7 @@
 +$  state-3
   $:  %3
       born=born-12  ::  truth: version history for every directory and file
-      =silo:nexus   ::  truth: content-addressed object store with refcounts
+      silo=silo-16  ::  truth: content-addressed object store with refcounts
       =subs:nexus   ::  live: subscription indexes, by target and by watcher
       pool=pool-3   ::  live: the running process for each grub (frozen)
       code=code-4   ::  derived: the build index for each code namespace (frozen)
@@ -314,7 +314,7 @@
 +$  state-4
   $:  %4
       born=born-12  ::  truth: version history for every directory and file
-      =silo:nexus   ::  truth: content-addressed object store with refcounts
+      silo=silo-16  ::  truth: content-addressed object store with refcounts
       =subs:nexus   ::  live: subscription indexes, by target and by watcher
       pool=pool-10    ::  live: the running process for each grub
       code=code-4   ::  derived: the build index for each code namespace (frozen)
@@ -330,7 +330,7 @@
 +$  state-5
   $:  %5
       born=born-12  ::  truth: version history for every directory and file
-      =silo:nexus   ::  truth: content-addressed object store with refcounts
+      silo=silo-16  ::  truth: content-addressed object store with refcounts
       =subs:nexus   ::  live: subscription indexes, by target and by watcher
       pool=pool-10    ::  live: the running process for each grub
       =code:nexus   ::  derived: the build index for each code namespace
@@ -346,7 +346,7 @@
 +$  state-6
   $:  %6
       born=born-12
-      =silo:nexus
+      silo=silo-16
       =subs:nexus
       pool=pool-10
       =code:nexus
@@ -370,7 +370,7 @@
 +$  state-7
   $:  %7
       born=born-12
-      =silo:nexus
+      silo=silo-16
       =subs:nexus
       pool=pool-10
       =code:nexus
@@ -472,7 +472,7 @@
   $:  %8
       born=born-12
       =peak:nexus
-      =silo:nexus
+      silo=silo-16
       =subs:nexus
       pool=pool-10
       =code:nexus
@@ -512,7 +512,7 @@
   $:  %9
       born=born-12
       =peak:nexus
-      =silo:nexus
+      silo=silo-16
       =subs:nexus
       pool=pool-9
       =code:nexus
@@ -531,7 +531,7 @@
   $:  %10
       born=born-12
       =peak:nexus
-      =silo:nexus
+      silo=silo-16
       =subs:nexus
       pool=pool-10
       =code:nexus
@@ -628,7 +628,7 @@
   $:  %11
       born=born-12
       =peak:nexus
-      =silo:nexus
+      silo=silo-16
       =subs:nexus
       pool=pool-11
       =code:nexus
@@ -985,7 +985,7 @@
   $:  %12
       born=born-12
       =peak:nexus
-      =silo:nexus
+      silo=silo-16
       =subs:nexus
       pool=pool-14
       =code:nexus
@@ -1143,20 +1143,21 @@
       owed=(qeu take:nexus)
       halt=_|
   ==
-::  state-15-to-17: a %15 or earlier ship predates the ckey/ns split, so
-::  its stored silo is already read through the new type by the time it
-::  reaches here. Only the halt flag and the %17 tag are added; parked
+::  state-15-to-16: the kernel gained a halt flag. A %15 disk predates
+::  the ckey/ns split and the %ball cite's reader position, so its silo,
+::  pool and owed already hold the %16 shapes and pass straight through;
+::  rewriting the ject and the cite belongs to state-16-to-17. Parked
 ::  takes are carried, not emptied (a ship upgrading mid-cascade keeps
 ::  its place), and an upgrade is never itself a halt.
 ::
-++  state-15-to-17
+++  state-15-to-16
   |=  old=state-15
-  ^-  state-17
-  ~>  %slog.[0 leaf+"grubbery: migrating state %15 -> %17"]
-  :*  %17
+  ^-  state-16
+  ~>  %slog.[0 leaf+"grubbery: migrating state %15 -> %16"]
+  :*  %16
       born.old  peak.old  silo.old  subs.old  pool.old  code.old
-      bins.old  vale.old  remo.old  upki.old  last.old  conns.old
-      owed.old
+      bins.old  vale.old  remo.old  upki.old  last.old
+      conns.old  owed.old
       |
   ==
 ::  state-16: the kernel can be halted. A halted kernel parks every take
@@ -1342,9 +1343,9 @@
   $:  %15
       =born:nexus
       =peak:nexus
-      =silo:nexus
+      silo=silo-16
       =subs:nexus
-      =pool:nexus
+      pool=pool-16
       =code:nexus
       =bins:nexus
       =vale:nexus
@@ -1352,7 +1353,7 @@
       =upki:nexus
       =last:nexus
       conns=(map @ta binding:eyre)
-      owed=(qeu take:nexus)
+      owed=(qeu otake-16)
   ==
 ++  state-14-to-15
   |=  old=state-14
@@ -1366,29 +1367,29 @@
   ==
 ++  owed-14-to-owed
   |=  q=(qeu otake-14)
-  ^-  (qeu take:nexus)
-  %-  ~(gas to *(qeu take:nexus))
+  ^-  (qeu otake-16)
+  %-  ~(gas to *(qeu otake-16))
   (turn ~(tap to q) |=(t=otake-14 [here.t (take-14-to-take +.t)]))
 ++  pool-14-to-pool
   |=  p=pool-14
-  ^-  pool:nexus
+  ^-  pool-16
   :-  ?~  fil.p  ~
       `[bang.u.fil.p (~(run by proc.u.fil.p) proc-14-to-proc)]
   (~(run by dir.p) pool-14-to-pool)
 ++  proc-14-to-proc
   |=  p=proc-14
-  ^-  proc:fiber:nexus
+  ^-  proc-16
   :+  ?:  ?=(%| -.process.p)  process.p
       |+~[leaf+"migrated: process rebuilt on load (no tomb)"]
     (takes-14-to-takes next.p)
   (takes-14-to-takes skip.p)
 ++  takes-14-to-takes
   |=  q=(qeu take-14)
-  ^-  (qeu take)
-  (~(gas to *(qeu take)) (turn ~(tap to q) take-14-to-take))
+  ^-  (qeu ftake-16)
+  (~(gas to *(qeu ftake-16)) (turn ~(tap to q) take-14-to-take))
 ++  take-14-to-take
   |=  t=take-14
-  ^-  take
+  ^-  ftake-16
   ?~  in.t  [give.t ~]
   [give.t `(pend-14-to-pend u.in.t)]
 ::  a %born answer carried a tomb flag per entry and a peek could answer
@@ -1396,7 +1397,7 @@
 ::
 ++  pend-14-to-pend
   |=  p=pend-14
-  ^-  pend
+  ^-  pend-16
   ?:  ?=(%born -.p)
     :+  %born  wire.p
     ?:  ?=(%| -.res.p)  res.p
@@ -1409,7 +1410,7 @@
       %miss  [%miss ~]
       %veto  [%veto ~]
       %file  cite.p
-      %ball  [%ball wave.cite.p lobe.cite.p deep.cite.p /]
+      %ball  [%ball wave.cite.p lobe.cite.p deep.cite.p]
     ==
   p
 ++  born-14-to-born
@@ -1495,7 +1496,7 @@
   $:  %13
       born=born-14
       =peak:nexus
-      =silo:nexus
+      silo=silo-16
       =subs:nexus
       pool=pool-14
       =code:nexus
@@ -1532,7 +1533,7 @@
   $:  %14
       born=born-14
       =peak:nexus
-      =silo:nexus
+      silo=silo-16
       =subs:nexus
       pool=pool-14
       =code:nexus
