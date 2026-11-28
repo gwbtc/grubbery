@@ -5,6 +5,15 @@
   |*  =(list)
   ^-  (unit _?>(?=(^ list) i.list))
   ?~(list ~ `i.list)
+:: a json number value, %n or a %s-encoded one, or the default. shared by
+:: the key getters in +jo and the index getters in +ja.
+::
+++  num
+  |=  [v=(unit json) d=@ud]
+  ^-  @ud
+  ?~  v  d
+  ?.  ?=(?(%n %s) -.u.v)  d
+  (fall (rush p.u.v dem:ag) d)
 ::
 ++  jo
   |_  jon=json
@@ -134,5 +143,77 @@
     ?~  vals
       jon
     $(vals t.vals, jon (put path.i.vals val.i.vals))
+  :: named single-key access over the path engine above. the json is the
+  :: door's sample, so a getter takes only the key (or nothing) -- reach
+  :: for the type you want, a string or a number or an array, not a raw
+  :: path. a nested read still taps the path arms (+get, +dug) directly.
+  ::
+  ++  get-field
+    |=  k=@t
+    ^-  (unit json)
+    (get ~[k])
+  ::
+  ++  get-string
+    |=  k=@t
+    ^-  @t
+    (dug ~[k] so:dejs:format '')
+  ::
+  ++  get-number
+    |=  [k=@t d=@ud]
+    ^-  @ud
+    (num (get ~[k]) d)
+  ::
+  ++  get-bool
+    |=  [k=@t d=?]
+    ^-  ?
+    (dug ~[k] bo:dejs:format d)
+  ::
+  ++  get-object
+    |=  k=@t
+    ^-  json
+    (gut ~[k] [%o ~])
+  ::
+  ++  get-array
+    |=  k=@t
+    ^-  (list json)
+    =/  v  (get ~[k])
+    ?.(?=([~ %a *] v) ~ p.u.v)
+  ::
+  ++  get-strings
+    |=  k=@t
+    ^-  (list @t)
+    (murn (get-array k) |=(x=json ?:(?=([%s *] x) `p.x ~)))
+  ::
+  ++  get-values
+    ^-  (list json)
+    ?.  ?=([%o *] jon)  ~
+    (turn ~(tap by p.jon) |=([* v=json] v))
+  --
+:: element access into a (list json) by index. the list is the door's
+:: sample, so a getter takes only the index.
+::
+++  ja
+  |_  l=(list json)
+  ++  get-field-at
+    |=  i=@ud
+    ^-  (unit json)
+    ?:((gte i (lent l)) ~ `(snag i l))
+  ::
+  ++  get-string-at
+    |=  i=@ud
+    ^-  @t
+    =/  v  (get-field-at i)
+    ?.(?=([~ %s *] v) '' p.u.v)
+  ::
+  ++  get-number-at
+    |=  [i=@ud d=@ud]
+    ^-  @ud
+    (num (get-field-at i) d)
+  ::
+  ++  get-bool-at
+    |=  [i=@ud d=?]
+    ^-  ?
+    =/  v  (get-field-at i)
+    ?.(?=([~ %b *] v) d p.u.v)
   --
 --
